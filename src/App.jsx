@@ -7,6 +7,10 @@ import Users from "./pages/Users/Users";
 import Reservations from "./pages/Reservation/Reservations";
 import CreateReservation from "./pages/Reservation/CreateReservation";
 import './App.css';
+import Inventory  from "./pages/Inventory/Inventory";
+import Calendar from "./pages/Calendar/Calendar";
+import Report from "./pages/Report/Report";
+import Statistics from "./pages/Statistics/Statistics";
 
 const App = () => {
   //email that the user logged in with
@@ -68,7 +72,11 @@ const App = () => {
   return (
     <Router>
       <Routes>
-      <Route path="" element={<Dashboard isAdmin={isAdmin} logOut={logOut} />} />
+        <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/report" element={<Report />} />
+        <Route path="/statistics" element={<Statistics />} />
       <Route path="/users" element={<Users isAdmin={isAdmin} />} />
       <Route path="/reservations" element={<Reservations />} />
       <Route path="/create-reservation" element={<CreateReservation />} />
