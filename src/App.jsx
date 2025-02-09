@@ -4,6 +4,7 @@ import { getAuth, signOut } from "firebase/auth";
 import Dashboard from './pages/Dashboard/Dashboard';
 import LogIn from './pages/LogIn/LogIn';
 import Users from "./pages/Users/Users";
+import QRCodeCreator from "./pages/QRCode/QRCode";
 import './App.css';
 
 const App = () => {
@@ -69,6 +70,7 @@ const App = () => {
       <Routes>
       <Route path="" element={<Dashboard isAdmin={isAdmin} logOut={logOut} />} />
       <Route path="/users" element={<Users isAdmin={isAdmin} />} />
+      <Route path="/qrcode" element={<QRCodeCreator/>} />
       </Routes>
     </Router>
   );
