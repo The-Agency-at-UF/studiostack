@@ -1,7 +1,6 @@
 import React, {useState, useEffect} from 'react'
 import { collection, addDoc, getDocs } from "firebase/firestore"; 
 import { db } from "../../firebase/firebaseConfig";
-import Header from "../../components/Header"
 
 const Inventory = () => {
   const [name, setName] = useState('');
@@ -34,23 +33,33 @@ const Inventory = () => {
 
   return (
     <div>
-      <Header />
-      <input placeholder="Enter item name..." 
-        onChange={(event) => {
-          setName(event.target.value)
-        }}
-      />
-      {/* replace this with a dropdown */}
-      <input placeholder="Enter item category..." 
-        onChange={(event) => {
-          setCategory(event.target.value)
-        }}
-      />
-      <button 
-        className="bg-blue-600 text-white font-semibold py-2 px-4"
-        onClick={addItem}> 
-        Add Item 
-      </button>
+      <div className='bg-white m-8 p-8 rounded-lg relative'>
+        <input placeholder="Enter item name..." 
+          onChange={(event) => {
+            setName(event.target.value)
+          }}
+        />
+        {/* replace this with a dropdown */}
+        <input placeholder="Enter item category..." 
+          onChange={(event) => {
+            setCategory(event.target.value)
+          }}
+        />
+        <button 
+          className="bg-blue-600 text-white font-semibold py-2 px-4"
+          onClick={addItem}> 
+          Add Item 
+        </button>
+      </div>
+
+      <div className='bg-white m-8 p-8 rounded-lg relative'>
+            <div className='pl-2 pr-2'>
+                <h1 className='font-bold text-3xl pb-6'>All Items</h1>
+                <div className="absolute top-8 right-8 flex space-x-4"></div>
+            </div>
+            <div className="p-4">
+            </div>
+        </div>
     </div>
   )
 }
