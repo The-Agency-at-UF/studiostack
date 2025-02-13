@@ -11,6 +11,12 @@ import Inventory  from "./pages/Inventory/Inventory";
 import Calendar from "./pages/Calendar/Calendar";
 import Report from "./pages/Report/Report";
 import Statistics from "./pages/Statistics/Statistics";
+import LogIn from './pages/LogIn/LogIn';
+import Users from "./pages/Users/Users";
+import Header from "./components/Header";
+import Reservations from "./pages/Reservation/Reservations";
+import CreateReservation from "./pages/Reservation/CreateReservation";
+import './App.css';
 
 const App = () => {
   //email that the user logged in with
@@ -71,6 +77,7 @@ const App = () => {
   //regular paths of the website
   return (
     <Router>
+      <Header isAdmin={isAdmin} logOut={logOut}/>
       <Routes>
         <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
         <Route path="/inventory" element={<Inventory />} />
