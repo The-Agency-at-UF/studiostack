@@ -1,4 +1,3 @@
-
 function Dashboard({ isAdmin, logOut }) { 
   return (
     <div>

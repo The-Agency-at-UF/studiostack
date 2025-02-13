@@ -4,13 +4,14 @@ import { getAuth, signOut } from "firebase/auth";
 import Dashboard from './pages/Dashboard/Dashboard';
 import LogIn from './pages/LogIn/LogIn';
 import Users from "./pages/Users/Users";
+import Reservations from "./pages/Reservation/Reservations";
+import CreateReservation from "./pages/Reservation/CreateReservation";
 import './App.css';
 
 const App = () => {
-
   //email that the user logged in with
-  const [email,setEmail] = useState('')
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [email, setEmail] = useState(localStorage.getItem("email") || '');
+  const [isAdmin, setIsAdmin] = useState(localStorage.getItem("isAdmin") === 'true' || false);
 
   //inactivity timeout
   const inactivity_timeout = 60 * 60 * 1000; // 1 hour
@@ -69,6 +70,8 @@ const App = () => {
       <Routes>
       <Route path="" element={<Dashboard isAdmin={isAdmin} logOut={logOut} />} />
       <Route path="/users" element={<Users isAdmin={isAdmin} />} />
+      <Route path="/reservations" element={<Reservations />} />
+      <Route path="/create-reservation" element={<CreateReservation />} />
       </Routes>
     </Router>
   );
