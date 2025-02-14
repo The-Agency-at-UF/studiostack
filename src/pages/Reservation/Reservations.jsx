@@ -56,7 +56,7 @@ function Reservations() {
                 </div>
                 <div>
                     <h1 className='font-bold text-3xl pb-6'>Active Reservations</h1>
-                    <div className='w-full'>
+                    <div className='w-ful'>
                         {activeReservations.map((reservation, index) => (
                             <ReservationLabel key={index} reservation={reservation} backgroundColor={'#D1E0EF'}/>
                         ))} 

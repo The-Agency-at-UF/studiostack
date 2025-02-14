@@ -23,7 +23,7 @@ function ReservationLabel({ reservation, backgroundColor }) {
 
     return (
 
-        <div className='p-4 rounded-lg relative' style={{backgroundColor: backgroundColor}}>
+        <div className='p-4 rounded-lg relative my-4' style={{backgroundColor: backgroundColor}}>
             {/*link to reservation page with the path /{reservationID}*/}
             <IoIosArrowDroprightCircle className='absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10' color='#426276'/>
             <h2 className='font-bold text-xl p-2'>{reservation.name}</h2>
