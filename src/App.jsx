@@ -12,6 +12,7 @@ import Calendar from "./pages/Calendar/Calendar";
 import Report from "./pages/Report/Report";
 import Statistics from "./pages/Statistics/Statistics";
 import Header from "./components/Header";
+import CheckInOut from "./pages/Reservation/CheckInOut";
 
 const App = () => {
   //email that the user logged in with
@@ -79,9 +80,10 @@ const App = () => {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/report" element={<Report />} />
         <Route path="/statistics" element={<Statistics />} />
-      <Route path="/users" element={<Users isAdmin={isAdmin} />} />
-      <Route path="/reservations" element={<Reservations />} />
-      <Route path="/create-reservation" element={<CreateReservation />} />
+        <Route path="/users" element={<Users isAdmin={isAdmin} />} />
+        <Route path="/reservations" element={<Reservations />} />
+        <Route path="/create-reservation" element={<CreateReservation />} />
+        <Route path="/check-in-out" element={<CheckInOut />} />
       </Routes>
     </Router>
   );

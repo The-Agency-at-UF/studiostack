@@ -36,7 +36,7 @@ function CreateReservation() {
         //find the reservations happening during the current one being created
         const sameTimeReservations = allReservations.filter((reservation) => {
             const startDate = reservation.startDate.toDate();
-            const endDate = reservation.endDate.toDate();
+            const endDate = reservation.verifiedBy.toDate();
 
             return (currentReservationStart < endDate) && (currentReservationEnd > startDate)
         });
@@ -122,7 +122,7 @@ function CreateReservation() {
     
                 for (let i = 0; i < item.quantity; i++) {
                     if (selectedEquipmentIDs.includes(availableItem.value[i])) {
-                        alert('Unable to r create reservation. Please make sure items aren\'t duplicated.')
+                        alert('Unable to create reservation. Please make sure items aren\'t duplicated.')
                         return;
                     }
                     selectedEquipmentIDs.push(availableItem.value[i]);
@@ -131,13 +131,25 @@ function CreateReservation() {
         });
 
         try {
+
+            const verifyDate = new Date(reservationEndDate);
+            if (verifyDate.getDay() === 0 || verifyDate.getDay() === 5 || verifyDate.getDay() === 6) {
+                verifyDate.setDate(verifyDate.getDate() + (1 + 7 - verifyDate.getDay()) % 7);
+                verifyDate.setHours(17, 0, 0, 0);
+            } else {
+                verifyDate.setDate(verifyDate.getDate() + 1);
+            }
+
             // Using addDoc to create a new document in the reservations collection
             await addDoc(collection(db, 'reservations'), {
                 name: reservationName,
                 userEmail: localStorage.getItem('email'),
                 startDate: new Date(reservationStartDate), 
                 endDate: new Date(reservationEndDate),     
-                equipmentIDs: selectedEquipmentIDs
+                equipmentIDs: selectedEquipmentIDs,
+                verifiedBy: verifyDate,
+                checkedOutItems: [],
+                checkedInItems: []
             });
     
             alert("Reservation created successfully.");
@@ -183,7 +195,7 @@ function CreateReservation() {
                     ...doc.data()
                 }));
                 
-                setAllEquipment(allEquipmentList.filter(equipment => equipment.availability !== "broken"));
+                setAllEquipment(allEquipmentList.filter(equipment => equipment.availability !== "unavailable"));
             } catch (error) {
                 console.error("Error fetching equipment:", error);
             }
