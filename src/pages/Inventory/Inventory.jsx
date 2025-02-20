@@ -3,7 +3,7 @@ import { collection, addDoc, getDocs, doc, deleteDoc } from "firebase/firestore"
 import { db } from "../../firebase/firebaseConfig";
 import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
-import { deleteApp } from 'firebase/app';
+import QRCodeGenerator from '../../components/QRCodeGenerator';
 
 const Inventory = () => {
   const [inventory, setInventory] = useState([]);
@@ -92,7 +92,7 @@ const Inventory = () => {
                         <div className="flex-1 pl-4">{item.name}</div>
                         <div className="flex-1 pl-4">{item.category}</div>
                         <div className="flex-1 pl-4">{item.availability}</div>
-                        <button className='bg-[#A3C1E0] hover:bg-[#426276] text-xs lg:text-sm cursor-pointer rounded-full  text-white flex-1'>{item.id}</button>
+                        <QRCodeGenerator equipmentID={item.id}/>
                       </li>
                     ))}
                 </ul>
