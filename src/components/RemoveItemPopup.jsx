@@ -38,8 +38,8 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
 
     // handle item name selection
     const handleNameSelection = async (selectedName) => {
-        setSelectedName(selectedName);
-        setName(selectedName?.value);
+        setSelectedName(selectedName); // object
+        setName(selectedName?.value); // get object value as a string
 
         // if an item has been selected
         if (selectedName?.value) {
@@ -47,7 +47,7 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
             // get ID values for that name (there can be multiple items, but there are unique IDs for each)
             const q = query(inventoryRef, where("name", "==", selectedName.value));
     
-            // set the second dropdown list
+            // set the second dropdown list (item IDs)
             const querySnapshot = await getDocs(q);
             const filteredIdList = querySnapshot.docs.map(doc => ({
                 value: doc.id, 

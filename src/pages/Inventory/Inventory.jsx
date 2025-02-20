@@ -41,7 +41,7 @@ const Inventory = () => {
 
   // adds item to database
   const addItem = (name, category, availability) => {  
-    let newItem = addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability });
+    addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability });
     alert("Item added successfully.");
     setTimeout(() => window.location.reload(), 1000);
   }

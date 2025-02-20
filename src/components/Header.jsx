@@ -7,10 +7,6 @@ import { IoIosLogOut } from "react-icons/io";
 function Header({ isAdmin, logOut }) {
 
   const [isOpen, setOpen] = useState(false);
-
-  const openMenu = () => {
-    setOpen(!isOpen);
-  }
   
   const AdminHeader = () => {
     return (
@@ -38,8 +34,6 @@ function Header({ isAdmin, logOut }) {
       </div>
     )
   }
-
-  {/* NEED TO ADD ADMIN CHECK FOR DIFFERENT NAV BAR */}
 
   return (
     <nav className='bg-[#426276] p-4'>

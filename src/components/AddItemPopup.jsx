@@ -20,8 +20,8 @@ function AddItemPopup({ addItem, categoryList }) {
 
     // handle category selection 
     const handleSelection = (selectedCategory) => {
-        setSelectedCategory(selectedCategory);
-        setCategory(selectedCategory?.value)
+        setSelectedCategory(selectedCategory); // object
+        setCategory(selectedCategory?.value); // get object value as a string
     }
 
     //overriding styles for the dropdown
