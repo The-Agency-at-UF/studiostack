@@ -5,27 +5,24 @@ import 'reactjs-popup/dist/index.css';
 import { IoIosAddCircle, IoIosCloseCircle } from "react-icons/io";
 
 function AddItemPopup({ addItem, categoryList }) { 
-
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
-    const [availability, setAvailability] = useState('');
-    const [options, setOptions] = useState([]);
-    const [selectedOption, setSelectedOption] = useState('');
+    const [availability] = useState('available');
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState('');
 
-    //converts the list of categories to the format required by the dropdown
+    // set category dropdown
     useEffect(() => {
-        setOptions(categoryList.map(categories => {
+        setCategories(categoryList.map(categories => {
             return { value: categories, label: categories }
         }));
     }, [categoryList]);
 
-
-    // handle dropdown category selection 
-    const handleSelection = (selectedOption) => {
-        setSelectedOption(selectedOption);
-        setCategory(selectedOption?.value)
+    // handle category selection 
+    const handleSelection = (selectedCategory) => {
+        setSelectedCategory(selectedCategory);
+        setCategory(selectedCategory?.value)
     }
-
 
     //overriding styles for the dropdown
     const dropdownStyle = {
@@ -69,21 +66,13 @@ function AddItemPopup({ addItem, categoryList }) {
                             <div className='px-5 py-2'>
                                 <Select
                                     placeholder="Select Category"
-                                    value={selectedOption}
-                                    options={options}
+                                    value={selectedCategory}
+                                    options={categories}
                                     isClearable={true}
                                     isSearchable={true}
                                     onChange={handleSelection}
                                     styles={dropdownStyle}
                                 /> 
-                            </div>
-                            <div className='px-5 py-2'>
-                                <input type="text" 
-                                    placeholder="Enter Availability"
-                                    className="border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white" 
-                                    value={availability}
-                                    onChange={(e) => setAvailability(e.target.value)} 
-                                />
                             </div>
                         </div>
                         <div className='actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
@@ -101,7 +90,6 @@ function AddItemPopup({ addItem, categoryList }) {
                                 onClick={() => {
                                     setName('');
                                     setCategory(null);
-                                    setAvailability('');
                                     close();
                                 }}
                             />

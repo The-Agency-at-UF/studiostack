@@ -1,14 +1,13 @@
 import React, {useState, useEffect} from 'react'
-import { collection, addDoc, getDocs, setDoc } from "firebase/firestore"; 
+import { collection, addDoc, getDocs, doc, deleteDoc } from "firebase/firestore"; 
 import { db } from "../../firebase/firebaseConfig";
 import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
+import { deleteApp } from 'firebase/app';
 
 const Inventory = () => {
   const [inventory, setInventory] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
-  const [selected, setSelected] = useState(false);
-
   const inventoryCollectionRef = collection(db, "inventory");
 
   // categories for a dropdown
@@ -47,9 +46,16 @@ const Inventory = () => {
     setTimeout(() => window.location.reload(), 1000);
   }
 
-  const removeItem = (name, category) => {  
-      // TO DO: remove item from database functionality
-
+  // remove item from database
+  const removeItem = (itemID) => {  
+    try {
+      deleteDoc(doc(db, "inventory", itemID));
+      alert("Item removed successfully.");
+    }
+    catch(error) {
+      console.log("Error deleting inventory item:", error);
+    }
+    setTimeout(() => window.location.reload(), 1000);
   }
 
   return (
@@ -59,7 +65,7 @@ const Inventory = () => {
                 <h1 className='font-bold text-3xl pb-6'>All Items</h1>
                 <div className="absolute top-8 right-8 flex space-x-4">
                   <AddItemPopup addItem={addItem} categoryList={categoryList}/>
-                  <RemoveItemPopup removeItem={removeItem} listofIDs={inventory.map(item => item.id)}/>
+                  <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
                 </div>
             </div>
             <div className='pl-2 pr-2'>
@@ -91,7 +97,6 @@ const Inventory = () => {
                     ))}
                 </ul>
                 <ul>
-                    
                 </ul>
             </div>
         </div>

@@ -3,29 +3,61 @@ import Popup from 'reactjs-popup';
 import 'reactjs-popup/dist/index.css';
 import Select from 'react-select';
 import { IoIosRemoveCircle, IoIosCloseCircle } from "react-icons/io";
+import { collection, query, where, getDocs } from "firebase/firestore"; 
+import { db } from "../firebase/firebaseConfig";
 
-function RemoveItemPopup({ removeItem, listofIDs }) { 
+function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) { 
     const [selectedID, setSelectedID] = useState('');
+    const [selectedName, setSelectedName] = useState(null);
+
     const [itemID, setItemID] = useState('');
+    const [name, setName] = useState(null);
 
-    const [options, setOptions] = useState([]);
-    const [selectedOption, setSelectedOption] = useState('');
+    const [idOptions, setIdOptions] = useState([]);
+    const [nameOptions, setNameOptions] = useState([]);
 
-    //converts the list of categories to the format required by the dropdown
+    // item ID drop down
     useEffect(() => {
-        console.log(listofIDs);
-        setOptions(listofIDs.map(items => {
+        setIdOptions(listofIDs.map(items => {
             return { value: items, label: items }
         }));
     }, [listofIDs]);
 
-    // handle drop down for id
-    const handleSelection = (selectedOption) => {
-        setSelectedOption(selectedOption);
-        setItemID(selectedOption?.value)
+    // item name drop down
+    useEffect(() => {
+        setNameOptions(listOfNames.map(names => {
+            return { value: names, label: names }
+        }));
+    }, [listOfNames]);
+
+    // handle item ID selection
+    const handleIDSelection = (selectedID) => {
+        setSelectedID(selectedID);
+        setItemID(selectedID?.value);
     }
 
-    //overriding styles for the dropdown
+    // handle item name selection
+    const handleNameSelection = async (selectedName) => {
+        setSelectedName(selectedName);
+        setName(selectedName?.value);
+
+        // if an item has been selected
+        if (selectedName?.value) {
+            const inventoryRef = collection(db, "inventory");
+            // get ID values for that name (there can be multiple items, but there are unique IDs for each)
+            const q = query(inventoryRef, where("name", "==", selectedName.value));
+    
+            // set the second dropdown list
+            const querySnapshot = await getDocs(q);
+            const filteredIdList = querySnapshot.docs.map(doc => ({
+                value: doc.id, 
+                label: doc.id
+            }));
+            setIdOptions(filteredIdList);
+        }
+    };
+
+    // overriding styles for the dropdown
     const dropdownStyle = {
         control: (provided) => ({
             ...provided,
@@ -45,9 +77,6 @@ function RemoveItemPopup({ removeItem, listofIDs }) {
         }),
     };
 
-
-    // TO DO: add another drop down for item names, then filter id's for it
-
     return (
         <Popup trigger=
             {<IoIosRemoveCircle color='#EB3223' className='w-10 h-10 cursor-pointer' />} 
@@ -59,31 +88,44 @@ function RemoveItemPopup({ removeItem, listofIDs }) {
                     <div className='modal relative'>
                         <div className='content p-4'>
                             <h1 className='font-bold text-3xl pb-6'>Remove Item</h1>
+                            {/* Select from Name options */}
                             <div className='px-5 pt-2'>
                                 <Select
-                                    value={selectedOption}
-                                    options={options}
+                                    value={selectedName}
+                                    options={nameOptions}
                                     isClearable={true}
                                     isSearchable={true}
-                                    onChange={setSelectedOption}
+                                    onChange={handleNameSelection}
                                     styles={dropdownStyle}
                                 /> 
-                            </div>            
+                            </div>  
+                            {/* Select from ID options */}
+                            <div className={`px-5 pt-2 ${selectedName === null ? "hidden" : ""}`}>
+                                <Select
+                                    value={selectedID}
+                                    options={idOptions}
+                                    isClearable={true}
+                                    isSearchable={true}
+                                    onChange={handleIDSelection}
+                                    styles={dropdownStyle}
+                                /> 
+                            </div>          
                         </div>
                         <div className='actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md cursor-pointer hover:bg-[#426276] hover:text-white"
                                 onClick={() => {
-                                    //handleSubmit(); t0 do: create removal function
+                                    removeItem(itemID);
                                     close(); 
                                 }}>
                                 Submit
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-10 h-10 absolute top-4 right-4' 
+                                className='w-10 h-10 absolute top-4 right-4 cursor-pointer' 
                                 onClick={() => {
-                                    setSelectedOption(null);
+                                    setSelectedID(null);
+                                    setSelectedName(null);
                                     close();
                                 }}
                             />
