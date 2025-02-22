@@ -22,7 +22,9 @@ function Header({ isAdmin, logOut }) {
       <NavLink to="/statistics" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Statistics</NavLink>
       <NavLink to="/users" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Users</NavLink>
       <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Inventory</NavLink>
-      <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
+      <NavLink to="/">
+        <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
+      </NavLink>
       </div>
     )
   }
@@ -34,7 +36,9 @@ function Header({ isAdmin, logOut }) {
       <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
       <NavLink to="/reservations" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Reservations</NavLink>
       <NavLink to="/report" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Report</NavLink>
-      <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
+      <NavLink to="/">
+        <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
+      </NavLink>
       </div>
     )
   }

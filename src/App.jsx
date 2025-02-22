@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { getAuth, signOut } from "firebase/auth";
-
 import Dashboard from './pages/Dashboard/Dashboard'
 import Inventory  from "./pages/Inventory/Inventory";
 import Calendar from "./pages/Calendar/Calendar";
-import Reservations from "./pages/Reservations/Reservations";
 import Report from "./pages/Report/Report";
 import Statistics from "./pages/Statistics/Statistics";
 import LogIn from './pages/LogIn/LogIn';
 import Users from "./pages/Users/Users";
+import Reservations from "./pages/Reservation/Reservations";
+import CreateReservation from "./pages/Reservation/CreateReservation";
+import CheckInOut from "./pages/Reservation/CheckInOut";
 import Header from "./components/Header";
 import './App.css';
 
 const App = () => {
-
   //email that the user logged in with
-  const [email,setEmail] = useState('')
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [email, setEmail] = useState(localStorage.getItem("email") || '');
+  const [isAdmin, setIsAdmin] = useState(localStorage.getItem("isAdmin") === 'true' || false);
 
   //inactivity timeout
   const inactivity_timeout = 60 * 60 * 1000; // 1 hour
@@ -75,14 +75,15 @@ const App = () => {
     <Router>
       <Header isAdmin={isAdmin} logOut={logOut}/>
       <Routes>
+        <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/calendar" element={<Calendar />} />
-        <Route path="/reservations" element={<Reservations />} />
         <Route path="/report" element={<Report />} />
         <Route path="/statistics" element={<Statistics />} />
-        {/* Add other routes as needed */}
-        <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
         <Route path="/users" element={<Users isAdmin={isAdmin} />} />
+        <Route path="/reservations" element={<Reservations />} />
+        <Route path="/create-reservation" element={<CreateReservation />} />
+        <Route path="/check-in-out" element={<CheckInOut />} />
       </Routes>
     </Router>
   );
