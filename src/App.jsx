@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { getAuth, signOut } from "firebase/auth";
-import Dashboard from './pages/Dashboard/Dashboard';
-import LogIn from './pages/LogIn/LogIn';
-import Users from "./pages/Users/Users";
-import Reservations from "./pages/Reservation/Reservations";
-import CreateReservation from "./pages/Reservation/CreateReservation";
-import './App.css';
+
+import Dashboard from './pages/Dashboard/Dashboard'
 import Inventory  from "./pages/Inventory/Inventory";
 import Calendar from "./pages/Calendar/Calendar";
 import Report from "./pages/Report/Report";
 import Statistics from "./pages/Statistics/Statistics";
-import Header from "./components/Header";
+import LogIn from './pages/LogIn/LogIn';
+import Users from "./pages/Users/Users";
+import Reservations from "./pages/Reservation/Reservations";
+import CreateReservation from "./pages/Reservation/CreateReservation";
 import CheckInOut from "./pages/Reservation/CheckInOut";
+import Header from "./components/Header";
+import './App.css';
 
 const App = () => {
   //email that the user logged in with
@@ -84,6 +85,11 @@ const App = () => {
         <Route path="/reservations" element={<Reservations />} />
         <Route path="/create-reservation" element={<CreateReservation />} />
         <Route path="/check-in-out" element={<CheckInOut />} />
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/reservations" element={<Reservations />} />
+        <Route path="/report" element={<Report />} />
+        <Route path="/statistics" element={<Statistics />} />
       </Routes>
     </Router>
   );
