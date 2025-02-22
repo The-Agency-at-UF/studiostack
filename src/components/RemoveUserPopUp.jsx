@@ -28,10 +28,16 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
     const dropdownStyle = {
         control: (provided) => ({
             ...provided,
-            border: '2px solid black', 
-            boxShadow: 'none', 
+            border: '2px solid black',
+            boxShadow: 'none',
             '&:hover': {
-                borderColor: 'black', 
+                borderColor: 'black',
+            },
+            borderRadius: '0.375rem',
+            height: 'calc(var(--spacing) * 12)',
+            fontSize: '0.875rem', // Equivalent to text-sm
+            '@media (min-width: 640px)': { // Equivalent to sm:
+                fontSize: '1rem', 
             }
         }),
         option: (provided, state) => ({
@@ -40,14 +46,32 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
             color: 'black',
             '&:hover': {
                 backgroundColor: '#A3C1E0',
+            },
+            fontSize: '0.875rem',
+            '@media (min-width: 640px)': {
+                fontSize: '1rem',
             }
         }),
+        singleValue: (provided) => ({
+            ...provided,
+            fontSize: '0.875rem',
+            '@media (min-width: 640px)': {
+                fontSize: '1rem',
+            }
+        }),
+        input: (provided) => ({
+            ...provided,
+            fontSize: '0.875rem',
+            '@media (min-width: 640px)': {
+                fontSize: '1rem',
+            }
+        })
     };
 
 
     return (
         <Popup trigger=
-            {<IoIosRemoveCircle color='#EB3223' className='w-10 h-10' />} 
+            {<IoIosRemoveCircle color='#EB3223' className='w-8 h-8 sm:w-10 sm:h-10' />} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
             overlayStyle={{ backgroundColor: 'transparent'}} >
@@ -55,7 +79,7 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
                 close => (
                     <div className='modal relative'>
                         <div className='content p-4'>
-                            <h1 className='font-bold text-3xl pb-6'>Remove User</h1>
+                            <h1 className='font-bold text-2xl sm:text-3xl pb-6'>Remove User</h1>
                             <div className='px-5 pt-2'>
                                 <Select
                                     value={selectedOption}
@@ -67,7 +91,7 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
                                 /> 
                             </div>            
                         </div>
-                        <div className='actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
+                        <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
                                 className="px-6 py-2 bg-[#A3C1E0] rounded-md"
                                 onClick={() => {
@@ -78,7 +102,7 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-10 h-10 absolute top-4 right-4' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
                                 onClick={() => {
                                     setSelectedOption(null);
                                     close();

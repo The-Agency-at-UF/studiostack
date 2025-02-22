@@ -80,7 +80,7 @@ function Users({ isAdmin }) {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <h1 className='font-bold text-3xl pb-6'>Users</h1>
+                <h1 className='font-bold text-2xl md:text-3xl pb-6'>Users</h1>
                 <div className="absolute top-8 right-8 flex space-x-4">
                     <AddUserPopup addEmail={addEmail}/>
                     <RemoveUserPopup removeEmail={removeEmail} listOfEmails={users.map(user => user.email)}/>
@@ -89,21 +89,21 @@ function Users({ isAdmin }) {
             <div className="p-4">
                 <div className="flex py-2 font-semibold">
                     <div className="flex-1 pl-4">Email</div>
-                    <div className="flex-1">Role</div>
+                    <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right">Role</div>
                 </div>
                 <ul>
                     {admins.map((user) => (
                         <li key={user.email} className="flex py-2 border-t">
-                            <div className="flex-1 pl-4">{user.email}</div>
-                            <div className="flex-1">Admin</div>
+                            <div className="flex-1 pl-4 text-sm sm:text-base">{user.email}</div>
+                            <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right text-sm sm:text-base">Admin</div>
                         </li>
                     ))}
                 </ul>
                 <ul>
                     {students.map((user) => (
                         <li key={user.email} className="flex py-2 border-t">
-                            <div className="flex-1 pl-4">{user.email}</div>
-                            <div className="flex-1">Student</div>
+                            <div className="flex-1 pl-4 text-sm sm:text-base">{user.email}</div>
+                            <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right text-sm sm:text-base">Student</div>
                         </li>
                     ))}
                 </ul>

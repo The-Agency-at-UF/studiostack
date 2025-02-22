@@ -167,13 +167,17 @@ function CreateReservation() {
     const dropdownStyle = {
         control: (provided) => ({
             ...provided,
-            border: '2px solid black', 
-            boxShadow: 'none', 
+            border: '2px solid black',
+            boxShadow: 'none',
             '&:hover': {
-                borderColor: 'black', 
+                borderColor: 'black',
             },
             borderRadius: '0.375rem',
-            height: 'calc(var(--spacing) * 12)'
+            height: 'calc(var(--spacing) * 12)',
+            fontSize: '0.875rem', // Equivalent to text-sm
+            '@media (min-width: 640px)': { // Equivalent to sm:
+                fontSize: '1rem', 
+            }
         }),
         option: (provided, state) => ({
             ...provided,
@@ -181,9 +185,28 @@ function CreateReservation() {
             color: 'black',
             '&:hover': {
                 backgroundColor: '#A3C1E0',
+            },
+            fontSize: '0.875rem',
+            '@media (min-width: 640px)': {
+                fontSize: '1rem',
             }
         }),
+        singleValue: (provided) => ({
+            ...provided,
+            fontSize: '0.875rem',
+            '@media (min-width: 640px)': {
+                fontSize: '1rem',
+            }
+        }),
+        input: (provided) => ({
+            ...provided,
+            fontSize: '0.875rem',
+            '@media (min-width: 640px)': {
+                fontSize: '1rem',
+            }
+        })
     };
+    
 
     useEffect(() => {
         const fetchEquipment = async () => {
@@ -229,36 +252,36 @@ function CreateReservation() {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <h1 className='font-bold text-3xl pb-6'>Create a New Reservation</h1>
+                <h1 className='font-bold text-2xl md:text-3xl pb-6'>Create a New Reservation</h1>
             </div>
             <div className='flex flex-wrap'>
                 <div className='flex-auto'>
                     <div>
-                        <h2 className='pl-2 pt-2 text-xl'>Reservation Name:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Reservation Name:</h2>
                         <div className='pl-2 py-2'>
                             <input type="text" 
                                 placeholder="ex) Bartram Photoshoot..."
-                                className="border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
                                 value={reservationName}
                                 onChange={(e) => setReservationName(e.target.value)} 
                             />
                         </div>
                     </div>
                     <div>
-                        <h2 className='pl-2 pt-2 text-xl'>Check-Out Date:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Check-Out Date:</h2>
                         <div className='pl-2 py-2'>
                             <input type="datetime-local" 
-                                className="border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
                                 value={reservationStartDate}
                                 onChange={(e) => setReservationStartDate(e.target.value)} 
                             />
                         </div>
                     </div>
                     <div>
-                        <h2 className='pl-2 pt-2 text-xl'>Check-In Date:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Check-In Date:</h2>
                         <div className='pl-2 py-2'>
                             <input type="datetime-local" 
-                                className="border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
                                 value={reservationEndDate}
                                 onChange={(e) => setReservationEndDate(e.target.value)} 
                             />
@@ -266,14 +289,13 @@ function CreateReservation() {
                     </div>
                 </div>
 
-            {/* multiple dropdownsn */}
             <div className='flex-auto relative'>
-                <h1 className='pl-2 pt-2 text-xl'>Choose Item(s) and Quantity:</h1>
+                <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item(s) and Quantity:</h1>
                 <div onClick={() => checkIfDateFilled(true)}>
                     {selectedEquipment.map((item, index) => (
                         <div key={index} className="pl-2 py-2">
                             <div className="flex items-center space-x-2">
-                                <div className='w-full'>
+                                <div className='w-3/4 md:w-full'>
                                 <Select
                                     value={item.equipment}
                                     options={availableEquipment}
@@ -284,7 +306,6 @@ function CreateReservation() {
                                     isDisabled={!dateFilled}
                                 />
                                 </div>
-                                {/* quantity selection */}
                                     <div className='min-w-1/7'>
                                     <Select
                                         id={`quantity-${index}`}
@@ -296,14 +317,14 @@ function CreateReservation() {
                                     />
                                     </div>
                                 { index !== 0 && <IoIosRemoveCircle 
-                                    color='#EB3223' className='w-6 h-6' 
+                                    color='#EB3223' className='w-4 h-4 sm:w-6 sm:h-6' 
                                     onClick={() => removeItemDropdown(index)}
                                 />}
                             </div>
                         </div>
                     ))}
-                    <div className='pl-2 absolute top-1 right-0'>
-                        <IoIosAddCircle color='#426276' className='w-8 h-8'
+                    <div className='pl-2 absolute top-2 sm:top-1 right-0'>
+                        <IoIosAddCircle color='#426276' className='w-6 h-6 sm:w-8 sm:h-8'
                             onClick={addItemDropdown}
                             />
                     </div>
@@ -312,7 +333,7 @@ function CreateReservation() {
             </div>
             <div className='flex justify-center'>
                 <button 
-                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-xl font-medium mt-4"
+                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4"
                     disabled={!dateFilled}
                     onClick={() => createReservation()}
                     >

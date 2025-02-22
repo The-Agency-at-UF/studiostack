@@ -51,11 +51,11 @@ function Reservations() {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <div className='absolute top-8 right-8 flex space-x-4'>
-                    <IoIosAddCircle color='#426276' className='w-10 h-10' onClick={ () => navigate('/create-reservation')}/>
+                <div className='absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4'>
+                    <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => navigate('/create-reservation')}/>
                 </div>
                 <div>
-                    <h1 className='font-bold text-3xl pb-6'>Active Reservations</h1>
+                    <h1 className='font-bold text-2xl md:text-3xl pb-6'>Active Reservations</h1>
                     <div className='w-full'>
                         {activeReservations.map((reservation, index) => (
                             <ReservationLabel key={index} reservation={reservation} backgroundColor={'#D1E0EF'}/>
@@ -63,7 +63,7 @@ function Reservations() {
                     </div>
                 </div>
                 <div>
-                    <h1 className='font-bold text-3xl py-6'>Past Reservations</h1>
+                    <h1 className='font-bold text-2xl md:text-3xl py-6'>Past Reservations</h1>
                     <div className='w-full'>
                         {pastReservations.map((reservation, index) => (
                             <ReservationLabel key={index} reservation={reservation} backgroundColor={'#D1E0EF'}/>
