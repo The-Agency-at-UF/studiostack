@@ -5,7 +5,6 @@ import { IoIosCloseCircle } from "react-icons/io";
 
 function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) { 
     const [equipmentID, setEquipmentID] = useState('');
-    const [errorMessage, setErrorMessage] = useState('');
     const [startedScanning, setStartedScanning] = useState(false);
     let barcode = ""; 
 
@@ -34,7 +33,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
             resetState();
             close();
         } else {
-            alert("Please make sure to scan the correct item.");
+            alert("Please make sure to scan the correct item. The barcode you scanned was " + scannedID + ".");
             resetState();
         }
     };
@@ -42,7 +41,6 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
     const resetState = () => {
         setStartedScanning(false);
         setEquipmentID('');
-        setErrorMessage('');
     };
 
     return (
@@ -64,8 +62,6 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
                         <p>1. Please connect the scanner to your device</p>
                         <p>2. Press the "Start Scanning" button</p>
                         <p className='pb-3'>3. Scan the barcode on the item.</p>
-                        <p>Scanned barcode: {equipmentID}</p>
-                        <p className='pt-2 text-red-500'>{errorMessage}</p>
                         <div className='actions flex justify-center space-x-4 pt-4 font-bold'>
                             <button
                                 className="px-6 py-2 bg-[#A3C1E0] rounded-md"
