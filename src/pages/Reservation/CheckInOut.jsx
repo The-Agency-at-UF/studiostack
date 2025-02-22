@@ -29,18 +29,16 @@ function CheckInOut() {
     };
 
     const handleCheckOut = async (equipmentID) => {
-        // const currentDate = new Date();
-        // if (currentDate < reservation.startDate.toDate() || currentDate > reservation.endDate.toDate()) {
-        //     alert("You cannot check out items before the reservation start date or after the reservation end date.");
-        //     return;
-        // }
+        //cant have the start date be after the end date
+        const currentDate = new Date();
+        if (currentDate < reservation.startDate.toDate() || currentDate > reservation.endDate.toDate()) {
+            alert("You cannot check out items before the reservation start date or after the reservation end date.");
+            return;
+        }
 
-        console.log(equipmentID);
+        //update the checked out items to add the new item
         const equipmentCheckedOut = itemsToCheckOut.find(equipment => equipment.id === equipmentID);
-        console.log(equipmentCheckedOut);
-        console.log(reservation.reservationID);
         const reservationRef = doc(db, 'reservations', reservationID);
-        console.log(reservationRef);
         await setDoc(
             reservationRef, 
             { 
@@ -49,22 +47,19 @@ function CheckInOut() {
             { merge: true } 
         );
         const updatedReservation = await getDoc(reservationRef);
-        console.log(updatedReservation);
         const updatedData = updatedReservation.data();
-        console.log(updatedData);
         setReservation(updatedData);
-        console.log(reservation);
 
+        //remove the item from the list of items that need to be checked out
         const itemsToCheckOutUpdated = itemsToCheckOut.filter((equipment) => equipment.id !== equipmentID);
-        console.log(itemsToCheckOutUpdated);
         setItemsToCheckOut(itemsToCheckOutUpdated);
-        console.log(itemsToCheckOut);
     };
 
     const handleCheckIn = async (equipmentID) => {
+        //update the checked in items to have the new item
+        //update the checked out items to remove the item (it no longer needs to be checked in)
         const equipmentCheckedIn = reservation.checkedOutItems.find(equipment => equipment.id === equipmentID.id);
         const checkedOutItemsUpdated = reservation.checkedOutItems.filter((equipment) => equipment.id !== equipmentID.id);
-
         const reservationRef = doc(db, 'reservations', reservationID);
         await setDoc(
             reservationRef, 
@@ -95,10 +90,10 @@ function CheckInOut() {
         };
     
         fetchEquipment();
-    }, []); // Runs only once on mount
+    }, []); 
     
     useEffect(() => {
-        if (!reservationID || allEquipment.length === 0) return; // Ensures it runs only after equipment is fetched
+        if (!reservationID || allEquipment.length === 0) return; 
     
         const fetchReservations = async () => {
             try {
@@ -117,7 +112,7 @@ function CheckInOut() {
                             }
                             return null;
                         })
-                        .filter(Boolean); // Remove null values
+                        .filter(Boolean); 
     
                     setItemsToCheckOut(itemsToCheckOutList);
                 }
@@ -127,8 +122,7 @@ function CheckInOut() {
         };
     
         fetchReservations();
-    }, [reservationID, allEquipment.length]); // Runs only when reservationID is available & allEquipment is fetched
-    
+    }, [reservationID, allEquipment.length]);
 
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>

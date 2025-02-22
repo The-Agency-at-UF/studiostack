@@ -9,6 +9,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
     const [startedScanning, setStartedScanning] = useState(false);
     let barcode = ""; 
 
+    //gets the barcode (aka the equipment ID) from the scanner
     const handleKeyDown = (event) => {
         if (event.key === "Enter") {
                 setEquipmentID(barcode);
@@ -19,6 +20,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
         }
     };
 
+    //starts listening for the key inputs from the scanner
     const scanBarcode = () => {
         setStartedScanning(true);
         window.addEventListener("keydown", handleKeyDown); 
@@ -28,7 +30,6 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
         window.removeEventListener("keydown", handleKeyDown); 
     
         if (scannedID === correctID.id) {
-            console.log("here");
             handleCheckOutIn(scannedID);
             resetState();
             close();

@@ -5,6 +5,7 @@ import { IoIosArrowDroprightCircle } from "react-icons/io";
 function ReservationLabel({ reservation, backgroundColor }) { 
     const navigate = useNavigate();
 
+    //format the date and time
     const formatDate = (timestamp) => {
         const date = timestamp?.toDate();
         if (!date) return 'Invalid date';
@@ -18,7 +19,7 @@ function ReservationLabel({ reservation, backgroundColor }) {
             second: '2-digit',
             hour12: true,
         };
-        return date.toLocaleString(undefined, options); // format the date and time
+        return date.toLocaleString(undefined, options); 
     };
         
 

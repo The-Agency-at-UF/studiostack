@@ -13,12 +13,12 @@ function CreateReservation() {
     const [allEquipment, setAllEquipment] = useState([]);
     const [allReservations, setAllReservations] = useState([]);
     const [dateFilled, setDateFilled] = useState(false);
-
     const navigate = useNavigate();
     
     //tracking the items that the user chooses for the reservation
     const [selectedEquipment, setSelectedEquipment] = useState([{ equipment: null, quantity: 1 }]);
 
+    //making sure that the date is filled in before they can choose the equipment
     const checkIfDateFilled = (sendAlert) => {
         if (!reservationStartDate || !reservationEndDate) {
             if (sendAlert) {
@@ -31,6 +31,7 @@ function CreateReservation() {
         }
     };
 
+    //check to make sure the check-out date is after the check-in date
     const checkReservationEndDate = (date) => {
         if (new Date(reservationStartDate) > new Date(date)) {
             alert('Check-out date must be after check-in date.');
@@ -109,6 +110,7 @@ function CreateReservation() {
         setSelectedEquipment(updatedEquipment);
     };
 
+    //quantity for a specific equipment item
     const getQuantityOptions = (equipmentName) => {
         const equipment = allEquipment.filter(item => item.name === equipmentName)[0];
         const availableQuantity = equipment ? availableEquipment.filter(item => item.label === equipmentName)[0]?.quantity : 0;
@@ -127,6 +129,7 @@ function CreateReservation() {
 
         const selectedEquipmentIDs = [];
 
+        // Check for duplicate items
         selectedEquipment.forEach(item => {
             if (item.equipment !== null) {
                 const availableItem = availableEquipment.find(option => option.label === item.equipment.label);
@@ -143,6 +146,7 @@ function CreateReservation() {
 
         try {
 
+            // Verify date is the next business day at 5pm
             const verifyDate = new Date(reservationEndDate);
             if (verifyDate.getDay() === 0 || verifyDate.getDay() === 5 || verifyDate.getDay() === 6) {
                 verifyDate.setDate(verifyDate.getDate() + (1 + 7 - verifyDate.getDay()) % 7);
