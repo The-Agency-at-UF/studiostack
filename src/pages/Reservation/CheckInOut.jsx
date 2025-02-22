@@ -29,8 +29,18 @@ function CheckInOut() {
     };
 
     const handleCheckOut = async (equipmentID) => {
-        const equipmentCheckedOut = itemsToCheckOut.find(equipment => equipment.id === equipmentID)
-        const reservationRef = doc(db, 'reservations', reservation.reservationID);
+        // const currentDate = new Date();
+        // if (currentDate < reservation.startDate.toDate() || currentDate > reservation.endDate.toDate()) {
+        //     alert("You cannot check out items before the reservation start date or after the reservation end date.");
+        //     return;
+        // }
+
+        console.log(equipmentID);
+        const equipmentCheckedOut = itemsToCheckOut.find(equipment => equipment.id === equipmentID);
+        console.log(equipmentCheckedOut);
+        console.log(reservation.reservationID);
+        const reservationRef = doc(db, 'reservations', reservationID);
+        console.log(reservationRef);
         await setDoc(
             reservationRef, 
             { 
@@ -39,94 +49,100 @@ function CheckInOut() {
             { merge: true } 
         );
         const updatedReservation = await getDoc(reservationRef);
+        console.log(updatedReservation);
         const updatedData = updatedReservation.data();
-        setReservation({
-            ...updatedData,
-            reservationID: updatedReservation.id,
-        });
+        console.log(updatedData);
+        setReservation(updatedData);
+        console.log(reservation);
 
         const itemsToCheckOutUpdated = itemsToCheckOut.filter((equipment) => equipment.id !== equipmentID);
+        console.log(itemsToCheckOutUpdated);
         setItemsToCheckOut(itemsToCheckOutUpdated);
+        console.log(itemsToCheckOut);
     };
 
     const handleCheckIn = async (equipmentID) => {
-        const equipmentCheckedIn = itemsToCheckOut.find(equipment => equipment.id === equipmentID)
-        const reservationRef = doc(db, 'reservations', reservation.reservationID);
+        const equipmentCheckedIn = reservation.checkedOutItems.find(equipment => equipment.id === equipmentID.id);
+        const checkedOutItemsUpdated = reservation.checkedOutItems.filter((equipment) => equipment.id !== equipmentID.id);
+
+        const reservationRef = doc(db, 'reservations', reservationID);
         await setDoc(
             reservationRef, 
             { 
-                checkedInItems: [...reservation.checkedInItems, {id: equipmentID, name: equipmentCheckedIn.name}] 
+                checkedInItems: [...reservation.checkedInItems, {id: equipmentID.id, name: equipmentCheckedIn.name}],
+                checkedOutItems: checkedOutItemsUpdated
             }, 
             { merge: true } 
         );
         const updatedReservation = await getDoc(reservationRef);
         const updatedData = updatedReservation.data();
-        setReservation({
-            ...updatedData,
-            reservationID: updatedReservation.id,
-        });
+        setReservation(updatedData);
     };
 
     useEffect(() => {
         const fetchEquipment = async () => {
             try {
                 const equipmentRef = collection(db, 'inventory');
-                
                 const querySnapshot = await getDocs(equipmentRef);
-                
                 const allEquipmentList = querySnapshot.docs.map(doc => ({
                     equipmentID: doc.id, 
                     name: doc.data().name
                 }));
-                
                 setAllEquipment(allEquipmentList);
             } catch (error) {
                 console.error("Error fetching equipment:", error);
             }
         };
-
+    
         fetchEquipment();
-
+    }, []); // Runs only once on mount
+    
+    useEffect(() => {
+        if (!reservationID || allEquipment.length === 0) return; // Ensures it runs only after equipment is fetched
+    
         const fetchReservations = async () => {
             try {
                 const reservationRef = doc(db, 'reservations', reservationID);
                 const reservationVar = await getDoc(reservationRef);
-                setReservation(reservationVar.data());
-
-                // Ensure allEquipment is loaded before processing reservation data
-                if (allEquipment.length > 0 && reservationVar.exists()) {
-                    const itemsToCheckOutList = reservationVar.data().equipmentIDs.map(ID => {
-                        const equipment = allEquipment.find(equipment => equipment.equipmentID === ID);
-                        return {
-                            id: ID,
-                            name: equipment.name
-                        };
-                    });
-
+                
+                if (reservationVar.exists()) {
+                    const reservationData = reservationVar.data();
+                    setReservation(reservationData);
+    
+                    const itemsToCheckOutList = reservationData.equipmentIDs
+                        .map(ID => {
+                            const equipment = allEquipment.find(e => e.equipmentID === ID);
+                            if (equipment && !reservationData.checkedOutItems.some(item => item.id === ID) && !reservationData.checkedInItems.some(item => item.id === ID)) {
+                                return { id: ID, name: equipment.name };
+                            }
+                            return null;
+                        })
+                        .filter(Boolean); // Remove null values
+    
                     setItemsToCheckOut(itemsToCheckOutList);
                 }
-                
             } catch (error) {
                 console.error("Error fetching reservation:", error);
             }
         };
-
+    
         fetchReservations();
-    }, [allEquipment, reservationID]); 
+    }, [reservationID, allEquipment.length]); // Runs only when reservationID is available & allEquipment is fetched
+    
 
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <h1 className='font-bold text-3xl pb-2'>{reservation?.name}</h1>
-                <h3 className="text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
-                <h3 className="text-xl">Items Held: {reservation?.equipmentIDs?.length}</h3>
+                <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
+                <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
+                <h3 className="text-lg sm:text-xl">Items Held: {reservation?.equipmentIDs?.length}</h3>
                 <div className="container py-4"> 
                     <div className="flex flex-col md:flex-row gap-4"> 
                         <div className="flex-1 p-4 rounded"> 
-                            <h2 className="text-2xl text-center font-semibold pb-4">Check Out Items:</h2>
+                            <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Check Out Items:</h2>
                             {itemsToCheckOut.map((item, index) => (
                                 <div key={index} className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-4"> 
-                                    <div className="bg-white rounded-md p-2 w-2/3 text-center text-xl">
+                                    <div className="bg-white rounded-md p-2 w-2/3 text-center lg:text-xl sm:text-lg text-sm">
                                         <h3>{item.name}:</h3>
                                         <h3>{item.id}</h3> 
                                     </div>                                
@@ -135,10 +151,10 @@ function CheckInOut() {
                             ))} 
                         </div>
                         <div className="flex-1 p-4 ml-2 rounded"> 
-                            <h2 className="text-2xl text-center font-semibold pb-4">Check In Items:</h2>
+                            <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Check In Items:</h2>
                             {reservation?.checkedOutItems?.map((item, index) => (
                                 <div key={index} className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
-                                    <div className="bg-white rounded-md p-2 w-2/3 text-center text-xl">
+                                    <div className="bg-white rounded-md p-2 w-2/3 text-center lg:text-xl sm:text-lg text-sm">
                                         <h3>{item.name}:</h3>
                                         <h3>{item.id}</h3> 
                                     </div> 
@@ -148,11 +164,11 @@ function CheckInOut() {
                         </div>
                     </div>
                 </div>
-                <div>
-                    <h2 className="text-2xl text-center font-semibold pb-4">Returned Items:</h2>
+                <div className="flex justify-center items-center flex-col">
+                    <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Returned Items:</h2>
                     {reservation?.checkedInItems?.map((item, index) => (
-                        <div key={index} className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
-                            <div className="bg-white rounded-md p-2 w-2/3 text-center text-xl">
+                        <div key={index} className="bg-[#ECECEC] w-3/4 sm:w-1/2 p-2 rounded-md border-2 border-black content-center mt-2"> 
+                            <div className="bg-white rounded-md p-2 w-full text-center lg:text-xl sm:text-lg text-sm">
                                 <h3>{item.name}:</h3>
                                 <h3>{item.id}</h3> 
                             </div> 

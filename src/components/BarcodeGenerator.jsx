@@ -1,11 +1,47 @@
-import React from "react";
-import Barcode from "react-barcode";
+import React, { useRef } from "react";
+import bwipjs from "bwip-js";
 
-const BarcodeGenerator = ({equipmentID}) => {
+const BarcodeDownloader = ({ equipmentID }) => {
+  const canvasRef = useRef(null);
+
+  const generateBarcode = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      try {
+        bwipjs.toCanvas(canvas, {
+          bcid: "code128",   
+          text: equipmentID,  
+          scale: 3,           
+          height: 10,         
+          includetext: true,  
+        });
+      } catch (e) {
+        console.error("Error generating barcode", e);
+      }
+    }
+  };
+
+  const downloadBarcode = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const imageUrl = canvas.toDataURL("image/png"); 
+      const a = document.createElement("a"); 
+      a.href = imageUrl;
+      a.download = equipmentID; 
+      a.click();
+    }
+  };
+
+  React.useEffect(() => {
+    generateBarcode();
+  }, []);
 
   return (
-      <Barcode value={equipmentID} />
+    <div>
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+      <button onClick={downloadBarcode}>{equipmentID}</button>
+    </div>
   );
 };
 
-export default BarcodeGenerator;
+export default BarcodeDownloader;

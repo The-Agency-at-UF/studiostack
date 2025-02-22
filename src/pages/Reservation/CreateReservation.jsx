@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getDocs, collection, doc, addDoc } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/firebaseConfig';
 import Select from 'react-select';
 import { IoIosAddCircle, IoIosRemoveCircle } from "react-icons/io";
@@ -12,6 +13,8 @@ function CreateReservation() {
     const [allEquipment, setAllEquipment] = useState([]);
     const [allReservations, setAllReservations] = useState([]);
     const [dateFilled, setDateFilled] = useState(false);
+
+    const navigate = useNavigate();
     
     //tracking the items that the user chooses for the reservation
     const [selectedEquipment, setSelectedEquipment] = useState([{ equipment: null, quantity: 1 }]);
@@ -153,6 +156,7 @@ function CreateReservation() {
             });
     
             alert("Reservation created successfully.");
+            navigate("/reservations");
         } catch (error) {
             console.error("Error creating reservation: ", error);
             alert("There was an error creating the reservation.");
