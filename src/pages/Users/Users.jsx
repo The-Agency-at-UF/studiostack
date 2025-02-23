@@ -42,6 +42,7 @@ function Users({ isAdmin }) {
     //adds user to database
     const addEmail = (isAdminBool, email) => { 
         //TO DO: email.includes("@ufl.edu") after website/testing is over
+        //TO DO: change this to real time listening
         if (!students.some(user => user.email === email) && !admins.some(user => user.email === email)) {
             const userRef = doc(db, 'users', email);
             setDoc(userRef, { isAdmin: isAdminBool });

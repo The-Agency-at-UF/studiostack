@@ -116,6 +116,9 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
                                 className="px-6 py-2 bg-[#A3C1E0] rounded-md cursor-pointer hover:bg-[#426276] hover:text-white"
                                 onClick={() => {
                                     removeItem(itemID);
+                                    // reset variables on submit
+                                    setSelectedID(null);
+                                    setSelectedName(null);
                                     close(); 
                                 }}>
                                 Submit
@@ -124,6 +127,7 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
                                 color='#426276' 
                                 className='w-10 h-10 absolute top-4 right-4 cursor-pointer' 
                                 onClick={() => {
+                                    // reset variables on close
                                     setSelectedID(null);
                                     setSelectedName(null);
                                     close();

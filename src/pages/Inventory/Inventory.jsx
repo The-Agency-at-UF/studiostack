@@ -1,9 +1,9 @@
 import React, {useState, useEffect} from 'react'
-import { collection, addDoc, getDocs, doc, deleteDoc } from "firebase/firestore"; 
+import { collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from "firebase/firestore"; 
 import { db } from "../../firebase/firebaseConfig";
 import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
-import QRCodeGenerator from '../../components/QRCodeGenerator';
+import BarcodeDownloader from '../../components/BarcodeGenerator';
 
 const Inventory = () => {
   const [inventory, setInventory] = useState([]);
@@ -20,42 +20,43 @@ const Inventory = () => {
   }
   // show all inventory items
   const showAll = async () => {
-    const filtered = inventory;
-    setFilteredList(filtered);
+    const all = inventory;
+    setFilteredList(all);
   }
 
-  // retrieve all inventory items
+  // retrive all inventory items
   useEffect(() => {
-    const getInventory = async () => {
-      try {
-        const data = await getDocs(inventoryCollectionRef);
-        setInventory(data.docs.map((doc) => ({...doc.data(), id:doc.id})))
-        setFilteredList(data.docs.map((doc) => ({...doc.data(), id:doc.id})));
-      } 
-      catch(error) {
-        console.log("Error getting all inventory items:", error);
-      }
-    }
-    getInventory();
+    // listens and updates in real time, ordered by most recently added
+    const q = query(inventoryCollectionRef, orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      // get items from the inventory collection 
+      const items = snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
+      setInventory(items);
+      setFilteredList(items);
+    });
+    return unsubscribe;
   }, []);
 
   // adds item to database
   const addItem = (name, category, availability) => {  
-    addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability });
-    alert("Item added successfully.");
-    setTimeout(() => window.location.reload(), 1000);
+    try {
+      addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability, timestamp: serverTimestamp() });
+    }
+    catch(error) {
+      alert("Error adding item.");
+      console.log("Error adding item to inventory:", error);
+    }
   }
 
   // remove item from database
   const removeItem = (itemID) => {  
     try {
       deleteDoc(doc(db, "inventory", itemID));
-      alert("Item removed successfully.");
     }
     catch(error) {
-      console.log("Error deleting inventory item:", error);
+      alert("Error removing item.");
+      console.log("Error deleting item from inventory:", error);
     }
-    setTimeout(() => window.location.reload(), 1000);
   }
 
   return (
@@ -84,7 +85,7 @@ const Inventory = () => {
                     <div className="flex-1 pl-4">Item Name</div>
                     <div className="flex-1 pl-4">Category</div>
                     <div className="flex-1 pl-4">Availability</div>
-                    <div className="flex-1">Download QR Code</div>
+                    <div className="flex-1">Download Barcode</div>
                 </div>
                 <ul>
                     {filteredList.map((item) => (
@@ -92,7 +93,9 @@ const Inventory = () => {
                         <div className="flex-1 pl-4">{item.name}</div>
                         <div className="flex-1 pl-4">{item.category}</div>
                         <div className="flex-1 pl-4">{item.availability}</div>
-                        <QRCodeGenerator equipmentID={item.id}/>
+                        <div className="flex-1 pl-4">
+                          <BarcodeDownloader equipmentID={item.id}/>
+                        </div>
                       </li>
                     ))}
                 </ul>
