@@ -55,7 +55,7 @@ function CreateReservation() {
 
         //get the equipment that is reserved for these reservations
         sameTimeReservations.forEach((reservation) => {
-            reservation.equipmentIDs.forEach((equipmentid) => {
+            reservation.equipmentIDs.id.forEach((equipmentid) => {
                 reservedEquipmentSet.add(equipmentid);
             });
         });
@@ -139,7 +139,7 @@ function CreateReservation() {
                         alert('Unable to create reservation. Please make sure items aren\'t duplicated.')
                         return;
                     }
-                    selectedEquipmentIDs.push(availableItem.value[i]);
+                    selectedEquipmentIDs.push({id: availableItem.value[i], name: item.equipment.label});
                 }
             }
         });

@@ -1,0 +1,27 @@
+@media (max-width: 640px) { 
+    .fc .fc-toolbar-title {
+      font-size: 1.125rem !important; 
+      text-align: center;
+    }
+    .fc .fc-button {
+        font-size: .75rem !important;
+        padding: calc(var(--spacing) * 1);
+    }
+  }
+  
+  @media (min-width: 640px) {
+    .fc .fc-toolbar-title {
+      font-size: 1.5rem !important; 
+    }
+  }
+
+  @media (min-width: 768px) {
+    .fc .fc-toolbar-title {
+      font-size: 1.875rem !important;
+    }
+  }
+
+  .fc .fc-button {
+    background-color: #426276;
+  }
+  
