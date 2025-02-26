@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { getAuth, signOut } from "firebase/auth";
 import Dashboard from './pages/Dashboard/Dashboard'
 import Inventory  from "./pages/Inventory/Inventory";
-import CalendarPage from "./pages/Calendar/Calendar";
+import Calendar from "./pages/Calendar/Calendar";
 import Report from "./pages/Report/Report";
 import Statistics from "./pages/Statistics/Statistics";
 import LogIn from './pages/LogIn/LogIn';
@@ -77,7 +77,7 @@ const App = () => {
       <Routes>
         <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
         <Route path="/inventory" element={<Inventory />} />
-        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/calendar" element={<Calendar isAdmin={isAdmin} />} />
         <Route path="/report" element={<Report />} />
         <Route path="/statistics" element={<Statistics />} />
         <Route path="/users" element={<Users isAdmin={isAdmin} />} />
