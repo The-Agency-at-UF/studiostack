@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDocs, collection, doc, addDoc } from 'firebase/firestore';
+import { getDocs, collection, doc, addDoc, setDoc, arrayUnion } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/firebaseConfig';
 import Select from 'react-select';
@@ -166,12 +166,22 @@ function CreateReservation() {
                 checkedOutItems: [],
                 checkedInItems: []
             });
+
+            const userRef = doc(db, 'users', localStorage.getItem('email'));
+            await setDoc(
+                        userRef, 
+                        { 
+                            reservations: arrayUnion(new Date())
+                        }, 
+                        { merge: true } 
+                    );
     
             alert("Reservation created successfully.");
             navigate("/reservations");
         } catch (error) {
             console.error("Error creating reservation: ", error);
             alert("There was an error creating the reservation.");
+            navigate("/reservations");
         }
     }
 
