@@ -13,6 +13,7 @@ const Calendar = ({ isAdmin }) => {
   const [selectedReservation, setSelectedReservation] = useState(false);
   const [reservation, setReservation] = useState(null);
 
+  //getting which reservation was selected
   const handleEventClick = (reservationClicked) => {
     setReservation(reservationClicked.event);
     setSelectedReservation(true);
@@ -43,6 +44,7 @@ const Calendar = ({ isAdmin }) => {
 
     fetchReservations();
 
+    //resizing for the different screen sizes
     const handleResize = () => {
       setCalendarHeight(window.innerHeight + (window.innerHeight / 5));
     };

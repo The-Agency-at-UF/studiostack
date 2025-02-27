@@ -167,6 +167,7 @@ function CreateReservation() {
                 checkedInItems: []
             });
 
+            //logging the reservation timestamp in the user's document
             const userRef = doc(db, 'users', localStorage.getItem('email'));
             await setDoc(
                         userRef, 
