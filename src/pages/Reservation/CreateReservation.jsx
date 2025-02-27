@@ -55,8 +55,8 @@ function CreateReservation() {
 
         //get the equipment that is reserved for these reservations
         sameTimeReservations.forEach((reservation) => {
-            reservation.equipmentIDs.id.forEach((equipmentid) => {
-                reservedEquipmentSet.add(equipmentid);
+            reservation.equipmentIDs.forEach((equipmentid) => {
+                reservedEquipmentSet.add(equipmentid.id);
             });
         });
 
