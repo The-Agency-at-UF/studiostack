@@ -41,6 +41,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
     const resetState = () => {
         setStartedScanning(false);
         setEquipmentID('');
+        barcode = "";
     };
 
     return (
