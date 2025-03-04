@@ -13,40 +13,40 @@ function Reservations() {
     const currentDate = new Date();
 
     useEffect(() => {
-            const fetchReservations = async () => {
-                try {
-                    const reservationsRef = collection(db, 'reservations');
-                    
-                    //get all the reservations in the 'reservations' collection
-                    const querySnapshot = await getDocs(reservationsRef);
-                    
-                    //map through each reservation and extract the data
-                    const allReservationsList = querySnapshot.docs.map(doc => ({
-                        reservationId: doc.id,
-                        ...doc.data()
-                    }));
+        const fetchReservations = async () => {
+            try {
+                const reservationsRef = collection(db, 'reservations');
+                
+                //get all the reservations in the 'reservations' collection
+                const querySnapshot = await getDocs(reservationsRef);
+                
+                //map through each reservation and extract the data
+                const allReservationsList = querySnapshot.docs.map(doc => ({
+                    reservationId: doc.id,
+                    ...doc.data()
+                }));
 
-                    const allReservations = allReservationsList.filter(reservation => reservation.userEmail === localStorage.getItem('email'));
-                    setReservations(allReservations);
+                const allReservations = allReservationsList.filter(reservation => reservation.userEmail === localStorage.getItem('email'));
+                setReservations(allReservations);
 
-                    const activeReservationsList = allReservations.filter((reservation) => {
-                        const endDate = reservation.endDate.toDate();
-                        return endDate >= currentDate;
-                      });
-                    setActiveReservations(activeReservationsList);
-                    
-                    const pastReservationsList = allReservations.filter((reservation) => {
-                        const endDate = reservation.endDate.toDate();
-                        return endDate < currentDate;
+                const activeReservationsList = allReservations.filter((reservation) => {
+                    const endDate = reservation.endDate.toDate();
+                    return endDate >= currentDate;
                     });
-                    setPastReservations(pastReservationsList);
-    
-                } catch (error) {
-                    console.error("Error fetching reservations:", error);
-                }
-            };
-            fetchReservations();
-        }, []);
+                setActiveReservations(activeReservationsList);
+                
+                const pastReservationsList = allReservations.filter((reservation) => {
+                    const endDate = reservation.endDate.toDate();
+                    return endDate < currentDate;
+                });
+                setPastReservations(pastReservationsList);
+
+            } catch (error) {
+                console.error("Error fetching reservations:", error);
+            }
+        };
+        fetchReservations();
+    }, []);
         
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>

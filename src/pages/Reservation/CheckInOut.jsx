@@ -53,6 +53,13 @@ function CheckInOut() {
         //remove the item from the list of items that need to be checked out
         const itemsToCheckOutUpdated = itemsToCheckOut.filter((equipment) => equipment.id !== equipmentID);
         setItemsToCheckOut(itemsToCheckOutUpdated);
+
+        //update the availability in the inventory collection for that item
+        const equipmentRef = collection(db, 'inventory', equipmentID);
+        await setDoc(
+            equipmentRef, { availability: "checked out"}, 
+            { merge: true } 
+        );
     };
 
     const handleCheckIn = async (equipmentID) => {
@@ -72,6 +79,13 @@ function CheckInOut() {
         const updatedReservation = await getDoc(reservationRef);
         const updatedData = updatedReservation.data();
         setReservation(updatedData);
+
+         //update the availability in the inventory collection for that item
+        const equipmentRef = collection(db, 'inventory', equipmentID.id);
+        await setDoc(
+            equipmentRef, { availability: "available"}, 
+            { merge: true } 
+        );
     };
     
     useEffect(() => {
