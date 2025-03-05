@@ -10,11 +10,13 @@ const Statistics = () => {
   const [brokenEquipmentReports, setbrokenEquipmentReports] = useState([]);
   const [userReports, setUserReports] = useState([]);
   const [userReservations, setUserReservations] = useState([]);
+  const [reservationTeams, setReservationTeams] = useState([]);
   const [availabilityData, setAvailabilityData] = useState([]);
   const [reservedItemsData, setReservedItemsData] = useState([]);
   const [brokenEquipmentData, setBrokenEquipmentData] = useState([]);
   const [userReportsData, setUserReportsData] = useState([]);
   const [userReservationsData, setUserReservationsData] = useState([]);
+  const [reservationTeamsData, setReservationTeamsData] = useState([]);
   const [totalEquipment, setTotalEquipment] = useState(0);
   const currentDate = new Date();
   
@@ -53,6 +55,15 @@ const Statistics = () => {
       .slice(0, 5);
     
     setUserReservationsData(topReservingUsers);
+  };
+
+  const updateReservationsTeamsData = (team) => {
+    const topTeams = Object.entries(team)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value) 
+      .slice(0, 5);
+    
+    setReservationTeamsData(topTeams);
   };
   
 
@@ -114,7 +125,6 @@ const Statistics = () => {
         }).flat();
 
         setReservationsEquipment(reservationsEquipmentList);
-        console.log(reservationsEquipmentList);
 
         const allTimeCheckedOut = {};
       
@@ -123,6 +133,20 @@ const Statistics = () => {
           allTimeCheckedOut[item.name] = (allTimeCheckedOut[item.name] || 0) + 1;
         });
         updateReservedItemsData(allTimeCheckedOut);
+
+        const reservationsTeamsList = allReservations.map(reservation => {
+          return {
+            name: reservation.team,
+            time: reservation.startDate.toDate(),
+          };
+        });
+        setReservationTeams(reservationsTeamsList);
+  
+        const allTimeTeams = {};
+        reservationsTeamsList.forEach(item => {
+          allTimeTeams[item.name] = (allTimeTeams[item.name] || 0) + 1;
+        });
+        updateReservationsTeamsData(allTimeTeams);
 
         const activeReservations = allReservations.filter(reservation => {
           const endDate = reservation.endDate.toDate();
@@ -260,6 +284,9 @@ const Statistics = () => {
         <div className='flex flex-wrap justify-center sm:justify-start'>
           <BarGraph data={userReportsData} colors={COLORS} title={"Top Reporting Users"} fullData={userReports}/>
           <BarGraph data={userReservationsData} colors={COLORS} title={"Top Reserving Users"} fullData={userReservations}/>
+        </div>
+        <div className='flex flex-wrap justify-center sm:justify-start'>
+          <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
         </div>
       </div>
     </div>

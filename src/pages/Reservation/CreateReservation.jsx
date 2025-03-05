@@ -7,12 +7,16 @@ import { IoIosAddCircle, IoIosRemoveCircle } from "react-icons/io";
 
 function CreateReservation() { 
     const [reservationName, setReservationName] = useState('');
+    const [reservationCategory, setReservationCategory] = useState({ value: '', label: '' });
+    const [reservationOtherCategory, setReservationOtherCategory] = useState({ value: '', label: '' });
     const [reservationStartDate, setReservationStartDate] = useState('');
     const [reservationEndDate, setReservationEndDate] = useState('');
     const [availableEquipment, setAvailableEquipment] = useState([]);
     const [allEquipment, setAllEquipment] = useState([]);
     const [allReservations, setAllReservations] = useState([]);
+    const [allTeams, setAllTeams] = useState([]);
     const [dateFilled, setDateFilled] = useState(false);
+    const [otherCategorySelected, setOtherCategorySelected] = useState(false);
     const navigate = useNavigate();
     
     //tracking the items that the user chooses for the reservation
@@ -96,6 +100,20 @@ function CreateReservation() {
         updatedEquipment[index].quantity = selectedOption.value;
         setSelectedEquipment(updatedEquipment);
     };
+
+    const handleTeamChange = (value) => {
+        setReservationCategory(value);
+        if (value === null) {
+            setReservationCategory({ value: '', label: '' });
+            setOtherCategorySelected(false);
+            setReservationOtherCategory('');
+        } else if (value.label === "Other") {
+            setOtherCategorySelected(true);
+        } else {
+            setReservationOtherCategory('');
+            setOtherCategorySelected(false);
+        }
+    }
     
     //add a new item dropdown
     const addItemDropdown = () => {
@@ -122,8 +140,17 @@ function CreateReservation() {
     };
 
     const createReservation = async () => {
-        if (selectedEquipment.length === 1 && selectedEquipment[0].equipment === null) {
-            alert('Please select at least one equipment item.');
+        let teamName = '';
+        if (reservationCategory.label !== "Other") {
+            teamName = reservationCategory.label;
+        } else {
+            teamName = reservationOtherCategory.label;
+        }
+
+        if (reservationName === '' || teamName === '' || reservationStartDate === '' || reservationEndDate === '' || 
+            (selectedEquipment.length === 1 && selectedEquipment[0].equipment === null)) {
+
+            alert("Please fill out every category.");
             return;
         }
 
@@ -146,19 +173,20 @@ function CreateReservation() {
 
         try {
 
-            // Verify date is the next business day at 5pm
+            // Verify date is the next business day at 8am
             const verifyDate = new Date(reservationEndDate);
             if (verifyDate.getDay() === 0 || verifyDate.getDay() === 5 || verifyDate.getDay() === 6) {
                 verifyDate.setDate(verifyDate.getDate() + (1 + 7 - verifyDate.getDay()) % 7);
-                verifyDate.setHours(17, 0, 0, 0);
             } else {
                 verifyDate.setDate(verifyDate.getDate() + 1);
             }
+            verifyDate.setHours(9, 0, 0, 0);
 
             // Using addDoc to create a new document in the reservations collection
             await addDoc(collection(db, 'reservations'), {
                 name: reservationName,
                 userEmail: localStorage.getItem('email'),
+                team: teamName,
                 startDate: new Date(reservationStartDate), 
                 endDate: new Date(reservationEndDate),     
                 equipmentIDs: selectedEquipmentIDs,
@@ -270,6 +298,29 @@ function CreateReservation() {
             }
         };
         fetchReservations();
+
+        const fetchTeams = async () => {
+            try {
+                const teamsRef = collection(db, 'teams');
+                
+                //get all the teams in the 'teams' collection
+                const querySnapshot = await getDocs(teamsRef);
+                
+                //map through each team and extract the data
+                const allTeamsList = querySnapshot.docs.map(doc => ({
+                    value: doc.id,
+                    label: doc.id
+                }));
+                allTeamsList.push({value: "Other", label: "Other"});
+
+                setAllTeams(allTeamsList);
+            } catch (error) {
+                console.error("Error fetching teams:", error);
+            }
+        };
+
+        fetchTeams();
+
     }, []);
 
     return (
@@ -290,6 +341,32 @@ function CreateReservation() {
                             />
                         </div>
                     </div>
+                    <div>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Team:</h2>
+                        <div className='pl-2 py-2'>
+                            <Select
+                                value={reservationCategory.label === '' ? reservationCategory.label : reservationCategory}
+                                options={allTeams}
+                                isClearable={true}
+                                isSearchable={true}
+                                onChange={(value) => handleTeamChange(value)}
+                                styles={dropdownStyle}
+                            />
+                        </div>
+                    </div>
+                    {otherCategorySelected && (
+                    <div>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Enter Team Name:</h2>
+                        <div className='pl-2 py-2'>
+                            <input type="text" 
+                                placeholder="ex) Bartram"
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
+                                value={reservationOtherCategory}
+                                onChange={(e) => setReservationOtherCategory(e.target.value)} 
+                            />
+                        </div>
+                    </div>
+                    )}
                     <div>
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Check-Out Date:</h2>
                         <div className='pl-2 py-2'>
@@ -357,7 +434,6 @@ function CreateReservation() {
             <div className='flex justify-center'>
                 <button 
                     className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4"
-                    disabled={!dateFilled}
                     onClick={() => createReservation()}
                     >
                     Reserve
