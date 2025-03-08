@@ -119,7 +119,8 @@ function CheckInOut() {
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
                 <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
-                <h3 className="text-lg sm:text-xl">Items Held: {reservation?.equipmentIDs?.length}</h3>
+                <h3 className="text-lg sm:text-xl pb-2"><span className="font-semibold">Team:</span> {reservation?.team}</h3>
+                <h3 className="text-lg sm:text-xl"><span className="font-semibold">Items Held:</span> {reservation?.equipmentIDs?.length}</h3>
                 <div className="container py-4"> 
                     <div className="flex flex-col md:flex-row gap-4"> 
                         <div className="flex-1 p-4 rounded"> 

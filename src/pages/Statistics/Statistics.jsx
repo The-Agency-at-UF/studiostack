@@ -18,6 +18,7 @@ const Statistics = () => {
   const [userReservationsData, setUserReservationsData] = useState([]);
   const [reservationTeamsData, setReservationTeamsData] = useState([]);
   const [totalEquipment, setTotalEquipment] = useState(0);
+  const [overdueEquipment, setOverdueEquipment] = useState([]);
   const currentDate = new Date();
   
   //get the top 5 and update state
@@ -148,9 +149,29 @@ const Statistics = () => {
         });
         updateReservationsTeamsData(allTimeTeams);
 
+        const overdueEquipmentList = allReservations.map(reservation => {
+          const endDate = reservation.endDate.toDate();
+          if (endDate < currentDate) {
+            return reservation.checkedOutItems.map(item => {
+              console.log(item);
+              return {
+                name: item.name,
+                id: item.id,
+                user: reservation.userEmail
+              };
+            })
+          }
+          return null;
+        })
+        .filter(item => item !== null)
+        .flat();
+        console.log(overdueEquipmentList);
+        setOverdueEquipment(overdueEquipmentList);
+
         const activeReservations = allReservations.filter(reservation => {
           const endDate = reservation.endDate.toDate();
-          return endDate >= currentDate;
+          const startDate = reservation.startDate.toDate();
+          return (endDate >= currentDate && startDate <= currentDate);
         });
 
         //count the awaiting checkout value
@@ -232,51 +253,77 @@ const Statistics = () => {
 
   return (
     <div className="bg-white m-8 p-8 rounded-lg relative">
-      <div className="pl-2 pr-2">
+      <div className="sm:pl-2 sm:pr-2">
         <h1 className="font-bold text-2xl md:text-3xl pb-6">Statistics</h1>
-        <div className="flex flex-col sm:flex-row items-center sm:items-center">
-          <div>
-            <PieChart width={200} height={200}>
-              <Pie
-                data={availabilityData}
-                cx="50%"
-                cy="50%"
-                outerRadius={90}
-                innerRadius={60}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                <Label
-                  value={totalEquipment + " Total"}
-                  position="center"
-                  fill="#333"
-                  fontSize={20}
-                  fontWeight="bold"
-                />
-                {availabilityData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
+        <div className="flex flex-wrap items-start">
+          <div className="flex flex-col sm:flex-row items-center pb-6 sm:pr-10 sm:pl-6 w-full sm:w-auto">
+            <div className="flex justify-center items-center w-full sm:w-auto">
+              <PieChart width={200} height={200}>
+                <Pie
+                  data={availabilityData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={90}
+                  innerRadius={60}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  <Label
+                    value={totalEquipment + " Total"}
+                    position="center"
+                    fill="#333"
+                    fontSize={20}
+                    fontWeight="bold"
+                  />
+                  {availabilityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </div>
+            <div className="sm:pl-8 pt-4 sm:pt-0 text-center sm:text-left flex flex-col justify-center">
+              {availabilityData.map((entry, index) => (
+                <div key={index} className="flex items-center justify-center sm:justify-start space-x-2">
+                  <span 
+                    className="w-3 h-3 rounded-full inline-block" 
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  ></span>
+                  <p>{entry.name}: {entry.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="sm:pl-8 pt-4 sm:pt-0 text-center sm:text-left flex flex-col justify-center">
-            {availabilityData.map((entry, index) => (
-              <div key={index} className="flex items-center justify-center sm:justify-start space-x-2">
-                <span 
-                  className="w-3 h-3 rounded-full inline-block" 
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                ></span>
-                <p>{entry.name}: {entry.value}</p>
+
+          {/* Overdue Equipment Box */}
+          <div className="w-full sm:w-3/5 sm:min-w-lg mt-4 sm:mt-0 sm:pl-6">
+            <div className="rounded-md border-2 border-black h-full w-full">
+              <h2 className="p-4 pb-0 text-xl sm:text-2xl text-center sm:text-left font-semibold">Overdue Equipment</h2>
+              <div className="p-4">
+                <div className="flex py-2 font-semibold">
+                  <div className="flex-1 pl-1">Equipment (ID)</div>
+                  <div className="flex-1 pr-1 sm:pr-0 sm:text-left text-right">User</div>
+                </div>
+                {overdueEquipment.length === 0 ? (
+                  <div className='text-center border-t w-full text-lg font-bold pt-4'>
+                    <h1>No Overdue Equipment!</h1>
+                  </div>
+                ) : (
+                <ul>
+                  {overdueEquipment.map((equipment) => (
+                    <li key={equipment.id} className="flex py-2 border-t">
+                      <div className="flex-1 pl-1 text-sm sm:text-base">{equipment.name} ({equipment.id})</div>
+                      <div className="flex-1 pr-1 sm:pr-0 sm:text-left text-right text-sm sm:text-base">{equipment.user}</div>
+                    </li>
+                  ))}
+                </ul>
+                )}
               </div>
-            ))}
+            </div>
           </div>
         </div>
-        {/*}
-        <div className='rounded-md border-2 border-black'>
-          <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">Overdue Equipment</h2>
-        </div>
-        */}
+
+
         <div className='flex flex-wrap justify-center sm:justify-start'>
           <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
           <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
