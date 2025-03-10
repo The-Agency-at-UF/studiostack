@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react'
 import { collection, getDocs, addDoc } from "firebase/firestore"; 
+import { useNavigate } from 'react-router-dom';
 import { db } from "../../firebase/firebaseConfig";
 import Select from 'react-select';
 
@@ -15,24 +16,28 @@ const subjectList = [
   "Other"
 ]
 
-function Report({ isAdmin }) {
+function Report({ isAdmin, userEmail }) {
   const [subjectDropdown, setSubjectDropdown] = useState([])
   const [itemDropdown, setItemDropdown] = useState([])
+  const [userDropdown, setUserDropdown] = useState([])
+
 
   const [subject, setSubject] = useState('')
   const [item, setItem] = useState('')
   const [message, setMessage] = useState('')
+  const [user, setUser] = useState('')
 
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedItem, setSelectedItem] = useState('')
+  const [selectedReportedBy, setSelectedReportedBy] = useState('')
 
   const [inventory, setInventory] = useState([])
+  const navigate = useNavigate();
   
   // handle email submission
   const handleSubmit = async () => {
-    if (subject && item && message) {
+    if (subject && item && message && user) {
         try {
-            // add user who reported it
             // TO DO: change to production email
             const mailRef = await addDoc(collection(db, "mail"), {
                 'to': ['theagencyatufdevs@gmail.com'],
@@ -43,10 +48,18 @@ function Report({ isAdmin }) {
                     `
                     <p>Item Name & ID: ${item}</p>
                     <p>Type: ${subject}</p>
+                    <p>Reported By: ${user}</p>
                     <p>Description: ${message}</p>
                     `
                 }
               });
+
+              const reportRef = await addDoc(collection(db, "reports"), {
+                
+
+            
+              });
+
               console.log("Email sent successfully", mailRef.id);
               setSubject('')
               setItem('')
@@ -83,6 +96,9 @@ function Report({ isAdmin }) {
   };
 
   useEffect(() => {
+    // set user email for the ReportedBy dropdown
+    setUserDropdown([{ value: userEmail, label: userEmail }]);
+
     // set subject list dropdown
     setSubjectDropdown(subjectList.map(subject => {
         return { value: subject, label: subject }
@@ -113,6 +129,11 @@ function Report({ isAdmin }) {
     setItem(selectedItem?.value); // get object value as a string
   }
 
+  const handleUserSelection = (selectedReportedBy) => {
+    setSelectedReportedBy(selectedReportedBy); // object
+    setUser(selectedReportedBy?.value); // get object value as a string
+  }
+
   useEffect(() => {
     setItemDropdown(inventory.map(item => {
         return { 
@@ -125,8 +146,8 @@ function Report({ isAdmin }) {
   return (
     <div className='bg-white m-8 p-8 rounded-lg relative'>
         <div className='pl-2 pr-2'>
-            <h1 className='font-bold text-2xl md:text-3xl pb-6'>Report an Issue</h1>
-        </div>
+            <h1 className='font-bold text-3xl pb-6'>Report an Issue</h1>
+            </div>
         <div className='flex flex-wrap'>
             <div className='flex-auto'>
                 <div>
@@ -161,6 +182,20 @@ function Report({ isAdmin }) {
                     </div>
                 </div>
             </div>
+            <div>
+                <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Reported By:</h2>
+                <div className='pl-2 py-2'>
+                    <Select
+                        placeholder="Select User..."
+                        value={selectedReportedBy}
+                        options={userDropdown}
+                        isClearable={true}
+                        isSearchable={true}
+                        onChange={handleUserSelection}
+                        styles={dropdownStyle}
+                        /> 
+                    </div>
+                </div>
             <div className='flex-auto relative'>
                 <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Description of the Issue:</h2>
                     <div className='pl-2 py-2'>

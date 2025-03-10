@@ -14,7 +14,7 @@ function Header({ isAdmin, logOut }) {
       <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Home</NavLink>
       <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
       <NavLink to="/reservations" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Reservations</NavLink>
-      <NavLink to="/report" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Report</NavLink>
+      <NavLink to="/reports" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Reports</NavLink>
       <NavLink to="/statistics" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Statistics</NavLink>
       <NavLink to="/users" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Users</NavLink>
       <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Inventory</NavLink>
@@ -31,7 +31,7 @@ function Header({ isAdmin, logOut }) {
       <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Home</NavLink>
       <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
       <NavLink to="/reservations" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Reservations</NavLink>
-      <NavLink to="/report" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Report</NavLink>
+      <NavLink to="/reports" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Reports</NavLink>
       <NavLink to="/">
         <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
       </NavLink>
@@ -62,7 +62,7 @@ function Header({ isAdmin, logOut }) {
           <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Home</NavLink>
           <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
           <NavLink to="/reservations" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Reservations</NavLink>
-          <NavLink to="/report" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Report</NavLink>
+          <NavLink to="/reports" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Reports</NavLink>
           <NavLink to="/statistics" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Statistics</NavLink>
           <NavLink to="/users" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Users</NavLink>
           <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Inventory</NavLink>
@@ -74,7 +74,7 @@ function Header({ isAdmin, logOut }) {
           <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Home</NavLink>
           <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
           <NavLink to="/reservations" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Reservations</NavLink>
-          <NavLink to="/report" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Report</NavLink>
+          <NavLink to="/reports" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}> Reports</NavLink>
           <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
       </div>
       ): null}
