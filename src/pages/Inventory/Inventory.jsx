@@ -5,7 +5,7 @@ import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
 import BarcodeDownloader from '../../components/BarcodeGenerator';
 
-const Inventory = () => {
+function Inventory({ isAdmin }) {
   const [inventory, setInventory] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
   const inventoryCollectionRef = collection(db, "inventory");
@@ -58,6 +58,10 @@ const Inventory = () => {
       console.log("Error deleting item from inventory:", error);
     }
   }
+
+  if (!isAdmin) {
+    return <h1>You must be an admin to view this page.</h1>;
+}
 
   return (
     <div>
