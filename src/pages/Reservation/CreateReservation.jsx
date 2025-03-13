@@ -192,7 +192,8 @@ function CreateReservation() {
                 equipmentIDs: selectedEquipmentIDs,
                 verifiedBy: verifyDate,
                 checkedOutItems: [],
-                checkedInItems: []
+                checkedInItems: [],
+                overdueItems: []
             });
 
             //logging the reservation timestamp in the user's document

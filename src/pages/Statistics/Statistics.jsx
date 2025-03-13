@@ -19,6 +19,8 @@ const Statistics = () => {
   const [reservationTeamsData, setReservationTeamsData] = useState([]);
   const [totalEquipment, setTotalEquipment] = useState(0);
   const [overdueEquipment, setOverdueEquipment] = useState([]);
+  const [overdueEquipmentTimes, setOverdueEquipmentTimes] = useState([]);
+  const [overdueRecords, setOverdueRecords] = useState([]);
   const currentDate = new Date();
   
   //get the top 5 and update state
@@ -142,6 +144,28 @@ const Statistics = () => {
           };
         });
         setReservationTeams(reservationsTeamsList);
+
+        const reservationsOverdueItemsList = allReservations.map(reservation => {
+          const endDate = reservation.endDate.toDate();
+          return reservation.overdueItems.map(equipment => {
+            const checkInTime = equipment.time.toDate();
+            const diffMs = checkInTime - endDate; //difference in milliseconds
+
+            //calculate days, hours, minutes
+            const totalMinutes = Math.floor(diffMs / (1000 * 60));
+            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            return {
+              user: reservation.userEmail,
+              id: equipment.id,
+              time: `${days}d ${hours}h ${minutes}m`,
+              totalMinutes: totalMinutes
+            };
+          });
+        }).flat();
+        setOverdueEquipmentTimes(reservationsOverdueItemsList);
   
         const allTimeTeams = {};
         reservationsTeamsList.forEach(item => {
@@ -153,7 +177,6 @@ const Statistics = () => {
           const endDate = reservation.endDate.toDate();
           if (endDate < currentDate) {
             return reservation.checkedOutItems.map(item => {
-              console.log(item);
               return {
                 name: item.name,
                 id: item.id,
@@ -165,7 +188,6 @@ const Statistics = () => {
         })
         .filter(item => item !== null)
         .flat();
-        console.log(overdueEquipmentList);
         setOverdueEquipment(overdueEquipmentList);
 
         const activeReservations = allReservations.filter(reservation => {
@@ -249,7 +271,67 @@ const Statistics = () => {
     };
 
     fetchUsers();
-  }, []); 
+
+    const createOverdueRecords = () => {
+      //have overdue times for the items that were checked back in
+      //have ovedue items in general
+      //name: number of overdue equipment: avg overdue time: list of overdue times:
+      const combinedRecords = {};
+
+      overdueEquipment.forEach(record => {
+        const user = record.user;
+        if (!combinedRecords[user]) {
+          combinedRecords[user] = { 
+            user: user, 
+            numberOfOverdueEquipment: 0, 
+            overdueTimes: [],
+            avgTime: '',
+            overdueTimesDisplay: ''
+          };
+        }
+        combinedRecords[user].numberOfOverdueEquipment += 1;
+      });
+
+      overdueEquipmentTimes.forEach(record => {
+        const user = record.user;
+        if (!combinedRecords[user]) {
+          combinedRecords[user] = { 
+            name: user, 
+            numberOfOverdueEquipment: 0, 
+            overdueTimes: [],
+            avgTime: '',
+            overdueTimesDisplay: ''
+          };
+        }
+        combinedRecords[user].overdueTimes.push({converted: record.time, total: record.totalMinutes});
+        combinedRecords[user].numberOfOverdueEquipment += 1;
+      });
+
+      Object.values(combinedRecords).forEach(record => {
+        let totalTime = 0;
+        record.overdueTimes.forEach(time => {
+          totalTime += time.total;
+
+          if (record.overdueTimesDisplay !== '') {
+            record.overdueTimesDisplay += ', '
+          } 
+          record.overdueTimesDisplay += time.converted;
+        });
+        const avgTimeMinutes = Math.floor(totalTime / record.overdueTimes.length);
+        const days = Math.floor(avgTimeMinutes / (60 * 24)); 
+        const hours = Math.floor((avgTimeMinutes % (60 * 24)) / 60); 
+        const minutes = avgTimeMinutes % 60; 
+
+        record.avgTime = `${days}d ${hours}h ${minutes}m`;
+
+      });
+
+      setOverdueRecords(Object.values(combinedRecords));
+    }
+    if (overdueEquipment.length > 0 || overdueEquipmentTimes.length > 0) {
+      createOverdueRecords();
+    }
+  }, [overdueEquipment, overdueEquipmentTimes]);
 
   return (
     <div className="bg-white m-8 p-8 rounded-lg relative">
@@ -295,7 +377,6 @@ const Statistics = () => {
             </div>
           </div>
 
-          {/* Overdue Equipment Box */}
           <div className="w-full sm:w-3/5 sm:min-w-lg mt-4 sm:mt-0 sm:pl-6">
             <div className="rounded-md border-2 border-black h-full w-full">
               <h2 className="p-4 pb-0 text-xl sm:text-2xl text-center sm:text-left font-semibold">Overdue Equipment</h2>
@@ -323,8 +404,7 @@ const Statistics = () => {
           </div>
         </div>
 
-
-        <div className='flex flex-wrap justify-center sm:justify-start'>
+        <div className='flex flex-wrap justify-center sm:justify-start sm:pt-4'>
           <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
           <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
         </div>
@@ -334,6 +414,28 @@ const Statistics = () => {
         </div>
         <div className='flex flex-wrap justify-center sm:justify-start'>
           <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
+        </div>
+
+        <div className='pt-8 sm:pt-12'>
+          <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">Overdue Equipment Record</h2>
+          <div className="p-4 pt-2">
+            <div className="flex py-2 font-semibold">
+                <div className="flex-1 pl-1 ">User</div>
+                <div className="flex-1 sm:text-left text-right pr-1 sm:pr-0 sm:text-left text-right">Total Instances</div>
+                <div className="flex-1 hidden sm:block">Average Overdue Time</div>
+                <div className="flex-1 text-base hidden md:block">Overdue Times</div>
+            </div>
+            <ul>
+                {overdueRecords.map((record) => (
+                    <li key={record.user} className="flex py-2 border-t">
+                        <div className="flex-1 pl-1 text-sm sm:text-base">{record.user}</div>
+                        <div className="flex-1 text-sm sm:text-base pr-1 sm:pr-0 sm:text-left text-right">{record.numberOfOverdueEquipment}</div>
+                        <div className="flex-1 hidden sm:block">{record.avgTime === 'NaNd NaNh NaNm' ? 'N/A' : record.avgTime}</div>
+                        <div className="flex-1 text-base hidden md:block">{record.overdueTimesDisplay}</div>
+                    </li>
+                ))}
+            </ul>
+          </div>
         </div>
       </div>
     </div>

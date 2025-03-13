@@ -8,7 +8,6 @@ function CheckInOut() {
     const location = useLocation();
     const reservationID = location.state;
     const [reservation, setReservation] = useState();
-    const [allEquipment, setAllEquipment] = useState([]);
     const [itemsToCheckOut, setItemsToCheckOut] = useState([]);
 
     const formatDate = (timestamp) => {
@@ -78,6 +77,19 @@ function CheckInOut() {
         );
         const updatedReservation = await getDoc(reservationRef);
         const updatedData = updatedReservation.data();
+
+        const currentDate = new Date();
+        let overdue = updatedData.endDate < currentDate ? true : false;
+        if (overdue) {
+            await setDoc(
+                reservationRef, 
+                { 
+                    overdueItems: [...reservation.overdueItems, {id: equipmentID.id, name: equipmentCheckedIn.name, time: new Date(currentDate)}],
+                }, 
+                { merge: true } 
+            );
+        }
+
         setReservation(updatedData);
 
          //update the availability in the inventory collection for that item
