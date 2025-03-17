@@ -82,57 +82,83 @@ function ReportSummary({ isAdmin, userEmail }) {
         }
     }
 
+    const setItemToAvailable = (itemId) => { 
+        // set item availability/status back to available
+        const itemRef = doc(db, 'inventory', itemId);
+        updateDoc(itemRef, {
+            availability: "available"
+        });
+    }
 
   return (
     <div className='bg-white m-8 p-8 rounded-lg relative'>
-        <div className='pl-2 pr-2'>
-            <h1 className='font-bold text-3xl pb-6'>Report Summary</h1>
+        <div className='pl-2 pr-2 font-semibold'>
+            <h1 className='text-3xl pb-4'>Report Summary</h1>
+            <p>Reported On: {formatDate(report?.timestamp)}</p>
+        </div>
+        {/* If the report has been resolved, show a message */}
+        {report?.resolved == true &&
+            <ResolvedLabel resolvedBy={report?.resolvedBy} resolvedOn={formatDate(report?.resolvedOn)}/>
+        }
+        <div className="container py-4"> 
+            <div className="flex flex-col md:flex-row gap-4"> 
+                <div className="flex-1 p-4 rounded"> 
+                    <h2 className="text-xl sm:text-2xl text-left pb-4">Subject:</h2>
+                    <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-2"> 
+                        <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
+                            <h3>{report?.subject}</h3>
+                        </div>                                
+                    </div>                          
+                </div>
+                <div className="flex-1 p-4 ml-2 rounded"> 
+                    <h2 className="text-xl sm:text-2xl text-left pb-4">Reported By:</h2>
+                    <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
+                        <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
+                            <h3>{report?.user}</h3>
+                        </div> 
+                    </div>                          
+                </div>
             </div>
-            {report?.resolved == true &&
-                <ResolvedLabel resolvedBy={report?.resolvedBy} resolvedOn={formatDate(report?.resolvedOn)}/>
-            }
-        <div className='flex flex-wrap'>
-            <div className='flex-auto'>
-                <div>
-                    <h2 className='pl-2 pt-2 font-bold text-lg sm:text-xl'>Subject:</h2>
-                    <div className='pl-2 py-2'>
-                        {report?.subject}
-                    </div>
+            <div className="flex flex-col md:flex-row gap-4"> 
+                <div className="flex-1 p-4 rounded"> 
+                    <h2 className="text-xl sm:text-2xl text-left pb-4">Item Name:</h2>
+                    <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-2"> 
+                        <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
+                            <h3>{report?.item}</h3>
+                        </div>                                
+                    </div>                          
                 </div>
-                <div>
-                    <h2 className='pl-2 pt-2 font-bold text-lg sm:text-xl'>Item:</h2>
-                    <div className='pl-2 py-2'>
-                        {report?.item}
-                    </div>
+                <div className="flex-1 p-4 ml-2 rounded"> 
+                    <h2 className="text-xl sm:text-2xl text-left pb-4">Item ID:</h2>
+                    <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
+                        <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
+                            <h3>{report?.itemId}</h3>
+                        </div> 
+                    </div>                          
                 </div>
-                <div>
-                    <h2 className='pl-2 pt-2 font-bold text-lg sm:text-xl'>Reported By:</h2>
-                    <div className='pl-2 py-2'>
-                        {report?.user}
-                    </div>
-                </div>
-                <div>
-                <h2 className='pl-2 pt-2 font-bold text-lg sm:text-xl'>Description of the Issue:</h2>
-                    <div className='pl-2 py-2'>
-                        {report?.message}
-                    </div> 
-                </div>
-                <div>
-                <h2 className='pl-2 pt-2 font-bold text-lg sm:text-xl'>Reported On:</h2>
-                    <div className='pl-2 py-2'>
-                        {formatDate(report?.timestamp)}
-                    </div> 
+            </div>
+            <div className="flex flex-col md:flex-row gap-4"> 
+                <div className="flex-1 p-4 rounded"> 
+                    <h2 className="text-xl sm:text-2xl text-left pb-4">Description of the Issue:</h2>
+                    <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-2"> 
+                        <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
+                            <h3>{report?.message}</h3>
+                        </div>                                
+                    </div>                          
                 </div>
             </div>
         </div>
         <div className='flex justify-center'> 
+        {/* If user is an admin, they can resolve a report */}
         {isAdmin && report?.resolved == false &&
-        <button 
-            className="px-6 py-2 bg-[#A3C1E0] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
-            onClick={() => resolveReport(reportID)}
-            >
-            Resolve
-        </button>
+            <button 
+                className="px-6 py-2 bg-[#A3C1E0] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
+                onClick={() => {
+                    resolveReport(reportID);
+                    setItemToAvailable(report.itemId);
+                }}> 
+                Resolve
+            </button>
         }
         </div>
     </div>

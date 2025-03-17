@@ -1,6 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { collection, getDocs, addDoc, serverTimestamp} from "firebase/firestore"; 
-import { useNavigate } from 'react-router-dom';
+import { collection, getDocs, addDoc, serverTimestamp, doc, updateDoc, query, where} from "firebase/firestore"; 
 import { db } from "../../firebase/firebaseConfig";
 import Select from 'react-select';
 
@@ -16,27 +15,32 @@ const subjectList = [
   "Other"
 ]
 
-function Report({ isAdmin, userEmail }) {
+function Report({ userEmail }) {
+  // Select Dropdowns
   const [subjectDropdown, setSubjectDropdown] = useState([])
   const [itemDropdown, setItemDropdown] = useState([])
+  const [itemIdDropdown, setItemIdDropdown] = useState([])
   const [userDropdown, setUserDropdown] = useState([])
 
-
+  // variables to store data
   const [subject, setSubject] = useState('')
   const [item, setItem] = useState('')
+  const [itemId, setItemId] = useState('')
   const [message, setMessage] = useState('')
   const [user, setUser] = useState('')
 
+  // selected data
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedItem, setSelectedItem] = useState('')
+  const [selectedItemId, setSelectedItemId] = useState('')
   const [selectedReportedBy, setSelectedReportedBy] = useState('')
 
   const [inventory, setInventory] = useState([])
-  const navigate = useNavigate();
+  const [isSelected, setIsSelected] = useState(false);
   
   // handle email submission
   const handleSubmit = async () => {
-    if (subject && item && message && user) {
+    if (subject && item && itemId && message && user) {
         try {
             // TO DO: change to production email
             const mailRef = await addDoc(collection(db, "mail"), {
@@ -47,7 +51,8 @@ function Report({ isAdmin, userEmail }) {
                     'text': 'There is an issue with an item.',
                     'html': 
                     `
-                    <p>Item Name & ID: ${item}</p>
+                    <p>Item Name: ${item}</p>
+                    <p>Item ID: ${itemId}</p>
                     <p>Type: ${subject}</p>
                     <p>Reported By: ${user}</p>
                     <p>Description: ${message}</p>
@@ -57,6 +62,7 @@ function Report({ isAdmin, userEmail }) {
 
               const reportRef = await addDoc(collection(db, "reports"), {
                 item: item, 
+                itemId: itemId,
                 subject: subject, 
                 user: user,
                 message: message, 
@@ -68,7 +74,9 @@ function Report({ isAdmin, userEmail }) {
               console.log("Item added successfully", reportRef.id);
               setSubject('')
               setItem('')
+              setItemId('')
               setMessage('')
+              setIsSelected(false);
               setTimeout(() => window.location.reload(), 1000);
         }
         catch(error) {
@@ -99,7 +107,24 @@ function Report({ isAdmin, userEmail }) {
         }
     }),
   };
+   useEffect(() => {
+    setItemDropdown(inventory.map(item => {
+        return { 
+            value: `${item.name}`, 
+            label: `${item.name}`            
+        }
+    }));
+  }, [inventory]);
 
+  useEffect(() => {
+    setItemIdDropdown(inventory.map(item => {
+        return { 
+            value: `${item.id}`, 
+            label: `${item.id}`            
+        }
+    }));
+  }, [inventory]);
+ 
   useEffect(() => {
     // set user email for the ReportedBy dropdown
     setUserDropdown([{ value: userEmail, label: userEmail }]);
@@ -129,9 +154,30 @@ function Report({ isAdmin, userEmail }) {
     setSubject(selectedSubject?.value); // get object value as a string
   }
 
-  const handleItemSelection = (selectedItem) => {
+  const handleItemSelection = async (selectedItem) => {
     setSelectedItem(selectedItem); // object
     setItem(selectedItem?.value); // get object value as a string
+
+    // if an item has been selected
+    if (selectedItem?.value) {
+        const inventoryRef = collection(db, "inventory");
+        // get ID values for that name (there can be multiple items, but there are unique IDs for each)
+        const q = query(inventoryRef, where("name", "==", selectedItem.value));
+
+        // set the second dropdown list (item IDs)
+        const querySnapshot = await getDocs(q);
+        const filteredIdList = querySnapshot.docs.map(doc => ({
+            value: doc.id, 
+            label: doc.id
+        }));
+        setIsSelected(true);
+        setItemIdDropdown(filteredIdList);
+    }
+  }
+
+  const handleItemIdSelection = (selectedItemId) => {
+    setSelectedItemId(selectedItemId); // object
+    setItemId(selectedItemId?.value); // get object value as a string
   }
 
   const handleUserSelection = (selectedReportedBy) => {
@@ -139,14 +185,19 @@ function Report({ isAdmin, userEmail }) {
     setUser(selectedReportedBy?.value); // get object value as a string
   }
 
-  useEffect(() => {
-    setItemDropdown(inventory.map(item => {
-        return { 
-            value: `${item.name} (${item.id})`, 
-            label: `${item.name} (${item.id})`            
-        }
-    }));
- }, [inventory]);
+  const setItemtoReported = (itemId) => { 
+    // set item availability/status to reported
+    const itemRef = doc(db, 'inventory', itemId);
+    updateDoc(itemRef, {
+        availability: "reported"
+    });
+ }   
+
+ const checkItemSelection = () => {
+    if (!isSelected) {
+        alert("Select an item name before selecting an ID");
+    }
+ }
   
   return (
     <div className='bg-white m-8 p-8 rounded-lg relative'>
@@ -170,16 +221,31 @@ function Report({ isAdmin, userEmail }) {
                     </div>
                 </div>
                 <div>
-                    <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item:</h2>
+                    <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item Name:</h2>
                     <div className='pl-2 py-2'>
                         <Select
-                            placeholder="Select Item..."
+                            placeholder="Select Item Name..."
                             value={selectedItem}
                             options={itemDropdown}
                             isClearable={true}
                             isSearchable={true}
                             onChange={handleItemSelection}
                             styles={dropdownStyle}
+                            />
+                    </div>
+                </div>
+                <div>
+                    <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item ID:</h2>
+                    <div className='pl-2 py-2' onClick={checkItemSelection}>
+                        <Select
+                            placeholder="Select Item ID..."
+                            value={selectedItemId}
+                            options={itemIdDropdown}
+                            isClearable={true}
+                            isSearchable={true}
+                            onChange={handleItemIdSelection}
+                            styles={dropdownStyle}
+                            isDisabled={!isSelected}
                             />
                     </div>
                 </div>
@@ -213,9 +279,12 @@ function Report({ isAdmin, userEmail }) {
         <div className='flex justify-center'>
             <button 
                 className="px-6 py-2 bg-[#A3C1E0] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
-                onClick={handleSubmit}
+                onClick={() => {
+                    handleSubmit();
+                    setItemtoReported(itemId);
+                  }}
             >
-            Submit Report
+            Submit
             </button>
         </div>
     </div>
