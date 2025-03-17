@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { collection, getDocs, addDoc } from "firebase/firestore"; 
+import { collection, getDocs, addDoc, serverTimestamp} from "firebase/firestore"; 
 import { useNavigate } from 'react-router-dom';
 import { db } from "../../firebase/firebaseConfig";
 import Select from 'react-select';
@@ -41,6 +41,7 @@ function Report({ isAdmin, userEmail }) {
             // TO DO: change to production email
             const mailRef = await addDoc(collection(db, "mail"), {
                 'to': ['theagencyatufdevs@gmail.com'],
+                'type': {subject},
                 'message': {
                     'subject': 'StudioStack Item Report',
                     'text': 'There is an issue with an item.',
@@ -55,12 +56,16 @@ function Report({ isAdmin, userEmail }) {
               });
 
               const reportRef = await addDoc(collection(db, "reports"), {
-                
-
-            
+                item: item, 
+                subject: subject, 
+                user: user,
+                message: message, 
+                resolved: false,
+                timestamp: serverTimestamp()
               });
 
               console.log("Email sent successfully", mailRef.id);
+              console.log("Item added successfully", reportRef.id);
               setSubject('')
               setItem('')
               setMessage('')
@@ -164,24 +169,20 @@ function Report({ isAdmin, userEmail }) {
                         /> 
                     </div>
                 </div>
-                <div className='flex-auto relative'>
-                <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item:</h1>
-                <div className="pl-2 py-2">
-                    <div className="flex items-center space-x-2">
-                        <div className='w-3/4 md:w-full'>
-                            <Select
-                                placeholder="Select Item..."
-                                value={selectedItem}
-                                options={itemDropdown}
-                                isClearable={true}
-                                isSearchable={true}
-                                onChange={handleItemSelection}
-                                styles={dropdownStyle}
+                <div>
+                    <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item:</h2>
+                    <div className='pl-2 py-2'>
+                        <Select
+                            placeholder="Select Item..."
+                            value={selectedItem}
+                            options={itemDropdown}
+                            isClearable={true}
+                            isSearchable={true}
+                            onChange={handleItemSelection}
+                            styles={dropdownStyle}
                             />
-                        </div>
                     </div>
                 </div>
-            </div>
             <div>
                 <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Reported By:</h2>
                 <div className='pl-2 py-2'>
