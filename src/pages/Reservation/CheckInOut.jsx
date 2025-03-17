@@ -73,27 +73,9 @@ function CheckInOut() {
         const updatedData = updatedReservation.data();
         setReservation(updatedData);
     };
-
-    useEffect(() => {
-        const fetchEquipment = async () => {
-            try {
-                const equipmentRef = collection(db, 'inventory');
-                const querySnapshot = await getDocs(equipmentRef);
-                const allEquipmentList = querySnapshot.docs.map(doc => ({
-                    equipmentID: doc.id, 
-                    name: doc.data().name
-                }));
-                setAllEquipment(allEquipmentList);
-            } catch (error) {
-                console.error("Error fetching equipment:", error);
-            }
-        };
-    
-        fetchEquipment();
-    }, []); 
     
     useEffect(() => {
-        if (!reservationID || allEquipment.length === 0) return; 
+        if (!reservationID) return; 
     
         const fetchReservations = async () => {
             try {
@@ -103,18 +85,12 @@ function CheckInOut() {
                 if (reservationVar.exists()) {
                     const reservationData = reservationVar.data();
                     setReservation(reservationData);
-    
-                    const itemsToCheckOutList = reservationData.equipmentIDs
-                        .map(ID => {
-                            const equipment = allEquipment.find(e => e.equipmentID === ID);
-                            if (equipment && !reservationData.checkedOutItems.some(item => item.id === ID) && !reservationData.checkedInItems.some(item => item.id === ID)) {
-                                return { id: ID, name: equipment.name };
-                            }
-                            return null;
-                        })
-                        .filter(Boolean); 
-    
+
+                    const itemsToCheckOutList = reservationData.equipmentIDs.filter(equipment => 
+                        !reservationData.checkedOutItems.some(item => item.id === equipment.id) && 
+                        !reservationData.checkedInItems.some(item => item.id === equipment.id));
                     setItemsToCheckOut(itemsToCheckOutList);
+    
                 }
             } catch (error) {
                 console.error("Error fetching reservation:", error);
@@ -122,7 +98,7 @@ function CheckInOut() {
         };
     
         fetchReservations();
-    }, [reservationID, allEquipment.length]);
+    }, [reservationID]);
 
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>

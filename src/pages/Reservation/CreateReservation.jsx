@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDocs, collection, doc, addDoc } from 'firebase/firestore';
+import { getDocs, collection, doc, addDoc, setDoc, arrayUnion } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/firebaseConfig';
 import Select from 'react-select';
@@ -56,7 +56,7 @@ function CreateReservation() {
         //get the equipment that is reserved for these reservations
         sameTimeReservations.forEach((reservation) => {
             reservation.equipmentIDs.forEach((equipmentid) => {
-                reservedEquipmentSet.add(equipmentid);
+                reservedEquipmentSet.add(equipmentid.id);
             });
         });
 
@@ -139,7 +139,7 @@ function CreateReservation() {
                         alert('Unable to create reservation. Please make sure items aren\'t duplicated.')
                         return;
                     }
-                    selectedEquipmentIDs.push(availableItem.value[i]);
+                    selectedEquipmentIDs.push({id: availableItem.value[i], name: item.equipment.label});
                 }
             }
         });
@@ -166,12 +166,23 @@ function CreateReservation() {
                 checkedOutItems: [],
                 checkedInItems: []
             });
+
+            //logging the reservation timestamp in the user's document
+            const userRef = doc(db, 'users', localStorage.getItem('email'));
+            await setDoc(
+                        userRef, 
+                        { 
+                            reservations: arrayUnion(new Date())
+                        }, 
+                        { merge: true } 
+                    );
     
             alert("Reservation created successfully.");
             navigate("/reservations");
         } catch (error) {
             console.error("Error creating reservation: ", error);
             alert("There was an error creating the reservation.");
+            navigate("/reservations");
         }
     }
 

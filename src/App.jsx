@@ -79,10 +79,10 @@ const App = () => {
       <Routes>
         <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
         <Route path="/inventory" element={<Inventory isAdmin={isAdmin}/>} />
-        <Route path="/calendar" element={<Calendar />} />
         <Route path="/reports" element={<Reports isAdmin={isAdmin}/>} />
         <Route path="/create-report" element={<Report userEmail={email}/>} />
         <Route path="/report-summary" element={<ReportSummary isAdmin={isAdmin} userEmail={email}/>} />
+        <Route path="/calendar" element={<Calendar isAdmin={isAdmin} />} />
         <Route path="/statistics" element={<Statistics />} />
         <Route path="/users" element={<Users isAdmin={isAdmin} />} />
         <Route path="/reservations" element={<Reservations />} />
