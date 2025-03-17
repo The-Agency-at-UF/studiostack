@@ -6,6 +6,7 @@ import Inventory  from "./pages/Inventory/Inventory";
 import Calendar from "./pages/Calendar/Calendar";
 import Report from "./pages/Report/Report";
 import Reports from "./pages/Report/Reports";
+import ReportSummary from "./pages/Report/ReportSummary";
 import Statistics from "./pages/Statistics/Statistics";
 import LogIn from './pages/LogIn/LogIn';
 import Users from "./pages/Users/Users";
@@ -81,6 +82,7 @@ const App = () => {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/reports" element={<Reports isAdmin={isAdmin}/>} />
         <Route path="/create-report" element={<Report isAdmin={isAdmin} userEmail={email}/>} />
+        <Route path="/report-summary" element={<ReportSummary isAdmin={isAdmin} userEmail={email}/>} />
         <Route path="/statistics" element={<Statistics />} />
         <Route path="/users" element={<Users isAdmin={isAdmin} />} />
         <Route path="/reservations" element={<Reservations />} />

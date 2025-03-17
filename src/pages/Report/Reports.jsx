@@ -3,7 +3,7 @@ import { getDocs, collection, serverTimestamp } from 'firebase/firestore';
 import { IoIosAddCircle } from "react-icons/io";
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/firebaseConfig';
-import ReservationLabel from '../../components/ReservationLabel';
+import ReportLabel from '../../components/ReportLabel';
 
 function Reports({ isAdmin }) { 
     const [reports, setReports] = useState([]);
@@ -25,19 +25,33 @@ function Reports({ isAdmin }) {
                 ...doc.data()
             }));
 
-            const allReports = reportsList.filter(report => report.userEmail === localStorage.getItem('email'));
-            setReports(allReports);
+            const userReports = reportsList.filter(report => report.user === localStorage.getItem('email'));
+            const allReports = reportsList;
 
-            const activeReportsList = reportsList.filter(report => report.resolved === false);
-            setActiveReports(activeReportsList);
+            // if regular user - only show their reports
+            if (!isAdmin) {
+                setReports(userReports);
+                const activeReportsList = userReports.filter(report => report.resolved === false);
+                setActiveReports(activeReportsList);
 
-            const resolvedReportsList = reportsList.filter(report => report.resolved === true);
-            setResolvedReports(resolvedReportsList);
-    
+                const resolvedReportsList = userReports.filter(report => report.resolved === true);
+                setResolvedReports(resolvedReportsList);
+            }
+            else {
+            // if admin - show every user's reports
+                setReports(allReports);
+                const activeReportsList = allReports.filter(report => report.resolved === false);
+                setActiveReports(activeReportsList);
+
+                const resolvedReportsList = allReports.filter(report => report.resolved === true);
+                setResolvedReports(resolvedReportsList);
+            }
+            
         } catch (error) {
             console.error("Error fetching reports:", error);
         }
     };
+    
     fetchReports();
     }, []);
         
@@ -51,7 +65,7 @@ function Reports({ isAdmin }) {
                     <h1 className='font-bold text-2xl md:text-3xl pb-6'>Active Reports</h1>
                     <div className='w-full'>
                         {activeReports.map((report, index) => (
-                            <ReservationLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
+                            <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
                         ))} 
                     </div>
                 </div>
@@ -59,7 +73,7 @@ function Reports({ isAdmin }) {
                     <h1 className='font-bold text-2xl md:text-3xl py-6'>Resolved Reports</h1>
                     <div className='w-full'>
                         {resolvedReports.map((report, index) => (
-                            <ReservationLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
+                            <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
                         ))} 
                     </div>
                 </div>
