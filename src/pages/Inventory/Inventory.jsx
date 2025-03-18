@@ -4,8 +4,10 @@ import { db } from "../../firebase/firebaseConfig";
 import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
 import BarcodeDownloader from '../../components/BarcodeGenerator';
+import { IoIosAlert } from "react-icons/io";
+import { IoIosCheckmarkCircle } from "react-icons/io";
 
-const Inventory = () => {
+function Inventory({ isAdmin }) {
   const [inventory, setInventory] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
   const inventoryCollectionRef = collection(db, "inventory");
@@ -59,6 +61,10 @@ const Inventory = () => {
     }
   }
 
+  if (!isAdmin) {
+    return <h1>You must be an admin to view this page.</h1>;
+}
+
   return (
     <div>
       <div className='bg-white m-8 p-8 rounded-lg relative'>
@@ -84,7 +90,7 @@ const Inventory = () => {
                 <div className="flex py-2 font-semibold">
                     <div className="flex-1 pl-4">Item Name</div>
                     <div className="flex-1 pl-4">Category</div>
-                    <div className="flex-1 pl-4">Availability</div>
+                    <div className="flex-1 pl-4">Status</div>
                     <div className="flex-1">Download Barcode</div>
                 </div>
                 <ul>
@@ -92,7 +98,17 @@ const Inventory = () => {
                       <li key={item.id} className="flex py-2 border-t">
                         <div className="flex-1 pl-4">{item.name}</div>
                         <div className="flex-1 pl-4">{item.category}</div>
-                        <div className="flex-1 pl-4">{item.availability}</div>
+                        <div className="flex-1 pl-4">
+                        {item.availability == "reported" &&
+                          <IoIosAlert color='#EB3223' className='w-5 h-5 ml-5 mr-5'/>
+                        }
+                        {item.availability == "available" &&
+                          <IoIosCheckmarkCircle color='#426276' className='w-5 h-5 ml-5 mr-5'/>
+                        }     
+                         {item.availability == "checked out" &&
+                          <IoIosCheckmarkCircle color='#426276' className='w-5 h-5 ml-5 mr-5'/>
+                        }
+                        </div>
                         <div className="flex-1 pl-4">
                           <BarcodeDownloader equipmentID={item.id}/>
                         </div>
