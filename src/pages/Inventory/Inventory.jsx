@@ -69,7 +69,7 @@ function Inventory({ isAdmin }) {
     <div>
       <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <h1 className='font-bold text-3xl pb-6'>All Items</h1>
+                <h1 className='font-bold text-3xl pb-6'>Inventory</h1>
                 <div className="absolute top-8 right-8 flex space-x-4">
                   <AddItemPopup addItem={addItem} categoryList={categoryList}/>
                   <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
