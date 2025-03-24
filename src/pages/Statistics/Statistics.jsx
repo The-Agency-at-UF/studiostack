@@ -139,7 +139,6 @@ const Statistics = () => {
   
 
   useEffect(() => {
-    console.log("here")
     const fetchEquipmentAndReservations = async () => {
       try {
         // get equipment data from the 'inventory' collection
