@@ -8,7 +8,6 @@ function CheckInOut() {
     const location = useLocation();
     const reservationID = location.state;
     const [reservation, setReservation] = useState();
-    const [allEquipment, setAllEquipment] = useState([]);
     const [itemsToCheckOut, setItemsToCheckOut] = useState([]);
 
     const formatDate = (timestamp) => {
@@ -53,6 +52,13 @@ function CheckInOut() {
         //remove the item from the list of items that need to be checked out
         const itemsToCheckOutUpdated = itemsToCheckOut.filter((equipment) => equipment.id !== equipmentID);
         setItemsToCheckOut(itemsToCheckOutUpdated);
+
+        //update the availability in the inventory collection for that item
+        const equipmentRef = collection(db, 'inventory', equipmentID);
+        await setDoc(
+            equipmentRef, { availability: "checked out"}, 
+            { merge: true } 
+        );
     };
 
     const handleCheckIn = async (equipmentID) => {
@@ -71,7 +77,27 @@ function CheckInOut() {
         );
         const updatedReservation = await getDoc(reservationRef);
         const updatedData = updatedReservation.data();
+
+        const currentDate = new Date();
+        let overdue = updatedData.endDate < currentDate ? true : false;
+        if (overdue) {
+            await setDoc(
+                reservationRef, 
+                { 
+                    overdueItems: [...reservation.overdueItems, {id: equipmentID.id, name: equipmentCheckedIn.name, time: new Date(currentDate)}],
+                }, 
+                { merge: true } 
+            );
+        }
+
         setReservation(updatedData);
+
+         //update the availability in the inventory collection for that item
+        const equipmentRef = collection(db, 'inventory', equipmentID.id);
+        await setDoc(
+            equipmentRef, { availability: "available"}, 
+            { merge: true } 
+        );
     };
     
     useEffect(() => {
@@ -105,7 +131,8 @@ function CheckInOut() {
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
                 <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
-                <h3 className="text-lg sm:text-xl">Items Held: {reservation?.equipmentIDs?.length}</h3>
+                <h3 className="text-lg sm:text-xl pb-2"><span className="font-semibold">Team:</span> {reservation?.team}</h3>
+                <h3 className="text-lg sm:text-xl"><span className="font-semibold">Items Held:</span> {reservation?.equipmentIDs?.length}</h3>
                 <div className="container py-4"> 
                     <div className="flex flex-col md:flex-row gap-4"> 
                         <div className="flex-1 p-4 rounded"> 

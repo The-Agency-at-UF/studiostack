@@ -34,9 +34,11 @@ const Calendar = ({ isAdmin }) => {
           email: doc.data().userEmail,
           checkedOutItems: doc.data().checkedOutItems,
           checkedInItems: doc.data().checkedInItems,
+          team: doc.data().team
         }));
 
         setReservations(allReservationsList);
+        console.log(allReservationsList);
       } catch (error) {
         console.error("Error fetching reservations:", error);
       }
@@ -79,6 +81,7 @@ const Calendar = ({ isAdmin }) => {
           <div>
             <div>
               <h1 className='font-bold text-2xl sm:text-3xl py-2'>{reservation.title}</h1>
+              <p className='text-lg sm:text-xl py-2'><span className='font-semibold'>Team:</span> {reservation.extendedProps.team}</p>
               <p className='text-lg sm:text-xl py-2'>{reservation.start.toLocaleString()} - {reservation.end.toLocaleString()}</p>
               {isAdmin && (<p className='text-lg sm:text-xl py-2'> <span className='font-semibold'>Reserved by:</span> {reservation.extendedProps.email}</p>)}
             </div>
