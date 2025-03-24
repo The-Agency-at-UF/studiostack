@@ -21,6 +21,8 @@ const Statistics = () => {
   const [overdueEquipment, setOverdueEquipment] = useState([]);
   const [overdueEquipmentTimes, setOverdueEquipmentTimes] = useState([]);
   const [overdueRecords, setOverdueRecords] = useState([]);
+  const [reportSubjects, setReportSubjects] = useState([]);
+  const [reportSubjectsData, setReportSubjectsData] = useState([]);
   const currentDate = new Date();
   
   //get the top 5 and update state
@@ -68,9 +70,76 @@ const Statistics = () => {
     
     setReservationTeamsData(topTeams);
   };
+
+  const updateReportSubjectsData = (subject) => {
+    const topSubjects = Object.entries(subject)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value) 
+      .slice(0, 5);
+    
+    setReportSubjectsData(topSubjects);
+  };
+
+  const createOverdueRecords = (overdueEquipmentParam, overdueEquipmentTimesParam) => {
+    //have overdue times for the items that were checked back in
+    //have ovedue items in general
+    //name: number of overdue equipment: avg overdue time: list of overdue times:
+    const combinedRecords = {};
+
+    overdueEquipmentParam.forEach(record => {
+      const user = record.user;
+      if (!combinedRecords[user]) {
+        combinedRecords[user] = { 
+          user: user, 
+          numberOfOverdueEquipment: 0, 
+          overdueTimes: [],
+          avgTime: '',
+          overdueTimesDisplay: ''
+        };
+      }
+      combinedRecords[user].numberOfOverdueEquipment += 1;
+    });
+
+    overdueEquipmentTimesParam.forEach(record => {
+      const user = record.user;
+      if (!combinedRecords[user]) {
+        combinedRecords[user] = { 
+          name: user, 
+          numberOfOverdueEquipment: 0, 
+          overdueTimes: [],
+          avgTime: '',
+          overdueTimesDisplay: ''
+        };
+      }
+      combinedRecords[user].overdueTimes.push({converted: record.time, total: record.totalMinutes});
+      combinedRecords[user].numberOfOverdueEquipment += 1;
+    });
+
+    Object.values(combinedRecords).forEach(record => {
+      let totalTime = 0;
+      record.overdueTimes.forEach(time => {
+        totalTime += time.total;
+
+        if (record.overdueTimesDisplay !== '') {
+          record.overdueTimesDisplay += ', '
+        } 
+        record.overdueTimesDisplay += time.converted;
+      });
+      const avgTimeMinutes = Math.floor(totalTime / record.overdueTimes.length);
+      const days = Math.floor(avgTimeMinutes / (60 * 24)); 
+      const hours = Math.floor((avgTimeMinutes % (60 * 24)) / 60); 
+      const minutes = avgTimeMinutes % 60; 
+
+      record.avgTime = `${days}d ${hours}h ${minutes}m`;
+
+    });
+
+    setOverdueRecords(Object.values(combinedRecords));
+  }
   
 
   useEffect(() => {
+    console.log("here")
     const fetchEquipmentAndReservations = async () => {
       try {
         // get equipment data from the 'inventory' collection
@@ -216,6 +285,9 @@ const Statistics = () => {
           { name: 'Awaiting Checkout', value: awaitingCheckout },
           { name: 'Checked Out', value: checkedOut },
         ]);
+
+        createOverdueRecords(overdueEquipmentList, reservationsOverdueItemsList);
+        
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -272,66 +344,31 @@ const Statistics = () => {
 
     fetchUsers();
 
-    const createOverdueRecords = () => {
-      //have overdue times for the items that were checked back in
-      //have ovedue items in general
-      //name: number of overdue equipment: avg overdue time: list of overdue times:
-      const combinedRecords = {};
-
-      overdueEquipment.forEach(record => {
-        const user = record.user;
-        if (!combinedRecords[user]) {
-          combinedRecords[user] = { 
-            user: user, 
-            numberOfOverdueEquipment: 0, 
-            overdueTimes: [],
-            avgTime: '',
-            overdueTimesDisplay: ''
+    const fetchMail = async () => {
+      const mailRef = collection(db, 'mail');
+      const mailSnapshot = await getDocs(mailRef);
+      const allMail = mailSnapshot.docs.map(doc => {
+        const data = doc.data();
+        if (data.type && data.type.subject !== undefined) {
+          return {
+            name: data.type.subject,
+            time: data.delivery.startTime.toDate()
           };
         }
-        combinedRecords[user].numberOfOverdueEquipment += 1;
-      });
+        return null;
+      }).filter(mail => mail !== null);
 
-      overdueEquipmentTimes.forEach(record => {
-        const user = record.user;
-        if (!combinedRecords[user]) {
-          combinedRecords[user] = { 
-            name: user, 
-            numberOfOverdueEquipment: 0, 
-            overdueTimes: [],
-            avgTime: '',
-            overdueTimesDisplay: ''
-          };
-        }
-        combinedRecords[user].overdueTimes.push({converted: record.time, total: record.totalMinutes});
-        combinedRecords[user].numberOfOverdueEquipment += 1;
-      });
+      setReportSubjects(allMail);
 
-      Object.values(combinedRecords).forEach(record => {
-        let totalTime = 0;
-        record.overdueTimes.forEach(time => {
-          totalTime += time.total;
-
-          if (record.overdueTimesDisplay !== '') {
-            record.overdueTimesDisplay += ', '
-          } 
-          record.overdueTimesDisplay += time.converted;
+      const allTimeMail = {};
+        allMail.forEach(item => {
+          allTimeMail[item.name] = (allTimeMail[item.name] || 0) + 1;
         });
-        const avgTimeMinutes = Math.floor(totalTime / record.overdueTimes.length);
-        const days = Math.floor(avgTimeMinutes / (60 * 24)); 
-        const hours = Math.floor((avgTimeMinutes % (60 * 24)) / 60); 
-        const minutes = avgTimeMinutes % 60; 
-
-        record.avgTime = `${days}d ${hours}h ${minutes}m`;
-
-      });
-
-      setOverdueRecords(Object.values(combinedRecords));
+        updateReportSubjectsData(allTimeMail);
     }
-    if (overdueEquipment.length > 0 || overdueEquipmentTimes.length > 0) {
-      createOverdueRecords();
-    }
-  }, [overdueEquipment, overdueEquipmentTimes]);
+
+    fetchMail();
+  }, []);
 
   return (
     <div className="bg-white m-8 p-8 rounded-lg relative">
@@ -405,14 +442,15 @@ const Statistics = () => {
         </div>
 
         <div className='flex flex-wrap justify-center sm:justify-start sm:pt-4'>
-          <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
           <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
+          <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
         </div>
         <div className='flex flex-wrap justify-center sm:justify-start'>
           <BarGraph data={userReportsData} colors={COLORS} title={"Top Reporting Users"} fullData={userReports}/>
           <BarGraph data={userReservationsData} colors={COLORS} title={"Top Reserving Users"} fullData={userReservations}/>
         </div>
         <div className='flex flex-wrap justify-center sm:justify-start'>
+          <BarGraph data={reportSubjectsData} colors={COLORS} title={"Top Reported Subjects"} fullData={reportSubjects}/>
           <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
         </div>
 

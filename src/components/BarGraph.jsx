@@ -8,6 +8,7 @@ function BarGraph({ data, colors, title, fullData }) {
 
     const handleSettingChange = (newSetting) => {
         setSetting(newSetting);
+        console.log(fullData);
 
         //time range based on the setting
         let timeRange;
