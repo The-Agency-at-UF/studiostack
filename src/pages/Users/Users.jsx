@@ -11,43 +11,43 @@ function Users({ isAdmin }) {
     const [students, setStudents] = useState([]);
 
     //fetches all the students and admins from the database
+    const fetchUsers = async () => {
+        try {
+            const usersRef = collection(db, 'users');
+            
+            //get all the users in the 'users' collection
+            const querySnapshot = await getDocs(usersRef);
+            
+            //map through each user and extract the data
+            const allUsersList = querySnapshot.docs.map(doc => ({
+                email: doc.id, 
+                ...doc.data()
+            }));
+            
+            setUsers(allUsersList);
+            const studentsList = allUsersList.filter(user => !user.isAdmin);
+            const adminsList = allUsersList.filter(user => user.isAdmin);
+
+            setStudents(studentsList);
+            setAdmins(adminsList);
+
+        } catch (error) {
+            console.error("Error fetching users:", error);
+        }
+    };
+
     useEffect(() => {
-        const fetchUsers = async () => {
-            try {
-                const usersRef = collection(db, 'users');
-                
-                //get all the users in the 'users' collection
-                const querySnapshot = await getDocs(usersRef);
-                
-                //map through each user and extract the data
-                const allUsersList = querySnapshot.docs.map(doc => ({
-                    email: doc.id, 
-                    ...doc.data()
-                }));
-                
-                setUsers(allUsersList);
-                const studentsList = allUsersList.filter(user => !user.isAdmin);
-                const adminsList = allUsersList.filter(user => user.isAdmin);
-
-                setStudents(studentsList);
-                setAdmins(adminsList);
-
-            } catch (error) {
-                console.error("Error fetching users:", error);
-            }
-        };
         fetchUsers();
     }, []);
 
     //adds user to database
     const addEmail = (isAdminBool, email) => { 
-        //TO DO: email.includes("@ufl.edu") after website/testing is over
-        //TO DO: change this to real time listening
-        if (!students.some(user => user.email === email) && !admins.some(user => user.email === email)) {
+        //TODO: change this to real time listening
+        if (!students.some(user => user.email === email) && !admins.some(user => user.email === email) && email.includes("@ufl.edu")) {
             const userRef = doc(db, 'users', email);
             setDoc(userRef, { isAdmin: isAdminBool });
             alert("User added successfully.");
-            setTimeout(() => window.location.reload(), 1000);
+            fetchUsers();
         } else {
             alert("Invalid email. Must be a UFL email and not already in the database.");
         }
@@ -59,7 +59,7 @@ function Users({ isAdmin }) {
             const userRef = doc(db, 'users', selectedEmail);
             await deleteDoc(userRef);
             alert("Student removed successfully.");
-            setTimeout(() => window.location.reload(), 1000);
+            fetchUsers();
         } else if (admins.some(user => user.email === selectedEmail)) {
             if (admins.length === 1) {
                 alert("Cannot remove the last admin. Please add another admin before removing this one.");
@@ -67,7 +67,7 @@ function Users({ isAdmin }) {
                 const userRef = doc(db, 'users', selectedEmail);
                 await deleteDoc(userRef);
                 alert("Admin removed successfully.");
-                setTimeout(() => window.location.reload(), 1000);
+                fetchUsers();
             }
         } else {
             alert("Invalid email. Must be in the database.");

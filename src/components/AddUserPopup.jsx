@@ -49,6 +49,8 @@ function AddUserPopup({ addEmail }) {
                                 className="px-6 py-2 bg-[#A3C1E0] rounded-md"
                                 onClick={() => {
                                     addEmail(isAdmin, email);
+                                    setEmail('');
+                                    setIsAdmin(false);
                                     close(); 
                                 }}>
                                 Submit
