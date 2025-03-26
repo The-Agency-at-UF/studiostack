@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { getDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore"; 
+import { getDoc, doc, serverTimestamp, updateDoc, addDoc, collection } from "firebase/firestore"; 
 import { useLocation } from "react-router-dom";
 import { db } from "../../firebase/firebaseConfig";
 import ResolvedLabel from '../../components/ResolvedLabel';
@@ -66,7 +66,7 @@ function ReportSummary({ isAdmin, userEmail }) {
 
 
     // update a report once it has been resolved
-    const resolveReport = (reportID) => {  
+    const resolveReport = async (reportID) => {  
         try {
             const reportRef = doc(db, 'reports', reportID);
             updateDoc(reportRef, {
@@ -74,6 +74,17 @@ function ReportSummary({ isAdmin, userEmail }) {
                 resolvedOn: serverTimestamp(),
                 resolvedBy: userEmail
               });
+
+            // send a notification to user
+            const reportDoc = await getDoc(reportRef);
+            const notificationsRef = await addDoc(collection(db, "notifications"), {
+                item: reportDoc.data().item, 
+                itemId: reportDoc.data().itemId,
+                userEmail: reportDoc.data().user,
+                resolvedBy: userEmail,
+                type: "report",
+                time: serverTimestamp()
+            });
             setTimeout(() => window.location.reload(), 500);
         }
         catch(error) {

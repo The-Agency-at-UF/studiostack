@@ -27,7 +27,7 @@ function AdminDash() {
         }
     }
     fetchTeams();
-  }, [])
+  }, [teamsList])
 
   // adds team to database
   const addTeam = (team) => {  
@@ -57,7 +57,7 @@ function AdminDash() {
   return (
     <div>
         <h1 className='font-bold text-2xl md:text-3xl pb-6'>Welcome, Admin!</h1>
-        <div className="container py-4"> 
+        <div className="py-4"> 
             <div className="flex flex-col md:flex-row gap-4"> 
                 <div className="flex-1 p-4 rounded"> 
                     <div className="bg-[#ECECEC] w-full p-2 rounded-md flex items-center justify-between mb-2"> 
