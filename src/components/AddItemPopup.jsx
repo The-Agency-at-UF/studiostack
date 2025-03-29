@@ -49,11 +49,11 @@ function AddItemPopup({ addItem, categoryList }) {
             {<IoIosAddCircle color='#426276' className='w-10 h-10 cursor-pointer'/>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'transparent'}} >
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
                     <div className='modal relative'>
-                        <div className='content p-4'>
+                        <div className='content p-4 '>
                             <h1 className='font-bold text-3xl pb-6'>Add Item</h1>
                             <div className='px-5 py-2'>
                                 <input type="text" 
