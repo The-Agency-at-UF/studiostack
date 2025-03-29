@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { collection, getDocs, addDoc, serverTimestamp, doc, updateDoc, query, where} from "firebase/firestore"; 
+import { collection, getDocs, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore"; 
 import { db } from "../../firebase/firebaseConfig";
 import Select from 'react-select';
 
@@ -42,25 +42,36 @@ function Report({ userEmail }) {
   const handleSubmit = async () => {
     if (subject && item && itemId && message && user) {
         try {
-            // TO DO: change to production email
-            const mailRef = await addDoc(collection(db, "mail"), {
-                'to': ['theagencyatufdevs@gmail.com'],
-                'type': {subject},
-                'message': {
-                    'subject': 'StudioStack Item Report',
-                    'text': 'There is an issue with an item.',
-                    'html': 
-                    `
-                    <p>Item Name: ${item}</p>
-                    <p>Item ID: ${itemId}</p>
-                    <p>Type: ${subject}</p>
-                    <p>Reported By: ${user}</p>
-                    <p>Description: ${message}</p>
-                    `
-                }
-              });
+            // get all admin emails
+            const usersRef = collection(db, 'users');
+            const querySnapshot = await getDocs(usersRef);
+            const allUsersList = querySnapshot.docs.map(doc => ({
+                email: doc.id, 
+                ...doc.data()
+            }));
+            const adminsList = allUsersList.filter(user => user.isAdmin);
+            console.log(adminsList)
 
-              const reportRef = await addDoc(collection(db, "reports"), {
+            // send report notification to all admins
+            adminsList.forEach(async (adminDoc) => {
+                await addDoc(collection(db, "mail"), {
+                    'to': adminDoc.email,
+                    'message': {
+                    'subject': 'StudioStack Item Report',
+                    'html': `
+                        <h2><strong>An item has been reported. Please open StudioStack to resolve the issue.</strong></h2>
+                        <p>Item Name: ${item}</p>
+                        <p>Item ID: ${itemId}</p>
+                        <p>Issue Type: ${subject}</p>
+                        <p>Reported By: ${user}</p>
+                        <p>Description: ${message}</p>
+                        `,
+                    },
+                });
+            });
+
+            // store report information
+            const reportRef = await addDoc(collection(db, "reports"), {
                 item: item, 
                 itemId: itemId,
                 subject: subject, 
@@ -68,16 +79,30 @@ function Report({ userEmail }) {
                 message: message, 
                 resolved: false,
                 timestamp: serverTimestamp()
-              });
+            });
 
-              console.log("Email sent successfully", mailRef.id);
-              console.log("Item added successfully", reportRef.id);
-              setSubject('')
-              setItem('')
-              setItemId('')
-              setMessage('')
-              setIsSelected(false);
-              setTimeout(() => window.location.reload(), 1000);
+            // overdue notifications use the same notificationID to display different components for both types of users
+            // userClosed and adminClosed ensure one user does not remove the notification from the other's dashboard 
+            const notificationsRef = await addDoc(collection(db, "notifications"), {
+                item: item, 
+                itemId: itemId,
+                userEmail: user,
+                type: "report",
+                resolved: false,
+                userClosed: false,
+                adminClosed: false,
+                time: serverTimestamp()
+            });
+
+            console.log("Item added successfully", reportRef.id);
+            console.log("Notification sent successfully", notificationsRef.id);
+
+            setSubject('')
+            setItem('')
+            setItemId('')
+            setMessage('')
+            setIsSelected(false);
+            setTimeout(() => window.location.reload(), 1000);
         }
         catch(error) {
             alert("Error sending email.");
@@ -138,8 +163,14 @@ function Report({ userEmail }) {
     const fetchInventory = async () => {
         try {
             const inventoryRef = collection(db, "inventory");
-            const data = await getDocs(inventoryRef);
-            setInventory(data.docs.map((doc) => ({...doc.data(), id:doc.id})))
+            const querySnapshot = await getDocs(inventoryRef);
+            const items = querySnapshot.docs.map((doc) => ({
+                id:doc.id,
+                ...doc.data()
+            }));
+            // check that the item has not already been reported
+            const inventoryList = items.filter(item => item.availability != "reported");
+            setInventory(inventoryList)
         } 
         catch(error) {
             console.log("Error getting all inventory items:", error);
@@ -160,17 +191,14 @@ function Report({ userEmail }) {
 
     // if an item has been selected
     if (selectedItem?.value) {
-        const inventoryRef = collection(db, "inventory");
+        setIsSelected(true);
         // get ID values for that name (there can be multiple items, but there are unique IDs for each)
-        const q = query(inventoryRef, where("name", "==", selectedItem.value));
-
-        // set the second dropdown list (item IDs)
-        const querySnapshot = await getDocs(q);
-        const filteredIdList = querySnapshot.docs.map(doc => ({
+        const inventoryList = inventory.filter(item => item.name === selectedItem.value && item.availability != "reported");
+        const filteredIdList = inventoryList.map(doc => ({
             value: doc.id, 
             label: doc.id
         }));
-        setIsSelected(true);
+        // set the second dropdown list (item IDs)
         setItemIdDropdown(filteredIdList);
     }
   }

@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { getDoc, doc, serverTimestamp, updateDoc, addDoc, collection } from "firebase/firestore"; 
+import { getDoc, doc, serverTimestamp, updateDoc, collection, query, where, getDocs } from "firebase/firestore"; 
 import { useLocation } from "react-router-dom";
 import { db } from "../../firebase/firebaseConfig";
 import ResolvedLabel from '../../components/ResolvedLabel';
@@ -73,17 +73,20 @@ function ReportSummary({ isAdmin, userEmail }) {
                 resolved: true,
                 resolvedOn: serverTimestamp(),
                 resolvedBy: userEmail
-              });
+            });
 
-            // send a notification to user
+            // get the document associated with this report
             const reportDoc = await getDoc(reportRef);
-            const notificationsRef = await addDoc(collection(db, "notifications"), {
-                item: reportDoc.data().item, 
-                itemId: reportDoc.data().itemId,
-                userEmail: reportDoc.data().user,
-                resolvedBy: userEmail,
-                type: "report",
-                time: serverTimestamp()
+            // get the document from notifications that matches this report's item
+            const itemQuery = query(collection(db, "notifications"), where("itemId", "==", reportDoc.data().itemId));
+            // updated notifications in order to notify the user that this report has been resolved
+            const querySnapshot = await getDocs(itemQuery);
+            querySnapshot.forEach((doc) => {
+                updateDoc(doc.ref, {
+                    resolved: true,
+                    resolvedOn: serverTimestamp(),
+                    resolvedBy: userEmail
+                });
             });
             setTimeout(() => window.location.reload(), 500);
         }
