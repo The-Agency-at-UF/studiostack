@@ -114,8 +114,8 @@ function ReportSummary({ isAdmin, userEmail }) {
         {report?.resolved == true &&
             <ResolvedLabel resolvedBy={report?.resolvedBy} resolvedOn={formatDate(report?.resolvedOn)}/>
         }
-        <div className="container py-4"> 
-            <div className="flex flex-col md:flex-row gap-4"> 
+        <div> 
+            <div className="flex flex-col md:flex-row"> 
                 <div className="flex-1 p-4 rounded"> 
                     <h2 className="text-xl sm:text-2xl text-left pb-4">Subject:</h2>
                     <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-2"> 
@@ -124,7 +124,7 @@ function ReportSummary({ isAdmin, userEmail }) {
                         </div>                                
                     </div>                          
                 </div>
-                <div className="flex-1 p-4 ml-2 rounded"> 
+                <div className="flex-1 p-4 rounded"> 
                     <h2 className="text-xl sm:text-2xl text-left pb-4">Reported By:</h2>
                     <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
                         <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
@@ -133,7 +133,7 @@ function ReportSummary({ isAdmin, userEmail }) {
                     </div>                          
                 </div>
             </div>
-            <div className="flex flex-col md:flex-row gap-4"> 
+            <div className="flex flex-col md:flex-row"> 
                 <div className="flex-1 p-4 rounded"> 
                     <h2 className="text-xl sm:text-2xl text-left pb-4">Item Name:</h2>
                     <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-2"> 
@@ -142,7 +142,7 @@ function ReportSummary({ isAdmin, userEmail }) {
                         </div>                                
                     </div>                          
                 </div>
-                <div className="flex-1 p-4 ml-2 rounded"> 
+                <div className="flex-1 p-4 rounded"> 
                     <h2 className="text-xl sm:text-2xl text-left pb-4">Item ID:</h2>
                     <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
                         <div className="bg-white rounded-md p-2 w-full text-left lg:text-xl sm:text-lg text-sm">
