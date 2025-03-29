@@ -4,6 +4,7 @@ import { getDoc, doc, setDoc, deleteDoc, collection } from 'firebase/firestore';
 import { db } from '../../firebase/firebaseConfig';
 import CheckOutInPopUp from "../../components/CheckOutInPopUp";
 import ConfirmationPopup from "../../components/ConfirmationPopup";
+import { IoIosAlert } from "react-icons/io";
 
 function CheckInOut() { 
     const location = useLocation();
@@ -213,13 +214,20 @@ function CheckInOut() {
                         <div className="flex-1 p-4 ml-2 rounded"> 
                             <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Check In Items:</h2>
                             {reservation?.checkedOutItems?.map((item, index) => (
-                                <div key={index} className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-4"> 
+                                <div key={index} className="flex items-center space-x-4 mb-4">
+                                <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between">
                                     <div className="bg-white rounded-md p-2 w-2/3 text-center lg:text-xl sm:text-lg text-sm">
                                         <h3>{item.name}:</h3>
                                         <h3>{item.id}</h3> 
-                                    </div> 
-                                    <CheckOutInPopUp handleCheckOutIn={() => handleCheckIn(item)} checkOut={false} correctID={item}/>
-                                </div>                          
+                                    </div>
+                                    <CheckOutInPopUp handleCheckOutIn={() => handleCheckOut(item.id)} checkOut={false} correctID={item} />
+                                </div>  
+                                {!activeReservation && (
+                                <div className="flex items-center justify-center">
+                                    <IoIosAlert color='#EB3223' className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </div>
+                                )}  
+                            </div>                           
                             ))} 
                         </div>
                     </div>

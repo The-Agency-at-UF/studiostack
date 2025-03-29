@@ -51,7 +51,7 @@ function Reservations() {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <div className='absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4'>
+                <div className='absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4 hover:scale-110'>
                     <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => navigate('/create-reservation')}/>
                 </div>
                 <div>
