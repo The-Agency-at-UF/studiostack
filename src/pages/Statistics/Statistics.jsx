@@ -168,6 +168,8 @@ const Statistics = () => {
           });
         }).flat();
 
+        console.log("here");
+
         setTotalEquipment(allEquipment.length);
         setbrokenEquipmentReports(equipmentReportList);
 
@@ -440,18 +442,19 @@ const Statistics = () => {
           </div>
         </div>
 
-        <div className='flex flex-wrap justify-center sm:justify-start sm:pt-4'>
-          <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
-          <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
-        </div>
+        <h2 className="sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reports Data</h2>
         <div className='flex flex-wrap justify-center sm:justify-start'>
+          <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
           <BarGraph data={userReportsData} colors={COLORS} title={"Top Reporting Users"} fullData={userReports}/>
+        </div>
+        <BarGraph data={reportSubjectsData} colors={COLORS} title={"Top Reported Subjects"} fullData={reportSubjects}/>
+
+        <h2 className="sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reservations Data</h2>
+        <div className='flex flex-wrap justify-center sm:justify-start'>
+          <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
           <BarGraph data={userReservationsData} colors={COLORS} title={"Top Reserving Users"} fullData={userReservations}/>
         </div>
-        <div className='flex flex-wrap justify-center sm:justify-start'>
-          <BarGraph data={reportSubjectsData} colors={COLORS} title={"Top Reported Subjects"} fullData={reportSubjects}/>
-          <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
-        </div>
+        <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
 
         <div className='pt-8 sm:pt-12'>
           <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">Overdue Equipment Record</h2>
