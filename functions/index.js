@@ -56,8 +56,15 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                         `,
                     },
                 });
+                
+                await db.collection('notifications').add({
+                    type: 'overdue',
+                    reservationName: data.name,
+                    amount: data.checkedOutItems.length,
+                    userEmail: data.userEmail,
+                    time: data.endDate
+                });
             }
         }
-
     }
 });

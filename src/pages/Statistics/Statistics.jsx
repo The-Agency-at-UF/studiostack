@@ -471,7 +471,7 @@ const Statistics = () => {
                         <div className="flex-1 pl-1 text-sm sm:text-base">{record.user}</div>
                         <div className="flex-1 text-sm sm:text-base pr-1 sm:pr-0 sm:text-left text-right">{record.numberOfOverdueEquipment}</div>
                         <div className="flex-1 hidden sm:block">{record.avgTime === 'NaNd NaNh NaNm' ? 'N/A' : record.avgTime}</div>
-                        <div className="flex-1 text-base hidden md:block">{record.overdueTimesDisplay}</div>
+                        <div className="flex-1 text-base hidden md:block">{record.overdueTimesDisplay === '' ? 'N/A' : record.overdueTimesDisplay}</div>
                     </li>
                 ))}
             </ul>

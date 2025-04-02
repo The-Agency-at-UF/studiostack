@@ -8,7 +8,7 @@ import { IoIosAddCircle, IoIosRemoveCircle } from "react-icons/io";
 function CreateReservation() { 
     const [reservationName, setReservationName] = useState('');
     const [reservationCategory, setReservationCategory] = useState({ value: '', label: '' });
-    const [reservationOtherCategory, setReservationOtherCategory] = useState({ value: '', label: '' });
+    const [reservationOtherCategory, setReservationOtherCategory] = useState();
     const [reservationStartDate, setReservationStartDate] = useState('');
     const [reservationEndDate, setReservationEndDate] = useState('');
     const [availableEquipment, setAvailableEquipment] = useState([]);
@@ -113,7 +113,7 @@ function CreateReservation() {
             setReservationOtherCategory('');
             setOtherCategorySelected(false);
         }
-    }
+    };    
     
     //add a new item dropdown
     const addItemDropdown = () => {
@@ -144,7 +144,7 @@ function CreateReservation() {
         if (reservationCategory.label !== "Other") {
             teamName = reservationCategory.label;
         } else {
-            teamName = reservationOtherCategory.label;
+            teamName = reservationOtherCategory;
         }
 
         if (reservationName === '' || teamName === '' || reservationStartDate === '' || reservationEndDate === '' || 
