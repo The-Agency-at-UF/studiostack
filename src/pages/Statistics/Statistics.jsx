@@ -156,29 +156,13 @@ const Statistics = () => {
             awaitingCheckout = 0;
 
         //count the values and get the broken equipment reports
-        const equipmentReportList = allEquipment.map(equipment => {
+        const equipmentStatusList = allEquipment.map(equipment => {
           if (equipment.availability === 'available') available++;
           else if (equipment.availability === 'reported') reported++;
           else if (equipment.availability === 'checked out') checkedOut++;
-          return equipment.reportCount.map(report => {
-            return {
-              name: equipment.name,
-              time: report.toDate(),
-            };
-          });
-        }).flat();
-
-        console.log("here");
+        });
 
         setTotalEquipment(allEquipment.length);
-        setbrokenEquipmentReports(equipmentReportList);
-
-        const allTimeBroken = {};
-      
-        equipmentReportList.forEach(item => {
-          allTimeBroken[item.name] = (allTimeBroken[item.name] || 0) + 1;
-        });
-        updateBrokenItemsData(allTimeBroken);
 
         // get the reservations from the 'reservations' collection
         const reservationsRef = collection(db, 'reservations');
@@ -305,24 +289,6 @@ const Statistics = () => {
         ...doc.data()
       }));
 
-      const userReportsList = allUsers.map(user => {
-        return user.reportCount.map(report => {
-          return {
-            name: user.email,
-            time: report.toDate(),
-          };
-        });
-      }).flat();
-
-      setUserReports(userReportsList);
-
-      const allTimeUserReports = {};
-      
-        userReportsList.forEach(item => {
-          allTimeUserReports[item.name] = (allTimeUserReports[item.name] || 0) + 1;
-        });
-        updateUserReportsData(allTimeUserReports);
-
       const userReservationsList = allUsers.map(user => {
         return user.reservations.map(reservation => {
           return {
@@ -369,6 +335,47 @@ const Statistics = () => {
     }
 
     fetchMail();
+
+    const fetchReports = async () => {
+      const reportRef = collection(db, 'reports');
+      const reportSnapshot = await getDocs(reportRef);
+      const allReports = reportSnapshot.docs.map(doc => ({
+        ...doc.data()
+      }));
+
+      const reportedEquipment = allReports.map(report => {
+        return {
+          name: report.itemId,
+          time: report.timestamp.toDate(),
+        };
+      });
+      setbrokenEquipmentReports(reportedEquipment);
+
+      const allTimeBroken = {};
+      
+      reportedEquipment.forEach(item => {
+        allTimeBroken[item.name] = (allTimeBroken[item.name] || 0) + 1;
+      });
+      updateBrokenItemsData(allTimeBroken);
+
+      const userReportsList = allReports.map(report => {
+        return {
+          name: report.user,
+          time: report.timestamp.toDate()
+        };
+      });
+
+      setUserReports(userReportsList);
+
+      const allTimeUserReports = {};
+      
+      userReportsList.forEach(item => {
+        allTimeUserReports[item.name] = (allTimeUserReports[item.name] || 0) + 1;
+      });
+      updateUserReportsData(allTimeUserReports);
+    }
+
+    fetchReports();
   }, []);
 
   return (
