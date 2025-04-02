@@ -33,11 +33,19 @@ function Reservations() {
                     const endDate = reservation.endDate.toDate();
                     return endDate >= currentDate;
                     });
+
+                activeReservationsList.sort((a, b) => {
+                    return a.startDate.toDate() - b.startDate.toDate();
+                });
                 setActiveReservations(activeReservationsList);
                 
                 const pastReservationsList = allReservations.filter((reservation) => {
                     const endDate = reservation.endDate.toDate();
                     return endDate < currentDate;
+                });
+
+                pastReservationsList.sort((a, b) => {
+                    return b.startDate.toDate() - a.startDate.toDate();
                 });
                 setPastReservations(pastReservationsList);
 

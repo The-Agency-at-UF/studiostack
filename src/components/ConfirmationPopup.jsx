@@ -12,7 +12,7 @@ function ConfirmationPopup({ handle, text, wholeReservation }) {
             } 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'transparent'}} >
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
                     <div className='modal relative'>
