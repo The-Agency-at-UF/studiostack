@@ -71,7 +71,7 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
 
     return (
         <Popup trigger=
-            {<IoIosRemoveCircle color='#EB3223' className='w-8 h-8 sm:w-10 sm:h-10' />} 
+            {<div><IoIosRemoveCircle color='#EB3223' className='w-8 h-8 sm:w-10 sm:h-10' /></div>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
             overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >

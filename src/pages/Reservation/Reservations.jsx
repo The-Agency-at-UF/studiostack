@@ -95,7 +95,7 @@ function Reservations() {
                     <div>
                         <div className='pb-8'>
                         {notifications.map((notification, index) => ( 
-                            <StudentNotification key={index} notification={notification} type={notification.type} canClose={false}/>
+                            <StudentNotification key={index} notification={notification} type={notification.type} canClose={false} iconColor={'#EB3223'} backgroundColor={'#f7ada7'}/>
                         ))}
                         </div>
                         <div className='absolute top-32 sm:top-33 right-6 sm:right-8 flex space-x-4 hover:scale-110'>

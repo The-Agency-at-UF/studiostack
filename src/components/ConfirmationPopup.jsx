@@ -8,7 +8,9 @@ function ConfirmationPopup({ handle, text, wholeReservation }) {
     return (
         <Popup trigger=
             {wholeReservation ? <button className="absolute top-1 right-1 sm:top-8 sm:right-8 bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2">Cancel Reservation</button> :
+                <div>
                 <IoIosRemoveCircle color='#EB3223' className='w-6 h-6 sm:w-8 sm:h-8' />
+                </div>
             } 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  

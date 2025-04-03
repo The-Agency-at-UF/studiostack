@@ -274,7 +274,7 @@ function CreateReservation() {
                     ...doc.data()
                 }));
                 
-                setAllEquipment(allEquipmentList.filter(equipment => equipment.availability !== "unavailable"));
+                setAllEquipment(allEquipmentList.filter(equipment => equipment.availability === "available"));
             } catch (error) {
                 console.error("Error fetching equipment:", error);
             }

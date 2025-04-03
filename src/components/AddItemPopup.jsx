@@ -46,7 +46,7 @@ function AddItemPopup({ addItem, categoryList }) {
 
     return (
         <Popup trigger=
-            {<IoIosAddCircle color='#426276' className='w-10 h-10 cursor-pointer'/>} 
+            {<div><IoIosAddCircle color='#426276' className='w-10 h-10 cursor-pointer'/></div>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
             overlayStyle={{ backgroundColor: 'transparent'}} >
