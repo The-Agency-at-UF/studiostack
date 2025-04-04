@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-node@v2
       with:
-        node-version: '20' # Set this to the node version you are using
+        node-version: '22' # Set this to the node version you are using
     - name: Install dependencies
       run: npm install
     - name: Build
