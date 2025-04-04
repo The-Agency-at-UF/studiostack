@@ -171,6 +171,34 @@ function CreateReservation() {
             }
         });
 
+        //check for availability again
+        fetchEquipment();
+        selectedEquipment.forEach(item => {
+            if (!allEquipment.includes(item)) {
+                alert(`The item ${item.name} is no longer available for the selected dates.`);
+                return;
+            }
+        });
+
+        //check for reservation conflicts again
+        fetchReservations();
+        const sameTimeReservations = allReservations.filter((reservation) => {
+            const startDate = reservation.startDate.toDate();
+            const endDate = reservation.verifiedBy.toDate();
+
+            return (new Date(reservationStartDate) < endDate) && (new Date(reservationEndDate) > startDate)
+        });
+        if (sameTimeReservations.length > 0) {
+            sameTimeReservations.forEach((reservation) => {
+                reservation.equipmentIDs.forEach((equipmentid) => {
+                    if (selectedEquipmentIDs.includes(equipmentid.id)) {
+                        alert(`The item ${equipmentid.name} is already reserved for the selected dates.`);
+                        return;
+                    }
+                });
+            });
+        }
+
         try {
 
             // Verify date is the next business day at 8am
