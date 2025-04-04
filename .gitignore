@@ -9,6 +9,9 @@ dist/
 *.log
 .cache/
 
+# Firebase CLI cache and local emulator files
+.firebase/
+
 # IDE and OS files
 .DS_Store
 .idea/
