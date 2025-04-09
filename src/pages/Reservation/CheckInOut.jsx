@@ -181,7 +181,7 @@ function CheckInOut() {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                {activeReservation && <ConfirmationPopup handle={() => handleCancelReservation()} text="cancel the reservation" wholeReservation={true}/>}
+                {activeReservation && <ConfirmationPopup handle={() => handleCancelReservation()} text="cancel the reservation" wholeReservation={true} isReservation={true}/>}
                 <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
                 <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
                 <h3 className="text-lg sm:text-xl pb-2"><span className="font-semibold">Team:</span> {reservation?.team}</h3>
@@ -198,6 +198,7 @@ function CheckInOut() {
                                         handle={() => handleCancelItem(item.id)} 
                                         text={`remove ${item.name} (${item.id}) from the reservation`} 
                                         wholeReservation={false} 
+                                        isReservation={true}
                                         />
                                     </div>
                                     )}

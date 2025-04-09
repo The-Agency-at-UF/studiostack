@@ -4,6 +4,7 @@ import { getDocs, collection, doc, setDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../../firebase/firebaseConfig';
 import AddUserPopup from '../../components/AddUserPopup';
 import RemoveUserPopup from '../../components/RemoveUserPopUp';
+import ConfirmationPopup from "../../components/ConfirmationPopup";
 
 function Users({ isAdmin }) { 
     const [users, setUsers] = useState([]);
@@ -74,6 +75,21 @@ function Users({ isAdmin }) {
         }
     }
 
+    const handleRoleChange = async (email) => {
+        const userRef = doc(db, 'users', email);
+        if (admins.some(user => user.email === email)) {
+            if (admins.length === 1) {
+                alert("Cannot remove the last admin. Please add another admin before removing this one.");
+                return;
+            }
+            await setDoc(userRef, { isAdmin: false }, { merge: true });
+        } else {
+            await setDoc(userRef, { isAdmin: true }, { merge: true });
+        }
+        alert("User role updated successfully.");
+        fetchUsers();
+    }
+
     if (!isAdmin) {
         return <h1>You must be an admin to view this page.</h1>;
     }
@@ -87,27 +103,32 @@ function Users({ isAdmin }) {
                     <RemoveUserPopup removeEmail={removeEmail} listOfEmails={users.map(user => user.email)}/>
                 </div>
             </div>
-            <div className="p-4">
-                <div className="flex py-2 font-semibold">
-                    <div className="flex-1 pl-4">Email</div>
-                    <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right">Role</div>
+            <div className="p-4 overflow-x-auto">
+                <div className='min-w-[700px]'>
+                    <div className="flex py-2 font-semibold">
+                        <div className="flex-1 pl-4">Email</div>
+                        <div className="flex-1">Role</div>
+                        <div className="flex-1">Change Role</div>
+                    </div>
+                    <ul>
+                        {admins.map((user) => (
+                            <li key={user.email} className="flex py-2 border-t">
+                                <div className="flex-1 pl-4 text-sm md:text-base">{user.email}</div>
+                                <div className="flex-1 text-sm md:text-base">Admin</div>
+                                <ConfirmationPopup handle={() => handleRoleChange(user.email)} text={`change ${user.email}'s role from admin to student`} isReservation={false} />
+                            </li>
+                        ))}
+                    </ul>
+                    <ul>
+                        {students.map((user) => (
+                            <li key={user.email} className="flex py-2 border-t">
+                                <div className="flex-1 pl-4 text-sm md:text-base">{user.email}</div>
+                                <div className="flex-1 text-sm md:text-base">Student</div>
+                                <ConfirmationPopup handle={() => handleRoleChange(user.email)} text={`change ${user.email}'s role from student to admin`} isReservation={false} />
+                            </li>
+                        ))}
+                    </ul>
                 </div>
-                <ul>
-                    {admins.map((user) => (
-                        <li key={user.email} className="flex py-2 border-t">
-                            <div className="flex-1 pl-4 text-sm sm:text-base">{user.email}</div>
-                            <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right text-sm sm:text-base">Admin</div>
-                        </li>
-                    ))}
-                </ul>
-                <ul>
-                    {students.map((user) => (
-                        <li key={user.email} className="flex py-2 border-t">
-                            <div className="flex-1 pl-4 text-sm sm:text-base">{user.email}</div>
-                            <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right text-sm sm:text-base">Student</div>
-                        </li>
-                    ))}
-                </ul>
             </div>
         </div>
     );

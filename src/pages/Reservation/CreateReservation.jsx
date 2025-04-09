@@ -155,48 +155,46 @@ function CreateReservation() {
         }
 
         const selectedEquipmentIDs = [];
-
         // Check for duplicate items
-        selectedEquipment.forEach(item => {
+        for (const item of selectedEquipment) {
             if (item.equipment !== null) {
                 const availableItem = availableEquipment.find(option => option.label === item.equipment.label);
-    
                 for (let i = 0; i < item.quantity; i++) {
-                    if (selectedEquipmentIDs.includes(availableItem.value[i])) {
-                        alert('Unable to create reservation. Please make sure items aren\'t duplicated.')
+                    if (selectedEquipmentIDs.some(e => e.id === availableItem.value[i])) {
+                        alert('Unable to create reservation. Please make sure items aren\'t duplicated.');
                         return;
                     }
-                    selectedEquipmentIDs.push({id: availableItem.value[i], name: item.equipment.label});
+                    selectedEquipmentIDs.push({ id: availableItem.value[i], name: item.equipment.label });
                 }
             }
-        });
+        }        
 
         //check for availability again
-        fetchEquipment();
-        selectedEquipment.forEach(item => {
-            if (!allEquipment.includes(item)) {
-                alert(`The item ${item.name} is no longer available for the selected dates.`);
+        const availableEquipmentList = await fetchEquipment();
+        for (const item of selectedEquipmentIDs) {
+            if (!availableEquipmentList.some(e => e.equipmentID === item.id)) {
+                alert(`The item ${item.name} is no longer available.`);
                 return;
             }
-        });
+        }
 
         //check for reservation conflicts again
-        fetchReservations();
-        const sameTimeReservations = allReservations.filter((reservation) => {
+        const reservationsUpdated = await fetchReservations();
+        const sameTimeReservations = reservationsUpdated.filter((reservation) => {
             const startDate = reservation.startDate.toDate();
             const endDate = reservation.verifiedBy.toDate();
 
             return (new Date(reservationStartDate) < endDate) && (new Date(reservationEndDate) > startDate)
         });
         if (sameTimeReservations.length > 0) {
-            sameTimeReservations.forEach((reservation) => {
-                reservation.equipmentIDs.forEach((equipmentid) => {
-                    if (selectedEquipmentIDs.includes(equipmentid.id)) {
+            for (const reservation of sameTimeReservations) {
+                for (const equipmentid of reservation.equipmentIDs) {
+                    if (selectedEquipmentIDs.some(e => e.id === equipmentid.id)) {
                         alert(`The item ${equipmentid.name} is already reserved for the selected dates.`);
                         return;
                     }
-                });
-            });
+                }
+            }            
         }
 
         try {
@@ -286,46 +284,50 @@ function CreateReservation() {
             }
         })
     };
+
+    const fetchEquipment = async () => {
+        try {
+            const equipmentRef = collection(db, 'inventory');
+            
+            //get all the equipment in the 'equipment' collection
+            const querySnapshot = await getDocs(equipmentRef);
+            
+            //map through each equipment and extract the data
+            const allEquipmentList = querySnapshot.docs.map(doc => ({
+                equipmentID: doc.id, 
+                ...doc.data()
+            }));
+            
+            setAllEquipment(allEquipmentList.filter(equipment => equipment.availability === "available"));
+            return allEquipmentList.filter(equipment => equipment.availability === "available");
+        } catch (error) {
+            console.error("Error fetching equipment:", error);
+        }
+    };
+
+    const fetchReservations = async () => {
+        try {
+            const reservationsRef = collection(db, 'reservations');
+            
+            //get all the reservations in the 'reservations' collection
+            const querySnapshot = await getDocs(reservationsRef);
+            
+            //map through each reservation and extract the data
+            const allReservationsList = querySnapshot.docs.map(doc => ({
+                ...doc.data()
+            }));
+            
+            setAllReservations(allReservationsList);
+            return allReservationsList;
+        } catch (error) {
+            console.error("Error fetching reservations:", error);
+        }
+    };
     
 
     useEffect(() => {
-        const fetchEquipment = async () => {
-            try {
-                const equipmentRef = collection(db, 'inventory');
-                
-                //get all the equipment in the 'equipment' collection
-                const querySnapshot = await getDocs(equipmentRef);
-                
-                //map through each equipment and extract the data
-                const allEquipmentList = querySnapshot.docs.map(doc => ({
-                    equipmentID: doc.id, 
-                    ...doc.data()
-                }));
-                
-                setAllEquipment(allEquipmentList.filter(equipment => equipment.availability === "available"));
-            } catch (error) {
-                console.error("Error fetching equipment:", error);
-            }
-        };
         fetchEquipment();
 
-        const fetchReservations = async () => {
-            try {
-                const reservationsRef = collection(db, 'reservations');
-                
-                //get all the reservations in the 'reservations' collection
-                const querySnapshot = await getDocs(reservationsRef);
-                
-                //map through each reservation and extract the data
-                const allReservationsList = querySnapshot.docs.map(doc => ({
-                    ...doc.data()
-                }));
-                
-                setAllReservations(allReservationsList);
-            } catch (error) {
-                console.error("Error fetching reservations:", error);
-            }
-        };
         fetchReservations();
 
         const fetchTeams = async () => {

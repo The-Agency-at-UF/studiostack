@@ -26,3 +26,12 @@
     background-color: #426276;
   }
   
+  .fc-event:hover {
+    background-color: #426276 !important;
+    cursor: pointer;
+  }
+  
+  .fc-event:hover .fc-event-title,
+.fc-event:hover .fc-event-time {
+  color: white !important;  
+}
