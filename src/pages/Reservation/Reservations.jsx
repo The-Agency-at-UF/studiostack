@@ -88,7 +88,7 @@ function Reservations() {
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 {notifications.length === 0 ?
-                    <div className='absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4 hover:scale-110'>
+                    <div className='absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4 hover:scale-110 hover:cursor-pointe'>
                         <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => navigate('/create-reservation')}/>
                     </div>
                 :
@@ -98,7 +98,7 @@ function Reservations() {
                             <StudentNotification key={index} notification={notification} type={notification.type} canClose={false} iconColor={'#EB3223'} backgroundColor={'#f7ada7'}/>
                         ))}
                         </div>
-                        <div className='absolute top-32 sm:top-33 right-6 sm:right-8 flex space-x-4 hover:scale-110'>
+                        <div className='absolute top-32 sm:top-33 right-6 sm:right-8 flex space-x-4 hover:scale-110 hover:cursor-pointer'>
                             <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => navigate('/create-reservation')}/>
                         </div>
                     </div>

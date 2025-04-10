@@ -76,7 +76,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
     return (
         <Popup trigger=
             {
-                <button className="absolute top-1 right-1 sm:top-8 sm:right-65 bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2">
+                <button className="absolute top-1 right-1 sm:top-8 sm:right-65 bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">
                     Extend Reservation
                 </button>
             } 
@@ -96,7 +96,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
                         </div>
                         <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
                                 onClick={() => {
                                     handle(close);
                                 }}>
@@ -104,7 +104,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110' 
                                 onClick={() => {
                                     close()
                                 }}

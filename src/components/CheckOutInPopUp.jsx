@@ -47,7 +47,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
     return (
         <Popup 
             trigger={
-                <button className="bg-[#A3C1E0] w-2/7 rounded-md px-6 py-2 lg:text-xl sm:text-lg text-sm">
+                <button className="bg-[#A3C1E0] w-2/7 rounded-md px-6 py-2 lg:text-xl sm:text-lg text-sm hover:cursor-pointer hover:scale-105">
                     {checkOut ? "Check Out" : "Check In"}
                 </button>
             } 
@@ -64,7 +64,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
                         <p className='pb-3'>3. Scan the barcode on the item.</p>
                         <div className='actions flex justify-center space-x-4 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
                                 onClick={() => scanBarcode()}
                             >
                                 {!startedScanning ? "Start Scanning" : "Scanning..."}
@@ -72,7 +72,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
                         </div>
                         <IoIosCloseCircle 
                             color='#426276' 
-                            className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                            className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110' 
                             onClick={() => {
                                 resetState();
                                 close();

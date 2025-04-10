@@ -448,14 +448,14 @@ function CreateReservation() {
                                     />
                                     </div>
                                 { index !== 0 && <IoIosRemoveCircle 
-                                    color='#EB3223' className='w-4 h-4 sm:w-6 sm:h-6' 
+                                    color='#EB3223' className='w-4 h-4 sm:w-6 sm:h-6 hover:scale-110 hover:cursor-pointer' 
                                     onClick={() => removeItemDropdown(index)}
                                 />}
                             </div>
                         </div>
                     ))}
                     <div className='pl-2 absolute top-2 sm:top-1 right-0'>
-                        <IoIosAddCircle color='#426276' className='w-6 h-6 sm:w-8 sm:h-8'
+                        <IoIosAddCircle color='#426276' className='w-6 h-6 sm:w-8 sm:h-8 hover:scale-110 hover:cursor-pointer'
                             onClick={addItemDropdown}
                             />
                     </div>
@@ -464,7 +464,7 @@ function CreateReservation() {
             </div>
             <div className='flex justify-center'>
                 <button 
-                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4"
+                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 hover:scale-110 hover:cursor-pointer"
                     onClick={() => createReservation()}
                     >
                     Reserve
