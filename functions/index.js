@@ -29,6 +29,7 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                 .where('isAdmin', '==', true)
                 .get();
     
+                //send email to every admin
                 adminsSnapshot.forEach(async (adminDoc) => {
                     const adminEmail = adminDoc.id;
                     await db.collection('mail').add({
@@ -45,6 +46,7 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                     });
                 });
 
+                //send email to the user
                 await db.collection('mail').add({
                     to: data.userEmail,
                     message: {
@@ -57,6 +59,7 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                     },
                 });
                 
+                //add notification to the database
                 await db.collection('notifications').add({
                     type: 'overdue',
                     reservationName: data.name,

@@ -42,6 +42,7 @@ function BarGraph({ data, colors, title, fullData }) {
         updateData(updatedItems);
     };
 
+    //update to the top 5 data
     const updateData = (item) => {
         const topValues = Object.entries(item)
           .map(([name, value]) => ({ name, value }))

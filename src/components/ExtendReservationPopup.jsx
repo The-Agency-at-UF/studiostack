@@ -22,7 +22,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
             res.startDate.toDate() <= new Date(reservationEndDate)
         );
             
-        //has conflicts
+        //there are conflicts -> check to see when the latest available date is
         if (reservationConflict.length > 0) {
             let latestAvailableDate = new Date(reservationConflict[0].startDate.toDate());
             for (let i = 1; i < reservationConflict.length; i++) {
@@ -36,7 +36,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
             return;
         }
 
-        //update reservation
+        //update reservation to have the new check in date
         const reservationRef = doc(db, 'reservations', reservationID);
         setDoc(reservationRef, {
             ...reservation,

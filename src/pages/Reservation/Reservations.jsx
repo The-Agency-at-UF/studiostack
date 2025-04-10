@@ -31,6 +31,7 @@ function Reservations() {
                 const allReservations = allReservationsList.filter(reservation => reservation.userEmail === localStorage.getItem('email'));
                 setReservations(allReservations);
 
+                //get the active reservations & sort
                 const activeReservationsList = allReservations.filter((reservation) => {
                     const endDate = reservation.endDate.toDate();
                     return endDate >= currentDate;
@@ -41,6 +42,7 @@ function Reservations() {
                 });
                 setActiveReservations(activeReservationsList);
                 
+                //get the past reservations & sort
                 const pastReservationsList = allReservations.filter((reservation) => {
                     const endDate = reservation.endDate.toDate();
                     return endDate < currentDate;
@@ -57,6 +59,7 @@ function Reservations() {
         };
         fetchReservations();
 
+        //fetch overdue equipment notifications
         const fetchOverdueEquipment = async () => {
             try {
                 const notifRef = collection(db, 'notifications');

@@ -16,6 +16,7 @@ function CheckInOut() {
     const currentDate = new Date();
     const navigate = useNavigate();
 
+    //format the date
     const formatDate = (timestamp) => {
         if (timestamp && timestamp.seconds) {
             const date = new Date(timestamp.seconds * 1000); 
@@ -84,6 +85,7 @@ function CheckInOut() {
         const updatedReservation = await getDoc(reservationRef);
         const updatedData = updatedReservation.data();
 
+        //if it was checked in (and overdue), add it to the overdue items
         const currentDate = new Date();
         let overdue = updatedData.endDate.toDate() < currentDate ? true : false;
         if (overdue) {
@@ -106,31 +108,38 @@ function CheckInOut() {
         );
     };
 
+    //handle the cancel reservation button
     const handleCancelReservation = async () => { 
+        //check if the reservation has any checked out items
         if (reservation.checkedOutItems.length > 0) {
             alert("You cannot cancel a reservation with checked out items. Please check in the items before cancelling the reservation.");
             return;
         }
 
+        //check if the reservation has already ended
         const currentDate = new Date();
         if (currentDate > reservation.endDate.toDate()) {
             alert("You cannot cancel a reservation after it has already ended.");
             return;
         }
 
+        //delete the reservation
         const reservationRef = doc(db, 'reservations', reservationID);
         await deleteDoc(reservationRef);
         alert("Reservation cancelled successfully.");
         navigate('/reservations');
     };
 
+    //cancel an item from the reservation
     const handleCancelItem = async (equipmentID) => {
+        //check if the reservation has already ended
         const currentDate = new Date();
         if (currentDate > reservation.endDate.toDate()) {
             alert("You cannot cancel a reservation after it has already ended.");
             return;
         }
 
+        //remove item from the reservation
         const reservationRef = doc(db, 'reservations', reservationID);
         const itemsToCheckOutUpdated = itemsToCheckOut.filter((equipment) => equipment.id !== equipmentID);
         console.log(itemsToCheckOutUpdated);
@@ -149,6 +158,7 @@ function CheckInOut() {
         alert("Item removed from reservation successfully.");
     };
 
+    //handle the extend reservation button (this is after it has done checks in the popup)
     const handleExtendReservation = async (date) => {
         const reservationRef = doc(db, 'reservations', reservationID);
         const reservationVar = await getDoc(reservationRef);

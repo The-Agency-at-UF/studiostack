@@ -25,7 +25,7 @@ const Statistics = () => {
   const [reportSubjectsData, setReportSubjectsData] = useState([]);
   const currentDate = new Date();
   
-  //get the top 5 and update state
+  //get the top 5 and update state (same for the functions below)
   const updateReservedItemsData = (checkedOut) => {
     const topCheckedOutItems = Object.entries(checkedOut)
       .map(([name, value]) => ({ name, value }))
@@ -86,6 +86,7 @@ const Statistics = () => {
     //name: number of overdue equipment: avg overdue time: list of overdue times:
     const combinedRecords = {};
 
+    //overdue equipment that hasnt been checked back in
     overdueEquipmentParam.forEach(record => {
       const user = record.user;
       if (!combinedRecords[user]) {
@@ -100,6 +101,7 @@ const Statistics = () => {
       combinedRecords[user].numberOfOverdueEquipment += 1;
     });
 
+    //overdue equipment that has been checked back in
     overdueEquipmentTimesParam.forEach(record => {
       const user = record.user;
       if (!combinedRecords[user]) {
@@ -115,6 +117,7 @@ const Statistics = () => {
       combinedRecords[user].numberOfOverdueEquipment += 1;
     });
 
+    //calculate the average time and format the overdue times
     Object.values(combinedRecords).forEach(record => {
       let totalTime = 0;
       record.overdueTimes.forEach(time => {
@@ -164,7 +167,7 @@ const Statistics = () => {
 
         setTotalEquipment(allEquipment.length);
 
-        // get the reservations from the 'reservations' collection
+        //get the reservations from the 'reservations' collection
         const reservationsRef = collection(db, 'reservations');
         const reservationsSnapshot = await getDocs(reservationsRef);
         const allReservations = reservationsSnapshot.docs.map(doc => ({
@@ -172,6 +175,7 @@ const Statistics = () => {
           ...doc.data()
         }));
 
+        //get the equipment IDs from the reservations
         const reservationsEquipmentList = allReservations.map(reservation => {
           return reservation.equipmentIDs.map(equipment => {
             return {
@@ -191,6 +195,7 @@ const Statistics = () => {
         });
         updateReservedItemsData(allTimeCheckedOut);
 
+        //get the teams from the reservations
         const reservationsTeamsList = allReservations.map(reservation => {
           return {
             name: reservation.team,
@@ -199,6 +204,7 @@ const Statistics = () => {
         });
         setReservationTeams(reservationsTeamsList);
 
+        //get the overdue items from the reservations (checked back in)
         const reservationsOverdueItemsList = allReservations.map(reservation => {
           const endDate = reservation.endDate.toDate();
           return reservation.overdueItems.map(equipment => {
@@ -227,6 +233,7 @@ const Statistics = () => {
         });
         updateReservationsTeamsData(allTimeTeams);
 
+        //get the overdue equipment from the reservations (not checked back in)
         const overdueEquipmentList = allReservations.map(reservation => {
           const endDate = reservation.endDate.toDate();
           if (endDate < currentDate) {
@@ -244,6 +251,7 @@ const Statistics = () => {
         .flat();
         setOverdueEquipment(overdueEquipmentList);
 
+        //get the users who made reservations
         const userReservationsList = allReservations.map(reservation => {
             return {
               name: reservation.userEmail,
@@ -261,6 +269,7 @@ const Statistics = () => {
           updateUserReservationsData(allTimeUserReservations);
   
 
+        //active reservations
         const activeReservations = allReservations.filter(reservation => {
           const endDate = reservation.endDate.toDate();
           const startDate = reservation.startDate.toDate();
@@ -297,6 +306,7 @@ const Statistics = () => {
 
     fetchEquipmentAndReservations();
 
+    //get the report subjects
     const fetchMail = async () => {
       const mailRef = collection(db, 'mail');
       const mailSnapshot = await getDocs(mailRef);
@@ -329,9 +339,10 @@ const Statistics = () => {
         ...doc.data()
       }));
 
+      //get the reported equipment
       const reportedEquipment = allReports.map(report => {
         return {
-          name: report.itemId,
+          name: report.item,
           time: report.timestamp.toDate(),
         };
       });
@@ -344,6 +355,7 @@ const Statistics = () => {
       });
       updateBrokenItemsData(allTimeBroken);
 
+      //get the users who made reports
       const userReportsList = allReports.map(report => {
         return {
           name: report.user,

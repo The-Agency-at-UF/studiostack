@@ -101,6 +101,7 @@ function CreateReservation() {
         setSelectedEquipment(updatedEquipment);
     };
 
+    //handle changes for the team dropdown
     const handleTeamChange = (value) => {
         setReservationCategory(value);
         if (value === null) {
@@ -140,6 +141,7 @@ function CreateReservation() {
     };
 
     const createReservation = async () => {
+        //get the team name
         let teamName = '';
         if (reservationCategory.label !== "Other") {
             teamName = reservationCategory.label;
@@ -147,6 +149,7 @@ function CreateReservation() {
             teamName = reservationOtherCategory;
         }
 
+        //make sure every input field is filled out
         if (reservationName === '' || teamName === '' || reservationStartDate === '' || reservationEndDate === '' || 
             (selectedEquipment.length === 1 && selectedEquipment[0].equipment === null)) {
 

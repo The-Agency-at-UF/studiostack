@@ -7,7 +7,8 @@ function ConfirmationPopup({ handle, text, wholeReservation, isReservation }) {
 
     return (
         <Popup trigger=
-            {!isReservation ? <div className='flex-1'><button className='bg-[#A3C1E0] hover:bg-[#426276] text-xs lg:text-sm cursor-pointer rounded-full text-white px-6 py-1'>Change Role</button></div> :
+            {//look of the trigger depends on the type of action (from the input)
+                !isReservation ? <div className='flex-1'><button className='bg-[#A3C1E0] hover:bg-[#426276] text-xs lg:text-sm cursor-pointer rounded-full text-white px-6 py-1'>Change Role</button></div> :
                 wholeReservation ? <button className="absolute top-1 right-1 sm:top-8 sm:right-8 bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">Cancel Reservation</button> :
                 <div>
                 <IoIosRemoveCircle color='#EB3223' className='w-6 h-6 sm:w-8 sm:h-8 hover:cursor-pointer hover:scale-110' />

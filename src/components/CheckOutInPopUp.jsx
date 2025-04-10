@@ -25,6 +25,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
         window.addEventListener("keydown", handleKeyDown); 
     };
 
+    //stops listening and handles the scanned barcode
     const handleSubmit = (scannedID) => {
         window.removeEventListener("keydown", handleKeyDown); 
     

@@ -43,7 +43,6 @@ function Users({ isAdmin }) {
 
     //adds user to database
     const addEmail = (isAdminBool, email) => { 
-        //TODO: change this to real time listening
         if (!students.some(user => user.email === email) && !admins.some(user => user.email === email) && email.includes("@ufl.edu")) {
             const userRef = doc(db, 'users', email);
             setDoc(userRef, { isAdmin: isAdminBool });
@@ -57,11 +56,14 @@ function Users({ isAdmin }) {
     //removes user from database
     const removeEmail = async (selectedEmail) => {
         if (students.some(user => user.email === selectedEmail)) {
+            //removes student
             const userRef = doc(db, 'users', selectedEmail);
             await deleteDoc(userRef);
             alert("Student removed successfully.");
             fetchUsers();
         } else if (admins.some(user => user.email === selectedEmail)) {
+            //removes admin
+            //cant remove last admin
             if (admins.length === 1) {
                 alert("Cannot remove the last admin. Please add another admin before removing this one.");
             } else {
@@ -75,6 +77,7 @@ function Users({ isAdmin }) {
         }
     }
 
+    //changes the role of the user (student -> admin and vice versa)
     const handleRoleChange = async (email) => {
         const userRef = doc(db, 'users', email);
         if (admins.some(user => user.email === email)) {
