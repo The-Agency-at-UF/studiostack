@@ -50,7 +50,6 @@ function Report({ userEmail }) {
                 ...doc.data()
             }));
             const adminsList = allUsersList.filter(user => user.isAdmin);
-            console.log(adminsList)
 
             // send report notification to all admins
             adminsList.forEach(async (adminDoc) => {

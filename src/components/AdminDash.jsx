@@ -44,7 +44,6 @@ function AdminDash() {
               setNoNotifications(true);
             } else {
               // sort notifications by most recent
-              console.log("admin list:", notifList)
               setNotifications(notifList.sort((a, b) => b.time.toDate() - a.time.toDate()));
             }
 

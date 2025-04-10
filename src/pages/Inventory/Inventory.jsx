@@ -57,7 +57,7 @@ function Inventory({ isAdmin }) {
     }
     catch(error) {
       alert("Error removing item.");
-      console.log("Error deleting item from inventory:", error);
+      console.log("Error removing item from inventory:", error);
     }
   }
 
