@@ -10,6 +10,7 @@ import ReportSummary from "./pages/Report/ReportSummary";
 import Statistics from "./pages/Statistics/Statistics";
 import LogIn from './pages/LogIn/LogIn';
 import Users from "./pages/Users/Users";
+import Teams from "./pages/Teams/Teams";
 import Reservations from "./pages/Reservation/Reservations";
 import CreateReservation from "./pages/Reservation/CreateReservation";
 import CheckInOut from "./pages/Reservation/CheckInOut";
@@ -79,6 +80,7 @@ const App = () => {
       <Routes>
         <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
         <Route path="/inventory" element={<Inventory isAdmin={isAdmin}/>} />
+        <Route path="/teams" element={<Teams isAdmin={isAdmin}/>} />
         <Route path="/reports" element={<Reports isAdmin={isAdmin}/>} />
         <Route path="/create-report" element={<Report userEmail={email}/>} />
         <Route path="/report-summary" element={<ReportSummary isAdmin={isAdmin} userEmail={email}/>} />

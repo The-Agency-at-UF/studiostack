@@ -76,7 +76,7 @@ function StudentDash() {
                       />
                     </div>                          
                 </div>
-                <div className="flex flex-col p-4 h-87 lg:w-3/4">
+                <div className="flex flex-col p-4 h-75 lg:w-3/4">
                     <div className="bg-[#ECECEC] p-4 rounded-[10px] items-center justify-between mb-2 sticky"> 
                       <h1 className='text-xl font-bold'>Notifications </h1> 
                     </div>  
