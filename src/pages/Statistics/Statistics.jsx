@@ -244,6 +244,23 @@ const Statistics = () => {
         .flat();
         setOverdueEquipment(overdueEquipmentList);
 
+        const userReservationsList = allReservations.map(reservation => {
+            return {
+              name: reservation.userEmail,
+              time: reservation.startDate.toDate(),
+            };
+        });
+  
+        setUserReservations(userReservationsList);
+  
+        const allTimeUserReservations = {};
+        
+          userReservationsList.forEach(item => {
+            allTimeUserReservations[item.name] = (allTimeUserReservations[item.name] || 0) + 1;
+          });
+          updateUserReservationsData(allTimeUserReservations);
+  
+
         const activeReservations = allReservations.filter(reservation => {
           const endDate = reservation.endDate.toDate();
           const startDate = reservation.startDate.toDate();
@@ -279,37 +296,6 @@ const Statistics = () => {
     };
 
     fetchEquipmentAndReservations();
-
-    const fetchUsers = async () => {
-      // get data from the 'users' collection
-      const usersRef = collection(db, 'users');
-      const userSnapshot = await getDocs(usersRef);
-      const allUsers = userSnapshot.docs.map(doc => ({
-        email: doc.id,
-        ...doc.data()
-      }));
-
-      const userReservationsList = allUsers.map(user => {
-        return user.reservations.map(reservation => {
-          return {
-            name: user.email,
-            time: reservation.toDate(),
-          };
-        });
-      }).flat();
-
-      setUserReservations(userReservationsList);
-
-      const allTimeUserReservations = {};
-      
-        userReservationsList.forEach(item => {
-          allTimeUserReservations[item.name] = (allTimeUserReservations[item.name] || 0) + 1;
-        });
-        updateUserReservationsData(allTimeUserReservations);
-
-    };
-
-    fetchUsers();
 
     const fetchMail = async () => {
       const mailRef = collection(db, 'mail');

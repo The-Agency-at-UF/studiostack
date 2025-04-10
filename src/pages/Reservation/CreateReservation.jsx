@@ -373,7 +373,7 @@ function CreateReservation() {
                         </div>
                     </div>
                     <div>
-                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Team:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Client or Internal Team:</h2>
                         <div className='pl-2 py-2'>
                             <Select
                                 value={reservationCategory.label === '' ? reservationCategory.label : reservationCategory}
@@ -387,7 +387,7 @@ function CreateReservation() {
                     </div>
                     {otherCategorySelected && (
                     <div>
-                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Enter Team Name:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Enter Client/Team Name:</h2>
                         <div className='pl-2 py-2'>
                             <input type="text" 
                                 placeholder="ex) Bartram"

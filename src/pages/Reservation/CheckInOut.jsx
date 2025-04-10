@@ -4,6 +4,7 @@ import { getDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebaseConfig';
 import CheckOutInPopUp from "../../components/CheckOutInPopUp";
 import ConfirmationPopup from "../../components/ConfirmationPopup";
+import ExtendReservationPopup from "../../components/ExtendReservationPopup";
 import { IoIosAlert } from "react-icons/io";
 
 function CheckInOut() { 
@@ -147,6 +148,13 @@ function CheckInOut() {
 
         alert("Item removed from reservation successfully.");
     };
+
+    const handleExtendReservation = async (date) => {
+        const reservationRef = doc(db, 'reservations', reservationID);
+        const reservationVar = await getDoc(reservationRef);
+        const reservationData = reservationVar.data();
+        setReservation(reservationData);
+    }
     
     useEffect(() => {
         if (!reservationID) return; 
@@ -181,7 +189,12 @@ function CheckInOut() {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                {activeReservation && <ConfirmationPopup handle={() => handleCancelReservation()} text="cancel the reservation" wholeReservation={true} isReservation={true}/>}
+                {activeReservation && reservation &&
+                    <div>
+                        <ExtendReservationPopup handleEdit={() => handleExtendReservation()} reservation={reservation} reservationID={reservationID}/>
+                        <ConfirmationPopup handle={() => handleCancelReservation()} text="cancel the reservation" wholeReservation={true} isReservation={true}/>
+                    </div>
+                }
                 <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
                 <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
                 <h3 className="text-lg sm:text-xl pb-2"><span className="font-semibold">Team:</span> {reservation?.team}</h3>
