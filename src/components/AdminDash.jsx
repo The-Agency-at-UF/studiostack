@@ -97,18 +97,22 @@ function AdminDash() {
                         onClick={() => navigate('/reports')}
                         className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
                         View Reports
-                    </button>      
-                    <button 
-                        onClick={() => navigate('/inventory')}
-                        className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
-                        Update Inventory
-                    </button>     
+                    </button>    
                     <button 
                         onClick={() => navigate('/teams')}
                         className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
                         Update Teams
-                    </button>    
-                                        
+                    </button>
+                    <button 
+                        onClick={() => navigate('/users')}
+                        className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
+                        Update Users
+                    </button> 
+                    <button 
+                        onClick={() => navigate('/inventory')}
+                        className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
+                        Update Inventory
+                    </button>             
                 </div>
             </div>
         </div>
