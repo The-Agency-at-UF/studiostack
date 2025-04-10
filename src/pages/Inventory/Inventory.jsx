@@ -61,19 +61,18 @@ function Inventory({ isAdmin }) {
     }
   }
 
-  if (!isAdmin) {
-    return <h1>You must be an admin to view this page.</h1>;
-}
-
   return (
     <div>
       <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-3xl pb-6'>Inventory</h1>
-                <div className="absolute top-8 right-8 flex space-x-4">
-                  <AddItemPopup addItem={addItem} categoryList={categoryList}/>
-                  <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
-                </div>
+                {
+                  isAdmin && 
+                    <div className="absolute top-8 right-8 flex space-x-4">
+                      <AddItemPopup addItem={addItem} categoryList={categoryList}/>
+                      <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
+                  </div>
+                }
             </div>
             <div className='pl-2 pr-2'>
               <div className="font-light">Sort by:
