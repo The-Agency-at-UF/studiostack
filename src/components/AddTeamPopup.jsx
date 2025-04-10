@@ -10,7 +10,7 @@ function AddTeamPopup({ addTeam }) {
         <Popup trigger=
             {<button 
                 className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
-                Add Team
+                Add Internal or Client Team
             </button>}    
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
@@ -19,7 +19,7 @@ function AddTeamPopup({ addTeam }) {
                 close => (
                     <div className='modal relative'>
                         <div className='content p-4'>
-                            <h1 className='font-bold text-2xl sm:text-3xl pb-6'>Add Team</h1>
+                            <h1 className='font-bold text-2xl sm:text-3xl pb-6'>Add Internal or Client Team</h1>
                             <div className='px-5'>
                                 <input type="text" 
                                     placeholder="Team Name"
