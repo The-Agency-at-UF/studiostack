@@ -20,7 +20,7 @@ function CreateReservation() {
     const navigate = useNavigate();
     
     //tracking the items that the user chooses for the reservation
-    const [selectedEquipment, setSelectedEquipment] = useState([{ equipment: null, quantity: 1 }]);
+    const [selectedEquipment, setSelectedEquipment] = useState([{ equipment: null }]);
 
     //making sure that the date is filled in before they can choose the equipment
     const checkIfDateFilled = (sendAlert) => {
@@ -80,7 +80,6 @@ function CreateReservation() {
         const equipmentOptions = Object.keys(equipmentDict).map(equipmentName => ({
             value: equipmentDict[equipmentName], 
             label: equipmentName,
-            quantity: availableEquipmentList.filter(equipment => equipment.name === equipmentName).length, // Add quantity info
         }));
 
         equipmentOptions.sort((a, b) => a.label.localeCompare(b.label));
@@ -91,13 +90,6 @@ function CreateReservation() {
     const handleItemChange = (index, value) => {
         const updatedEquipment = [...selectedEquipment];
         updatedEquipment[index] = value;
-        setSelectedEquipment(updatedEquipment);
-    };
-
-    //handle quantity change for a specific item
-    const handleQuantityChange = (index, selectedOption) => {
-        const updatedEquipment = [...selectedEquipment];
-        updatedEquipment[index].quantity = selectedOption.value;
         setSelectedEquipment(updatedEquipment);
     };
 
@@ -119,7 +111,7 @@ function CreateReservation() {
     //add a new item dropdown
     const addItemDropdown = () => {
         if (dateFilled) {
-            setSelectedEquipment([...selectedEquipment, { equipment: null, quantity: 1 }]);
+            setSelectedEquipment([...selectedEquipment, { equipment: null }]);
         }
     };
 
@@ -127,17 +119,6 @@ function CreateReservation() {
     const removeItemDropdown = (index) => {
         const updatedEquipment = selectedEquipment.filter((_, i) => i !== index);
         setSelectedEquipment(updatedEquipment);
-    };
-
-    //quantity for a specific equipment item
-    const getQuantityOptions = (equipmentName) => {
-        const equipment = allEquipment.filter(item => item.name === equipmentName)[0];
-        const availableQuantity = equipment ? availableEquipment.filter(item => item.label === equipmentName)[0]?.quantity : 0;
-    
-        return Array.from({ length: availableQuantity }, (_, i) => ({
-            value: i + 1,
-            label: (i + 1).toString()
-        }));
     };
 
     const createReservation = async () => {
@@ -162,16 +143,14 @@ function CreateReservation() {
         for (const item of selectedEquipment) {
             if (item.equipment !== null) {
                 const availableItem = availableEquipment.find(option => option.label === item.equipment.label);
-                for (let i = 0; i < item.quantity; i++) {
-                    if (selectedEquipmentIDs.some(e => e.id === availableItem.value[i])) {
-                        alert('Unable to create reservation. Please make sure items aren\'t duplicated.');
-                        return;
-                    }
-                    selectedEquipmentIDs.push({ id: availableItem.value[i], name: item.equipment.label });
+                if (selectedEquipmentIDs.some(e => e.id === availableItem.value)) {
+                    alert('Unable to create reservation. Please make sure items aren\'t duplicated.');
+                    return;
                 }
+                selectedEquipmentIDs.push({ id: availableItem.value[0], name: item.equipment.label });
             }
-        }        
-
+        }
+                
         //check for availability again
         const availableEquipmentList = await fetchEquipment();
         for (const item of selectedEquipmentIDs) {
@@ -301,8 +280,8 @@ function CreateReservation() {
                 ...doc.data()
             }));
             
-            setAllEquipment(allEquipmentList.filter(equipment => equipment.availability === "available"));
-            return allEquipmentList.filter(equipment => equipment.availability === "available");
+            setAllEquipment(allEquipmentList.filter(equipment => equipment.availability !== "reported"));
+            return allEquipmentList.filter(equipment => equipment.availability !== "reported");
         } catch (error) {
             console.error("Error fetching equipment:", error);
         }
@@ -424,12 +403,12 @@ function CreateReservation() {
                 </div>
 
             <div className='flex-auto relative'>
-                <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item(s) and Quantity:</h1>
+                <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item(s):</h1>
                 <div onClick={() => checkIfDateFilled(true)}>
                     {selectedEquipment.map((item, index) => (
                         <div key={index} className="pl-2 py-2">
                             <div className="flex items-center space-x-2">
-                                <div className='w-3/4 md:w-full'>
+                                <div className='min-w-75 w-full'>
                                 <Select
                                     value={item.equipment}
                                     options={availableEquipment}
@@ -440,16 +419,6 @@ function CreateReservation() {
                                     isDisabled={!dateFilled}
                                 />
                                 </div>
-                                    <div className='min-w-1/7'>
-                                    <Select
-                                        id={`quantity-${index}`}
-                                        value={{ value: item.quantity, label: item.quantity.toString() }} 
-                                        onChange={(selectedOption) => handleQuantityChange(index, selectedOption)}  
-                                        styles={dropdownStyle}
-                                        isDisabled={!dateFilled}
-                                        options={item.equipment ? getQuantityOptions(item.equipment.label) : []}
-                                    />
-                                    </div>
                                 { index !== 0 && <IoIosRemoveCircle 
                                     color='#EB3223' className='w-4 h-4 sm:w-6 sm:h-6 hover:scale-110 hover:cursor-pointer' 
                                     onClick={() => removeItemDropdown(index)}

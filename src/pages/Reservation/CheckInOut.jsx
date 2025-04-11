@@ -5,6 +5,7 @@ import { db } from '../../firebase/firebaseConfig';
 import CheckOutInPopUp from "../../components/CheckOutInPopUp";
 import ConfirmationPopup from "../../components/ConfirmationPopup";
 import ExtendReservationPopup from "../../components/ExtendReservationPopup";
+import AddToReservationPopup from "../../components/AddToReservationPopup";
 import { IoIosAlert } from "react-icons/io";
 
 function CheckInOut() { 
@@ -158,8 +159,35 @@ function CheckInOut() {
         alert("Item removed from reservation successfully.");
     };
 
+    //handle the add item button (this is after it has done checks in the popup)
+    const handleAddItem = async () => {
+        //check if the reservation has already ended
+        const currentDate = new Date();
+        if (currentDate > reservation.endDate.toDate()) {
+            alert("You cannot add items to a reservation after it has already ended.");
+            return;
+        }
+
+        const reservationRef = doc(db, 'reservations', reservationID);
+        const reservationVar = await getDoc(reservationRef);
+        const reservationData = reservationVar.data();
+        setReservation(reservationData);
+
+        const itemsToCheckOutList = reservationData.equipmentIDs.filter(equipment => 
+            !reservationData.checkedOutItems.some(item => item.id === equipment.id) && 
+            !reservationData.checkedInItems.some(item => item.id === equipment.id));
+        setItemsToCheckOut(itemsToCheckOutList);
+    }
+
     //handle the extend reservation button (this is after it has done checks in the popup)
-    const handleExtendReservation = async (date) => {
+    const handleExtendReservation = async () => {
+         //check if the reservation has already ended
+         const currentDate = new Date();
+         if (currentDate > reservation.endDate.toDate()) {
+             alert("You cannot extend a reservation after it has already ended.");
+             return;
+        }
+
         const reservationRef = doc(db, 'reservations', reservationID);
         const reservationVar = await getDoc(reservationRef);
         const reservationData = reservationVar.data();
@@ -205,14 +233,19 @@ function CheckInOut() {
                         <ConfirmationPopup handle={() => handleCancelReservation()} text="cancel the reservation" wholeReservation={true} isReservation={true}/>
                     </div>
                 }
-                <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
+                <h1 className='font-bold text-2xl sm:text-3xl pb-2 pt-4 md:pt-0'>{reservation?.name}</h1>
                 <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
                 <h3 className="text-lg sm:text-xl pb-2"><span className="font-semibold">Team:</span> {reservation?.team}</h3>
                 <h3 className="text-lg sm:text-xl"><span className="font-semibold">Items Held:</span> {reservation?.equipmentIDs?.length}</h3>
                 <div className="container py-4"> 
                     <div className="flex flex-col md:flex-row gap-4"> 
                         <div className="flex-1 p-4 rounded"> 
-                            <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Check Out Items:</h2>
+                            <div className="relative flex items-center justify-center pb-4">
+                                <h2 className="text-xl sm:text-2xl text-center font-semibold">Check Out Items:</h2>
+                                {activeReservation && reservation && 
+                                <AddToReservationPopup handleAdd={() => handleAddItem()} reservation={reservation} reservationID={reservationID}/>
+                                }
+                            </div>
                             {itemsToCheckOut.map((item, index) => (
                                 <div key={index} className="flex items-center space-x-4 mb-4">
                                     {activeReservation && (

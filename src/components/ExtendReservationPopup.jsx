@@ -49,7 +49,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
             console.error('Error updating reservation:', error);
         });
 
-        handleEdit(reservationEndDate);
+        handleEdit();
         close();
     }
 
@@ -76,7 +76,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
     return (
         <Popup trigger=
             {
-                <button className="absolute top-1 right-1 sm:top-8 sm:right-65 bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">
+                <button className="absolute top-1 right-55 md:top-8 md:right-65 bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">
                     Extend Reservation
                 </button>
             } 
