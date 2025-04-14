@@ -4,8 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 
 initializeApp();
 
-//TODO: change to "every 10 minutes" when website is done
-export const overdueEquipment = onSchedule("every 72 hours", async() => {
+export const overdueEquipment = onSchedule("every 10 minutes", async() => {
 
     const db = getFirestore();
     const now = new Date();
