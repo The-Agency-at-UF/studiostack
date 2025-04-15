@@ -32,7 +32,6 @@ function StudentDash() {
             );
             const overdueNotifs = userNotifications.filter(notification => 
               notification.type === "overdue" && 
-              notification.resolved == true && 
               notification?.userClosed === false
             );
             const notifList = [...reportNotifs, ...overdueNotifs]
@@ -86,7 +85,7 @@ function StudentDash() {
                       :
                         <div>
                           {notifications.map((notification, index) => ( 
-                            <StudentNotification key={index} notification={notification} type={notification.type} closeNotif={closeNotif}/>
+                            <StudentNotification key={index} notification={notification} type={notification.type} closeNotif={closeNotif} canClose={true} iconColor={'#426276'} backgroundColor={'#D1E0EF'}/>
                           ))}
                         </div>
                       }

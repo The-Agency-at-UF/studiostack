@@ -3,7 +3,7 @@ import { IoIosTime } from "react-icons/io";
 import { IoIosNotifications } from "react-icons/io";
 import { IoIosClose } from "react-icons/io";
 
-function StudentNotification({ notification, type, closeNotif }) { 
+function StudentNotification({ notification, type, closeNotif, canClose, iconColor, backgroundColor }) { 
 
     const formatDate = (timestamp) => {
         if (timestamp && timestamp.seconds) {
@@ -26,14 +26,15 @@ function StudentNotification({ notification, type, closeNotif }) {
         <div>
             {type == "overdue" &&
             notification?.userClosed == false &&
-            <div className='p-2 rounded-lg relative m-2 flex items-center' style={{backgroundColor: '#D1E0EF'}}>
-                <IoIosTime color='#426276' className='w-8 h-8'/>
+            <div className='p-2 rounded-lg relative m-2 flex items-center' style={{backgroundColor: backgroundColor}}>
+                <IoIosTime color={iconColor} className='w-8 h-8'/>
                     <h1 className='text-xs sm:text-sm md:text-base p-2'>
                         You have <strong>{notification?.amount}</strong> overdue items for <strong>{notification?.reservationName}</strong>.
                     </h1>
-                <IoIosClose color='#426276' className='absolute right-5 transform -translate-y-1/2 m-1 sm:w-8 sm:h-8'
+                {canClose &&
+                <IoIosClose color={iconColor} className='absolute right-5 transform -translate-y-1/2 m-1 sm:w-8 sm:h-8'
                     onClick={() => closeNotif(notification.id)}
-                />            
+                />}           
             </div>
             }
             {type == "report" && 
@@ -44,9 +45,10 @@ function StudentNotification({ notification, type, closeNotif }) {
                     <h1 className='text-xs sm:text-sm md:text-base p-2'>
                         A report for <strong>{notification?.item}</strong> was resolved by <strong>{notification?.resolvedBy}</strong> on {formatDate(notification?.time)}.
                     </h1>
+                {canClose &&
                 <IoIosClose color='#426276' className='absolute right-5 transform -translate-y-1/2 m-1 sm:w-8 sm:h-8'
                     onClick={() => closeNotif(notification.id)}
-                />              
+                />}             
             </div> 
             }
         </div>

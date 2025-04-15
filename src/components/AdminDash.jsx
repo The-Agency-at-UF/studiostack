@@ -24,7 +24,10 @@ function AdminDash() {
             }));
             
             // do not notify admin of their own report notification
-            const userNotifications = notifs.filter(notification => notification.userEmail !== localStorage.getItem('email'));
+            const userEmail = localStorage.getItem('email');
+            const userNotifications = notifs.filter(notification => 
+                !(notification.type === "report" && notification.userEmail === userEmail)
+            );
 
             // filter notifs by type and check that it hasn't been already closed
             const reportNotifs = userNotifications.filter(notification => 
@@ -33,8 +36,7 @@ function AdminDash() {
                 notification?.adminClosed != true
             );
             const overdueNotifs = userNotifications.filter(notification => 
-                notification.type === "overdue" && 
-                notification.resolved === false && 
+                notification.type === "overdue" &&
                 notification?.adminClosed != true
             );
             const notifList = [...reportNotifs, ...overdueNotifs]

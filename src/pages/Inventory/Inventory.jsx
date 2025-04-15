@@ -11,6 +11,7 @@ function Inventory({ isAdmin }) {
   const [inventory, setInventory] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
   const inventoryCollectionRef = collection(db, "inventory");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // categories for a dropdown
   const categoryList = ["Camera & Accessories", "Audio", "Lights", "Production Design", "Cables & Cords", "Miscellaneous"];
@@ -20,6 +21,14 @@ function Inventory({ isAdmin }) {
     const filtered = inventory.filter(item => item.category === category);
     setFilteredList(filtered);
   }
+
+  // search functionality, filtering by name
+  const handleSearch = async (e) => {
+    setSearchTerm(e);
+    const filtered = inventory.filter(item => item.name.toLowerCase().includes(e.toLowerCase()));
+    setFilteredList(filtered);
+  }
+
   // show all inventory items
   const showAll = async () => {
     const all = inventory;
@@ -84,6 +93,15 @@ function Inventory({ isAdmin }) {
               <button onClick={() => handleFilter('Cables & Cords')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Cables & Cords</button>
               <button onClick={() => handleFilter('Miscellaneous')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Miscellaneous</button>
               </div>
+            </div>
+            <div className='pl-2 pr-2 py-4'>
+              <h2 className="font-light pb-2">Search by name:</h2>
+              <input type="text" 
+                  placeholder="Enter item name..."
+                  className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full lg:w-3/4 bg-white" 
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)} 
+              />
             </div>
             <div className="p-4">
                 <div className="flex py-2 font-semibold">

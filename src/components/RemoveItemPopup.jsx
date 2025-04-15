@@ -79,7 +79,7 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
 
     return (
         <Popup trigger=
-            {<IoIosRemoveCircle color='#EB3223' className='w-10 h-10 cursor-pointer' />} 
+            {<div><IoIosRemoveCircle color='#EB3223' className='w-10 h-10 cursor-pointer' /></div>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
             overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >

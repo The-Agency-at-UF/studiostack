@@ -4,6 +4,7 @@ import bwipjs from "bwip-js";
 const BarcodeDownloader = ({ equipmentID }) => {
   const canvasRef = useRef(null);
 
+  //function thats generates the barcode
   const generateBarcode = () => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -21,6 +22,7 @@ const BarcodeDownloader = ({ equipmentID }) => {
     }
   };
 
+  //function to download barcode
   const downloadBarcode = () => {
     const canvas = canvasRef.current;
     if (canvas) {

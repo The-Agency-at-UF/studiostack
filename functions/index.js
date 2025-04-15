@@ -4,8 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 
 initializeApp();
 
-//TODO: change to "every 10 minutes" when website is done
-export const overdueEquipment = onSchedule("every 72 hours", async() => {
+export const overdueEquipment = onSchedule("every 10 minutes", async() => {
 
     const db = getFirestore();
     const now = new Date();
@@ -29,6 +28,7 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                 .where('isAdmin', '==', true)
                 .get();
     
+                //send email to every admin
                 adminsSnapshot.forEach(async (adminDoc) => {
                     const adminEmail = adminDoc.id;
                     await db.collection('mail').add({
@@ -45,6 +45,7 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                     });
                 });
 
+                //send email to the user
                 await db.collection('mail').add({
                     to: data.userEmail,
                     message: {
@@ -56,8 +57,18 @@ export const overdueEquipment = onSchedule("every 72 hours", async() => {
                         `,
                     },
                 });
+                
+                //add notification to the database
+                await db.collection('notifications').add({
+                    type: 'overdue',
+                    reservationName: data.name,
+                    amount: data.checkedOutItems.length,
+                    userEmail: data.userEmail,
+                    time: data.endDate,
+                    userClosed: false,
+                    adminClosed: false
+                });
             }
         }
-
     }
 });

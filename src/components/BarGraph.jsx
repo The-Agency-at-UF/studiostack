@@ -42,6 +42,7 @@ function BarGraph({ data, colors, title, fullData }) {
         updateData(updatedItems);
     };
 
+    //update to the top 5 data
     const updateData = (item) => {
         const topValues = Object.entries(item)
           .map(([name, value]) => ({ name, value }))
@@ -87,19 +88,19 @@ function BarGraph({ data, colors, title, fullData }) {
             </div>
             <div className='sm:pl-6 text-white text-sm sm:text-base pt-2 sm:pt-0'>
                 <button 
-                className='bg-[#426276] rounded-l-md border border-white p-1 sm:p-2 hover:bg-[#283b47]'
+                className='bg-[#426276] rounded-l-md border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 30 Days')}
                 >Past 30 Days</button>
                 <button 
-                className='bg-[#426276] border border-white p-1 sm:p-2 hover:bg-[#283b47]'
+                className='bg-[#426276] border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 60 Days')}
                 >Past 60 Days</button>
                 <button 
-                className='bg-[#426276] border border-white p-1 sm:p-2 hover:bg-[#283b47]'
+                className='bg-[#426276] border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 90 Days')}
                 >Past 90 Days</button>
                 <button 
-                className='bg-[#426276] rounded-r-md border border-white p-1 sm:p-2 hover:bg-[#283b47]'
+                className='bg-[#426276] rounded-r-md border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
                 onClick={() => handleSettingChange('All-Time')}
                 >All-Time</button>
             </div>

@@ -25,6 +25,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
         window.addEventListener("keydown", handleKeyDown); 
     };
 
+    //stops listening and handles the scanned barcode
     const handleSubmit = (scannedID) => {
         window.removeEventListener("keydown", handleKeyDown); 
     
@@ -47,15 +48,14 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
     return (
         <Popup 
             trigger={
-                <button className="bg-[#A3C1E0] w-2/7 rounded-md px-6 py-2 lg:text-xl sm:text-lg text-sm">
+                <button className="bg-[#A3C1E0] w-2/7 rounded-md px-6 py-2 lg:text-xl sm:text-lg text-sm hover:cursor-pointer hover:scale-105">
                     {checkOut ? "Check Out" : "Check In"}
                 </button>
             } 
             modal 
             nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'transparent' }}
-        >
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {close => (
                 <div className='modal relative'>
                     <div className='content p-4 text-center text-sm sm:text-lg'>
@@ -65,7 +65,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
                         <p className='pb-3'>3. Scan the barcode on the item.</p>
                         <div className='actions flex justify-center space-x-4 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
                                 onClick={() => scanBarcode()}
                             >
                                 {!startedScanning ? "Start Scanning" : "Scanning..."}
@@ -73,7 +73,7 @@ function CheckOutPopUp({ handleCheckOutIn, checkOut, correctID }) {
                         </div>
                         <IoIosCloseCircle 
                             color='#426276' 
-                            className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                            className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110' 
                             onClick={() => {
                                 resetState();
                                 close();

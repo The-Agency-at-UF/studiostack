@@ -8,7 +8,7 @@ import { IoIosAddCircle, IoIosRemoveCircle } from "react-icons/io";
 function CreateReservation() { 
     const [reservationName, setReservationName] = useState('');
     const [reservationCategory, setReservationCategory] = useState({ value: '', label: '' });
-    const [reservationOtherCategory, setReservationOtherCategory] = useState({ value: '', label: '' });
+    const [reservationOtherCategory, setReservationOtherCategory] = useState();
     const [reservationStartDate, setReservationStartDate] = useState('');
     const [reservationEndDate, setReservationEndDate] = useState('');
     const [availableEquipment, setAvailableEquipment] = useState([]);
@@ -20,7 +20,7 @@ function CreateReservation() {
     const navigate = useNavigate();
     
     //tracking the items that the user chooses for the reservation
-    const [selectedEquipment, setSelectedEquipment] = useState([{ equipment: null, quantity: 1 }]);
+    const [selectedEquipment, setSelectedEquipment] = useState([{ equipment: null }]);
 
     //making sure that the date is filled in before they can choose the equipment
     const checkIfDateFilled = (sendAlert) => {
@@ -80,7 +80,6 @@ function CreateReservation() {
         const equipmentOptions = Object.keys(equipmentDict).map(equipmentName => ({
             value: equipmentDict[equipmentName], 
             label: equipmentName,
-            quantity: availableEquipmentList.filter(equipment => equipment.name === equipmentName).length, // Add quantity info
         }));
 
         equipmentOptions.sort((a, b) => a.label.localeCompare(b.label));
@@ -94,13 +93,7 @@ function CreateReservation() {
         setSelectedEquipment(updatedEquipment);
     };
 
-    //handle quantity change for a specific item
-    const handleQuantityChange = (index, selectedOption) => {
-        const updatedEquipment = [...selectedEquipment];
-        updatedEquipment[index].quantity = selectedOption.value;
-        setSelectedEquipment(updatedEquipment);
-    };
-
+    //handle changes for the team dropdown
     const handleTeamChange = (value) => {
         setReservationCategory(value);
         if (value === null) {
@@ -113,12 +106,12 @@ function CreateReservation() {
             setReservationOtherCategory('');
             setOtherCategorySelected(false);
         }
-    }
+    };    
     
     //add a new item dropdown
     const addItemDropdown = () => {
         if (dateFilled) {
-            setSelectedEquipment([...selectedEquipment, { equipment: null, quantity: 1 }]);
+            setSelectedEquipment([...selectedEquipment, { equipment: null }]);
         }
     };
 
@@ -128,25 +121,16 @@ function CreateReservation() {
         setSelectedEquipment(updatedEquipment);
     };
 
-    //quantity for a specific equipment item
-    const getQuantityOptions = (equipmentName) => {
-        const equipment = allEquipment.filter(item => item.name === equipmentName)[0];
-        const availableQuantity = equipment ? availableEquipment.filter(item => item.label === equipmentName)[0]?.quantity : 0;
-    
-        return Array.from({ length: availableQuantity }, (_, i) => ({
-            value: i + 1,
-            label: (i + 1).toString()
-        }));
-    };
-
     const createReservation = async () => {
+        //get the team name
         let teamName = '';
         if (reservationCategory.label !== "Other") {
             teamName = reservationCategory.label;
         } else {
-            teamName = reservationOtherCategory.label;
+            teamName = reservationOtherCategory;
         }
 
+        //make sure every input field is filled out
         if (reservationName === '' || teamName === '' || reservationStartDate === '' || reservationEndDate === '' || 
             (selectedEquipment.length === 1 && selectedEquipment[0].equipment === null)) {
 
@@ -155,21 +139,45 @@ function CreateReservation() {
         }
 
         const selectedEquipmentIDs = [];
-
         // Check for duplicate items
-        selectedEquipment.forEach(item => {
+        for (const item of selectedEquipment) {
             if (item.equipment !== null) {
                 const availableItem = availableEquipment.find(option => option.label === item.equipment.label);
-    
-                for (let i = 0; i < item.quantity; i++) {
-                    if (selectedEquipmentIDs.includes(availableItem.value[i])) {
-                        alert('Unable to create reservation. Please make sure items aren\'t duplicated.')
+                if (selectedEquipmentIDs.some(e => e.id === availableItem.value)) {
+                    alert('Unable to create reservation. Please make sure items aren\'t duplicated.');
+                    return;
+                }
+                selectedEquipmentIDs.push({ id: availableItem.value[0], name: item.equipment.label });
+            }
+        }
+                
+        //check for availability again
+        const availableEquipmentList = await fetchEquipment();
+        for (const item of selectedEquipmentIDs) {
+            if (!availableEquipmentList.some(e => e.equipmentID === item.id)) {
+                alert(`The item ${item.name} is no longer available.`);
+                return;
+            }
+        }
+
+        //check for reservation conflicts again
+        const reservationsUpdated = await fetchReservations();
+        const sameTimeReservations = reservationsUpdated.filter((reservation) => {
+            const startDate = reservation.startDate.toDate();
+            const endDate = reservation.verifiedBy.toDate();
+
+            return (new Date(reservationStartDate) < endDate) && (new Date(reservationEndDate) > startDate)
+        });
+        if (sameTimeReservations.length > 0) {
+            for (const reservation of sameTimeReservations) {
+                for (const equipmentid of reservation.equipmentIDs) {
+                    if (selectedEquipmentIDs.some(e => e.id === equipmentid.id)) {
+                        alert(`The item ${equipmentid.name} is already reserved for the selected dates.`);
                         return;
                     }
-                    selectedEquipmentIDs.push({id: availableItem.value[i], name: item.equipment.label});
                 }
-            }
-        });
+            }            
+        }
 
         try {
 
@@ -258,46 +266,50 @@ function CreateReservation() {
             }
         })
     };
+
+    const fetchEquipment = async () => {
+        try {
+            const equipmentRef = collection(db, 'inventory');
+            
+            //get all the equipment in the 'equipment' collection
+            const querySnapshot = await getDocs(equipmentRef);
+            
+            //map through each equipment and extract the data
+            const allEquipmentList = querySnapshot.docs.map(doc => ({
+                equipmentID: doc.id, 
+                ...doc.data()
+            }));
+            
+            setAllEquipment(allEquipmentList.filter(equipment => equipment.availability !== "reported"));
+            return allEquipmentList.filter(equipment => equipment.availability !== "reported");
+        } catch (error) {
+            console.error("Error fetching equipment:", error);
+        }
+    };
+
+    const fetchReservations = async () => {
+        try {
+            const reservationsRef = collection(db, 'reservations');
+            
+            //get all the reservations in the 'reservations' collection
+            const querySnapshot = await getDocs(reservationsRef);
+            
+            //map through each reservation and extract the data
+            const allReservationsList = querySnapshot.docs.map(doc => ({
+                ...doc.data()
+            }));
+            
+            setAllReservations(allReservationsList);
+            return allReservationsList;
+        } catch (error) {
+            console.error("Error fetching reservations:", error);
+        }
+    };
     
 
     useEffect(() => {
-        const fetchEquipment = async () => {
-            try {
-                const equipmentRef = collection(db, 'inventory');
-                
-                //get all the equipment in the 'equipment' collection
-                const querySnapshot = await getDocs(equipmentRef);
-                
-                //map through each equipment and extract the data
-                const allEquipmentList = querySnapshot.docs.map(doc => ({
-                    equipmentID: doc.id, 
-                    ...doc.data()
-                }));
-                
-                setAllEquipment(allEquipmentList.filter(equipment => equipment.availability !== "unavailable"));
-            } catch (error) {
-                console.error("Error fetching equipment:", error);
-            }
-        };
         fetchEquipment();
 
-        const fetchReservations = async () => {
-            try {
-                const reservationsRef = collection(db, 'reservations');
-                
-                //get all the reservations in the 'reservations' collection
-                const querySnapshot = await getDocs(reservationsRef);
-                
-                //map through each reservation and extract the data
-                const allReservationsList = querySnapshot.docs.map(doc => ({
-                    ...doc.data()
-                }));
-                
-                setAllReservations(allReservationsList);
-            } catch (error) {
-                console.error("Error fetching reservations:", error);
-            }
-        };
         fetchReservations();
 
         const fetchTeams = async () => {
@@ -343,7 +355,7 @@ function CreateReservation() {
                         </div>
                     </div>
                     <div>
-                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Team:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Client or Internal Team:</h2>
                         <div className='pl-2 py-2'>
                             <Select
                                 value={reservationCategory.label === '' ? reservationCategory.label : reservationCategory}
@@ -357,7 +369,7 @@ function CreateReservation() {
                     </div>
                     {otherCategorySelected && (
                     <div>
-                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Enter Team Name:</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Enter Client/Team Name:</h2>
                         <div className='pl-2 py-2'>
                             <input type="text" 
                                 placeholder="ex) Bartram"
@@ -391,12 +403,12 @@ function CreateReservation() {
                 </div>
 
             <div className='flex-auto relative'>
-                <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item(s) and Quantity:</h1>
+                <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item(s):</h1>
                 <div onClick={() => checkIfDateFilled(true)}>
                     {selectedEquipment.map((item, index) => (
                         <div key={index} className="pl-2 py-2">
                             <div className="flex items-center space-x-2">
-                                <div className='w-3/4 md:w-full'>
+                                <div className='min-w-75 w-full'>
                                 <Select
                                     value={item.equipment}
                                     options={availableEquipment}
@@ -407,25 +419,15 @@ function CreateReservation() {
                                     isDisabled={!dateFilled}
                                 />
                                 </div>
-                                    <div className='min-w-1/7'>
-                                    <Select
-                                        id={`quantity-${index}`}
-                                        value={{ value: item.quantity, label: item.quantity.toString() }} 
-                                        onChange={(selectedOption) => handleQuantityChange(index, selectedOption)}  
-                                        styles={dropdownStyle}
-                                        isDisabled={!dateFilled}
-                                        options={item.equipment ? getQuantityOptions(item.equipment.label) : []}
-                                    />
-                                    </div>
                                 { index !== 0 && <IoIosRemoveCircle 
-                                    color='#EB3223' className='w-4 h-4 sm:w-6 sm:h-6' 
+                                    color='#EB3223' className='w-4 h-4 sm:w-6 sm:h-6 hover:scale-110 hover:cursor-pointer' 
                                     onClick={() => removeItemDropdown(index)}
                                 />}
                             </div>
                         </div>
                     ))}
                     <div className='pl-2 absolute top-2 sm:top-1 right-0'>
-                        <IoIosAddCircle color='#426276' className='w-6 h-6 sm:w-8 sm:h-8'
+                        <IoIosAddCircle color='#426276' className='w-6 h-6 sm:w-8 sm:h-8 hover:scale-110 hover:cursor-pointer'
                             onClick={addItemDropdown}
                             />
                     </div>
@@ -434,7 +436,7 @@ function CreateReservation() {
             </div>
             <div className='flex justify-center'>
                 <button 
-                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4"
+                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 hover:scale-110 hover:cursor-pointer"
                     onClick={() => createReservation()}
                     >
                     Reserve
