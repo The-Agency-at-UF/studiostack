@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Popup from 'reactjs-popup';
 import 'reactjs-popup/dist/index.css';
 import Select from 'react-select';
-import { IoIosCloseCircle } from "react-icons/io";
+import { IoIosRemoveCircle, IoIosCloseCircle } from "react-icons/io";
 
 function RemoveTeamPopup({ removeTeam, listOfTeams }) { 
     const [teamsList, setTeamsList] = useState([]);
@@ -69,13 +69,10 @@ function RemoveTeamPopup({ removeTeam, listOfTeams }) {
 
     return (
         <Popup trigger=
-            {<button 
-                className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
-                Remove Team
-            </button>}    
+        {<div><IoIosRemoveCircle color='#EB3223' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer' /></div>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'transparent'}}>
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
                     <div className='modal relative'>
@@ -103,7 +100,7 @@ function RemoveTeamPopup({ removeTeam, listOfTeams }) {
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer' 
                                 onClick={() => {
                                     setSelectedTeam(null);
                                     close();

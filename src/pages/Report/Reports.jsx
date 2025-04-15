@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getDocs, collection, serverTimestamp } from 'firebase/firestore';
+import { getDocs, collection } from 'firebase/firestore';
 import { IoIosAddCircle } from "react-icons/io";
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/firebaseConfig';
@@ -9,6 +9,8 @@ function Reports({ isAdmin }) {
     const [reports, setReports] = useState([]);
     const [activeReports, setActiveReports] = useState([]);
     const [resolvedReports, setResolvedReports] = useState([]);
+    const [noActiveReports, setNoActiveReports] = useState(false);
+    const [noResolvedReports, setNoResolvedReports] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -32,18 +34,30 @@ function Reports({ isAdmin }) {
             if (!isAdmin) {
                 setReports(userReports);
                 const activeReportsList = userReports.filter(report => report.resolved === false);
+                if (activeReportsList.length == 0) {
+                    setNoActiveReports(true)
+                }
                 setActiveReports(activeReportsList);
 
                 const resolvedReportsList = userReports.filter(report => report.resolved === true);
+                if (resolvedReportsList.length == 0) {
+                    setNoResolvedReports(true)
+                }
                 setResolvedReports(resolvedReportsList);
             }
             else {
             // if admin - show every user's reports
                 setReports(allReports);
                 const activeReportsList = allReports.filter(report => report.resolved === false);
+                if (activeReportsList.length == 0) {
+                    setNoActiveReports(true)
+                }
                 setActiveReports(activeReportsList);
 
                 const resolvedReportsList = allReports.filter(report => report.resolved === true);
+                if (resolvedReportsList.length == 0) {
+                    setNoResolvedReports(true)
+                }
                 setResolvedReports(resolvedReportsList);
             }
             
@@ -53,7 +67,7 @@ function Reports({ isAdmin }) {
     };
     
     fetchReports();
-    }, []);
+    }, [reports]);
         
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
@@ -62,19 +76,31 @@ function Reports({ isAdmin }) {
                     <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => navigate('/create-report')}/>
                 </div>
                 <div>
-                    <h1 className='font-bold text-2xl md:text-3xl pb-6'>Active Reports</h1>
+                    <h1 className='font-bold text-2xl md:text-3xl pb-6 border-b'>Active Reports</h1>
                     <div className='w-full'>
-                        {activeReports.map((report, index) => (
-                            <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
-                        ))} 
+                        { noActiveReports ? 
+                            <p className='mt-4'>You have no active reports!</p> 
+                        :
+                        <div>
+                            {activeReports.map((report, index) => (
+                                <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
+                            ))} 
+                        </div>
+                        }
                     </div>
                 </div>
                 <div>
-                    <h1 className='font-bold text-2xl md:text-3xl py-6'>Resolved Reports</h1>
+                    <h1 className='font-bold text-2xl md:text-3xl py-6 border-b'>Resolved Reports</h1>
                     <div className='w-full'>
+                    { noResolvedReports ? 
+                        <p className='mt-4'>You have no resolved reports!</p> 
+                    :
+                    <div>
                         {resolvedReports.map((report, index) => (
                             <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
                         ))} 
+                    </div>
+                    }
                     </div>
                 </div>
             </div>

@@ -1,25 +1,40 @@
 import React, { useState } from 'react';
 import Popup from 'reactjs-popup';
 import 'reactjs-popup/dist/index.css';
-import { IoIosCloseCircle } from "react-icons/io";
+import { IoIosAddCircle, IoIosCloseCircle } from "react-icons/io";
+import { BsSquare, BsCheckSquare } from "react-icons/bs";
 
 function AddTeamPopup({ addTeam }) { 
     const [team, setTeam] = useState('');
+    const [isClient, setIsClient] = useState(false);
+
+    //sets the state of isClient to the value of the checkbox
+    const handleCheckboxChange = (e) => {
+        setIsClient(e.target.checked); 
+    };
 
     return (
         <Popup trigger=
-            {<button 
-                className="px-6 py-2 bg-[#D1E0EF] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold cursor-pointer mb-4"> 
-                Add Team
-            </button>}    
-            modal nested
+        {<div><IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer'/></div>} 
+        modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'transparent'}} >
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
                     <div className='modal relative'>
                         <div className='content p-4'>
                             <h1 className='font-bold text-2xl sm:text-3xl pb-6'>Add Team</h1>
+                            <label className="flex items-center space-x-2 text-sm sm:text-base pb-4">
+                                <input 
+                                type="checkbox" 
+                                checked={isClient} 
+                                onChange={handleCheckboxChange} 
+                                style={{ opacity: 0 }}
+                                />
+                                {!isClient && <BsSquare fill={"black"} className='w-4 h-4 sm:w-5 sm:h-5' />}
+                                {isClient && <BsCheckSquare fill={"#426276"} className='w-4 h-4 sm:w-5 sm:h-5' />}
+                                <span>Is this a client team?</span>
+                            </label>
                             <div className='px-5'>
                                 <input type="text" 
                                     placeholder="Team Name"
@@ -33,16 +48,17 @@ function AddTeamPopup({ addTeam }) {
                             <button
                                 className="px-6 py-2 bg-[#A3C1E0] rounded-md"
                                 onClick={() => {
-                                    addTeam(team);
+                                    addTeam(isClient, team);
                                     close(); 
                                 }}>
                                 Submit
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer' 
                                 onClick={() => {
                                     setTeam('');
+                                    setIsClient(false);
                                     close()
                                 }}
                             />
