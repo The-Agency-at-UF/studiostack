@@ -69,7 +69,7 @@ function RemoveTeamPopup({ removeTeam, listOfTeams }) {
 
     return (
         <Popup trigger=
-            {<div><IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10'/></div>} 
+        {<div><IoIosRemoveCircle color='#EB3223' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer' /></div>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
             overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
@@ -100,7 +100,7 @@ function RemoveTeamPopup({ removeTeam, listOfTeams }) {
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer' 
                                 onClick={() => {
                                     setSelectedTeam(null);
                                     close();
