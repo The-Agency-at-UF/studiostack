@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { getDoc, doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { useLocation, useNavigate } from "react-router-dom";
+import { getDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebaseConfig';
 import CheckOutInPopUp from "../../components/CheckOutInPopUp";
+import ConfirmationPopup from "../../components/ConfirmationPopup";
+import ExtendReservationPopup from "../../components/ExtendReservationPopup";
+import AddToReservationPopup from "../../components/AddToReservationPopup";
+import { IoIosAlert } from "react-icons/io";
 
 function CheckInOut() { 
     const location = useLocation();
     const reservationID = location.state;
     const [reservation, setReservation] = useState();
     const [itemsToCheckOut, setItemsToCheckOut] = useState([]);
+    const [activeReservation, setActiveReservation] = useState(false);
+    const currentDate = new Date();
+    const navigate = useNavigate();
 
+    //format the date
     const formatDate = (timestamp) => {
         if (timestamp && timestamp.seconds) {
             const date = new Date(timestamp.seconds * 1000); 
@@ -54,7 +62,7 @@ function CheckInOut() {
         setItemsToCheckOut(itemsToCheckOutUpdated);
 
         //update the availability in the inventory collection for that item
-        const equipmentRef = collection(db, 'inventory', equipmentID);
+        const equipmentRef = doc(db, 'inventory', equipmentID);
         await setDoc(
             equipmentRef, { availability: "checked out"}, 
             { merge: true } 
@@ -64,13 +72,13 @@ function CheckInOut() {
     const handleCheckIn = async (equipmentID) => {
         //update the checked in items to have the new item
         //update the checked out items to remove the item (it no longer needs to be checked in)
-        const equipmentCheckedIn = reservation.checkedOutItems.find(equipment => equipment.id === equipmentID.id);
-        const checkedOutItemsUpdated = reservation.checkedOutItems.filter((equipment) => equipment.id !== equipmentID.id);
+        const equipmentCheckedIn = reservation.checkedOutItems.find(equipment => equipment.id === equipmentID);
+        const checkedOutItemsUpdated = reservation.checkedOutItems.filter((equipment) => equipment.id !== equipmentID);
         const reservationRef = doc(db, 'reservations', reservationID);
         await setDoc(
             reservationRef, 
             { 
-                checkedInItems: [...reservation.checkedInItems, {id: equipmentID.id, name: equipmentCheckedIn.name}],
+                checkedInItems: [...reservation.checkedInItems, {id: equipmentID, name: equipmentCheckedIn.name}],
                 checkedOutItems: checkedOutItemsUpdated
             }, 
             { merge: true } 
@@ -78,13 +86,14 @@ function CheckInOut() {
         const updatedReservation = await getDoc(reservationRef);
         const updatedData = updatedReservation.data();
 
+        //if it was checked in (and overdue), add it to the overdue items
         const currentDate = new Date();
-        let overdue = updatedData.endDate < currentDate ? true : false;
+        let overdue = updatedData.endDate.toDate() < currentDate ? true : false;
         if (overdue) {
             await setDoc(
                 reservationRef, 
                 { 
-                    overdueItems: [...reservation.overdueItems, {id: equipmentID.id, name: equipmentCheckedIn.name, time: new Date(currentDate)}],
+                    overdueItems: [...reservation.overdueItems, {id: equipmentID, name: equipmentCheckedIn.name, time: new Date(currentDate)}],
                 }, 
                 { merge: true } 
             );
@@ -93,12 +102,97 @@ function CheckInOut() {
         setReservation(updatedData);
 
          //update the availability in the inventory collection for that item
-        const equipmentRef = collection(db, 'inventory', equipmentID.id);
+        const equipmentRef = doc(db, 'inventory', equipmentID);
         await setDoc(
             equipmentRef, { availability: "available"}, 
             { merge: true } 
         );
     };
+
+    //handle the cancel reservation button
+    const handleCancelReservation = async () => { 
+        //check if the reservation has any checked out items
+        if (reservation.checkedOutItems.length > 0) {
+            alert("You cannot cancel a reservation with checked out items. Please check in the items before cancelling the reservation.");
+            return;
+        }
+
+        //check if the reservation has already ended
+        const currentDate = new Date();
+        if (currentDate > reservation.endDate.toDate()) {
+            alert("You cannot cancel a reservation after it has already ended.");
+            return;
+        }
+
+        //delete the reservation
+        const reservationRef = doc(db, 'reservations', reservationID);
+        await deleteDoc(reservationRef);
+        alert("Reservation cancelled successfully.");
+        navigate('/reservations');
+    };
+
+    //cancel an item from the reservation
+    const handleCancelItem = async (equipmentID) => {
+        //check if the reservation has already ended
+        const currentDate = new Date();
+        if (currentDate > reservation.endDate.toDate()) {
+            alert("You cannot cancel a reservation after it has already ended.");
+            return;
+        }
+
+        //remove item from the reservation
+        const reservationRef = doc(db, 'reservations', reservationID);
+        const itemsToCheckOutUpdated = itemsToCheckOut.filter((equipment) => equipment.id !== equipmentID);
+        console.log(itemsToCheckOutUpdated);
+        await setDoc(
+            reservationRef, 
+            { 
+                equipmentIDs: itemsToCheckOutUpdated
+            }, 
+            { merge: true } 
+        );
+        const updatedReservation = await getDoc(reservationRef);
+        const updatedData = updatedReservation.data();
+        setReservation(updatedData);
+        setItemsToCheckOut(itemsToCheckOutUpdated);
+
+        alert("Item removed from reservation successfully.");
+    };
+
+    //handle the add item button (this is after it has done checks in the popup)
+    const handleAddItem = async () => {
+        //check if the reservation has already ended
+        const currentDate = new Date();
+        if (currentDate > reservation.endDate.toDate()) {
+            alert("You cannot add items to a reservation after it has already ended.");
+            return;
+        }
+
+        const reservationRef = doc(db, 'reservations', reservationID);
+        const reservationVar = await getDoc(reservationRef);
+        const reservationData = reservationVar.data();
+        setReservation(reservationData);
+
+        const itemsToCheckOutList = reservationData.equipmentIDs.filter(equipment => 
+            !reservationData.checkedOutItems.some(item => item.id === equipment.id) && 
+            !reservationData.checkedInItems.some(item => item.id === equipment.id));
+        setItemsToCheckOut(itemsToCheckOutList);
+    }
+
+    //handle the extend reservation button (this is after it has done checks in the popup)
+    const handleExtendReservation = async () => {
+         //check if the reservation has already ended
+         const currentDate = new Date();
+         if (currentDate > reservation.endDate.toDate()) {
+             alert("You cannot extend a reservation after it has already ended.");
+             return;
+        }
+
+        const reservationRef = doc(db, 'reservations', reservationID);
+        const reservationVar = await getDoc(reservationRef);
+        const reservationData = reservationVar.data();
+        setReservation(reservationData);
+    }
     
     useEffect(() => {
         if (!reservationID) return; 
@@ -111,6 +205,10 @@ function CheckInOut() {
                 if (reservationVar.exists()) {
                     const reservationData = reservationVar.data();
                     setReservation(reservationData);
+
+                    if (reservationData.endDate.toDate() > currentDate) {
+                        setActiveReservation(true);
+                    }
 
                     const itemsToCheckOutList = reservationData.equipmentIDs.filter(equipment => 
                         !reservationData.checkedOutItems.some(item => item.id === equipment.id) && 
@@ -129,34 +227,64 @@ function CheckInOut() {
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <h1 className='font-bold text-2xl sm:text-3xl pb-2'>{reservation?.name}</h1>
+                {activeReservation && reservation &&
+                    <div>
+                        <ExtendReservationPopup handleEdit={() => handleExtendReservation()} reservation={reservation} reservationID={reservationID}/>
+                        <ConfirmationPopup handle={() => handleCancelReservation()} text="cancel the reservation" wholeReservation={true} isReservation={true}/>
+                    </div>
+                }
+                <h1 className='font-bold text-2xl sm:text-3xl pb-2 pt-4 md:pt-0'>{reservation?.name}</h1>
                 <h3 className="text-lg sm:text-xl pb-2 ">{reservation && formatDate(reservation.startDate)} - {reservation && formatDate(reservation.endDate)}</h3>
                 <h3 className="text-lg sm:text-xl pb-2"><span className="font-semibold">Team:</span> {reservation?.team}</h3>
                 <h3 className="text-lg sm:text-xl"><span className="font-semibold">Items Held:</span> {reservation?.equipmentIDs?.length}</h3>
                 <div className="container py-4"> 
                     <div className="flex flex-col md:flex-row gap-4"> 
                         <div className="flex-1 p-4 rounded"> 
-                            <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Check Out Items:</h2>
+                            <div className="relative flex items-center justify-center pb-4">
+                                <h2 className="text-xl sm:text-2xl text-center font-semibold">Check Out Items:</h2>
+                                {activeReservation && reservation && 
+                                <AddToReservationPopup handleAdd={() => handleAddItem()} reservation={reservation} reservationID={reservationID}/>
+                                }
+                            </div>
                             {itemsToCheckOut.map((item, index) => (
-                                <div key={index} className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between mb-4"> 
-                                    <div className="bg-white rounded-md p-2 w-2/3 text-center lg:text-xl sm:text-lg text-sm">
-                                        <h3>{item.name}:</h3>
-                                        <h3>{item.id}</h3> 
-                                    </div>                                
-                                    <CheckOutInPopUp handleCheckOutIn={() => handleCheckOut(item.id)} checkOut={true} correctID={item}/>
-                                </div>                          
-                            ))} 
+                                <div key={index} className="flex items-center space-x-4 mb-4">
+                                    {activeReservation && (
+                                    <div className="flex items-center justify-center">
+                                        <ConfirmationPopup 
+                                        handle={() => handleCancelItem(item.id)} 
+                                        text={`remove ${item.name} (${item.id}) from the reservation`} 
+                                        wholeReservation={false} 
+                                        isReservation={true}
+                                        />
+                                    </div>
+                                    )}
+                                    <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between">
+                                        <div className="bg-white rounded-md p-2 w-2/3 text-center lg:text-xl sm:text-lg text-sm">
+                                            <h3>{item.name}:</h3>
+                                            <h3>{item.id}</h3> 
+                                        </div>
+                                        <CheckOutInPopUp handleCheckOutIn={() => handleCheckOut(item.id)} checkOut={true} correctID={item} />
+                                    </div>    
+                                </div>                      
+                            ))}
                         </div>
                         <div className="flex-1 p-4 ml-2 rounded"> 
                             <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Check In Items:</h2>
                             {reservation?.checkedOutItems?.map((item, index) => (
-                                <div key={index} className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between"> 
+                                <div key={index} className="flex items-center space-x-4 mb-4">
+                                <div className="bg-[#ECECEC] w-full p-2 rounded-md border-2 border-black flex items-center justify-between">
                                     <div className="bg-white rounded-md p-2 w-2/3 text-center lg:text-xl sm:text-lg text-sm">
                                         <h3>{item.name}:</h3>
                                         <h3>{item.id}</h3> 
-                                    </div> 
-                                    <CheckOutInPopUp handleCheckOutIn={() => handleCheckIn(item)} checkOut={false} correctID={item}/>
-                                </div>                          
+                                    </div>
+                                    <CheckOutInPopUp handleCheckOutIn={() => handleCheckIn(item.id)} checkOut={false} correctID={item} />
+                                </div>  
+                                {!activeReservation && (
+                                <div className="flex items-center justify-center">
+                                    <IoIosAlert color='#EB3223' className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </div>
+                                )}  
+                            </div>                           
                             ))} 
                         </div>
                     </div>
@@ -164,7 +292,7 @@ function CheckInOut() {
                 <div className="flex justify-center items-center flex-col">
                     <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">Returned Items:</h2>
                     {reservation?.checkedInItems?.map((item, index) => (
-                        <div key={index} className="bg-[#ECECEC] w-3/4 sm:w-1/2 p-2 rounded-md border-2 border-black content-center mt-2"> 
+                        <div key={index} className="bg-[#ECECEC] w-3/4 sm:w-1/2 p-2 rounded-md border-2 border-black content-center mb-4"> 
                             <div className="bg-white rounded-md p-2 w-full text-center lg:text-xl sm:text-lg text-sm">
                                 <h3>{item.name}:</h3>
                                 <h3>{item.id}</h3> 

@@ -25,7 +25,7 @@ const Statistics = () => {
   const [reportSubjectsData, setReportSubjectsData] = useState([]);
   const currentDate = new Date();
   
-  //get the top 5 and update state
+  //get the top 5 and update state (same for the functions below)
   const updateReservedItemsData = (checkedOut) => {
     const topCheckedOutItems = Object.entries(checkedOut)
       .map(([name, value]) => ({ name, value }))
@@ -86,6 +86,7 @@ const Statistics = () => {
     //name: number of overdue equipment: avg overdue time: list of overdue times:
     const combinedRecords = {};
 
+    //overdue equipment that hasnt been checked back in
     overdueEquipmentParam.forEach(record => {
       const user = record.user;
       if (!combinedRecords[user]) {
@@ -100,6 +101,7 @@ const Statistics = () => {
       combinedRecords[user].numberOfOverdueEquipment += 1;
     });
 
+    //overdue equipment that has been checked back in
     overdueEquipmentTimesParam.forEach(record => {
       const user = record.user;
       if (!combinedRecords[user]) {
@@ -115,6 +117,7 @@ const Statistics = () => {
       combinedRecords[user].numberOfOverdueEquipment += 1;
     });
 
+    //calculate the average time and format the overdue times
     Object.values(combinedRecords).forEach(record => {
       let totalTime = 0;
       record.overdueTimes.forEach(time => {
@@ -156,29 +159,15 @@ const Statistics = () => {
             awaitingCheckout = 0;
 
         //count the values and get the broken equipment reports
-        const equipmentReportList = allEquipment.map(equipment => {
+        const equipmentStatusList = allEquipment.map(equipment => {
           if (equipment.availability === 'available') available++;
           else if (equipment.availability === 'reported') reported++;
           else if (equipment.availability === 'checked out') checkedOut++;
-          return equipment.reportCount.map(report => {
-            return {
-              name: equipment.name,
-              time: report.toDate(),
-            };
-          });
-        }).flat();
+        });
 
         setTotalEquipment(allEquipment.length);
-        setbrokenEquipmentReports(equipmentReportList);
 
-        const allTimeBroken = {};
-      
-        equipmentReportList.forEach(item => {
-          allTimeBroken[item.name] = (allTimeBroken[item.name] || 0) + 1;
-        });
-        updateBrokenItemsData(allTimeBroken);
-
-        // get the reservations from the 'reservations' collection
+        //get the reservations from the 'reservations' collection
         const reservationsRef = collection(db, 'reservations');
         const reservationsSnapshot = await getDocs(reservationsRef);
         const allReservations = reservationsSnapshot.docs.map(doc => ({
@@ -186,6 +175,7 @@ const Statistics = () => {
           ...doc.data()
         }));
 
+        //get the equipment IDs from the reservations
         const reservationsEquipmentList = allReservations.map(reservation => {
           return reservation.equipmentIDs.map(equipment => {
             return {
@@ -205,6 +195,7 @@ const Statistics = () => {
         });
         updateReservedItemsData(allTimeCheckedOut);
 
+        //get the teams from the reservations
         const reservationsTeamsList = allReservations.map(reservation => {
           return {
             name: reservation.team,
@@ -213,6 +204,7 @@ const Statistics = () => {
         });
         setReservationTeams(reservationsTeamsList);
 
+        //get the overdue items from the reservations (checked back in)
         const reservationsOverdueItemsList = allReservations.map(reservation => {
           const endDate = reservation.endDate.toDate();
           return reservation.overdueItems.map(equipment => {
@@ -241,6 +233,7 @@ const Statistics = () => {
         });
         updateReservationsTeamsData(allTimeTeams);
 
+        //get the overdue equipment from the reservations (not checked back in)
         const overdueEquipmentList = allReservations.map(reservation => {
           const endDate = reservation.endDate.toDate();
           if (endDate < currentDate) {
@@ -258,6 +251,25 @@ const Statistics = () => {
         .flat();
         setOverdueEquipment(overdueEquipmentList);
 
+        //get the users who made reservations
+        const userReservationsList = allReservations.map(reservation => {
+            return {
+              name: reservation.userEmail,
+              time: reservation.startDate.toDate(),
+            };
+        });
+  
+        setUserReservations(userReservationsList);
+  
+        const allTimeUserReservations = {};
+        
+          userReservationsList.forEach(item => {
+            allTimeUserReservations[item.name] = (allTimeUserReservations[item.name] || 0) + 1;
+          });
+          updateUserReservationsData(allTimeUserReservations);
+  
+
+        //active reservations
         const activeReservations = allReservations.filter(reservation => {
           const endDate = reservation.endDate.toDate();
           const startDate = reservation.startDate.toDate();
@@ -294,55 +306,7 @@ const Statistics = () => {
 
     fetchEquipmentAndReservations();
 
-    const fetchUsers = async () => {
-      // get data from the 'users' collection
-      const usersRef = collection(db, 'users');
-      const userSnapshot = await getDocs(usersRef);
-      const allUsers = userSnapshot.docs.map(doc => ({
-        email: doc.id,
-        ...doc.data()
-      }));
-
-      const userReportsList = allUsers.map(user => {
-        return user.reportCount.map(report => {
-          return {
-            name: user.email,
-            time: report.toDate(),
-          };
-        });
-      }).flat();
-
-      setUserReports(userReportsList);
-
-      const allTimeUserReports = {};
-      
-        userReportsList.forEach(item => {
-          allTimeUserReports[item.name] = (allTimeUserReports[item.name] || 0) + 1;
-        });
-        updateUserReportsData(allTimeUserReports);
-
-      const userReservationsList = allUsers.map(user => {
-        return user.reservations.map(reservation => {
-          return {
-            name: user.email,
-            time: reservation.toDate(),
-          };
-        });
-      }).flat();
-
-      setUserReservations(userReservationsList);
-
-      const allTimeUserReservations = {};
-      
-        userReservationsList.forEach(item => {
-          allTimeUserReservations[item.name] = (allTimeUserReservations[item.name] || 0) + 1;
-        });
-        updateUserReservationsData(allTimeUserReservations);
-
-    };
-
-    fetchUsers();
-
+    //get the report subjects
     const fetchMail = async () => {
       const mailRef = collection(db, 'mail');
       const mailSnapshot = await getDocs(mailRef);
@@ -367,6 +331,49 @@ const Statistics = () => {
     }
 
     fetchMail();
+
+    const fetchReports = async () => {
+      const reportRef = collection(db, 'reports');
+      const reportSnapshot = await getDocs(reportRef);
+      const allReports = reportSnapshot.docs.map(doc => ({
+        ...doc.data()
+      }));
+
+      //get the reported equipment
+      const reportedEquipment = allReports.map(report => {
+        return {
+          name: report.item,
+          time: report.timestamp.toDate(),
+        };
+      });
+      setbrokenEquipmentReports(reportedEquipment);
+
+      const allTimeBroken = {};
+      
+      reportedEquipment.forEach(item => {
+        allTimeBroken[item.name] = (allTimeBroken[item.name] || 0) + 1;
+      });
+      updateBrokenItemsData(allTimeBroken);
+
+      //get the users who made reports
+      const userReportsList = allReports.map(report => {
+        return {
+          name: report.user,
+          time: report.timestamp.toDate()
+        };
+      });
+
+      setUserReports(userReportsList);
+
+      const allTimeUserReports = {};
+      
+      userReportsList.forEach(item => {
+        allTimeUserReports[item.name] = (allTimeUserReports[item.name] || 0) + 1;
+      });
+      updateUserReportsData(allTimeUserReports);
+    }
+
+    fetchReports();
   }, []);
 
   return (
@@ -440,18 +447,19 @@ const Statistics = () => {
           </div>
         </div>
 
-        <div className='flex flex-wrap justify-center sm:justify-start sm:pt-4'>
-          <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
-          <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
-        </div>
+        <h2 className="sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reports Data</h2>
         <div className='flex flex-wrap justify-center sm:justify-start'>
+          <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
           <BarGraph data={userReportsData} colors={COLORS} title={"Top Reporting Users"} fullData={userReports}/>
+        </div>
+        <BarGraph data={reportSubjectsData} colors={COLORS} title={"Top Reported Subjects"} fullData={reportSubjects}/>
+
+        <h2 className="sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reservations Data</h2>
+        <div className='flex flex-wrap justify-center sm:justify-start'>
+          <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
           <BarGraph data={userReservationsData} colors={COLORS} title={"Top Reserving Users"} fullData={userReservations}/>
         </div>
-        <div className='flex flex-wrap justify-center sm:justify-start'>
-          <BarGraph data={reportSubjectsData} colors={COLORS} title={"Top Reported Subjects"} fullData={reportSubjects}/>
-          <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
-        </div>
+        <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
 
         <div className='pt-8 sm:pt-12'>
           <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">Overdue Equipment Record</h2>
@@ -468,7 +476,7 @@ const Statistics = () => {
                         <div className="flex-1 pl-1 text-sm sm:text-base">{record.user}</div>
                         <div className="flex-1 text-sm sm:text-base pr-1 sm:pr-0 sm:text-left text-right">{record.numberOfOverdueEquipment}</div>
                         <div className="flex-1 hidden sm:block">{record.avgTime === 'NaNd NaNh NaNm' ? 'N/A' : record.avgTime}</div>
-                        <div className="flex-1 text-base hidden md:block">{record.overdueTimesDisplay}</div>
+                        <div className="flex-1 text-base hidden md:block">{record.overdueTimesDisplay === '' ? 'N/A' : record.overdueTimesDisplay}</div>
                     </li>
                 ))}
             </ul>

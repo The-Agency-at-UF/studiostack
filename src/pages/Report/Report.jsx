@@ -50,7 +50,6 @@ function Report({ userEmail }) {
                 ...doc.data()
             }));
             const adminsList = allUsersList.filter(user => user.isAdmin);
-            console.log(adminsList)
 
             // send report notification to all admins
             adminsList.forEach(async (adminDoc) => {
@@ -111,6 +110,36 @@ function Report({ userEmail }) {
     } else {
         alert('Missing information')
     }
+  }
+
+  const handleLaterReservations = async () => {
+    // get all later reservations that include the reported item
+    const usersRef = collection(db, 'reservations');
+    const querySnapshot = await getDocs(usersRef);
+    const allReservationsList = querySnapshot.docs
+        .filter(doc => doc.data().startTime > new Date() && doc.equipmentIDs.some(id => id === itemId))
+        .map(doc => ({
+            id: doc.id, 
+            ...doc.data()
+        }));
+    const reservationsList = allReservationsList.filter(user => user.isAdmin);
+    
+    //email the people who made the reservation to edit their reservation and try a different item
+    reservationsList.forEach(async (reservationDoc) => {
+        await addDoc(collection(db, "mail"), {
+            'to': reservationDoc.userEmail,
+            'message': {
+            'subject': 'An Item in Your Reservation is Unavailable',
+            'html': `
+                <h2><strong>An Item in Your Reservation has been reported.</strong></h2>
+                <h3>Please contact your department manager to get an estimated repair time. If needed, you can go to the reservation page and try to reserve a different item.</h3>
+                <p>Reservation Name: ${reservationDoc.name}</p>
+                <p>Item Name: ${item}</p>
+                <p>Item ID: ${itemId}</p>
+                `,
+            },
+        });
+    });
   }
 
   //overriding styles for the dropdown

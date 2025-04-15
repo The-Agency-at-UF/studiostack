@@ -17,6 +17,11 @@ const Calendar = ({ isAdmin }) => {
   const handleEventClick = (reservationClicked) => {
     setReservation(reservationClicked.event);
     setSelectedReservation(true);
+
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: 'smooth'
+    });
   }
 
   useEffect(() => {

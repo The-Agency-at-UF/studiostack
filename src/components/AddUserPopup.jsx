@@ -15,10 +15,10 @@ function AddUserPopup({ addEmail }) {
 
     return (
         <Popup trigger=
-            {<IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10'/>} 
+            {<div><IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer'/></div>} 
             modal nested
             contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'transparent'}} >
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
                     <div className='modal relative'>
@@ -46,16 +46,18 @@ function AddUserPopup({ addEmail }) {
                         </div>
                         <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:scale-110 hover:cursor-pointer"
                                 onClick={() => {
                                     addEmail(isAdmin, email);
+                                    setEmail('');
+                                    setIsAdmin(false);
                                     close(); 
                                 }}>
                                 Submit
                             </button>
                             <IoIosCloseCircle 
                                 color='#426276' 
-                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:scale-110 hover:cursor-pointer' 
                                 onClick={() => {
                                     setEmail('');
                                     setIsAdmin(false);
