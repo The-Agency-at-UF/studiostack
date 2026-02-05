@@ -3,7 +3,7 @@ import { collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverT
 import { db } from "../../firebase/firebaseConfig";
 import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
-import BarcodeDownloader from '../../components/BarcodeGenerator';
+import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { IoIosAlert } from "react-icons/io";
 import { IoIosCheckmarkCircle } from "react-icons/io";
 
@@ -108,7 +108,7 @@ function Inventory({ isAdmin }) {
                     <div className="flex-1 pl-4">Item Name</div>
                     <div className="flex-1 pl-4">Category</div>
                     <div className="flex-1 pl-4">Status</div>
-                    <div className="flex-1">Download Barcode</div>
+                    <div className="flex-1">Download QR Code</div>
                 </div>
                 <ul>
                     {filteredList.map((item) => (
@@ -127,7 +127,7 @@ function Inventory({ isAdmin }) {
                         }
                         </div>
                         <div className="flex-1 pl-4">
-                          <BarcodeDownloader equipmentID={item.id}/>
+                          <QRCodeGenerator equipmentID={item.id}/>
                         </div>
                       </li>
                     ))}
