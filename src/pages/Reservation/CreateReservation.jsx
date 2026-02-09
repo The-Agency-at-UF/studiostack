@@ -35,20 +35,8 @@ function CreateReservation() {
         return `${hour12}:${String(mins).padStart(2, '0')} ${ampm}`;
     };
 
-    // Helper to get available start times (all 30-min intervals for entire day)
-    const getAvailableCheckoutTimes = () => {
-        const times = [];
-        for (let i = 0; i < 24 * 60; i += 30) {
-            const hours = Math.floor(i / 60);
-            const mins = i % 60;
-            const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-            times.push({ value: timeStr, display: formatTimeWithAMPM(hours, mins) });
-        }
-        return times;
-    };
-
-    // Helper to get available end times (all 30-min intervals for entire day)
-    const getAvailableCheckinTimes = () => {
+    // Helper to get available times (all 30-min intervals for entire day)
+    const getAvailableTimes = () => {
         const times = [];
         for (let i = 0; i < 24 * 60; i += 30) {
             const hours = Math.floor(i / 60);
@@ -82,74 +70,29 @@ function CreateReservation() {
     
         const handleCheckoutTimeChange = (time) => {
             setReservationStartTime(time);
-
-            // Only validate when all four date/time values are present
             if (!reservationStartDate || !time || !reservationEndDate || !reservationEndTime) {
                 setDateError('');
                 return;
             }
-
-            const normalized = normalizeTimeInput(time);
-            const normalizedEnd = normalizeTimeInput(reservationEndTime);
-            if (normalized && normalizedEnd) {
-                const fullStart = getFullDateTime(reservationStartDate, normalized);
-                const fullEnd = getFullDateTime(reservationEndDate, normalizedEnd);
-                if (fullStart && fullEnd && new Date(fullStart) >= new Date(fullEnd)) {
-                    setDateError('Check-in must be after check-out');
-                } else {
-                    setDateError('');
-                }
-            } else {
-                setDateError('');
-            }
+            setDateError(validateDateTimes(reservationStartDate, time, reservationEndDate, reservationEndTime));
         };
 
         const handleCheckinDateChange = (date) => {
             setReservationEndDate(date);
-
-            // Only validate when all four date/time values are present
             if (!reservationStartDate || !reservationStartTime || !date || !reservationEndTime) {
                 setDateError('');
                 return;
             }
-
-            const normalized = normalizeTimeInput(reservationStartTime);
-            const normalizedEnd = normalizeTimeInput(reservationEndTime);
-            if (normalized && normalizedEnd) {
-                const fullStart = getFullDateTime(reservationStartDate, normalized);
-                const fullEnd = getFullDateTime(date, normalizedEnd);
-                if (fullStart && fullEnd && new Date(fullStart) >= new Date(fullEnd)) {
-                    setDateError('Check-in must be after check-out');
-                } else {
-                    setDateError('');
-                }
-            } else {
-                setDateError('');
-            }
+            setDateError(validateDateTimes(reservationStartDate, reservationStartTime, date, reservationEndTime));
         };
 
         const handleCheckinTimeChange = (time) => {
             setReservationEndTime(time);
-
-            // Only validate when all four date/time values are present
             if (!reservationStartDate || !reservationStartTime || !reservationEndDate || !time) {
                 setDateError('');
                 return;
             }
-
-            const normalized = normalizeTimeInput(reservationStartTime);
-            const normalizedEnd = normalizeTimeInput(time);
-            if (normalized && normalizedEnd) {
-                const fullStart = getFullDateTime(reservationStartDate, normalized);
-                const fullEnd = getFullDateTime(reservationEndDate, normalizedEnd);
-                if (fullStart && fullEnd && new Date(fullStart) >= new Date(fullEnd)) {
-                    setDateError('Check-in must be after check-out');
-                } else {
-                    setDateError('');
-                }
-            } else {
-                setDateError('');
-            }
+            setDateError(validateDateTimes(reservationStartDate, reservationStartTime, reservationEndDate, time));
         };
 
     // Helper to normalize time input from various formats to HH:MM
@@ -186,6 +129,19 @@ function CreateReservation() {
         
         return null;
     };
+
+    // Centralized validation for start/end date-times
+    function validateDateTimes(startDate, startTime, endDate, endTime) {
+        const normalizedStart = normalizeTimeInput(startTime);
+        const normalizedEnd = normalizeTimeInput(endTime);
+        if (!normalizedStart || !normalizedEnd) {
+            return 'Please enter valid times (e.g., "1:30 PM" or "13:30")';
+        }
+        const start = new Date(`${startDate}T${normalizedStart}`);
+        const end = new Date(`${endDate}T${normalizedEnd}`);
+        if (start >= end) return 'Check-in must be after check-out';
+        return '';
+    }
 
     const findAvailableEquipment = () => {
         const fullStart = getFullDateTime(reservationStartDate, reservationStartTime);
@@ -599,7 +555,7 @@ function CreateReservation() {
                                 onChange={(e) => handleCheckoutTimeChange(e.target.value)}
                             >
                                 <option value="">Select time</option>
-                                {getAvailableCheckoutTimes().map((time) => (
+                                {getAvailableTimes().map((time) => (
                                     <option key={time.value} value={time.display}>{time.display}</option>
                                 ))}
                             </select>
@@ -619,7 +575,7 @@ function CreateReservation() {
                                 onChange={(e) => handleCheckinTimeChange(e.target.value)}
                             >
                                 <option value="">Select time</option>
-                                {getAvailableCheckinTimes().map((time) => (
+                                {getAvailableTimes().map((time) => (
                                     <option key={time.value} value={time.display}>{time.display}</option>
                                 ))}
                             </select>
