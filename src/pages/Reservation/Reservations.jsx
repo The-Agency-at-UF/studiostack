@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { getDocs, collection } from 'firebase/firestore';
+import { getDocs, collection, deleteDoc, doc } from 'firebase/firestore';
 import { IoIosAddCircle } from "react-icons/io";
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/firebaseConfig';
 import ReservationLabel from '../../components/ReservationLabel';
 import StudentNotification from '../../components/StudentNotification';
+import ConfirmationPopup from '../../components/ConfirmationPopup';
 
 function Reservations() { 
     const [reservations, setReservations] = useState([]);
@@ -13,6 +14,20 @@ function Reservations() {
     const [notifications, setNotifications] = useState([])
     const navigate = useNavigate();
     const currentDate = new Date();
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+
+    const handleDeleteReservation = async (reservationId) => {
+        try {
+            if (!isAdmin) {
+                console.error('Only admins can delete reservations');
+                return;
+            }
+            await deleteDoc(doc(db, 'reservations', reservationId));
+            setPastReservations(prev => prev.filter(r => r.reservationId !== reservationId));
+        } catch (error) {
+            console.error('Error deleting reservation:', error);
+        }
+    };
 
     useEffect(() => {
         const fetchReservations = async () => {
@@ -130,7 +145,19 @@ function Reservations() {
                     :
                         <div className='w-full'>
                             {pastReservations.map((reservation, index) => (
-                                <ReservationLabel key={index} reservation={reservation} backgroundColor={'#D1E0EF'}/>
+                                <div key={index} className='relative'>
+                                    <ReservationLabel reservation={reservation} backgroundColor={'#D1E0EF'}/>
+                                    {isAdmin && (
+                                        <div className='absolute top-2 right-16'>
+                                            <ConfirmationPopup
+                                                handle={() => handleDeleteReservation(reservation.reservationId)}
+                                                text={'delete this reservation'}
+                                                wholeReservation={false}
+                                                isReservation={true}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     }
