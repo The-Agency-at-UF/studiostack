@@ -11,7 +11,7 @@ function Reservations() {
     const [reservations, setReservations] = useState([]);
     const [activeReservations, setActiveReservations] = useState([]);
     const [pastReservations, setPastReservations] = useState([]);
-    const [notifications, setNotifications] = useState([])
+    const [nxotifications, setNotifications] = useState([])
     const navigate = useNavigate();
     const currentDate = new Date();
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
