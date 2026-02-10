@@ -6,27 +6,33 @@ import { Html5QrcodeScanner } from "html5-qrcode";
 
 function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
   const [isScanning, setIsScanning] = useState(false);
+  const [isManualEntry, setIsManualEntry] = useState(false);
+  const [manualInput, setManualInput] = useState("");
+  const [showScannerContainer, setShowScannerContainer] = useState(false);
   const scannerId = "qr-reader";
   const popupRef = useRef();
+  const scannerRef = useRef(null);
 
   useEffect(() => {
     let scanner;
-    if (isScanning) {
+    if (isScanning && showScannerContainer) {
       scanner = new Html5QrcodeScanner(
         scannerId,
         { fps: 10, qrbox: { width: 100, height: 100 } },
         /* verbose= */ false,
       );
       scanner.render(onScanSuccess, onScanFailure);
+      scannerRef.current = scanner;
     }
 
-    function onScanSuccess(decodedText, decodedResult) {
+    function onScanSuccess(decodedText) {
       console.log("scanned successfuly");
       handleSubmit(decodedText);
-      if (scanner) {
-        scanner.clear();
+      if (scannerRef.current) {
+        scannerRef.current.clear();
       }
       setIsScanning(false);
+      setShowScannerContainer(false);
     }
 
     function onScanFailure(error) {
@@ -34,34 +40,68 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
     }
 
     return () => {
-      if (scanner) {
-        scanner.clear().catch((error) => {
+      if (scannerRef.current) {
+        // Use ref for cleanup
+        scannerRef.current.clear().catch((error) => {
           // This can happen if the component unmounts before the scanner is fully initialized.
           // It's safe to ignore.
         });
+        scannerRef.current = null; // Clear ref
       }
     };
-  }, [isScanning]);
+  }, [isScanning, showScannerContainer]);
 
-  const handleSubmit = (scannedID) => {
-    if (scannedID === correctID.id) {
-      handleCheckOutIn(scannedID);
+  const handleSubmit = (inputID) => {
+    if (inputID === correctID.id) {
+      handleCheckOutIn(inputID);
       resetState();
       if (popupRef.current) {
         popupRef.current.close();
       }
     } else {
       alert(
-        "Please make sure to scan the correct item. The QR code you scanned was for " +
-          scannedID +
+        "Please make sure to enter the correct item ID. The ID you entered was " +
+          inputID +
           ".",
       );
       resetState();
     }
   };
 
+  const handleManualSubmit = () => {
+    if (manualInput.trim() !== "") {
+      handleSubmit(manualInput.trim());
+    } else {
+      alert("Please enter a serial number.");
+    }
+  };
+
+  const handleCancelScanner = () => {
+    setIsScanning(false);
+    if (scannerRef.current) {
+      scannerRef.current.clear();
+      scannerRef.current = null;
+    }
+    setShowScannerContainer(false);
+  };
+
+  const handleCancelManual = () => {
+    setIsManualEntry(false);
+    setManualInput("");
+  };
+
   const resetState = () => {
     setIsScanning(false);
+    setIsManualEntry(false);
+    setManualInput("");
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch((error) => {
+        // Handle error if scanner is not initialized or already cleared
+        console.error("Error clearing scanner on reset:", error);
+      });
+      scannerRef.current = null; // Clear ref
+    }
+    setShowScannerContainer(false); // Explicitly hide the scanner container
   };
 
   return (
@@ -74,7 +114,11 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
       }
       modal
       nested
-      onOpen={() => setIsScanning(false)} // Reset scanning state on open
+      onOpen={() => {
+        setIsScanning(false);
+        setIsManualEntry(false);
+        setShowScannerContainer(false); // Reset scanner container state on open
+      }}
       onClose={resetState} // Ensure state is reset when popup is closed
       contentStyle={{
         backgroundColor: "#ECECEC",
@@ -94,40 +138,73 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
               {checkOut ? "Check Out" : "Check In"}
             </h1>
 
-            {!isScanning ? (
-              <>
-                <p className="pb-3">
-                  Press the button to start scanning the QR code.
-                </p>
-                <div className="actions flex justify-center space-x-4 pt-4 font-bold">
+            {
+              !isScanning && !isManualEntry && !showScannerContainer ? (
+                <>
+                  <p className="pb-3">Press a button to proceed.</p>
+                  <div className="actions flex justify-center space-x-4 pt-4 font-bold">
+                    <button
+                      className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                      onClick={() => {
+                        setIsScanning(true);
+                        setShowScannerContainer(true);
+                      }}
+                    >
+                      Scan QR Code
+                    </button>
+                    <button
+                      className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                      onClick={() => setIsManualEntry(true)}
+                    >
+                      Enter Manually
+                    </button>
+                  </div>
+                </>
+              ) : isScanning && showScannerContainer ? (
+                <>
+                  <p className="pb-3">
+                    Align the QR code within the scanning box.
+                  </p>
+                  <div id={scannerId} className="w-full"></div>
                   <button
-                    className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
-                    onClick={() => setIsScanning(true)}
+                    className="mt-4 px-6 py-2 bg-[#c1a3a3] rounded-md hover:cursor-pointer hover:scale-110"
+                    onClick={handleCancelScanner}
                   >
-                    Scan QR Code
+                    Cancel
                   </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="pb-3">
-                  Align the QR code within the scanning box.
-                </p>
-                <div id={scannerId} className="w-full"></div>
-                <button
-                  className="mt-4 px-6 py-2 bg-[#c1a3a3] rounded-md hover:cursor-pointer hover:scale-110"
-                  onClick={() => setIsScanning(false)}
-                >
-                  Cancel
-                </button>
-              </>
-            )}
+                </>
+              ) : isManualEntry ? (
+                <>
+                  <p className="pb-3">Enter the serial number manually.</p>
+                  <input
+                    type="text"
+                    className="mt-2 p-2 border border-gray-300 rounded-md w-full max-w-xs text-center"
+                    value={manualInput}
+                    onChange={(e) => setManualInput(e.target.value)}
+                    placeholder="Serial Number"
+                  />
+                  <div className="actions flex justify-center space-x-4 pt-4 font-bold">
+                    <button
+                      className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                      onClick={handleManualSubmit}
+                    >
+                      Submit
+                    </button>
+                    <button
+                      className="px-6 py-2 bg-[#c1a3a3] rounded-md hover:cursor-pointer hover:scale-110"
+                      onClick={handleCancelManual}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : null /* Fallback for unexpected states, or if you want to render something else */
+            }
 
             <IoIosCloseCircle
               color="#426276"
               className="w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110"
               onClick={() => {
-                resetState();
                 if (popupRef.current) {
                   popupRef.current.close();
                 }
