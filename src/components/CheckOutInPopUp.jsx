@@ -18,7 +18,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
     if (isScanning && showScannerContainer) {
       scanner = new Html5QrcodeScanner(
         scannerId,
-        { fps: 10, qrbox: { width: 100, height: 100 } },
+        { fps: 30 },
         /* verbose= */ false,
       );
       scanner.render(onScanSuccess, onScanFailure);
