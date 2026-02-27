@@ -109,31 +109,27 @@ function Reservations() {
 
   return (
     <div>
-      <div className="bg-white m-8 p-8 rounded-lg relative">
+      <div className="bg-white m-8 p-8 rounded-lg">
         <div className="pl-2 pr-2">
-          {notifications.length === 0 ? (
-            <div className="absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4 hover:scale-110 hover:cursor-pointe">
-              <IoIosAddCircle
-                color="#426276"
-                className="w-8 h-8 sm:w-10 sm:h-10"
-                onClick={() => navigate("/create-reservation")}
+          <div>
+            {notifications.map((notification, index) => (
+              <StudentNotification
+                key={index}
+                notification={notification}
+                type={notification.type}
+                canClose={false}
+                iconColor={"#EB3223"}
+                backgroundColor={"#f7ada7"}
               />
-            </div>
-          ) : (
-            <div>
-              <div className="pb-8">
-                {notifications.map((notification, index) => (
-                  <StudentNotification
-                    key={index}
-                    notification={notification}
-                    type={notification.type}
-                    canClose={false}
-                    iconColor={"#EB3223"}
-                    backgroundColor={"#f7ada7"}
-                  />
-                ))}
-              </div>
-              <div className="absolute top-32 sm:top-33 right-6 sm:right-8 flex space-x-4 hover:scale-110 hover:cursor-pointer">
+            ))}
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center pt-4">
+              <h1 className="font-bold text-2xl md:text-3xl pb-6">
+                Active Reservations
+              </h1>
+              <div className="hover:scale-110 hover:cursor-pointer">
                 <IoIosAddCircle
                   color="#426276"
                   className="w-8 h-8 sm:w-10 sm:h-10"
@@ -141,12 +137,6 @@ function Reservations() {
                 />
               </div>
             </div>
-          )}
-
-          <div>
-            <h1 className="font-bold text-2xl md:text-3xl pb-6">
-              Active Reservations
-            </h1>
             {activeReservations.length === 0 ? (
               <div className="border-t">
                 <p className="mt-4">You have no active reservations!</p>
