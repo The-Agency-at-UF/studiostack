@@ -108,7 +108,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
     <Popup
       ref={popupRef}
       trigger={
-        <button className="bg-[#A3C1E0] w-2/7 rounded-md px-6 py-2 lg:text-xl sm:text-lg text-sm hover:cursor-pointer hover:scale-105">
+        <button className="bg-[#A3C1E0] rounded-md px-2 sm:px-4 md:px-6 py-2 lg:text-xl sm:text-lg text-sm hover:cursor-pointer hover:scale-105">
           {checkOut ? "Check Out" : "Check In"}
         </button>
       }
