@@ -425,8 +425,8 @@ const Statistics = () => {
               <h2 className="p-4 pb-0 text-xl sm:text-2xl text-center sm:text-left font-semibold">Overdue Equipment</h2>
               <div className="p-4">
                 <div className="flex py-2 font-semibold">
-                  <div className="flex-1 pl-1">Equipment (ID)</div>
-                  <div className="flex-1 pr-1 sm:pr-0 sm:text-left text-right">User</div>
+                  <div className="flex-1 min-w-0 pl-1">Equipment (ID)</div>
+                  <div className="flex-1 min-w-0 pr-1 sm:pr-0 sm:text-left text-right">User</div>
                 </div>
                 {overdueEquipment.length === 0 ? (
                   <div className='text-center border-t w-full text-lg font-bold pt-4'>
@@ -436,8 +436,8 @@ const Statistics = () => {
                 <ul>
                   {overdueEquipment.map((equipment) => (
                     <li key={equipment.id} className="flex py-2 border-t">
-                      <div className="flex-1 pl-1 text-sm sm:text-base">{equipment.name} ({equipment.id})</div>
-                      <div className="flex-1 pr-1 sm:pr-0 sm:text-left text-right text-sm sm:text-base">{equipment.user}</div>
+                      <div className="flex-1 min-w-0 pl-1 text-sm sm:text-base break-words">{equipment.name} ({equipment.id})</div>
+                      <div className="flex-1 min-w-0 pr-1 sm:pr-0 sm:text-left text-right text-sm sm:text-base break-words">{equipment.user}</div>
                     </li>
                   ))}
                 </ul>
@@ -465,18 +465,18 @@ const Statistics = () => {
           <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">Overdue Equipment Record</h2>
           <div className="p-4 pt-2">
             <div className="flex py-2 font-semibold">
-                <div className="flex-1 pl-1 ">User</div>
-                <div className="flex-1 sm:text-left text-right pr-1 sm:pr-0 sm:text-left text-right">Total Instances</div>
-                <div className="flex-1 hidden sm:block">Average Overdue Time</div>
-                <div className="flex-1 text-base hidden md:block">Overdue Times</div>
+                <div className="flex-1 min-w-0 pl-1">User</div>
+                <div className="flex-1 min-w-0 sm:text-left text-right pr-1 sm:pr-0">Total Instances</div>
+                <div className="flex-1 min-w-0 hidden sm:block">Average Overdue Time</div>
+                <div className="flex-1 min-w-0 text-base hidden md:block">Overdue Times</div>
             </div>
             <ul>
                 {overdueRecords.map((record) => (
                     <li key={record.user} className="flex py-2 border-t">
-                        <div className="flex-1 pl-1 text-sm sm:text-base">{record.user}</div>
-                        <div className="flex-1 text-sm sm:text-base pr-1 sm:pr-0 sm:text-left text-right">{record.numberOfOverdueEquipment}</div>
-                        <div className="flex-1 hidden sm:block">{record.avgTime === 'NaNd NaNh NaNm' ? 'N/A' : record.avgTime}</div>
-                        <div className="flex-1 text-base hidden md:block">{record.overdueTimesDisplay === '' ? 'N/A' : record.overdueTimesDisplay}</div>
+                        <div className="flex-1 min-w-0 pl-1 text-sm sm:text-base break-words">{record.user}</div>
+                        <div className="flex-1 min-w-0 text-sm sm:text-base pr-1 sm:pr-0 sm:text-left text-right break-words">{record.numberOfOverdueEquipment}</div>
+                        <div className="flex-1 min-w-0 hidden sm:block break-words">{record.avgTime === 'NaNd NaNh NaNm' ? 'N/A' : record.avgTime}</div>
+                        <div className="flex-1 min-w-0 text-base hidden md:block break-words">{record.overdueTimesDisplay === '' ? 'N/A' : record.overdueTimesDisplay}</div>
                     </li>
                 ))}
             </ul>
