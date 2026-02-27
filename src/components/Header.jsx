@@ -1,7 +1,7 @@
 import React, {useState} from 'react'
 import Hamburger from 'hamburger-react'
 import StudioStack from '../assets/StudioStack.png'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, Link } from 'react-router-dom'
 import { IoIosLogOut } from "react-icons/io";
 
 function Header({ isAdmin, logOut }) {
@@ -47,9 +47,9 @@ function Header({ isAdmin, logOut }) {
     <nav className='bg-[#426276] p-4'>
       <div className='flex items-center justify-between'>
         {/* Logo */}
-        <div>
+        <Link to="/">
           <img className="p-2" src={StudioStack} alt="StudioStack"/>
-        </div>
+        </Link>
 
         {/* Hamburger */}
         <div className="md:hidden">
