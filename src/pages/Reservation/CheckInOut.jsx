@@ -138,7 +138,7 @@ function CheckInOut() {
     //check if the reservation has any checked out items
     if (reservation.checkedOutItems.length > 0) {
       alert(
-        "You cannot cancel a reservation with checked out items. Please check in the items before cancelling the reservation.",
+        "You cannot cancel a reservation with checked out items. Please return the items before cancelling the reservation.",
       );
       return;
     }
@@ -342,7 +342,7 @@ function CheckInOut() {
             </div>
             <div className="flex-1 p-4 ml-2 rounded">
               <h2 className="text-xl sm:text-2xl text-center font-semibold pb-4">
-                Check In Items:
+                Return Items:
               </h2>
               {reservation?.checkedOutItems?.map((item, index) => (
                 <div key={index} className="flex items-center space-x-4 mb-4">
