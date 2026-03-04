@@ -56,7 +56,7 @@ function CreateReservation() {
         const fullEnd = getFullDateTime(reservationEndDate, reservationEndTime);
         if (!fullStart || !fullEnd) {
             if (sendAlert) {
-                alert('Please fill in the check-in and check-out dates');
+                alert('Please fill in the return and checkout dates');
             }
             setDateFilled(false);
         } else {
@@ -139,7 +139,7 @@ function CreateReservation() {
         }
         const start = new Date(`${startDate}T${normalizedStart}`);
         const end = new Date(`${endDate}T${normalizedEnd}`);
-        if (start >= end) return 'Check-in must be after check-out';
+        if (start >= end) return 'Return date must be after checkout date';
         return '';
     }
 
@@ -254,7 +254,7 @@ function CreateReservation() {
         }
         
         if (new Date(getFullDateTime(reservationStartDate, normalizedStart)) >= new Date(getFullDateTime(reservationEndDate, normalizedEnd))) {
-            setDateError('Check-in must be after check-out');
+            setDateError('Return date must be after checkout date');
             return;
         }
         setDateError('');
@@ -542,7 +542,7 @@ function CreateReservation() {
                     </div>
                     )}
                     <div>
-                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Check-Out</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Checkout</h2>
                         <div className='pl-2 py-2 flex gap-2'>
                             <input type="date" 
                                 className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12" 
@@ -562,7 +562,7 @@ function CreateReservation() {
                         </div>
                     </div>
                     <div>
-                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Check-In</h2>
+                        <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Return</h2>
                         <div className='pl-2 py-2 flex gap-2'>
                             <input type="date" 
                                 className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12" 
