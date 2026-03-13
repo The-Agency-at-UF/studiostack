@@ -19,7 +19,8 @@ function CreateReservation() {
     const [allTeams, setAllTeams] = useState([]);
     const [dateFilled, setDateFilled] = useState(false);
     const [otherCategorySelected, setOtherCategorySelected] = useState(false);
-    const [dateError, setDateError] = useState('');
+    const [generalError, setGeneralError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
     const navigate = useNavigate();
 
     // Helper to combine date and time into a full datetime string
@@ -54,16 +55,27 @@ function CreateReservation() {
     const checkIfDateFilled = (sendAlert) => {
         const fullStart = getFullDateTime(reservationStartDate, reservationStartTime);
         const fullEnd = getFullDateTime(reservationEndDate, reservationEndTime);
+
         if (!fullStart || !fullEnd) {
             if (sendAlert) {
-                alert('Please fill in the return and checkout dates');
+                setGeneralError('Please fill in the return and checkout dates');
             }
             setDateFilled(false);
-        } else {
-            setDateError('');
-            findAvailableEquipment();
-            setDateFilled(true);
+            setSelectedEquipment([{ equipment: null }]);
+            return;
         }
+
+        const error = validateDateTimes(reservationStartDate, reservationStartTime, reservationEndDate, reservationEndTime);
+        if (error) {
+            setGeneralError(error);
+            setDateFilled(false);
+            setSelectedEquipment([{ equipment: null }]);
+            return;
+        }
+
+        setGeneralError('');
+        setDateFilled(true);
+        findAvailableEquipment();
     };
 
 
@@ -71,28 +83,52 @@ function CreateReservation() {
         const handleCheckoutTimeChange = (time) => {
             setReservationStartTime(time);
             if (!reservationStartDate || !time || !reservationEndDate || !reservationEndTime) {
-                setDateError('');
+                setGeneralError('');
+                setDateFilled(false);
                 return;
             }
-            setDateError(validateDateTimes(reservationStartDate, time, reservationEndDate, reservationEndTime));
+            const error = validateDateTimes(reservationStartDate, time, reservationEndDate, reservationEndTime);
+            setGeneralError(error);
+            if (error) {
+                setSelectedEquipment([{ equipment: null }]);
+                setDateFilled(false);
+            } else {
+                setDateFilled(true);
+            }
         };
 
         const handleCheckinDateChange = (date) => {
             setReservationEndDate(date);
             if (!reservationStartDate || !reservationStartTime || !date || !reservationEndTime) {
-                setDateError('');
+                setGeneralError('');
+                setDateFilled(false);
                 return;
             }
-            setDateError(validateDateTimes(reservationStartDate, reservationStartTime, date, reservationEndTime));
+            const error = validateDateTimes(reservationStartDate, reservationStartTime, date, reservationEndTime);
+            setGeneralError(error);
+            if (error) {
+                setSelectedEquipment([{ equipment: null }]);
+                setDateFilled(false);
+            } else {
+                setDateFilled(true);
+            }
         };
 
         const handleCheckinTimeChange = (time) => {
             setReservationEndTime(time);
             if (!reservationStartDate || !reservationStartTime || !reservationEndDate || !time) {
-                setDateError('');
+                setGeneralError('');
+                setDateFilled(false);
                 return;
             }
-            setDateError(validateDateTimes(reservationStartDate, reservationStartTime, reservationEndDate, time));
+            const error = validateDateTimes(reservationStartDate, reservationStartTime, reservationEndDate, time);
+            setGeneralError(error);
+            if (error) {
+                setSelectedEquipment([{ equipment: null }]);
+                setDateFilled(false);
+            } else {
+                setDateFilled(true);
+            }
         };
 
     // Helper to normalize time input from various formats to HH:MM
@@ -212,7 +248,7 @@ function CreateReservation() {
     
     //add a new item dropdown
     const addItemDropdown = () => {
-        if (dateFilled) {
+        if (dateFilled && generalError === '') {
             setSelectedEquipment([...selectedEquipment, { equipment: null }]);
         }
     };
@@ -224,6 +260,9 @@ function CreateReservation() {
     };
 
     const createReservation = async () => {
+        setGeneralError('');
+        setSuccessMessage('');
+
         //get the team name
         let teamName = '';
         if (reservationCategory.label !== "Other") {
@@ -236,7 +275,7 @@ function CreateReservation() {
         if (reservationName === '' || teamName === '' || reservationStartDate === '' || reservationEndDate === '' || 
             (selectedEquipment.length === 1 && selectedEquipment[0].equipment === null)) {
 
-            alert("Please fill out every category.");
+            setGeneralError("Please fill out every category.");
             return;
         }
 
@@ -249,15 +288,15 @@ function CreateReservation() {
         const normalizedEnd = normalizeTimeInput(reservationEndTime);
         
         if (!normalizedStart || !normalizedEnd) {
-            setDateError('Please enter valid times (e.g., "1:30 PM" or "13:30")');
+            setGeneralError('Please enter valid times (e.g., "1:30 PM" or "13:30")');
             return;
         }
         
         if (new Date(getFullDateTime(reservationStartDate, normalizedStart)) >= new Date(getFullDateTime(reservationEndDate, normalizedEnd))) {
-            setDateError('Return date must be after checkout date');
+            setGeneralError('Return date must be after checkout date');
             return;
         }
-        setDateError('');
+        setGeneralError('');
 
         const selectedEquipmentIDs = [];
         // Check for duplicate items
@@ -265,7 +304,7 @@ function CreateReservation() {
             if (item.equipment !== null) {
                 const availableItem = availableEquipment.find(option => option.label === item.equipment.label);
                 if (selectedEquipmentIDs.some(e => e.id === availableItem.value)) {
-                    alert('Unable to create reservation. Please make sure items aren\'t duplicated.');
+                    setGeneralError('Unable to create reservation. Please make sure items aren\'t duplicated.');
                     return;
                 }
                 selectedEquipmentIDs.push({ id: availableItem.value[0], name: item.equipment.label });
@@ -276,7 +315,7 @@ function CreateReservation() {
         const availableEquipmentList = await fetchEquipment();
         for (const item of selectedEquipmentIDs) {
             if (!availableEquipmentList.some(e => e.equipmentID === item.id)) {
-                alert(`The item ${item.name} is no longer available.`);
+                setGeneralError(`The item ${item.name} is no longer available.`);
                 return;
             }
         }
@@ -293,7 +332,7 @@ function CreateReservation() {
             for (const reservation of sameTimeReservations) {
                 for (const equipmentid of reservation.equipmentIDs) {
                     if (selectedEquipmentIDs.some(e => e.id === equipmentid.id)) {
-                        alert(`The item ${equipmentid.name} is already reserved for the selected dates.`);
+                        setGeneralError(`The item ${equipmentid.name} is already reserved for the selected dates.`);
                         return;
                     }
                 }
@@ -338,11 +377,11 @@ function CreateReservation() {
                         { merge: true } 
                     );
     
-            alert("Reservation created successfully.");
+            setSuccessMessage("Reservation created successfully.");
             navigate("/reservations");
         } catch (error) {
             console.error("Error creating reservation: ", error);
-            alert("There was an error creating the reservation.");
+            setGeneralError("There was an error creating the reservation.");
             navigate("/reservations");
         }
     }
@@ -469,6 +508,17 @@ function CreateReservation() {
         setReservationEndDate(checkinDate);
         setReservationEndTime(checkinTime);
 
+        // Validate initial dates so item selection is enabled immediately
+        const initialError = validateDateTimes(checkoutDate, checkoutTime, checkinDate, checkinTime);
+        if (initialError) {
+            setGeneralError(initialError);
+            setDateFilled(false);
+            setSelectedEquipment([{ equipment: null }]);
+        } else {
+            setGeneralError('');
+            setDateFilled(true);
+        }
+
         fetchEquipment();
 
         fetchReservations();
@@ -501,6 +551,8 @@ function CreateReservation() {
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl md:text-3xl pb-6'>Create a New Reservation</h1>
+                {generalError && <p className='pl-2 text-red-600 font-semibold'>{generalError}</p>}
+                {successMessage && <p className='pl-2 text-green-600 font-semibold'>{successMessage}</p>}
             </div>
             <div className='flex flex-wrap'>
                 <div className='flex-auto'>
@@ -556,7 +608,7 @@ function CreateReservation() {
                             >
                                 <option value="">Select time</option>
                                 {getAvailableTimes().map((time) => (
-                                    <option key={time.value} value={time.display}>{time.display}</option>
+                                    <option key={time.value} value={time.value}>{time.display}</option>
                                 ))}
                             </select>
                         </div>
@@ -576,11 +628,10 @@ function CreateReservation() {
                             >
                                 <option value="">Select time</option>
                                 {getAvailableTimes().map((time) => (
-                                    <option key={time.value} value={time.display}>{time.display}</option>
+                                    <option key={time.value} value={time.value}>{time.display}</option>
                                 ))}
                             </select>
                         </div>
-                        {dateError && <p className='pl-2 text-red-600 font-semibold'>{dateError}</p>}
                     </div>
                 </div>
 
@@ -598,7 +649,7 @@ function CreateReservation() {
                                     isSearchable={true}
                                     onChange={(value) => handleItemChange(index, { ...item, equipment: value })}
                                     styles={dropdownStyle}
-                                    isDisabled={!dateFilled}
+                                    isDisabled={!dateFilled || generalError !== ''}
                                 />
                                 </div>
                                 { index !== 0 && <IoIosRemoveCircle 
