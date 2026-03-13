@@ -14,6 +14,8 @@ function CheckInOut() {
   const [reservation, setReservation] = useState();
   const [itemsToCheckOut, setItemsToCheckOut] = useState([]);
   const [activeReservation, setActiveReservation] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const currentDate = new Date();
   const navigate = useNavigate();
 
