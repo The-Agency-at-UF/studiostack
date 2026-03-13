@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Inventory from './Inventory';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { onSnapshot } from 'firebase/firestore';
@@ -30,28 +30,39 @@ describe('Inventory', () => {
     vi.clearAllMocks();
   });
 
-  it('renders inventory items from firebase', () => {
+  it('renders inventory items from firebase', async () => {
     render(<Inventory isAdmin={false} />);
-    expect(screen.getByText('Camera')).toBeInTheDocument();
-    expect(screen.getByText('Mic')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Camera')).toBeInTheDocument();
+      expect(screen.getByText('Mic')).toBeInTheDocument();
+    });
   });
 
-  it('filters items when search term is entered', () => {
+  it('filters items when search term is entered', async () => {
     render(<Inventory isAdmin={false} />);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Enter item name...')).toBeInTheDocument();
+    });
+
     const searchInput = screen.getByPlaceholderText('Enter item name...');
-    
     fireEvent.change(searchInput, { target: { value: 'Camera' } });
     
-    expect(screen.getByText('Camera')).toBeInTheDocument();
-    expect(screen.queryByText('Mic')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Camera')).toBeInTheDocument();
+      expect(screen.queryByText('Mic')).not.toBeInTheDocument();
+    });
   });
 
-  it('shows admin popups only for admin users', () => {
+  it('shows admin popups only for admin users', async () => {
     const { rerender } = render(<Inventory isAdmin={false} />);
-    expect(screen.queryByTestId('add-item-popup')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('add-item-popup')).not.toBeInTheDocument();
+    });
 
     rerender(<Inventory isAdmin={true} />);
-    expect(screen.getByTestId('add-item-popup')).toBeInTheDocument();
-    expect(screen.getByTestId('remove-item-popup')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('add-item-popup')).toBeInTheDocument();
+      expect(screen.getByTestId('remove-item-popup')).toBeInTheDocument();
+    });
   });
 });
