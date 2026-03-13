@@ -19,9 +19,12 @@ describe('Users', () => {
     vi.clearAllMocks();
   });
 
-  it('renders "You must be an admin" for non-admin users', () => {
+  it('renders "You must be an admin" for non-admin users', async () => {
+    vi.mocked(getDocs).mockResolvedValue({ docs: [] });
     render(<Users isAdmin={false} />);
-    expect(screen.getByText('You must be an admin to view this page.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('You must be an admin to view this page.')).toBeInTheDocument();
+    });
   });
 
   it('renders users list for admin users', async () => {
@@ -42,10 +45,12 @@ describe('Users', () => {
     });
   });
 
-  it('shows add and remove popups for admins', () => {
+  it('shows add and remove popups for admins', async () => {
     vi.mocked(getDocs).mockResolvedValue({ docs: [] });
     render(<Users isAdmin={true} />);
-    expect(screen.getByTestId('add-user-popup')).toBeInTheDocument();
-    expect(screen.getByTestId('remove-user-popup')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('add-user-popup')).toBeInTheDocument();
+      expect(screen.getByTestId('remove-user-popup')).toBeInTheDocument();
+    });
   });
 });

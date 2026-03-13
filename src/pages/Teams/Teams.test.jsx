@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import Teams from './Teams';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { onSnapshot } from 'firebase/firestore';
@@ -16,7 +16,7 @@ describe('Teams', () => {
     vi.clearAllMocks();
   });
 
-  it('renders teams list from onSnapshot', () => {
+  it('renders teams list from onSnapshot', async () => {
     vi.mocked(onSnapshot).mockImplementation((q, callback) => {
       callback({
         docs: [
@@ -29,21 +29,27 @@ describe('Teams', () => {
 
     render(<Teams isAdmin={false} />);
     
-    expect(screen.getByText('Team A')).toBeInTheDocument();
-    expect(screen.getByText('Client')).toBeInTheDocument();
-    expect(screen.getByText('Team B')).toBeInTheDocument();
-    expect(screen.getByText('Internal')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Team A')).toBeInTheDocument();
+      expect(screen.getByText('Client')).toBeInTheDocument();
+      expect(screen.getByText('Team B')).toBeInTheDocument();
+      expect(screen.getByText('Internal')).toBeInTheDocument();
+    });
   });
 
-  it('shows add and remove popups for admins', () => {
+  it('shows add and remove popups for admins', async () => {
     render(<Teams isAdmin={true} />);
-    expect(screen.getByTestId('add-team-popup')).toBeInTheDocument();
-    expect(screen.getByTestId('remove-team-popup')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('add-team-popup')).toBeInTheDocument();
+      expect(screen.getByTestId('remove-team-popup')).toBeInTheDocument();
+    });
   });
 
-  it('hides add and remove popups for non-admins', () => {
+  it('hides add and remove popups for non-admins', async () => {
     render(<Teams isAdmin={false} />);
-    expect(screen.queryByTestId('add-team-popup')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('remove-team-popup')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('add-team-popup')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('remove-team-popup')).not.toBeInTheDocument();
+    });
   });
 });

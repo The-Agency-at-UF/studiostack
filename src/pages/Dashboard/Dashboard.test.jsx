@@ -24,13 +24,17 @@ describe('Dashboard', () => {
   it('renders AdminDash for admin users', async () => {
     vi.mocked(getDocs).mockResolvedValue({ docs: [] });
     render(<Dashboard isAdmin={true} />);
-    expect(screen.getByTestId('admin-dash')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('admin-dash')).toBeInTheDocument();
+    });
   });
 
   it('renders StudentDash for student users', async () => {
     vi.mocked(getDocs).mockResolvedValue({ docs: [] });
     render(<Dashboard isAdmin={false} />);
-    expect(screen.getByTestId('student-dash')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('student-dash')).toBeInTheDocument();
+    });
   });
 
   it('displays upcoming reservations for the current user', async () => {

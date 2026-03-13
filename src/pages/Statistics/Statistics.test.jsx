@@ -28,8 +28,10 @@ describe('Statistics', () => {
 
     render(<Statistics />);
 
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
-    expect(screen.getByTestId('pie-chart')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Statistics')).toBeInTheDocument();
+      expect(screen.getByTestId('pie-chart')).toBeInTheDocument();
+    });
   });
 
   it('displays "No Overdue Equipment!" when there are no overdue items', async () => {
@@ -47,10 +49,12 @@ describe('Statistics', () => {
 
     render(<Statistics />);
 
-    expect(screen.getByText('Top Reported Items')).toBeInTheDocument();
-    expect(screen.getByText('Top Reporting Users')).toBeInTheDocument();
-    expect(screen.getByText('Top Reserved Items')).toBeInTheDocument();
-    expect(screen.getByText('Top Reserving Users')).toBeInTheDocument();
-    expect(screen.getByText('Top Teams')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Top Reported Items')).toBeInTheDocument();
+      expect(screen.getByText('Top Reporting Users')).toBeInTheDocument();
+      expect(screen.getByText('Top Reserved Items')).toBeInTheDocument();
+      expect(screen.getByText('Top Reserving Users')).toBeInTheDocument();
+      expect(screen.getByText('Top Teams')).toBeInTheDocument();
+    });
   });
 });

@@ -28,7 +28,9 @@ describe('Calendar', () => {
   it('renders FullCalendar component', async () => {
     vi.mocked(getDocs).mockResolvedValue({ docs: [] });
     render(<Calendar isAdmin={false} />);
-    expect(screen.getByTestId('full-calendar')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('full-calendar')).toBeInTheDocument();
+    });
   });
 
   it('shows reservation details when an event is clicked', async () => {
