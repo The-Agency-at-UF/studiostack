@@ -5,3 +5,18 @@
   background-color: #ECECEC;
   font-family: 'Quicksand', sans-serif;
 }
+
+.sticky-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: #426276;
+  color: white;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  border-top: 1px solid #A3C1E0;
+}
