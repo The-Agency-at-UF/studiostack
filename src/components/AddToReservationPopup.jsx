@@ -9,6 +9,7 @@ import Select from "react-select";
 function AddToReservationPopup({ handleAdd, reservation, reservationID }) {
   const [availableEquipment, setAvailableEquipment] = useState([]);
   const [selectedEquipment, setSelectedEquipment] = useState([]);
+  const [message, setMessage] = useState(null);
 
   const handle = (close) => {
     fetchReservationsAndEquipment();
@@ -18,7 +19,7 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }) {
         (equipment) => equipment.value === selectedEquipment.value,
       )
     ) {
-      alert("This item is no longer available. Please choose another item.");
+      setMessage({ text: "This item is no longer available. Please choose another item.", type: "error" });
       return;
     }
 
@@ -166,6 +167,12 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }) {
             <h1 className="font-bold text-lg sm:text-xl sm:pb-6 text-center pt-8">
               Choose an item to add below:
             </h1>
+            {message && (
+              <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                {message.text}
+                <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+              </div>
+            )}
             <Select
               value={selectedEquipment}
               options={availableEquipment}

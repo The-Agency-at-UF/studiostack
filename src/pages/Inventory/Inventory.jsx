@@ -12,6 +12,7 @@ function Inventory({ isAdmin }) {
   const [filteredList, setFilteredList] = useState([]);
   const inventoryCollectionRef = collection(db, "inventory");
   const [searchTerm, setSearchTerm] = useState("");
+  const [message, setMessage] = useState(null);
 
   // categories for a dropdown
   const categoryList = ["Camera & Accessories", "Audio", "Lights", "Production Design", "Cables & Cords", "Miscellaneous"];
@@ -52,9 +53,10 @@ function Inventory({ isAdmin }) {
   const addItem = (name, category, availability) => {  
     try {
       addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability, timestamp: serverTimestamp() });
+      setMessage({ text: "Item added successfully.", type: "success" });
     }
     catch(error) {
-      alert("Error adding item.");
+      setMessage({ text: "Error adding item.", type: "error" });
       console.log("Error adding item to inventory:", error);
     }
   }
@@ -63,9 +65,10 @@ function Inventory({ isAdmin }) {
   const removeItem = (itemID) => {  
     try {
       deleteDoc(doc(db, "inventory", itemID));
+      setMessage({ text: "Item removed successfully.", type: "success" });
     }
     catch(error) {
-      alert("Error removing item.");
+      setMessage({ text: "Error removing item.", type: "error" });
       console.log("Error removing item from inventory:", error);
     }
   }
@@ -75,6 +78,12 @@ function Inventory({ isAdmin }) {
       <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-3xl pb-6'>Inventory</h1>
+                {message && (
+                    <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                        {message.text}
+                        <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+                    </div>
+                )}
                 {
                   isAdmin && 
                     <div className="absolute top-8 right-8 flex space-x-4">

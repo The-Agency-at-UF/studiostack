@@ -37,6 +37,7 @@ function Report({ userEmail }) {
 
   const [inventory, setInventory] = useState([])
   const [isSelected, setIsSelected] = useState(false);
+  const [alertMessage, setAlertMessage] = useState(null);
   
   // handle email submission
   const handleSubmit = async () => {
@@ -104,11 +105,11 @@ function Report({ userEmail }) {
             setTimeout(() => window.location.reload(), 1000);
         }
         catch(error) {
-            alert("Error sending email.");
+            setAlertMessage({ text: "Error sending email.", type: "error" });
             console.log("Error sending email:", error);
         }
     } else {
-        alert('Missing information')
+        setAlertMessage({ text: "Missing information.", type: "error" });
     }
   }
 
@@ -252,7 +253,7 @@ function Report({ userEmail }) {
 
  const checkItemSelection = () => {
     if (!isSelected) {
-        alert("Select an item name before selecting an ID");
+        setAlertMessage({ text: "Select an item name before selecting an ID.", type: "error" });
     }
  }
   
@@ -260,6 +261,12 @@ function Report({ userEmail }) {
     <div className='bg-white m-8 p-8 rounded-lg relative'>
         <div className='pl-2 pr-2'>
             <h1 className='font-bold text-3xl pb-6'>Report an Issue</h1>
+            {alertMessage && (
+                <div className={`p-4 mb-4 rounded ${alertMessage.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                    {alertMessage.text}
+                    <button onClick={() => setAlertMessage(null)} className="float-right font-bold">×</button>
+                </div>
+            )}
             </div>
         <div className='flex flex-wrap'>
             <div className='flex-auto'>

@@ -8,6 +8,7 @@ function ReportSummary({ isAdmin, userEmail }) {
     const location = useLocation();
     const reportID = location.state;
     const [report, setReport] = useState();
+    const [message, setMessage] = useState(null);
 
     const formatDate = (timestamp) => {
         if (timestamp && timestamp.seconds) {
@@ -91,7 +92,7 @@ function ReportSummary({ isAdmin, userEmail }) {
             setTimeout(() => window.location.reload(), 500);
         }
         catch(error) {
-            alert("Error resolving report.");
+            setMessage({ text: "Error resolving report.", type: "error" });
             console.log("Error resolving report.", error);
         }
     }
@@ -108,6 +109,12 @@ function ReportSummary({ isAdmin, userEmail }) {
     <div className='bg-white m-8 p-8 rounded-lg relative'>
         <div className='pl-2 pr-2 font-semibold'>
             <h1 className='text-3xl pb-4'>Report Summary</h1>
+            {message && (
+                <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                    {message.text}
+                    <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+                </div>
+            )}
             <p>Reported On: {formatDate(report?.timestamp)}</p>
         </div>
         {/* If the report has been resolved, show a message */}

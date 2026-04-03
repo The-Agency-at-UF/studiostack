@@ -7,6 +7,7 @@ import RemoveTeamPopup from '../../components/RemoveTeamPopup';
 
 function Teams({ isAdmin }) { 
     const [teams, setTeams] = useState([]);
+    const [message, setMessage] = useState(null);
 
     // retrive all teams 
     useEffect(() => {
@@ -32,10 +33,10 @@ function Teams({ isAdmin }) {
             } else {
                 setDoc(teamRef, {type: "Internal"});
             }
-            alert("Team added successfully.");
+            setMessage({ text: "Team added successfully.", type: "success" });
         }
         catch(error) {
-            alert("Error adding team to database.");
+            setMessage({ text: "Error adding team to database.", type: "error" });
             console.log("Error adding team to database:", error);
         }
     }
@@ -44,10 +45,10 @@ function Teams({ isAdmin }) {
     const removeTeam = (team) => {  
         try {
             deleteDoc(doc(db, "teams", team));
-            alert("Team removed successfully");
+            setMessage({ text: "Team removed successfully.", type: "success" });
         }
         catch(error) {
-            alert("Error removing team from database.");
+            setMessage({ text: "Error removing team from database.", type: "error" });
             console.log("Error removing team from database.", error);
         }
     }
@@ -56,6 +57,12 @@ function Teams({ isAdmin }) {
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl md:text-3xl pb-6'>Teams</h1>
+                {message && (
+                    <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                        {message.text}
+                        <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+                    </div>
+                )}
                 {
                   isAdmin && 
                     <div className="absolute top-8 right-8 flex space-x-4">
