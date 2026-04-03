@@ -43,8 +43,8 @@ describe('Dashboard', () => {
         id: 'res1',
         data: () => ({
           userEmail: 'test@ufl.edu',
-          startDate: { toDate: () => new Date('2026-03-20') },
-          endDate: { toDate: () => new Date('2026-03-25') },
+          startDate: { toDate: () => new Date('2099-03-20') },
+          endDate: { toDate: () => new Date('2099-03-25') },
           equipmentIDs: [{ id: 'item1', name: 'Camera' }]
         })
       }
