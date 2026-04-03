@@ -12,6 +12,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
   const scannerId = "qr-reader";
   const popupRef = useRef();
   const scannerRef = useRef(null);
+  const [message, setMessage] = useState(null);
 
   useEffect(() => {
     let scanner;
@@ -59,11 +60,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
         popupRef.current.close();
       }
     } else {
-      alert(
-        "Please make sure to enter the correct item ID. The ID you entered was " +
-          inputID +
-          ".",
-      );
+      setMessage({ text: "Please make sure to enter the correct item ID. The ID you entered was " + inputID + ".", type: "error" });
       resetState();
     }
   };
@@ -72,7 +69,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
     if (manualInput.trim() !== "") {
       handleSubmit(manualInput.trim());
     } else {
-      alert("Please enter a serial number.");
+      setMessage({ text: "Please enter a serial number.", type: "error" });
     }
   };
 
@@ -137,6 +134,12 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
             <h1 className="font-bold text-2xl sm:text-3xl pb-6">
               {checkOut ? "Check Out" : "Check In"}
             </h1>
+            {message && (
+              <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                {message.text}
+                <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+              </div>
+            )}
 
             {
               !isScanning && !isManualEntry && !showScannerContainer ? (

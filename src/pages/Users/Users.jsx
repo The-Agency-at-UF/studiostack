@@ -10,6 +10,7 @@ function Users({ isAdmin }) {
     const [users, setUsers] = useState([]);
     const [admins, setAdmins] = useState([]);
     const [students, setStudents] = useState([]);
+    const [message, setMessage] = useState(null);
 
     //fetches all the students and admins from the database
     const fetchUsers = async () => {
@@ -46,10 +47,10 @@ function Users({ isAdmin }) {
         if (!students.some(user => user.email === email) && !admins.some(user => user.email === email) && email.includes("@ufl.edu")) {
             const userRef = doc(db, 'users', email);
             setDoc(userRef, { isAdmin: isAdminBool });
-            alert("User added successfully.");
+            setMessage({ text: "User added successfully.", type: "success" });
             fetchUsers();
         } else {
-            alert("Invalid email. Must be a UFL email and not already in the database.");
+            setMessage({ text: "Invalid email. Must be a UFL email and not already in the database.", type: "error" });
         }
     }
 
@@ -59,21 +60,21 @@ function Users({ isAdmin }) {
             //removes student
             const userRef = doc(db, 'users', selectedEmail);
             await deleteDoc(userRef);
-            alert("Student removed successfully.");
+            setMessage({ text: "Student removed successfully.", type: "success" });
             fetchUsers();
         } else if (admins.some(user => user.email === selectedEmail)) {
             //removes admin
             //cant remove last admin
             if (admins.length === 1) {
-                alert("Cannot remove the last admin. Please add another admin before removing this one.");
+                setMessage({ text: "Cannot remove the last admin. Please add another admin before removing this one.", type: "error" });
             } else {
                 const userRef = doc(db, 'users', selectedEmail);
                 await deleteDoc(userRef);
-                alert("Admin removed successfully.");
+                setMessage({ text: "Admin removed successfully.", type: "success" });
                 fetchUsers();
             }
         } else {
-            alert("Invalid email. Must be in the database.");
+            setMessage({ text: "Invalid email. Must be in the database.", type: "error" });
         }
     }
 
@@ -82,14 +83,14 @@ function Users({ isAdmin }) {
         const userRef = doc(db, 'users', email);
         if (admins.some(user => user.email === email)) {
             if (admins.length === 1) {
-                alert("Cannot remove the last admin. Please add another admin before removing this one.");
+                setMessage({ text: "Cannot remove the last admin. Please add another admin before removing this one.", type: "error" });
                 return;
             }
             await setDoc(userRef, { isAdmin: false }, { merge: true });
         } else {
             await setDoc(userRef, { isAdmin: true }, { merge: true });
         }
-        alert("User role updated successfully.");
+        setMessage({ text: "User role updated successfully.", type: "success" });
         fetchUsers();
     }
 
@@ -101,6 +102,12 @@ function Users({ isAdmin }) {
         <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl md:text-3xl pb-6'>Users</h1>
+                {message && (
+                    <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                        {message.text}
+                        <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+                    </div>
+                )}
                 <div className="absolute top-8 right-8 flex space-x-4">
                     <AddUserPopup addEmail={addEmail}/>
                     <RemoveUserPopup removeEmail={removeEmail} listOfEmails={users.map(user => user.email)}/>

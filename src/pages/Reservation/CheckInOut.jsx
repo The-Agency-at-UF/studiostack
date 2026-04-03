@@ -16,6 +16,7 @@ function CheckInOut() {
   const [activeReservation, setActiveReservation] = useState(false);
   const currentDate = new Date();
   const navigate = useNavigate();
+  const [message, setMessage] = useState(null);
 
   //format the date
   const formatDate = (timestamp) => {
@@ -42,9 +43,7 @@ function CheckInOut() {
       currentDate < reservation.startDate.toDate() ||
       currentDate > reservation.endDate.toDate()
     ) {
-      alert(
-        "You cannot check out items before the reservation start date or after the reservation end date.",
-      );
+      setMessage({ text: "You cannot check out items before the reservation start date or after the reservation end date.", type: "error" });
       return;
     }
 
@@ -137,23 +136,21 @@ function CheckInOut() {
   const handleCancelReservation = async () => {
     //check if the reservation has any checked out items
     if (reservation.checkedOutItems.length > 0) {
-      alert(
-        "You cannot cancel a reservation with checked out items. Please return the items before cancelling the reservation.",
-      );
+      setMessage({ text: "You cannot cancel a reservation with checked out items. Please return the items before cancelling the reservation.", type: "error" });
       return;
     }
 
     //check if the reservation has already ended
     const currentDate = new Date();
     if (currentDate > reservation.endDate.toDate()) {
-      alert("You cannot cancel a reservation after it has already ended.");
+      setMessage({ text: "You cannot cancel a reservation after it has already ended.", type: "error" });
       return;
     }
 
     //delete the reservation
     const reservationRef = doc(db, "reservations", reservationID);
     await deleteDoc(reservationRef);
-    alert("Reservation cancelled successfully.");
+    setMessage({ text: "Reservation cancelled successfully.", type: "success" });
     navigate("/reservations");
   };
 
@@ -162,7 +159,7 @@ function CheckInOut() {
     //check if the reservation has already ended
     const currentDate = new Date();
     if (currentDate > reservation.endDate.toDate()) {
-      alert("You cannot cancel a reservation after it has already ended.");
+      setMessage({ text: "You cannot cancel a reservation after it has already ended.", type: "error" });
       return;
     }
 
@@ -184,7 +181,7 @@ function CheckInOut() {
     setReservation(updatedData);
     setItemsToCheckOut(itemsToCheckOutUpdated);
 
-    alert("Item removed from reservation successfully.");
+    setMessage({ text: "Item removed from reservation successfully.", type: "success" });
   };
 
   //handle the add item button (this is after it has done checks in the popup)
@@ -192,9 +189,7 @@ function CheckInOut() {
     //check if the reservation has already ended
     const currentDate = new Date();
     if (currentDate > reservation.endDate.toDate()) {
-      alert(
-        "You cannot add items to a reservation after it has already ended.",
-      );
+      setMessage({ text: "You cannot add items to a reservation after it has already ended.", type: "error" });
       return;
     }
 
@@ -220,7 +215,7 @@ function CheckInOut() {
     //check if the reservation has already ended
     const currentDate = new Date();
     if (currentDate > reservation.endDate.toDate()) {
-      alert("You cannot extend a reservation after it has already ended.");
+      setMessage({ text: "You cannot extend a reservation after it has already ended.", type: "error" });
       return;
     }
 
@@ -272,6 +267,12 @@ function CheckInOut() {
           <h1 className="font-bold text-2xl sm:text-3xl pb-2 flex-1 break-words mr-4">
             {reservation?.name}
           </h1>
+          {message && (
+            <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+              {message.text}
+              <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+            </div>
+          )}
           {activeReservation && reservation && (
             <div className="flex flex-col space-y-2 md:flex-row md:space-x-2 shrink-0">
               <ExtendReservationPopup

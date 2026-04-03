@@ -8,10 +8,11 @@ import { IoIosCloseCircle } from "react-icons/io";
 function ExtendReservationPopup({ handleEdit, reservation, reservationID }) { 
     const [reservationEndDate, setReservationEndDate] = useState('');
     const [otherReservations, setOtherReservations] = useState([]);
+    const [message, setMessage] = useState(null);
 
     const handle = (close) => {
         if (reservation.startDate.toDate() > new Date(reservationEndDate)) {
-            alert('New check-out date must be later than the previous one.');
+            setMessage({ text: 'New check-out date must be later than the previous one.', type: 'error' });
             setReservationEndDate('');
             return;
         }
@@ -31,7 +32,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
                 }
             }
             latestAvailableDate.setMinutes(latestAvailableDate.getMinutes() - 1);
-            alert('Cannot extend reservation, as this equipment specific equipment is already reserved for that date. The latest check-out date is available' + latestAvailableDate.toLocaleString());
+            setMessage({ text: 'Cannot extend reservation, as this equipment specific equipment is already reserved for that date. The latest check-out date is available' + latestAvailableDate.toLocaleString(), type: 'error' });
             setReservationEndDate('');
             return;
         }
@@ -88,6 +89,12 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
                     <div className='modal relative'>
                         <div className='content p-4'>
                             <h1 className='font-bold text-lg sm:text-xl sm:pb-6 text-center pt-8'>Choose the new check-in date below:</h1>
+                            {message && (
+                                <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                                    {message.text}
+                                    <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+                                </div>
+                            )}
                             <input type="datetime-local" 
                                 className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12" 
                                 value={reservationEndDate}
