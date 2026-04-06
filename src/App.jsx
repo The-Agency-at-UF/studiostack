@@ -15,6 +15,7 @@ import Reservations from "./pages/Reservation/Reservations";
 import CreateReservation from "./pages/Reservation/CreateReservation";
 import CheckInOut from "./pages/Reservation/CheckInOut";
 import Header from "./components/Header";
+import BugReportPopup from "./components/BugReportPopup";
 import './App.css';
 
 const App = () => {
@@ -77,20 +78,25 @@ const App = () => {
   return (
     <Router>
       <Header isAdmin={isAdmin} logOut={logOut}/>
-      <Routes>
-        <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
-        <Route path="/inventory" element={<Inventory isAdmin={isAdmin}/>} />
-        <Route path="/teams" element={<Teams isAdmin={isAdmin}/>} />
-        <Route path="/reports" element={<Reports isAdmin={isAdmin}/>} />
-        <Route path="/create-report" element={<Report userEmail={email}/>} />
-        <Route path="/report-summary" element={<ReportSummary isAdmin={isAdmin} userEmail={email}/>} />
-        <Route path="/calendar" element={<Calendar isAdmin={isAdmin} />} />
-        <Route path="/statistics" element={<Statistics />} />
-        <Route path="/users" element={<Users isAdmin={isAdmin} />} />
-        <Route path="/reservations" element={<Reservations />} />
-        <Route path="/create-reservation" element={<CreateReservation />} />
-        <Route path="/check-in-out" element={<CheckInOut />} />
-      </Routes>
+      <div className="pb-16">
+        <Routes>
+          <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
+          <Route path="/inventory" element={<Inventory isAdmin={isAdmin}/>} />
+          <Route path="/teams" element={<Teams isAdmin={isAdmin}/>} />
+          <Route path="/reports" element={<Reports isAdmin={isAdmin}/>} />
+          <Route path="/create-report" element={<Report userEmail={email}/>} />
+          <Route path="/report-summary" element={<ReportSummary isAdmin={isAdmin} userEmail={email}/>} />
+          <Route path="/calendar" element={<Calendar isAdmin={isAdmin} />} />
+          <Route path="/statistics" element={<Statistics />} />
+          <Route path="/users" element={<Users isAdmin={isAdmin} />} />
+          <Route path="/reservations" element={<Reservations />} />
+          <Route path="/create-reservation" element={<CreateReservation />} />
+          <Route path="/check-in-out" element={<CheckInOut />} />
+        </Routes>
+      </div>
+      <footer className="sticky-footer">
+        <BugReportPopup userEmail={email} />
+      </footer>
     </Router>
   );
 };

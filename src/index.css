@@ -1,7 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;700&display=swap");
 @import "tailwindcss";
 
 :root {
-  background-color: #ECECEC;
-  font-family: 'Quicksand', sans-serif;
+  background-color: #ececec;
+  font-family: "Quicksand", sans-serif;
+}
+
+.sticky-footer {
+  /* position: fixed; */
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: #426276;
+  color: white;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  border-top: 1px solid #a3c1e0;
 }
