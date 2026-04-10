@@ -2,28 +2,45 @@ import React, { useState } from "react";
 import Popup from "reactjs-popup";
 import "reactjs-popup/dist/index.css";
 import { IoIosCloseCircle, IoIosBug } from "react-icons/io";
+import { db } from "../firebase/firebaseConfig";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 function BugReportPopup({ userEmail }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // TODO: send bug report to firebase to be stored (and possibly send an alert to developers/admin)
-  const handleSubmit = (close) => {
-    const reportData = {
-      title,
-      description,
-      userEmail,
-      url: window.location.href,
-      timestamp: new Date().toISOString(),
-    };
+  const handleSubmit = async (close) => {
+    if (!title.trim() || !description.trim()) {
+      alert("Please provide both a title and description.");
+      return;
+    }
 
-    console.log("Bug Report Submitted:", reportData);
-    alert("Thank you! Your bug report has been logged to the console.");
+    setIsSubmitting(true);
+    try {
+      const reportData = {
+        title,
+        description,
+        userEmail,
+        url: window.location.href,
+        timestamp: serverTimestamp(),
+        status: "Open", // Default status for new bug reports
+      };
 
-    // Reset fields and close
-    setTitle("");
-    setDescription("");
-    close();
+      await addDoc(collection(db, "bugReports"), reportData);
+      
+      alert("Thank you! Your bug report has been submitted successfully.");
+
+      // Reset fields and close
+      setTitle("");
+      setDescription("");
+      close();
+    } catch (error) {
+      console.error("Error submitting bug report:", error);
+      alert("Failed to submit bug report. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -102,10 +119,15 @@ function BugReportPopup({ userEmail }) {
               Cancel
             </button>
             <button
-              className="px-6 py-2 bg-[#A3C1E0] rounded-md cursor-pointer hover:bg-[#426276] hover:text-white transition-colors"
-              onClick={() => handleSubmit(close)}
+              className={`px-6 py-2 rounded-md font-bold transition-colors ${
+                isSubmitting 
+                  ? "bg-gray-400 cursor-not-allowed text-gray-700" 
+                  : "bg-[#A3C1E0] hover:bg-[#426276] hover:text-white cursor-pointer"
+              }`}
+              onClick={() => !isSubmitting && handleSubmit(close)}
+              disabled={isSubmitting}
             >
-              Submit Report
+              {isSubmitting ? "Submitting..." : "Submit Report"}
             </button>
 
             <IoIosCloseCircle
