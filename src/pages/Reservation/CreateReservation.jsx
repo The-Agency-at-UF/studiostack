@@ -80,6 +80,23 @@ function CreateReservation() {
 
 
     
+        const handleCheckoutDateChange = (date) => {
+            setReservationStartDate(date);
+            if (!date || !reservationStartTime || !reservationEndDate || !reservationEndTime) {
+                setGeneralError('');
+                setDateFilled(false);
+                return;
+            }
+            const error = validateDateTimes(date, reservationStartTime, reservationEndDate, reservationEndTime);
+            setGeneralError(error);
+            if (error) {
+                setSelectedEquipment([{ equipment: null }]);
+                setDateFilled(false);
+            } else {
+                setDateFilled(true);
+            }
+        };
+
         const handleCheckoutTimeChange = (time) => {
             setReservationStartTime(time);
             if (!reservationStartDate || !time || !reservationEndDate || !reservationEndTime) {
