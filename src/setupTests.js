@@ -1,6 +1,21 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+// Node 25 exposes an incomplete experimental localStorage unless a persistence
+// file is configured. Tests should use a deterministic in-memory implementation.
+const storage = new Map();
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: {
+    clear: () => storage.clear(),
+    getItem: (key) => storage.has(key) ? storage.get(key) : null,
+    key: (index) => Array.from(storage.keys())[index] ?? null,
+    get length() { return storage.size; },
+    removeItem: (key) => storage.delete(key),
+    setItem: (key, value) => storage.set(key, String(value)),
+  },
+});
+
 // Mock Firebase App and Analytics
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({})),
@@ -35,6 +50,7 @@ vi.mock('firebase/auth', () => {
   
   return {
     getAuth: vi.fn(),
+    signOut: vi.fn(() => Promise.resolve()),
     signInWithPopup: vi.fn(),
     GoogleAuthProvider: mockProvider,
     setPersistence: vi.fn(),

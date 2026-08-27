@@ -36,14 +36,14 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
       setShowScannerContainer(false);
     }
 
-    function onScanFailure(error) {
-      // console.warn(`Code scan error = ${error}`);
+    function onScanFailure() {
+      // Scanner misses are expected while the camera is active.
     }
 
     return () => {
       if (scannerRef.current) {
         // Use ref for cleanup
-        scannerRef.current.clear().catch((error) => {
+        scannerRef.current.clear().catch(() => {
           // This can happen if the component unmounts before the scanner is fully initialized.
           // It's safe to ignore.
         });
@@ -126,9 +126,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
       }}
       overlayStyle={{ backgroundColor: "rgba(105, 105, 105, 0.5)" }}
     >
-      {(
-        close, // 'close' from render prop is not used, but kept for clarity
-      ) => (
+      {() => (
         <div className="modal relative">
           <div className="content p-4 text-center text-sm sm:text-lg">
             <h1 className="font-bold text-2xl sm:text-3xl pb-6">

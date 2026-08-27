@@ -19,7 +19,6 @@ const Statistics = () => {
   const [reservationTeamsData, setReservationTeamsData] = useState([]);
   const [totalEquipment, setTotalEquipment] = useState(0);
   const [overdueEquipment, setOverdueEquipment] = useState([]);
-  const [overdueEquipmentTimes, setOverdueEquipmentTimes] = useState([]);
   const [overdueRecords, setOverdueRecords] = useState([]);
   const [reportSubjects, setReportSubjects] = useState([]);
   const [reportSubjectsData, setReportSubjectsData] = useState([]);
@@ -159,7 +158,7 @@ const Statistics = () => {
             awaitingCheckout = 0;
 
         //count the values and get the broken equipment reports
-        const equipmentStatusList = allEquipment.map(equipment => {
+        allEquipment.forEach(equipment => {
           if (equipment.availability === 'available') available++;
           else if (equipment.availability === 'reported') reported++;
           else if (equipment.availability === 'checked out') checkedOut++;
@@ -225,8 +224,6 @@ const Statistics = () => {
             };
           });
         }).flat();
-        setOverdueEquipmentTimes(reservationsOverdueItemsList);
-  
         const allTimeTeams = {};
         reservationsTeamsList.forEach(item => {
           allTimeTeams[item.name] = (allTimeTeams[item.name] || 0) + 1;

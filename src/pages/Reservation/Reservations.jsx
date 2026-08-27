@@ -8,7 +8,6 @@ import StudentNotification from "../../components/StudentNotification";
 import ConfirmationPopup from "../../components/ConfirmationPopup";
 
 function Reservations() {
-  const [reservations, setReservations] = useState([]);
   const [activeReservations, setActiveReservations] = useState([]);
   const [pastReservations, setPastReservations] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -49,8 +48,6 @@ function Reservations() {
           (reservation) =>
             reservation.userEmail === localStorage.getItem("email"),
         );
-        setReservations(allReservations);
-
         //get the active reservations & sort
         const activeReservationsList = allReservations.filter((reservation) => {
           const endDate = reservation.endDate.toDate();

@@ -27,26 +27,6 @@ function ReportSummary({ isAdmin, userEmail }) {
         return 'Invalid date';
     };
 
-    //overriding styles for the dropdown
-    const dropdownStyle = {
-        control: (provided) => ({
-            ...provided,
-            border: '2px solid black', 
-            boxShadow: 'none', 
-            '&:hover': {
-                borderColor: 'black', 
-            }
-        }),
-        option: (provided, state) => ({
-            ...provided,
-            backgroundColor: state.isFocused ? '#A3C1E0' : 'white',
-            color: 'black',
-            '&:hover': {
-                backgroundColor: '#A3C1E0',
-            }
-        }),
-    };
-
     // get report item information
     useEffect(() => {
         const fetchReports = async () => {

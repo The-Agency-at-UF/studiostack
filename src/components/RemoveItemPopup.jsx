@@ -11,7 +11,6 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
     const [selectedName, setSelectedName] = useState(null);
 
     const [itemID, setItemID] = useState('');
-    const [name, setName] = useState(null);
 
     const [idOptions, setIdOptions] = useState([]);
     const [nameOptions, setNameOptions] = useState([]);
@@ -39,8 +38,6 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
     // handle item name selection
     const handleNameSelection = async (selectedName) => {
         setSelectedName(selectedName); // object
-        setName(selectedName?.value); // get object value as a string
-
         // if an item has been selected
         if (selectedName?.value) {
             const inventoryRef = collection(db, "inventory");

@@ -1,7 +1,7 @@
-name: Main Pipeline
+name: PR Checks
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
@@ -9,12 +9,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: main-pipeline
+  group: pr-checks-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  integration-tests:
-    name: Integration tests
+  ci:
+    name: Lint, unit tests, and build
     runs-on: ubuntu-latest
 
     steps:
@@ -30,5 +30,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Integration tests
-        run: npm run test:integration
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
