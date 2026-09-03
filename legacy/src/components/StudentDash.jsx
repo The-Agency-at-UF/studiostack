@@ -49,7 +49,7 @@ function StudentDash() {
         }
     }
     fetchNotifications();
-  }, [notifications])
+  }, [])
 
   // close notification
   const closeNotif = async (notificationID) => {
@@ -65,23 +65,21 @@ function StudentDash() {
   }
 
   return (
-    <div>
-        <h1 className='font-bold text-2xl md:text-3xl pb-6'>Welcome, Student!</h1>
-        <div className="w-full"> 
-            <div className="flex flex-col md:flex-row"> 
-                <div className="flex-1 p-3 rounded"> 
-                    <div className="bg-[#ECECEC] p-2 rounded-[10px] flex items-center justify-between mb-2"> 
+    <div className="student-dash">
+        <div className="control-panel-heading">
+          <div><p className="eyebrow">Your production desk</p><h2>Welcome, Student!</h2></div>
+          <span className="live-indicator"><i /> Live</span>
+        </div>
+        <div className="student-dash-grid">
+                <div className="calendar-well">
                       <Calendar
                       />
-                    </div>                          
                 </div>
-                <div className="flex flex-col p-4 h-75 lg:w-3/4">
-                    <div className="bg-[#ECECEC] p-4 rounded-[10px] items-center justify-between mb-2 sticky"> 
-                      <h1 className='text-xl font-bold'>Notifications </h1> 
-                    </div>  
-                    <div className='overflow-scroll'>
+                <div className="notification-well">
+                    <div className="subsection-heading"><h3>Notifications</h3><span>{notifications.length.toString().padStart(2, '0')}</span></div>
+                    <div className='notification-list'>
                       { noNotifications ? 
-                        <p className='justify-self-center mt-30'>You have no notifications!</p> 
+                        <div className="dark-empty-state"><span>All clear</span><p>You have no notifications!</p></div>
                       :
                         <div>
                           {notifications.map((notification, index) => ( 
@@ -91,7 +89,6 @@ function StudentDash() {
                       }
                     </div>
                 </div>
-            </div>
         </div>
     </div>
   )

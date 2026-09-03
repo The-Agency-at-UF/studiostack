@@ -3,88 +3,65 @@ import Hamburger from 'hamburger-react'
 import StudioStack from '../assets/StudioStack.png'
 import { NavLink, useLocation, Link } from 'react-router-dom'
 import { IoIosLogOut } from "react-icons/io";
+import { HiOutlineArrowUpRight } from "react-icons/hi2";
 
 function Header({ isAdmin, logOut }) {
 
   const [isOpen, setOpen] = useState(false);
   const { pathname } = useLocation();
   
-  const AdminHeader = () => {
-    return (
-      <div className='text-white hidden md:flex space-x-8 underline-offset-3'>
-      <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Home</NavLink>
-      <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Calendar</NavLink>
-      <NavLink to="/reservations" className={({ isActive }) => isActive || ["/create-reservation", "/check-in-out"].includes(pathname) ? 'font-bold' : 'font-light hover:underline'}>Reservations</NavLink>
-      <NavLink to="/reports" className={({ isActive }) => isActive || ["/create-report", "/report-summary"].includes(pathname) ? 'font-bold' : 'font-light hover:underline'}>Reports</NavLink>
-      <NavLink to="/statistics" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Statistics</NavLink>
-      <NavLink to="/teams" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Teams</NavLink>
-      <NavLink to="/users" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Users</NavLink>
-      <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Inventory</NavLink>
-      <NavLink to="/">
-        <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
-      </NavLink>
-      </div>
-    )
-  }
+  const links = [
+    { to: '/', label: 'Home' },
+    { to: '/calendar', label: 'Calendar' },
+    { to: '/reservations', label: 'Reservations', related: ['/create-reservation', '/check-in-out'] },
+    { to: '/reports', label: 'Reports', related: ['/create-report', '/report-summary'] },
+    { to: '/teams', label: 'Teams' },
+    { to: '/inventory', label: 'Inventory' },
+    ...(isAdmin ? [
+      { to: '/statistics', label: 'Statistics' },
+      { to: '/users', label: 'Users' },
+    ] : []),
+  ];
 
-  const StudentHeader = () => {
-    return (
-      <div className='text-white hidden md:flex space-x-8'>
-      <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Home</NavLink>
-      <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Calendar</NavLink>
-      <NavLink to="/reservations" className={({ isActive }) => isActive || ["/create-reservation", "/check-in-out"].includes(pathname) ? 'font-bold' : 'font-light hover:underline'}>Reservations</NavLink>
-      <NavLink to="/reports" className={({ isActive }) => isActive || ["/create-report", "/report-summary"].includes(pathname) ? 'font-bold' : 'font-light hover:underline'}>Reports</NavLink>
-      <NavLink to="/teams" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Teams</NavLink>
-      <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light hover:underline'}>Inventory</NavLink>
-      <NavLink to="/">
-        <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
-      </NavLink>
-      </div>
-    )
-  }
+  const navLinkClass = (link) => ({ isActive }) =>
+    isActive || link.related?.includes(pathname) ? 'nav-link active' : 'nav-link';
+
+  const NavLinks = ({ mobile = false }) => (
+    <div className={mobile ? 'mobile-nav-links' : 'desktop-nav-links'}>
+      {links.map((link) => (
+        <NavLink key={link.to} to={link.to} onClick={() => setOpen(false)} className={navLinkClass(link)}>
+          {link.label}
+        </NavLink>
+      ))}
+    </div>
+  );
 
   return (
-    <nav className='bg-[#426276] p-4'>
-      <div className='flex items-center justify-between'>
-        {/* Logo */}
-        <Link to="/">
-          <img className="p-2" src={StudioStack} alt="StudioStack"/>
+    <nav className='site-header'>
+      <div className='site-header-inner'>
+        <Link to="/" className="brand-lockup">
+          <img src={StudioStack} alt="StudioStack"/>
+          <span>Production desk</span>
         </Link>
 
-        {/* Hamburger */}
-        <div className="md:hidden">
-          <Hamburger color='white' toggled={isOpen} toggle={setOpen} />
+        <NavLinks />
+
+        <div className="header-actions">
+          <span className="access-label">{isAdmin ? 'Admin access' : 'Student access'}</span>
+          <Link to="/create-reservation" className="header-cta">
+            Book gear <HiOutlineArrowUpRight />
+          </Link>
+          <button className="logout-button" onClick={logOut} aria-label="Log out">
+            <IoIosLogOut />
+          </button>
         </div>
 
-        {/* Links */}
-        {isAdmin ? <AdminHeader/> : <StudentHeader/>}
+        <div className="mobile-menu-toggle">
+          <Hamburger color='white' size={24} toggled={isOpen} toggle={setOpen} label="Toggle navigation" />
+        </div>
       </div>
 
-      {/* Dropdowns */}
-      {isOpen && isAdmin ? (
-        <div className="text-white flex flex-col md:hidden space-y-2 ml-2">
-          <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Home</NavLink>
-          <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
-          <NavLink to="/reservations" className={({ isActive }) => isActive || ["/create-reservation", "/check-in-out"].includes(pathname) ? 'font-bold' : 'font-light'}>Reservations</NavLink>
-          <NavLink to="/reports" className={({ isActive }) => isActive || ["/create-report", "/report-summary"].includes(pathname) ? 'font-bold' : 'font-light'}>Reports</NavLink>
-          <NavLink to="/statistics" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Statistics</NavLink>
-          <NavLink to="/teams" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Teams</NavLink>
-          <NavLink to="/users" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Users</NavLink>
-          <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Inventory</NavLink>
-          <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
-      </div>
-      ): null}
-      {isOpen && !isAdmin ? (
-        <div className="text-white flex flex-col md:hidden space-y-2 ml-2">
-          <NavLink to="/" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Home</NavLink>
-          <NavLink to="/calendar" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Calendar</NavLink>
-          <NavLink to="/reservations" className={({ isActive }) => isActive || ["/create-reservation", "/check-in-out"].includes(pathname) ? 'font-bold' : 'font-light'}>Reservations</NavLink>
-          <NavLink to="/reports" className={({ isActive }) => isActive || ["/create-report", "/report-summary"].includes(pathname) ? 'font-bold' : 'font-light'}>Reports</NavLink>
-          <NavLink to="/teams" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Teams</NavLink>
-          <NavLink to="/inventory" className={({ isActive }) => isActive ? 'font-bold' : 'font-light'}>Inventory</NavLink>
-          <IoIosLogOut onClick={logOut} color='white' className='w-7 h-7 cursor-pointer'/>
-      </div>
-      ): null}
+      {isOpen && <NavLinks mobile />}
     </nav>
   )
 }
