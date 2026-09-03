@@ -177,7 +177,7 @@ function Report({ userEmail }) {
         }
     }
     fetchInventory();
-  }, [subjectList]);
+  }, [userEmail]);
 
   // handle subject selection 
   const handleSubjectSelection = (selectedSubject) => {

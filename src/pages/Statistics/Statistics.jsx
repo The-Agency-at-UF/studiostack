@@ -22,7 +22,6 @@ const Statistics = () => {
   const [overdueRecords, setOverdueRecords] = useState([]);
   const [reportSubjects, setReportSubjects] = useState([]);
   const [reportSubjectsData, setReportSubjectsData] = useState([]);
-  const currentDate = new Date();
   
   //get the top 5 and update state (same for the functions below)
   const updateReservedItemsData = (checkedOut) => {
@@ -141,6 +140,7 @@ const Statistics = () => {
   
 
   useEffect(() => {
+    const currentDate = new Date();
     const fetchEquipmentAndReservations = async () => {
       try {
         // get equipment data from the 'inventory' collection

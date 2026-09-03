@@ -12,7 +12,6 @@ function Reservations() {
   const [pastReservations, setPastReservations] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
-  const currentDate = new Date();
   const isAdmin = localStorage.getItem("isAdmin") === "true";
 
   const handleDeleteReservation = async (reservationId) => {
@@ -31,6 +30,7 @@ function Reservations() {
   };
 
   useEffect(() => {
+    const currentDate = new Date();
     const fetchReservations = async () => {
       try {
         const reservationsRef = collection(db, "reservations");

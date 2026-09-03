@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import Popup from "reactjs-popup";
 import "reactjs-popup/dist/index.css";
 import { IoIosCloseCircle } from "react-icons/io";
@@ -13,6 +13,33 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
   const popupRef = useRef();
   const scannerRef = useRef(null);
   const [message, setMessage] = useState(null);
+
+  const resetState = useCallback(() => {
+    setIsScanning(false);
+    setIsManualEntry(false);
+    setManualInput("");
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch((error) => {
+        // Handle error if scanner is not initialized or already cleared
+        console.error("Error clearing scanner on reset:", error);
+      });
+      scannerRef.current = null; // Clear ref
+    }
+    setShowScannerContainer(false); // Explicitly hide the scanner container
+  }, []);
+
+  const handleSubmit = useCallback((inputID) => {
+    if (inputID === correctID.id) {
+      handleCheckOutIn(inputID);
+      resetState();
+      if (popupRef.current) {
+        popupRef.current.close();
+      }
+    } else {
+      setMessage({ text: "Please make sure to enter the correct item ID. The ID you entered was " + inputID + ".", type: "error" });
+      resetState();
+    }
+  }, [correctID.id, handleCheckOutIn, resetState]);
 
   useEffect(() => {
     let scanner;
@@ -50,20 +77,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
         scannerRef.current = null; // Clear ref
       }
     };
-  }, [isScanning, showScannerContainer]);
-
-  const handleSubmit = (inputID) => {
-    if (inputID === correctID.id) {
-      handleCheckOutIn(inputID);
-      resetState();
-      if (popupRef.current) {
-        popupRef.current.close();
-      }
-    } else {
-      setMessage({ text: "Please make sure to enter the correct item ID. The ID you entered was " + inputID + ".", type: "error" });
-      resetState();
-    }
-  };
+  }, [handleSubmit, isScanning, showScannerContainer]);
 
   const handleManualSubmit = () => {
     if (manualInput.trim() !== "") {
@@ -85,20 +99,6 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
   const handleCancelManual = () => {
     setIsManualEntry(false);
     setManualInput("");
-  };
-
-  const resetState = () => {
-    setIsScanning(false);
-    setIsManualEntry(false);
-    setManualInput("");
-    if (scannerRef.current) {
-      scannerRef.current.clear().catch((error) => {
-        // Handle error if scanner is not initialized or already cleared
-        console.error("Error clearing scanner on reset:", error);
-      });
-      scannerRef.current = null; // Clear ref
-    }
-    setShowScannerContainer(false); // Explicitly hide the scanner container
   };
 
   return (

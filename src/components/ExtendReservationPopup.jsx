@@ -72,7 +72,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {
             };
         
             fetchReservations();
-        }, []);
+        }, [reservation.startDate, reservationID]);
 
     return (
         <Popup trigger=

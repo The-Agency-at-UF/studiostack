@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react'
+import React, {useState, useEffect, useMemo} from 'react'
 import { collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from "firebase/firestore"; 
 import { db } from "../../firebase/firebaseConfig";
 import AddItemPopup from '../../components/AddItemPopup';
@@ -10,7 +10,7 @@ import { IoIosCheckmarkCircle } from "react-icons/io";
 function Inventory({ isAdmin }) {
   const [inventory, setInventory] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
-  const inventoryCollectionRef = collection(db, "inventory");
+  const inventoryCollectionRef = useMemo(() => collection(db, "inventory"), []);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState(null);
 
@@ -47,7 +47,7 @@ function Inventory({ isAdmin }) {
       setFilteredList(items);
     });
     return unsubscribe;
-  }, []);
+  }, [inventoryCollectionRef]);
 
   // adds item to database
   const addItem = (name, category, availability) => {  
