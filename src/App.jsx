@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { getAuth, signOut } from "firebase/auth";
 import Dashboard from './pages/Dashboard/Dashboard'
@@ -18,40 +18,39 @@ import Header from "./components/Header";
 import BugReportPopup from "./components/BugReportPopup";
 import './App.css';
 
+const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 hour
+
 const App = () => {
   //email that the user logged in with
   const [email, setEmail] = useState(localStorage.getItem("email") || '');
   const [isAdmin, setIsAdmin] = useState(localStorage.getItem("isAdmin") === 'true' || false);
 
-  //inactivity timeout
-  const inactivity_timeout = 60 * 60 * 1000; // 1 hour
-
   //reset local storage and sign out after inactivity
   //TO DO: this should be passed to the navbar
-  const logOut = () => {
-  const auth = getAuth();
-  signOut(auth).then(() => {
+  const logOut = useCallback(() => {
+    const auth = getAuth();
+    signOut(auth).then(() => {
       localStorage.removeItem("email");
       localStorage.removeItem("isAdmin");
       window.location.reload();
     }).catch((error) => {
       console.error("Error signing out: ", error);
     });
-};
+  }, []);
 
   //reset inactivity timer
-  const resetInactivityTimer = () => {
+  const resetInactivityTimer = useCallback(() => {
     if (localStorage.getItem("email")) {
       logOut();
     }
-  };
+  }, [logOut]);
 
   //monitors user activity to reset inactivity timer
   useEffect(() => {
     const activityEvents = ['mousemove', 'keydown', 'click'];
     const resetTimer = () => {
       clearTimeout(window.inactivityTimer);
-      window.inactivityTimer = setTimeout(resetInactivityTimer, inactivity_timeout);
+      window.inactivityTimer = setTimeout(resetInactivityTimer, INACTIVITY_TIMEOUT);
     };
 
     activityEvents.forEach(event => {
@@ -59,7 +58,7 @@ const App = () => {
     });
 
     //initial inactivity timer
-    window.inactivityTimer = setTimeout(resetInactivityTimer, inactivity_timeout);
+    window.inactivityTimer = setTimeout(resetInactivityTimer, INACTIVITY_TIMEOUT);
 
     return () => {
       activityEvents.forEach(event => {
@@ -67,7 +66,7 @@ const App = () => {
       });
       clearTimeout(window.inactivityTimer);
     };
-  }, []);
+  }, [resetInactivityTimer]);
 
   //if they havent logged in yet, send them to the login page
   if (!email) {

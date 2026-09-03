@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import Popup from "reactjs-popup";
 import "reactjs-popup/dist/index.css";
 import { getDocs, collection, doc, setDoc } from "firebase/firestore";
@@ -44,7 +44,7 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }) {
     close();
   };
 
-  const fetchReservationsAndEquipment = async () => {
+  const fetchReservationsAndEquipment = useCallback(async () => {
     try {
       const reservationRef = collection(db, "reservations");
       const querySnapshot = await getDocs(reservationRef);
@@ -92,11 +92,11 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }) {
     } catch (error) {
       console.error("Error fetching information:", error);
     }
-  };
+  }, [reservation]);
 
   useEffect(() => {
     fetchReservationsAndEquipment();
-  }, []);
+  }, [fetchReservationsAndEquipment]);
 
   //overriding styles for the dropdown
   const dropdownStyle = {

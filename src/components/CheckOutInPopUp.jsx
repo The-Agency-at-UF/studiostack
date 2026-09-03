@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import Popup from "reactjs-popup";
 import "reactjs-popup/dist/index.css";
 import { IoIosCloseCircle } from "react-icons/io";
@@ -13,6 +13,33 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
   const popupRef = useRef();
   const scannerRef = useRef(null);
   const [message, setMessage] = useState(null);
+
+  const resetState = useCallback(() => {
+    setIsScanning(false);
+    setIsManualEntry(false);
+    setManualInput("");
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch((error) => {
+        // Handle error if scanner is not initialized or already cleared
+        console.error("Error clearing scanner on reset:", error);
+      });
+      scannerRef.current = null; // Clear ref
+    }
+    setShowScannerContainer(false); // Explicitly hide the scanner container
+  }, []);
+
+  const handleSubmit = useCallback((inputID) => {
+    if (inputID === correctID.id) {
+      handleCheckOutIn(inputID);
+      resetState();
+      if (popupRef.current) {
+        popupRef.current.close();
+      }
+    } else {
+      setMessage({ text: "Please make sure to enter the correct item ID. The ID you entered was " + inputID + ".", type: "error" });
+      resetState();
+    }
+  }, [correctID.id, handleCheckOutIn, resetState]);
 
   useEffect(() => {
     let scanner;
@@ -36,34 +63,21 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
       setShowScannerContainer(false);
     }
 
-    function onScanFailure(error) {
-      // console.warn(`Code scan error = ${error}`);
+    function onScanFailure() {
+      // Scanner misses are expected while the camera is active.
     }
 
     return () => {
       if (scannerRef.current) {
         // Use ref for cleanup
-        scannerRef.current.clear().catch((error) => {
+        scannerRef.current.clear().catch(() => {
           // This can happen if the component unmounts before the scanner is fully initialized.
           // It's safe to ignore.
         });
         scannerRef.current = null; // Clear ref
       }
     };
-  }, [isScanning, showScannerContainer]);
-
-  const handleSubmit = (inputID) => {
-    if (inputID === correctID.id) {
-      handleCheckOutIn(inputID);
-      resetState();
-      if (popupRef.current) {
-        popupRef.current.close();
-      }
-    } else {
-      setMessage({ text: "Please make sure to enter the correct item ID. The ID you entered was " + inputID + ".", type: "error" });
-      resetState();
-    }
-  };
+  }, [handleSubmit, isScanning, showScannerContainer]);
 
   const handleManualSubmit = () => {
     if (manualInput.trim() !== "") {
@@ -85,20 +99,6 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
   const handleCancelManual = () => {
     setIsManualEntry(false);
     setManualInput("");
-  };
-
-  const resetState = () => {
-    setIsScanning(false);
-    setIsManualEntry(false);
-    setManualInput("");
-    if (scannerRef.current) {
-      scannerRef.current.clear().catch((error) => {
-        // Handle error if scanner is not initialized or already cleared
-        console.error("Error clearing scanner on reset:", error);
-      });
-      scannerRef.current = null; // Clear ref
-    }
-    setShowScannerContainer(false); // Explicitly hide the scanner container
   };
 
   return (
@@ -126,9 +126,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }) {
       }}
       overlayStyle={{ backgroundColor: "rgba(105, 105, 105, 0.5)" }}
     >
-      {(
-        close, // 'close' from render prop is not used, but kept for clarity
-      ) => (
+      {() => (
         <div className="modal relative">
           <div className="content p-4 text-center text-sm sm:text-lg">
             <h1 className="font-bold text-2xl sm:text-3xl pb-6">

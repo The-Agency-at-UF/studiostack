@@ -6,7 +6,6 @@ import { db } from '../../firebase/firebaseConfig';
 import ReportLabel from '../../components/ReportLabel';
 
 function Reports({ isAdmin }) { 
-    const [reports, setReports] = useState([]);
     const [activeReports, setActiveReports] = useState([]);
     const [resolvedReports, setResolvedReports] = useState([]);
     const [noActiveReports, setNoActiveReports] = useState(false);
@@ -32,7 +31,6 @@ function Reports({ isAdmin }) {
 
             // if regular user - only show their reports
             if (!isAdmin) {
-                setReports(userReports);
                 const activeReportsList = userReports.filter(report => report.resolved === false);
                 if (activeReportsList.length == 0) {
                     setNoActiveReports(true)
@@ -47,7 +45,6 @@ function Reports({ isAdmin }) {
             }
             else {
             // if admin - show every user's reports
-                setReports(allReports);
                 const activeReportsList = allReports.filter(report => report.resolved === false);
                 if (activeReportsList.length == 0) {
                     setNoActiveReports(true)
@@ -67,7 +64,7 @@ function Reports({ isAdmin }) {
     };
     
     fetchReports();
-    }, [reports]);
+    }, [isAdmin]);
         
     return (
         <div className='bg-white m-8 p-8 rounded-lg relative'>

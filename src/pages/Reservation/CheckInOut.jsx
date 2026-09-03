@@ -14,7 +14,6 @@ function CheckInOut() {
   const [reservation, setReservation] = useState();
   const [itemsToCheckOut, setItemsToCheckOut] = useState([]);
   const [activeReservation, setActiveReservation] = useState(false);
-  const currentDate = new Date();
   const navigate = useNavigate();
   const [message, setMessage] = useState(null);
 
@@ -227,6 +226,7 @@ function CheckInOut() {
 
   useEffect(() => {
     if (!reservationID) return;
+    const currentDate = new Date();
 
     const fetchReservations = async () => {
       try {

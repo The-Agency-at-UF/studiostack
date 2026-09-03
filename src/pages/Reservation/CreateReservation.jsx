@@ -5,6 +5,53 @@ import { db } from '../../firebase/firebaseConfig';
 import Select from 'react-select';
 import { IoIosAddCircle, IoIosRemoveCircle } from "react-icons/io";
 
+// Helper to normalize time input from various formats to HH:MM
+const normalizeTimeInput = (input) => {
+    if (!input) return null;
+
+    const trimmedInput = input.trim();
+
+    // Handle 24-hour format: "13:30"
+    if (/^\d{1,2}:\d{2}$/.test(trimmedInput)) {
+        const [h, m] = trimmedInput.split(':');
+        const hours = parseInt(h);
+        const mins = parseInt(m);
+        if (hours >= 0 && hours < 24 && mins >= 0 && mins < 60) {
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+    }
+
+    // Handle 12-hour format: "1:30 PM" or "1:30PM"
+    const match = trimmedInput.match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$/);
+    if (match) {
+        let [, h, m, ampm] = match;
+        let hours = parseInt(h);
+        const mins = parseInt(m);
+        const isPM = ampm.toUpperCase() === 'PM';
+
+        if (hours >= 1 && hours <= 12 && mins >= 0 && mins < 60) {
+            if (isPM && hours !== 12) hours += 12;
+            if (!isPM && hours === 12) hours = 0;
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+    }
+
+    return null;
+};
+
+// Centralized validation for start/end date-times
+function validateDateTimes(startDate, startTime, endDate, endTime) {
+    const normalizedStart = normalizeTimeInput(startTime);
+    const normalizedEnd = normalizeTimeInput(endTime);
+    if (!normalizedStart || !normalizedEnd) {
+        return 'Please enter valid times (e.g., "1:30 PM" or "13:30")';
+    }
+    const start = new Date(`${startDate}T${normalizedStart}`);
+    const end = new Date(`${endDate}T${normalizedEnd}`);
+    if (start >= end) return 'Return date must be after checkout date';
+    return '';
+}
+
 function CreateReservation() { 
     const [reservationName, setReservationName] = useState('');
     const [reservationCategory, setReservationCategory] = useState({ value: '', label: '' });
@@ -147,54 +194,6 @@ function CreateReservation() {
                 setDateFilled(true);
             }
         };
-
-    // Helper to normalize time input from various formats to HH:MM
-    const normalizeTimeInput = (input) => {
-        if (!input) return null;
-        
-        // Remove extra spaces
-        input = input.trim();
-        
-        // Handle 24-hour format: "13:30"
-        if (/^\d{1,2}:\d{2}$/.test(input)) {
-            const [h, m] = input.split(':');
-            const hours = parseInt(h);
-            const mins = parseInt(m);
-            if (hours >= 0 && hours < 24 && mins >= 0 && mins < 60) {
-                return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-            }
-        }
-        
-        // Handle 12-hour format: "1:30 PM" or "1:30PM"
-        const match = input.match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$/);
-        if (match) {
-            let [, h, m, ampm] = match;
-            let hours = parseInt(h);
-            const mins = parseInt(m);
-            const isPM = ampm.toUpperCase() === 'PM';
-            
-            if (hours >= 1 && hours <= 12 && mins >= 0 && mins < 60) {
-                if (isPM && hours !== 12) hours += 12;
-                if (!isPM && hours === 12) hours = 0;
-                return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-            }
-        }
-        
-        return null;
-    };
-
-    // Centralized validation for start/end date-times
-    function validateDateTimes(startDate, startTime, endDate, endTime) {
-        const normalizedStart = normalizeTimeInput(startTime);
-        const normalizedEnd = normalizeTimeInput(endTime);
-        if (!normalizedStart || !normalizedEnd) {
-            return 'Please enter valid times (e.g., "1:30 PM" or "13:30")';
-        }
-        const start = new Date(`${startDate}T${normalizedStart}`);
-        const end = new Date(`${endDate}T${normalizedEnd}`);
-        if (start >= end) return 'Return date must be after checkout date';
-        return '';
-    }
 
     const findAvailableEquipment = () => {
         const fullStart = getFullDateTime(reservationStartDate, reservationStartTime);
