@@ -48,23 +48,24 @@ function AddItemPopup({ addItem, categoryList }) {
         <Popup trigger=
             {<div><IoIosAddCircle color='#426276' className='w-10 h-10 cursor-pointer'/></div>} 
             modal nested
-            contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
+            className="workspace-popup"
+            overlayStyle={{ backgroundColor: 'rgba(16, 16, 16, 0.68)'}} >
             {
                 close => (
-                    <div className='modal relative'>
-                        <div className='content p-4 '>
+                    <div className='workspace-modal modal relative'>
+                        <div className='workspace-modal-content content p-4 '>
                             <h1 className='font-bold text-3xl pb-6'>Add Item</h1>
                             <div className='px-5 py-2'>
                                 <input type="text" 
                                     placeholder="Enter Item Name"
-                                    className="border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white" 
+                                    className="workspace-modal-control border-2 border-black-300 focus:outline-none p-2 w-full bg-white"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)} 
                                 />
                             </div>
                             <div className='px-5 py-2'>
                                 <Select
+                                    classNamePrefix="workspace-select"
                                     placeholder="Select Category"
                                     value={selectedCategory}
                                     options={categories}
@@ -75,9 +76,9 @@ function AddItemPopup({ addItem, categoryList }) {
                                 /> 
                             </div>
                         </div>
-                        <div className='actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
+                        <div className='workspace-modal-actions actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md cursor-pointer hover:bg-[#426276] hover:text-white"
+                                className="workspace-modal-submit px-6 py-2 cursor-pointer"
                                 onClick={() => {
                                     addItem(name, category, availability);
                                     // reset variables on submit
@@ -89,8 +90,8 @@ function AddItemPopup({ addItem, categoryList }) {
                                 Submit
                             </button>
                             <IoIosCloseCircle 
-                                color='#426276' 
-                                className='w-10 h-10 absolute top-4 right-4 cursor-pointer' 
+                                color='#2446ff'
+                                className='workspace-modal-close w-10 h-10 absolute cursor-pointer'
                                 onClick={() => {
                                     // reset variables on close
                                     setName('');

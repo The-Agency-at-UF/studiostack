@@ -524,6 +524,165 @@
 .statistics-record { margin-top: 28px; border-top: 1px solid var(--ink); }
 .statistics-record h2 { padding-left: 0 !important; font-family: "Manrope", sans-serif; letter-spacing: -.04em; }
 
+/* Reservation lists and task forms use the same operational hierarchy. */
+.reservations-workspace > div { padding-top: 12px; }
+.reservation-section + .reservation-section { margin-top: 28px; }
+.reservation-heading,
+.reservation-section > h1 {
+  margin: 0;
+  padding: 22px 0 !important;
+  border-bottom: 1px solid var(--ink);
+}
+
+.reservation-heading h1,
+.reservation-section > h1 {
+  margin: 0;
+  padding: 0 !important;
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(30px, 3vw, 44px) !important;
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+
+.reservation-add svg {
+  color: var(--blue) !important;
+  transition: color .18s ease, transform .18s ease;
+}
+
+.reservation-add svg:hover { color: var(--ink) !important; transform: translateY(-2px); }
+
+.workspace-form-layout {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+}
+
+.issue-form .workspace-form-layout { grid-template-columns: 1fr; }
+.workspace-form-column { min-width: 0; }
+.workspace-form-column > div { margin-bottom: 24px; }
+.workspace-form-column > div > div,
+.equipment-picker > div > div { padding-left: 0 !important; padding-right: 0 !important; }
+
+.form-workspace h2,
+.equipment-picker > h1 {
+  margin: 0 0 9px;
+  padding: 0 !important;
+  color: var(--muted);
+  font-family: "Inter", sans-serif;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.form-workspace input:not([type="checkbox"]):not(.workspace-select__input),
+.form-workspace select,
+.workspace-modal-control {
+  min-height: 52px;
+  padding: 13px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  transition: border-color .18s ease;
+}
+
+.form-workspace input:not(.workspace-select__input):focus,
+.form-workspace select:focus,
+.workspace-modal-control:focus { border-color: var(--blue) !important; }
+
+.issue-form textarea {
+  min-height: 220px;
+  padding: 16px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  background: transparent;
+  resize: vertical;
+}
+
+.issue-form textarea:focus { border-color: var(--blue) !important; }
+
+.workspace-select__control {
+  min-height: 52px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.workspace-select__control:hover,
+.workspace-select__control--is-focused { border-color: var(--blue) !important; }
+.form-workspace .workspace-select__input,
+.workspace-modal .workspace-select__input { min-height: 0 !important; padding: 0 !important; border: 0 !important; }
+.workspace-select__indicator-separator { background: var(--line) !important; }
+.workspace-select__menu { z-index: 20 !important; border: 1px solid var(--ink); border-radius: 0 !important; box-shadow: 8px 8px 0 rgba(16,16,16,.09) !important; }
+.workspace-select__option { font-size: 13px !important; }
+.workspace-select__option--is-focused { color: white !important; background: var(--blue) !important; }
+
+.workspace-primary-action,
+.workspace-modal-submit {
+  min-height: 48px;
+  padding: 0 24px !important;
+  border: 0;
+  border-radius: 0 !important;
+  color: white;
+  background: var(--ink) !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transition: background .18s ease, transform .18s ease;
+}
+
+.workspace-primary-action:hover,
+.workspace-modal-submit:hover { background: var(--blue) !important; transform: translateY(-2px); }
+.form-workspace > div:first-child > div { border-radius: 0 !important; }
+
+/* Shared modal treatment for team, inventory, and user management. */
+.workspace-popup-content {
+  width: min(720px, calc(100vw - 32px)) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: white !important;
+  box-shadow: 14px 14px 0 rgba(16,16,16,.18) !important;
+}
+
+.workspace-popup-overlay { backdrop-filter: blur(3px); }
+.workspace-modal {
+  border-top: 5px solid var(--blue);
+  animation: workspace-modal-in .22s ease-out both;
+}
+
+.workspace-modal-content { padding: 30px 32px 18px !important; }
+.workspace-modal-content h1 {
+  margin: 0 0 24px;
+  padding: 0 68px 20px 0 !important;
+  border-bottom: 1px solid var(--ink);
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(32px, 4vw, 46px) !important;
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+
+.workspace-modal-content > div { padding-left: 0 !important; padding-right: 0 !important; }
+.workspace-modal-check { position: relative; min-height: 34px; padding-bottom: 0 !important; cursor: pointer; }
+.workspace-modal-check input { position: absolute; opacity: 0 !important; }
+.workspace-modal-check svg { flex: 0 0 auto; }
+.workspace-modal-actions { justify-content: flex-end !important; padding: 0 32px 30px !important; }
+.workspace-modal-close { top: 26px !important; right: 28px !important; color: var(--blue) !important; transition: color .18s ease, transform .18s ease; }
+.workspace-modal-close:hover { color: var(--ink) !important; transform: rotate(90deg); }
+.workspace-modal-destructive { border-top-color: #e43d30; }
+.workspace-modal-destructive .workspace-modal-submit { background: #e43d30 !important; }
+.workspace-modal-destructive .workspace-modal-submit:hover { background: var(--ink) !important; }
+
+@keyframes workspace-modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .sticky-footer {
   width: 100%;
   min-height: 46px;
@@ -570,6 +729,7 @@
   .dashboard-grid .dashboard-panel + .dashboard-panel { border-left: 1px solid var(--line); }
   .student-dash-grid { gap: 34px; }
   .statistics-overview, .statistics-grid { grid-template-columns: 1fr; }
+  .workspace-form-layout { grid-template-columns: 1fr; }
   .login-page { grid-template-columns: 1fr; }
   .login-statement { min-height: 62vh; }
 }
@@ -590,11 +750,16 @@
   .sticky-footer { justify-content: center; }
   .app-content > div > .bg-white { margin: 16px 14px !important; padding: 24px 18px !important; box-shadow: 6px 6px 0 rgba(16,16,16,.07); }
   .workspace-surface > div:first-child > h1 { margin-bottom: 24px; padding-right: 72px !important; font-size: 36px !important; }
+  .form-workspace > div:first-child > h1 { padding-right: 0 !important; }
   .workspace-actions { top: 28px !important; right: 24px !important; }
   .workspace-actions svg { width: 32px !important; height: 32px !important; }
   .inventory-filters { align-items: flex-start; flex-direction: column; }
   .filter-chip { width: 100%; text-align: left; }
   .statistics-chart { padding: 20px 14px !important; }
+  .workspace-modal-content { padding: 26px 22px 16px !important; }
+  .workspace-modal-actions { padding: 0 22px 24px !important; }
+  .workspace-modal-close { top: 22px !important; right: 20px !important; }
+  .reservation-time-row { flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

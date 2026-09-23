@@ -228,7 +228,7 @@ function Report({ userEmail }) {
  }
   
   return (
-    <div className='bg-white m-8 p-8 rounded-lg relative'>
+    <div className='workspace-surface form-workspace issue-form bg-white m-8 p-8 rounded-lg relative'>
         <div className='pl-2 pr-2'>
             <h1 className='font-bold text-3xl pb-6'>Report an Issue</h1>
             {alertMessage && (
@@ -238,12 +238,13 @@ function Report({ userEmail }) {
                 </div>
             )}
             </div>
-        <div className='flex flex-wrap'>
-            <div className='flex-auto'>
+        <div className='workspace-form-layout flex flex-wrap'>
+            <div className='workspace-form-column flex-auto'>
                 <div>
                     <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Subject:</h2>
                     <div className='pl-2 py-2'>
                     <Select
+                        classNamePrefix="workspace-select"
                         placeholder="Select Issue..."
                         value={selectedSubject}
                         options={subjectDropdown}
@@ -258,6 +259,7 @@ function Report({ userEmail }) {
                     <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item Name:</h2>
                     <div className='pl-2 py-2'>
                         <Select
+                            classNamePrefix="workspace-select"
                             placeholder="Select Item Name..."
                             value={selectedItem}
                             options={itemDropdown}
@@ -272,6 +274,7 @@ function Report({ userEmail }) {
                     <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item ID:</h2>
                     <div className='pl-2 py-2' onClick={checkItemSelection}>
                         <Select
+                            classNamePrefix="workspace-select"
                             placeholder="Select Item ID..."
                             value={selectedItemId}
                             options={itemIdDropdown}
@@ -287,6 +290,7 @@ function Report({ userEmail }) {
                 <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Reported By:</h2>
                 <div className='pl-2 py-2'>
                     <Select
+                        classNamePrefix="workspace-select"
                         placeholder="Select User..."
                         value={selectedReportedBy}
                         options={userDropdown}
@@ -312,7 +316,7 @@ function Report({ userEmail }) {
         </div>
         <div className='flex justify-center'>
             <button 
-                className="px-6 py-2 bg-[#A3C1E0] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
+                className="workspace-primary-action px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
                 onClick={() => {
                     handleSubmit();
                     setItemtoReported(itemId);
