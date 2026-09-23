@@ -20,3 +20,6 @@ dist/
 # Local environment variables
 .env
 .env.*
+
+# Local agent context (not tracked)
+AGENTS.md
