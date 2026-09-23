@@ -68,7 +68,6 @@ function StudentDash() {
     <div className="student-dash">
         <div className="control-panel-heading">
           <div><p className="eyebrow">Your production desk</p><h2>Welcome, Student!</h2></div>
-          <span className="live-indicator"><i /> Live</span>
         </div>
         <div className="student-dash-grid">
                 <div className="calendar-well">

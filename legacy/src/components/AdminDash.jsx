@@ -75,7 +75,6 @@ function AdminDash() {
     <div className="admin-dash">
         <div className="control-panel-heading">
           <div><p className="eyebrow">Command center</p><h2>Welcome, Admin!</h2></div>
-          <span className="live-indicator"><i /> Live</span>
         </div>
         <div className="admin-dash-grid">
           <div className="notification-well">
