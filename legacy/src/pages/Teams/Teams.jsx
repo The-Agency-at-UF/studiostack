@@ -54,7 +54,7 @@ function Teams({ isAdmin }) {
     }
 
     return (
-        <div className='bg-white m-8 p-8 rounded-lg relative'>
+        <div className='workspace-surface teams-workspace bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl md:text-3xl pb-6'>Teams</h1>
                 {message && (
@@ -65,13 +65,13 @@ function Teams({ isAdmin }) {
                 )}
                 {
                   isAdmin && 
-                    <div className="absolute top-8 right-8 flex space-x-4">
+                    <div className="workspace-actions absolute top-8 right-8 flex space-x-4">
                         <AddTeamPopup addTeam={addTeam}/>
                         <RemoveTeamPopup removeTeam={removeTeam} listOfTeams={teams.map(team => team.name)}/>
                   </div>
                 }
             </div>
-            <div className="p-4">
+            <div className="workspace-table p-4">
                 <div className="flex py-2 font-semibold">
                     <div className="flex-1 pl-4">Name</div>
                     <div className="flex-1 pr-4 sm:pr-0 sm:text-left text-right">Type</div>

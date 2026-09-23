@@ -53,10 +53,22 @@ function LogIn({ setEmail, setIsAdmin }) {
     }, [setEmail, setIsAdmin]);
 
     return (
-        <div className="bg-[#426276] h-screen text-black flex flex-col items-center justify-center">
-            <img src={logo} className="pb-8" alt="StudioStack by The Agency"/>
-            <img src={googleSignIn} onClick={handleClick} alt="Sign In with Google"/>
-            {error && <p className="text-white">{error}</p>}
+        <div className="login-page">
+          <div className="login-statement">
+            <p className="eyebrow">The Agency at UF / Production operations</p>
+            <h1>Gear ready.<br/><em>Ideas rolling.</em></h1>
+            <p>One place to book, track, and return the tools behind the work.</p>
+          </div>
+          <div className="login-panel">
+            <img src={logo} className="login-logo" alt="StudioStack by The Agency"/>
+            <div>
+              <p className="eyebrow">Authorized access</p>
+              <h2>Enter the studio.</h2>
+              <img src={googleSignIn} className="google-sign-in" onClick={handleClick} alt="Sign In with Google"/>
+              {error && <p className="login-error">{error}</p>}
+            </div>
+            <small>For approved students and production staff.</small>
+          </div>
         </div>
     );
 }

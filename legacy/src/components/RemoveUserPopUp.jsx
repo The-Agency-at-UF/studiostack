@@ -73,15 +73,16 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
         <Popup trigger=
             {<div><IoIosRemoveCircle color='#EB3223' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer' /></div>} 
             modal nested
-            contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
-            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
+            className="workspace-popup"
+            overlayStyle={{ backgroundColor: 'rgba(16, 16, 16, 0.68)'}} >
             {
                 close => (
-                    <div className='modal relative'>
-                        <div className='content p-4'>
+                    <div className='workspace-modal workspace-modal-destructive modal relative'>
+                        <div className='workspace-modal-content content p-4'>
                             <h1 className='font-bold text-2xl sm:text-3xl pb-6'>Remove User</h1>
                             <div className='px-5 pt-2'>
                                 <Select
+                                    classNamePrefix="workspace-select"
                                     value={selectedOption}
                                     options={options}
                                     isClearable={true}
@@ -91,9 +92,9 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
                                 /> 
                             </div>            
                         </div>
-                        <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
+                        <div className='workspace-modal-actions text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:scale-110 hover:cursor-pointer"
+                                className="workspace-modal-submit px-6 py-2 hover:cursor-pointer"
                                 onClick={() => {
                                     handleSubmit();
                                     close(); 
@@ -101,8 +102,8 @@ function RemoveUserPopup({ removeEmail, listOfEmails }) {
                                 Submit
                             </button>
                             <IoIosCloseCircle 
-                                color='#426276' 
-                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:scale-110 hover:cursor-pointer' 
+                                color='#2446ff'
+                                className='workspace-modal-close w-8 h-8 sm:w-10 sm:h-10 absolute hover:cursor-pointer'
                                 onClick={() => {
                                     setSelectedOption(null);
                                     close();

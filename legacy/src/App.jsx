@@ -21,9 +21,9 @@ import './App.css';
 const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 hour
 
 const App = () => {
-  //email that the user logged in with
-  const [email, setEmail] = useState(localStorage.getItem("email") || '');
-  const [isAdmin, setIsAdmin] = useState(localStorage.getItem("isAdmin") === 'true' || false);
+  //email that the user logged in with (defaults to demo user to bypass login)
+  const [email, setEmail] = useState(localStorage.getItem("email") || 'demo@studiostack.com');
+  const [isAdmin, setIsAdmin] = useState(localStorage.getItem("isAdmin") !== 'false');
 
   //reset local storage and sign out after inactivity
   //TO DO: this should be passed to the navbar
@@ -68,18 +68,14 @@ const App = () => {
     };
   }, [resetInactivityTimer]);
 
-  //if they havent logged in yet, send them to the login page
-  if (!email) {
-    return <LogIn setEmail={setEmail} setIsAdmin={setIsAdmin}/>
-  }
-
   //regular paths of the website
   return (
     <Router>
       <Header isAdmin={isAdmin} logOut={logOut}/>
-      <div className="pb-16">
+      <div className="app-content">
         <Routes>
           <Route path="" element={<Dashboard isAdmin={isAdmin} />} />
+          <Route path="/login" element={<LogIn setEmail={setEmail} setIsAdmin={setIsAdmin}/>} />
           <Route path="/inventory" element={<Inventory isAdmin={isAdmin}/>} />
           <Route path="/teams" element={<Teams isAdmin={isAdmin}/>} />
           <Route path="/reports" element={<Reports isAdmin={isAdmin}/>} />
@@ -94,6 +90,7 @@ const App = () => {
         </Routes>
       </div>
       <footer className="sticky-footer">
+        <span className="footer-status"><i /> Studio operations online</span>
         <BugReportPopup userEmail={email} />
       </footer>
     </Router>

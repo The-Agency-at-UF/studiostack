@@ -63,7 +63,7 @@ const Calendar = ({ isAdmin }) => {
   }, []);
 
   return (
-    <div className="m-8 bg-white p-8 rounded-md">
+    <div className="workspace-surface calendar-workspace m-8 bg-white p-8 rounded-md">
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
@@ -80,7 +80,7 @@ const Calendar = ({ isAdmin }) => {
         eventClick={handleEventClick}
       />
 
-      <div className="mt-8 sm:p-4">
+      <div className="calendar-selection mt-8 sm:p-4">
         {selectedReservation && (
           <div>
             <div>

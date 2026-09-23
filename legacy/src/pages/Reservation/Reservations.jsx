@@ -106,7 +106,7 @@ function Reservations() {
 
   return (
     <div>
-      <div className="bg-white m-8 p-8 rounded-lg">
+      <div className="workspace-surface reservations-workspace bg-white m-8 p-8 rounded-lg">
         <div className="pl-2 pr-2">
           <div>
             {notifications.map((notification, index) => (
@@ -121,12 +121,12 @@ function Reservations() {
             ))}
           </div>
 
-          <div>
-            <div className="flex justify-between items-center pt-4">
+          <div className="reservation-section">
+            <div className="reservation-heading flex justify-between items-center pt-4">
               <h1 className="font-bold text-2xl md:text-3xl pb-6">
                 Active Reservations
               </h1>
-              <div className="hover:scale-110 hover:cursor-pointer">
+              <div className="reservation-add hover:cursor-pointer">
                 <IoIosAddCircle
                   color="#426276"
                   className="w-8 h-8 sm:w-10 sm:h-10"
@@ -136,7 +136,7 @@ function Reservations() {
             </div>
             {activeReservations.length === 0 ? (
               <div className="border-t">
-                <p className="mt-4">You have no active reservations!</p>
+                <p className="workspace-empty mt-4">You have no active reservations!</p>
               </div>
             ) : (
               <div className="w-full">
@@ -150,13 +150,13 @@ function Reservations() {
               </div>
             )}
           </div>
-          <div>
+          <div className="reservation-section">
             <h1 className="font-bold text-2xl md:text-3xl py-6">
               Past Reservations
             </h1>
             {pastReservations.length === 0 ? (
               <div className="border-t">
-                <p className="mt-4">You have no past reservations!</p>
+                <p className="workspace-empty mt-4">You have no past reservations!</p>
               </div>
             ) : (
               <div className="w-full">

@@ -67,16 +67,16 @@ function Reports({ isAdmin }) {
     }, [isAdmin]);
         
     return (
-        <div className='bg-white m-8 p-8 rounded-lg relative'>
+        <div className='workspace-surface reports-workspace bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
-                <div className='absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4'>
+                <div className='workspace-actions absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4'>
                     <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => navigate('/create-report')}/>
                 </div>
-                <div>
+                <div className='report-section'>
                     <h1 className='font-bold text-2xl md:text-3xl pb-6 border-b'>Active Reports</h1>
                     <div className='w-full'>
                         { noActiveReports ? 
-                            <p className='mt-4'>You have no active reports!</p> 
+                            <p className='workspace-empty mt-4'>You have no active reports!</p>
                         :
                         <div>
                             {activeReports.map((report, index) => (
@@ -86,11 +86,11 @@ function Reports({ isAdmin }) {
                         }
                     </div>
                 </div>
-                <div>
+                <div className='report-section'>
                     <h1 className='font-bold text-2xl md:text-3xl py-6 border-b'>Resolved Reports</h1>
                     <div className='w-full'>
                     { noResolvedReports ? 
-                        <p className='mt-4'>You have no resolved reports!</p> 
+                        <p className='workspace-empty mt-4'>You have no resolved reports!</p>
                     :
                     <div>
                         {resolvedReports.map((report, index) => (
