@@ -59,7 +59,7 @@ function BarGraph({ data, colors, title, fullData }) {
     }, [data]);
 
     return (
-        <div className="pt-8">
+        <div className="statistics-chart pt-8">
             <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">{title}: {setting}</h2>
             <div className="flex flex-col sm:flex-row items-center sm:items-center">
                 <div>
@@ -86,7 +86,7 @@ function BarGraph({ data, colors, title, fullData }) {
                     ))}
                 </div>
             </div>
-            <div className='sm:pl-6 text-white text-sm sm:text-base pt-2 sm:pt-0'>
+            <div className='chart-range sm:pl-6 text-white text-sm sm:text-base pt-2 sm:pt-0'>
                 <button 
                 className='bg-[#426276] rounded-l-md border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 30 Days')}
