@@ -1,7 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import Popup from 'reactjs-popup';
-import { getDocs, collection, doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase/firebaseConfig';
+import { db, getDocs, collection, doc, setDoc } from '../data/localStore';
 import { IoIosCloseCircle } from "react-icons/io";
 
 function ExtendReservationPopup({ handleEdit, reservation, reservationID }) {

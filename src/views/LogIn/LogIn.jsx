@@ -1,43 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { getAuth, setPersistence, signInWithPopup, browserSessionPersistence, GoogleAuthProvider } from "firebase/auth";
-import { db } from '../../firebase/firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import React, { useEffect } from "react";
 import logo from '../../assets/studioByAgency.png';
-import googleSignIn from '../../assets/googleSignIn.png';
 
 function LogIn({ setEmail, setIsAdmin }) {
-    const [error, setError] = useState(null);
-
-    //signs in with Google and checks if the email exists in the database
-    const handleClick = async () => {
-        try {
-            const auth = getAuth();
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({
-                prompt: "select_account",
-            });
-
-            await setPersistence(auth, browserSessionPersistence);
-
-            const data = await signInWithPopup(auth, provider);
-            const email = data.user.email;
-
-            //check if the email exists in the 'users' collection in Firestore
-            const userRef = doc(db, "users", email);
-            const userDoc = await getDoc(userRef);
-
-            if (userDoc.exists()) {
-                setEmail(email);
-                setIsAdmin(userDoc.data().isAdmin);
-                localStorage.setItem("email", email);
-                localStorage.setItem("isAdmin", userDoc.data().isAdmin);
-            } else {
-                setError('Unable to authorize your email. Please contact the production department manager.');
-            }
-        } catch (err) {
-            console.error('Error during sign-in:', err);
-            setError('Sign-in failed, please try again.');
-        }
+    const handleClick = () => {
+        const email = 'demo@studiostack.com';
+        setEmail(email);
+        setIsAdmin(true);
+        localStorage.setItem('email', email);
+        localStorage.setItem('isAdmin', 'true');
     };
 
     //checks if the email and isAdmin are stored in the local storage
@@ -64,8 +34,7 @@ function LogIn({ setEmail, setIsAdmin }) {
             <div>
               <p className="eyebrow">Authorized access</p>
               <h2>Enter the studio.</h2>
-              <img src={googleSignIn.src ?? googleSignIn} className="google-sign-in" onClick={handleClick} alt="Sign In with Google"/>
-              {error && <p className="login-error">{error}</p>}
+              <button type="button" className="google-sign-in" onClick={handleClick}>Continue to StudioStack</button>
             </div>
             <small>For approved students and production staff.</small>
           </div>

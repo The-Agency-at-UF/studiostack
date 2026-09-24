@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import Statistics from './Statistics';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDocs } from 'firebase/firestore';
+import { getDocs } from '../../data/localStore';
 
 // Mock Recharts to avoid issues in JSDOM
 vi.mock('recharts', () => ({

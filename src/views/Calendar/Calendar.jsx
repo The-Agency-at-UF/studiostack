@@ -3,8 +3,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { getDocs, collection } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
+import { db, getDocs, collection } from '../../data/localStore';
 
 const Calendar = ({ isAdmin }) => {
   const [reservations, setReservations] = useState([]);

@@ -1,6 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
+import { db, collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from '../../data/localStore';
 import AddItemPopup from '../../components/AddItemPopup';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
 import QRCodeGenerator from '../../components/QRCodeGenerator';

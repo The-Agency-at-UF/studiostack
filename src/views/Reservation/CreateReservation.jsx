@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getDocs, collection, doc, addDoc, setDoc, arrayUnion } from 'firebase/firestore';
+import { db, getDocs, collection, doc, addDoc, setDoc, arrayUnion } from '../../data/localStore';
 import { useRouter } from 'next/navigation';
-import { db } from '../../firebase/firebaseConfig';
 import Select from 'react-select';
 import { IoIosAddCircle, IoIosRemoveCircle } from "react-icons/io";
 

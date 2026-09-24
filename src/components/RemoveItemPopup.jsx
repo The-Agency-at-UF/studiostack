@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Popup from 'reactjs-popup';
 import Select from 'react-select';
 import { IoIosRemoveCircle, IoIosCloseCircle } from "react-icons/io";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import { db, collection, query, where, getDocs } from '../data/localStore';
 
 function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
     const [selectedID, setSelectedID] = useState('');

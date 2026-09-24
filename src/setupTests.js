@@ -18,21 +18,9 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
 });
 
-// Mock Firebase App and Analytics
-vi.mock('firebase/app', () => ({
-  getApp: vi.fn(() => ({})),
-  getApps: vi.fn(() => []),
-  initializeApp: vi.fn(() => ({})),
-}));
-
-vi.mock('firebase/analytics', () => ({
-  getAnalytics: vi.fn(() => ({})),
-  isSupported: vi.fn().mockResolvedValue(false),
-}));
-
-// Mock Firestore globally to avoid initialization issues
-vi.mock('firebase/firestore', () => ({
-  getFirestore: vi.fn(),
+// Mock the local data adapter globally to keep component tests deterministic.
+vi.mock('./data/localStore', () => ({
+  db: {},
   collection: vi.fn((db, path) => ({ _path: { segments: [path] } })),
   query: vi.fn((ref) => ref),
   orderBy: vi.fn(),
@@ -44,19 +32,7 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: vi.fn(),
   deleteDoc: vi.fn(),
   doc: vi.fn((db, path, id) => ({ _path: { segments: [path, id].filter(Boolean) }, id })),
-  serverTimestamp: vi.fn(),
+  serverTimestamp: vi.fn(() => ({ toDate: () => new Date() })),
+  arrayUnion: vi.fn((...values) => values),
+  where: vi.fn(),
 }));
-
-// Mock Auth
-vi.mock('firebase/auth', () => {
-  const mockProvider = vi.fn();
-  mockProvider.prototype.setCustomParameters = vi.fn();
-
-  return {
-    getAuth: vi.fn(),
-    signInWithPopup: vi.fn(),
-    GoogleAuthProvider: mockProvider,
-    setPersistence: vi.fn(),
-    browserSessionPersistence: 'browserSessionPersistence',
-  };
-});

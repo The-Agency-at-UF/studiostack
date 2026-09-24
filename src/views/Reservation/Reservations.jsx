@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { getDocs, collection, deleteDoc, doc } from "firebase/firestore";
+import { db, getDocs, collection, deleteDoc, doc } from '../../data/localStore';
 import { IoIosAddCircle } from "react-icons/io";
 import { useRouter } from "next/navigation";
-import { db } from "../../firebase/firebaseConfig";
 import ReservationLabel from "../../components/ReservationLabel";
 import StudentNotification from "../../components/StudentNotification";
 import ConfirmationPopup from "../../components/ConfirmationPopup";

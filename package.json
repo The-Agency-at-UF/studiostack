@@ -20,7 +20,6 @@
     "@fullcalendar/timegrid": "^6.1.15",
     "@tailwindcss/postcss": "^4.0.3",
     "bwip-js": "^4.5.1",
-    "firebase": "^11.2.0",
     "fullcalendar": "^6.1.15",
     "hamburger-react": "^2.5.2",
     "html5-qrcode": "^2.3.8",
