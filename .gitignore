@@ -11,14 +11,20 @@ out/
 *.log
 .cache/
 
-# Firebase CLI cache and local emulator files
-.firebase/
-
 # IDE and OS files
 .DS_Store
 .idea/
 .vscode/
 
-# Local environment variables
+# Local environment variables and credentials
 .env
 .env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+credentials*.json
+service-account*.json

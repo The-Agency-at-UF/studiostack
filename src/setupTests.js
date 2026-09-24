@@ -18,16 +18,11 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
 });
 
-// Mock Firebase App and Analytics
+// Mock Firebase App
 vi.mock('firebase/app', () => ({
   getApp: vi.fn(() => ({})),
   getApps: vi.fn(() => []),
   initializeApp: vi.fn(() => ({})),
-}));
-
-vi.mock('firebase/analytics', () => ({
-  getAnalytics: vi.fn(() => ({})),
-  isSupported: vi.fn().mockResolvedValue(false),
 }));
 
 // Mock Firestore globally to avoid initialization issues
