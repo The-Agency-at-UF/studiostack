@@ -1,7 +1,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import Calendar from './Calendar';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDocs } from 'firebase/firestore';
+import { getDocs } from '../../data/localStore';
 
 // Mock FullCalendar
 vi.mock('@fullcalendar/react', () => ({

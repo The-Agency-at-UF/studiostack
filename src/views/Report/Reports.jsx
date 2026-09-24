@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { getDocs, collection } from 'firebase/firestore';
+import { db, getDocs, collection } from '../../data/localStore';
 import { IoIosAddCircle } from "react-icons/io";
 import { useRouter } from 'next/navigation';
-import { db } from '../../firebase/firebaseConfig';
 import ReportLabel from '../../components/ReportLabel';
 
 function Reports({ isAdmin }) {

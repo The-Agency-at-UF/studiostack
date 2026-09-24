@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import Users from './Users';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDocs } from 'firebase/firestore';
+import { getDocs } from '../../data/localStore';
 
 // Mock components
 vi.mock('../../components/AddUserPopup', () => ({

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/firebaseConfig';
+import { db, collection, getDocs, doc, updateDoc } from '../data/localStore';
 import Calendar from 'react-calendar'
 import StudentNotification from './StudentNotification';
 

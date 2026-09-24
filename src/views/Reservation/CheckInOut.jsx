@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getDoc, doc, setDoc, deleteDoc } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
+import { db, getDoc, doc, setDoc, deleteDoc } from '../../data/localStore';
 import CheckOutInPopUp from "../../components/CheckOutInPopUp";
 import ConfirmationPopup from "../../components/ConfirmationPopup";
 import ExtendReservationPopup from "../../components/ExtendReservationPopup";

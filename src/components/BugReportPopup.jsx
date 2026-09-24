@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Popup from "reactjs-popup";
 import { IoIosCloseCircle, IoIosBug } from "react-icons/io";
-import { db } from "../firebase/firebaseConfig";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 
 function BugReportPopup({ userEmail }) {
   const pathname = usePathname();

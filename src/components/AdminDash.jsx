@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/firebaseConfig';
+import { db, collection, getDocs, doc, updateDoc } from '../data/localStore';
 import AdminNotification from './AdminNotification';
 import { HiOutlineArrowUpRight } from "react-icons/hi2";
 

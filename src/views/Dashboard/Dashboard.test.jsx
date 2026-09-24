@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import Dashboard from './Dashboard';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDocs } from 'firebase/firestore';
+import { getDocs } from '../../data/localStore';
 
 // Mock child components to simplify testing
 vi.mock('../../components/AdminDash', () => ({

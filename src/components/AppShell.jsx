@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { getAuth, signOut } from 'firebase/auth'
 import Header from './Header'
 import { AppSessionProvider } from '../context/AppSessionContext'
 
@@ -19,15 +18,9 @@ export default function AppShell({ children }) {
   }, [])
 
   const logOut = useCallback(async () => {
-    try {
-      await signOut(getAuth())
-    } catch (error) {
-      console.error('Error signing out: ', error)
-    } finally {
-      localStorage.removeItem('email')
-      localStorage.removeItem('isAdmin')
-      window.location.assign('/')
-    }
+    localStorage.removeItem('email')
+    localStorage.removeItem('isAdmin')
+    window.location.assign('/')
   }, [])
 
   useEffect(() => {

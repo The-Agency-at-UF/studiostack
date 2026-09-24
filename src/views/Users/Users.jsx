@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { getDocs, collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../firebase/firebaseConfig';
+import { db, getDocs, collection, doc, setDoc, deleteDoc } from '../../data/localStore';
 import AddUserPopup from '../../components/AddUserPopup';
 import RemoveUserPopup from '../../components/RemoveUserPopUp';
 import ConfirmationPopup from "../../components/ConfirmationPopup";

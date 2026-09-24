@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { getDocs, collection } from 'firebase/firestore';
-import { db } from '../../firebase/firebaseConfig';
+import { db, getDocs, collection } from '../../data/localStore';
 import StudentDash from "../../components/StudentDash";
 import AdminDash from "../../components/AdminDash";
 import UpcomingReservationLabel from '../../components/UpcomingReservationLabel';

@@ -1,6 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { collection, getDocs, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
+import { db, collection, getDocs, addDoc, serverTimestamp, doc, updateDoc } from '../../data/localStore';
 import Select from 'react-select';
 
 // types of issues/subjects

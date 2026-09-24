@@ -1,7 +1,6 @@
 import React, {useState, useEffect} from 'react'
-import { getDoc, doc, serverTimestamp, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { db, getDoc, doc, serverTimestamp, updateDoc, collection, query, where, getDocs } from '../../data/localStore';
 import { useSearchParams } from "next/navigation";
-import { db } from "../../firebase/firebaseConfig";
 import ResolvedLabel from '../../components/ResolvedLabel';
 
 function ReportSummary({ isAdmin, userEmail }) {

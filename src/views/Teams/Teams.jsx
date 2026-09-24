@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase/firebaseConfig';
+import { db, collection, doc, setDoc, deleteDoc, onSnapshot } from '../../data/localStore';
 import AddTeamPopup from '../../components/AddTeamPopup';
 import RemoveTeamPopup from '../../components/RemoveTeamPopup';
 

@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Inventory from './Inventory';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { onSnapshot } from 'firebase/firestore';
+import { onSnapshot } from '../../data/localStore';
 
 // Mock specific behavior for this test file
 vi.mocked(onSnapshot).mockImplementation((q, callback) => {
@@ -30,7 +30,7 @@ describe('Inventory', () => {
     vi.clearAllMocks();
   });
 
-  it('renders inventory items from firebase', async () => {
+  it('renders inventory items from the local data source', async () => {
     render(<Inventory isAdmin={false} />);
     await waitFor(() => {
       expect(screen.getByText('Camera')).toBeInTheDocument();

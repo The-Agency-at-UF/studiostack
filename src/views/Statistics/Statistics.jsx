@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Label, Tooltip } from 'recharts';
-import { getDocs, collection } from 'firebase/firestore';
-import { db } from '../../firebase/firebaseConfig';
+import { db, getDocs, collection } from '../../data/localStore';
 import BarGraph from '../../components/BarGraph';
 
 const Statistics = () => {

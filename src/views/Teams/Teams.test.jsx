@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import Teams from './Teams';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { onSnapshot } from 'firebase/firestore';
+import { onSnapshot } from '../../data/localStore';
 
 // Mock components
 vi.mock('../../components/AddTeamPopup', () => ({
