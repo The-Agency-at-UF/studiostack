@@ -6,6 +6,7 @@ Production operations, equipment reservations, and inventory management for The 
 
 - [What is StudioStack?](#what-is-studiostack)
 - [Project outline](#project-outline)
+- [Project documentation](#project-documentation)
 - [What the application does today](#what-the-application-does-today)
 - [Pages and access](#pages-and-access)
 - [Tech stack](#tech-stack)
@@ -35,6 +36,10 @@ The active web application is built with Next.js and React. The repository also 
 - Internal and client teams coordinating project resources
 
 **Current project status:** The web interface and automated quality checks are active. The persistent backend and institutional authentication integrations are being developed separately from the UI.
+
+## Project documentation
+
+Start with the [documentation index](docs/README.md) for maintained product requirements, Agency brand guidance, and the previous senior-project handoffs.
 
 ## What the application does today
 
@@ -89,6 +94,7 @@ The active web application is built with Next.js and React. The repository also 
 studiostack/
 ├── .github/workflows/   # Pull-request and main-branch automation
 ├── app/                 # Next.js routes and layouts
+├── docs/                # Product, brand, and historical documentation
 ├── public/              # Static public assets
 ├── src/
 │   ├── assets/          # Application images and brand assets
