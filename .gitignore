@@ -1,0 +1,24 @@
+# Node modules
+node_modules/
+
+# Build output
+build/
+dist/
+.next/
+out/
+
+# Logs and caches
+*.log
+.cache/
+
+# Firebase CLI cache and local emulator files
+.firebase/
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment variables
+.env
+.env.*

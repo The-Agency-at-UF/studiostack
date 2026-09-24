@@ -1,0 +1,152 @@
+import React, {useState, useEffect} from 'react'
+import { collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../firebase/firebaseConfig";
+import AddItemPopup from '../../components/AddItemPopup';
+import RemoveItemPopup from '../../components/RemoveItemPopup';
+import QRCodeGenerator from '../../components/QRCodeGenerator';
+import { IoIosAlert } from "react-icons/io";
+import { IoIosCheckmarkCircle } from "react-icons/io";
+
+function Inventory({ isAdmin }) {
+  const [inventory, setInventory] = useState([]);
+  const [filteredList, setFilteredList] = useState([]);
+  const inventoryCollectionRef = collection(db, "inventory");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [message, setMessage] = useState(null);
+
+  // categories for a dropdown
+  const categoryList = ["Camera & Accessories", "Audio", "Lights", "Production Design", "Cables & Cords", "Miscellaneous"];
+
+  // filter functionality
+  const handleFilter = async (category) => {
+    const filtered = inventory.filter(item => item.category === category);
+    setFilteredList(filtered);
+  }
+
+  // search functionality, filtering by name
+  const handleSearch = async (e) => {
+    setSearchTerm(e);
+    const filtered = inventory.filter(item => item.name.toLowerCase().includes(e.toLowerCase()));
+    setFilteredList(filtered);
+  }
+
+  // show all inventory items
+  const showAll = async () => {
+    const all = inventory;
+    setFilteredList(all);
+  }
+
+  // retrive all inventory items
+  useEffect(() => {
+    // listens and updates in real time, ordered by most recently added
+    const q = query(inventoryCollectionRef, orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      // get items from the inventory collection
+      const items = snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
+      setInventory(items);
+      setFilteredList(items);
+    });
+    return unsubscribe;
+  }, []);
+
+  // adds item to database
+  const addItem = (name, category, availability) => {
+    try {
+      addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability, timestamp: serverTimestamp() });
+      setMessage({ text: "Item added successfully.", type: "success" });
+    }
+    catch(error) {
+      setMessage({ text: "Error adding item.", type: "error" });
+      console.log("Error adding item to inventory:", error);
+    }
+  }
+
+  // remove item from database
+  const removeItem = (itemID) => {
+    try {
+      deleteDoc(doc(db, "inventory", itemID));
+      setMessage({ text: "Item removed successfully.", type: "success" });
+    }
+    catch(error) {
+      setMessage({ text: "Error removing item.", type: "error" });
+      console.log("Error removing item from inventory:", error);
+    }
+  }
+
+  return (
+    <div>
+      <div className='workspace-surface inventory-workspace bg-white m-8 p-8 rounded-lg relative'>
+            <div className='pl-2 pr-2'>
+                <h1 className='font-bold text-3xl pb-6'>Inventory</h1>
+                {message && (
+                    <div className={`p-4 mb-4 rounded ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                        {message.text}
+                        <button onClick={() => setMessage(null)} className="float-right font-bold">×</button>
+                    </div>
+                )}
+                {
+                  isAdmin &&
+                    <div className="workspace-actions absolute top-8 right-8 flex space-x-4">
+                      <AddItemPopup addItem={addItem} categoryList={categoryList}/>
+                      <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
+                  </div>
+                }
+            </div>
+            <div className='pl-2 pr-2'>
+              <div className="inventory-filters font-light">Sort by:
+              <button onClick={() => showAll()} className='filter-chip'>All</button>
+              <button onClick={() => handleFilter('Camera & Accessories')} className='filter-chip'>Camera & Accessories</button>
+              <button onClick={() => handleFilter('Lights')} className='filter-chip'>Lights</button>
+              <button onClick={() => handleFilter('Production Design')} className='filter-chip'>Production Design</button>
+              <button onClick={() => handleFilter('Audio')} className='filter-chip'>Audio</button>
+              <button onClick={() => handleFilter('Cables & Cords')} className='filter-chip'>Cables & Cords</button>
+              <button onClick={() => handleFilter('Miscellaneous')} className='filter-chip'>Miscellaneous</button>
+              </div>
+            </div>
+            <div className='inventory-search pl-2 pr-2 py-4'>
+              <h2 className="font-light pb-2">Search by name:</h2>
+              <input type="text"
+                  placeholder="Enter item name..."
+                  className="workspace-input text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full lg:w-3/4 bg-white"
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <div className="workspace-table p-4 min-w-[600px]">
+                  <div className="flex py-2 font-semibold">
+                      <div className="flex-1 pl-4">Item Name</div>
+                      <div className="flex-1 pl-4">Category</div>
+                      <div className="flex-1 pl-4">Status</div>
+                      <div className="flex-1">Download QR Code</div>
+                  </div>
+                  <ul>
+                      {filteredList.map((item) => (
+                        <li key={item.id} className="flex py-2 border-t">
+                          <div className="flex-1 pl-4">{item.name}</div>
+                          <div className="flex-1 pl-4">{item.category}</div>
+                          <div className="flex-1 pl-4">
+                          {item.availability == "reported" &&
+                            <IoIosAlert color='#EB3223' className='w-5 h-5 ml-5 mr-5'/>
+                          }
+                          {item.availability == "available" &&
+                            <IoIosCheckmarkCircle color='#426276' className='w-5 h-5 ml-5 mr-5'/>
+                          }
+                          {item.availability == "checked out" &&
+                            <IoIosCheckmarkCircle color='#426276' className='w-5 h-5 ml-5 mr-5'/>
+                          }
+                          </div>
+                          <div className="flex-1 pl-4">
+                            <QRCodeGenerator equipmentID={item.id}/>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+              </div>
+            </div>
+        </div>
+    </div>
+  )
+}
+
+export default Inventory;
