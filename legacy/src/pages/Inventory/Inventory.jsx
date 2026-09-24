@@ -75,7 +75,7 @@ function Inventory({ isAdmin }) {
 
   return (
     <div>
-      <div className='workspace-surface inventory-workspace bg-white m-8 p-8 rounded-lg relative'>
+      <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-3xl pb-6'>Inventory</h1>
                 {message && (
@@ -86,34 +86,34 @@ function Inventory({ isAdmin }) {
                 )}
                 {
                   isAdmin && 
-                    <div className="workspace-actions absolute top-8 right-8 flex space-x-4">
+                    <div className="absolute top-8 right-8 flex space-x-4">
                       <AddItemPopup addItem={addItem} categoryList={categoryList}/>
                       <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
                   </div>
                 }
             </div>
             <div className='pl-2 pr-2'>
-              <div className="inventory-filters font-light">Sort by:
-              <button onClick={() => showAll()} className='filter-chip'>All</button>
-              <button onClick={() => handleFilter('Camera & Accessories')} className='filter-chip'>Camera & Accessories</button>
-              <button onClick={() => handleFilter('Lights')} className='filter-chip'>Lights</button>
-              <button onClick={() => handleFilter('Production Design')} className='filter-chip'>Production Design</button>
-              <button onClick={() => handleFilter('Audio')} className='filter-chip'>Audio</button>
-              <button onClick={() => handleFilter('Cables & Cords')} className='filter-chip'>Cables & Cords</button>
-              <button onClick={() => handleFilter('Miscellaneous')} className='filter-chip'>Miscellaneous</button>
+              <div className="font-light">Sort by:
+              <button onClick={() => showAll()} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>All</button>
+              <button onClick={() => handleFilter('Camera & Accessories')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Camera & Accessories</button>
+              <button onClick={() => handleFilter('Lights')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Lights</button>
+              <button onClick={() => handleFilter('Production Design')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Production Design</button>
+              <button onClick={() => handleFilter('Audio')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Audio</button>
+              <button onClick={() => handleFilter('Cables & Cords')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Cables & Cords</button>
+              <button onClick={() => handleFilter('Miscellaneous')} className='bg-[#A3C1E0] hover:bg-[#426276] font-semibold cursor-pointer text-sm rounded-full m-1.5 pl-4 pr-4 pt-1 pb-1 text-white'>Miscellaneous</button>
               </div>
             </div>
-            <div className='inventory-search pl-2 pr-2 py-4'>
+            <div className='pl-2 pr-2 py-4'>
               <h2 className="font-light pb-2">Search by name:</h2>
               <input type="text" 
                   placeholder="Enter item name..."
-                  className="workspace-input text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full lg:w-3/4 bg-white"
+                  className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full lg:w-3/4 bg-white" 
                   value={searchTerm}
                   onChange={(e) => handleSearch(e.target.value)} 
               />
             </div>
             <div className="overflow-x-auto">
-              <div className="workspace-table p-4 min-w-[600px]">
+              <div className="p-4 min-w-[600px]">
                   <div className="flex py-2 font-semibold">
                       <div className="flex-1 pl-4">Item Name</div>
                       <div className="flex-1 pl-4">Category</div>

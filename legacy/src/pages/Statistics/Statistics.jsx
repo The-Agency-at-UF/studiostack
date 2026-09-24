@@ -5,7 +5,7 @@ import { db } from '../../firebase/firebaseConfig';
 import BarGraph from '../../components/BarGraph';
 
 const Statistics = () => {
-  const COLORS = ['#2446ff', '#101010', '#6b6963', '#9aacff', '#d7d3c8'];
+  const COLORS = ['#A3C1E0', '#CCC9E7', '#7595aa', '#6b7095', '#426276'];
   const [reservationsEquipment, setReservationsEquipment] = useState([]);
   const [brokenEquipmentReports, setbrokenEquipmentReports] = useState([]);
   const [userReports, setUserReports] = useState([]);
@@ -374,42 +374,35 @@ const Statistics = () => {
   }, []);
 
   return (
-    <div className="workspace-surface statistics-workspace bg-white m-8 p-8 rounded-lg relative">
+    <div className="bg-white m-8 p-8 rounded-lg relative">
       <div className="sm:pl-2 sm:pr-2">
         <h1 className="font-bold text-2xl md:text-3xl pb-6">Statistics</h1>
-        <div className="statistics-overview flex flex-wrap items-start">
+        <div className="flex flex-wrap items-start">
           <div className="flex flex-col sm:flex-row items-center pb-6 sm:pr-10 sm:pl-6 w-full sm:w-auto">
             <div className="flex justify-center items-center w-full sm:w-auto">
-              {availabilityData.length === 0 ? (
-                <div className="statistics-total-empty" aria-label="0 total equipment">
-                  <strong>0</strong>
-                  <span>Total equipment</span>
-                </div>
-              ) : (
-                <PieChart width={200} height={200}>
-                  <Pie
-                    data={availabilityData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    innerRadius={60}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    <Label
-                      value={totalEquipment + " Total"}
-                      position="center"
-                      fill="#333"
-                      fontSize={20}
-                      fontWeight="bold"
-                    />
-                    {availabilityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              )}
+              <PieChart width={200} height={200}>
+                <Pie
+                  data={availabilityData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={90}
+                  innerRadius={60}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  <Label
+                    value={totalEquipment + " Total"}
+                    position="center"
+                    fill="#333"
+                    fontSize={20}
+                    fontWeight="bold"
+                  />
+                  {availabilityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
             </div>
             <div className="sm:pl-8 pt-4 sm:pt-0 text-center sm:text-left flex flex-col justify-center">
               {availabilityData.map((entry, index) => (
@@ -424,8 +417,8 @@ const Statistics = () => {
             </div>
           </div>
 
-          <div className="overdue-panel w-full sm:w-3/5 sm:min-w-lg mt-4 sm:mt-0 sm:pl-6">
-            <div className="h-full w-full">
+          <div className="w-full sm:w-3/5 sm:min-w-lg mt-4 sm:mt-0 sm:pl-6">
+            <div className="rounded-md border-2 border-black h-full w-full">
               <h2 className="p-4 pb-0 text-xl sm:text-2xl text-center sm:text-left font-semibold">Overdue Equipment</h2>
               <div className="p-4">
                 <div className="flex py-2 font-semibold">
@@ -451,21 +444,21 @@ const Statistics = () => {
           </div>
         </div>
 
-        <h2 className="statistics-section-title sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reports Data</h2>
-        <div className='statistics-grid flex flex-wrap justify-center sm:justify-start'>
+        <h2 className="sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reports Data</h2>
+        <div className='flex flex-wrap justify-center sm:justify-start'>
           <BarGraph data={brokenEquipmentData} colors={COLORS} title={"Top Reported Items"} fullData={brokenEquipmentReports} />
           <BarGraph data={userReportsData} colors={COLORS} title={"Top Reporting Users"} fullData={userReports}/>
         </div>
         <BarGraph data={reportSubjectsData} colors={COLORS} title={"Top Reported Subjects"} fullData={reportSubjects}/>
 
-        <h2 className="statistics-section-title sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reservations Data</h2>
-        <div className='statistics-grid flex flex-wrap justify-center sm:justify-start'>
+        <h2 className="sm:pl-6 text-xl sm:text-3xl text-center sm:text-left font-semibold pt-8">Reservations Data</h2>
+        <div className='flex flex-wrap justify-center sm:justify-start'>
           <BarGraph data={reservedItemsData} colors={COLORS} title={"Top Reserved Items"} fullData={reservationsEquipment}/>
           <BarGraph data={userReservationsData} colors={COLORS} title={"Top Reserving Users"} fullData={userReservations}/>
         </div>
         <BarGraph data={reservationTeamsData} colors={COLORS} title={"Top Teams"} fullData={reservationTeams}/>
 
-        <div className='statistics-record pt-8 sm:pt-12'>
+        <div className='pt-8 sm:pt-12'>
           <h2 className="sm:pl-6 text-xl sm:text-2xl text-center sm:text-left font-semibold pb-4">Overdue Equipment Record</h2>
           <div className="p-4 pt-2">
             <div className="flex py-2 font-semibold">
