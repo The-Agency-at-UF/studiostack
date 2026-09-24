@@ -1,0 +1,8 @@
+{
+  "hosting": {
+    "public": "out",
+    "site": "studio-stack",
+    "cleanUrls": true,
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}
