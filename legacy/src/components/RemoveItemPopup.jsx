@@ -78,17 +78,16 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
         <Popup trigger=
             {<div><IoIosRemoveCircle color='#EB3223' className='w-10 h-10 cursor-pointer' /></div>} 
             modal nested
-            className="workspace-popup"
-            overlayStyle={{ backgroundColor: 'rgba(16, 16, 16, 0.68)'}} >
+            contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
-                    <div className='workspace-modal workspace-modal-destructive modal relative'>
-                        <div className='workspace-modal-content content p-4'>
+                    <div className='modal relative'>
+                        <div className='content p-4'>
                             <h1 className='font-bold text-3xl pb-6'>Remove Item</h1>
                             {/* Select from Name options */}
                             <div className='px-5 pt-2'>
                                 <Select
-                                    classNamePrefix="workspace-select"
                                     value={selectedName}
                                     options={nameOptions}
                                     isClearable={true}
@@ -100,7 +99,6 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
                             {/* Select from ID options */}
                             <div className={`px-5 pt-2 ${selectedName === null ? "hidden" : ""}`}>
                                 <Select
-                                    classNamePrefix="workspace-select"
                                     value={selectedID}
                                     options={idOptions}
                                     isClearable={true}
@@ -110,9 +108,9 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
                                 /> 
                             </div>          
                         </div>
-                        <div className='workspace-modal-actions actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
+                        <div className='actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="workspace-modal-submit px-6 py-2 cursor-pointer"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md cursor-pointer hover:bg-[#426276] hover:text-white"
                                 onClick={() => {
                                     removeItem(itemID);
                                     // reset variables on submit
@@ -123,8 +121,8 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }) {
                                 Submit
                             </button>
                             <IoIosCloseCircle 
-                                color='#2446ff'
-                                className='workspace-modal-close w-10 h-10 absolute cursor-pointer'
+                                color='#426276' 
+                                className='w-10 h-10 absolute top-4 right-4 cursor-pointer' 
                                 onClick={() => {
                                     // reset variables on close
                                     setSelectedID(null);

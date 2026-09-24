@@ -41,73 +41,49 @@ function Dashboard({ isAdmin }) {
 
       } catch (error) {
         console.log("Error fetching upcoming reservations", error);
-        setNoReservations(true);
       }
     };
     fetchUpcomingReservations()
-  }, [])
-
-  const reservedEquipment = upcomingReservations.flatMap((reservation) => reservation.equipmentIDs || []);
-  const today = currentDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  })
 
 
   return (
-    <main className="dashboard-page">
-      <section className="dashboard-intro">
-        <div>
-          <p className="eyebrow">Studio operations / {today}</p>
-          <h1>Keep the work<br/><em>moving.</em></h1>
-        </div>
-        <div className="dashboard-metrics" aria-label="Current workspace summary">
-          <div><strong>{upcomingReservations.length}</strong><span>Upcoming bookings</span></div>
-          <div><strong>{reservedEquipment.length}</strong><span>Reserved items</span></div>
-          <div><strong>{isAdmin ? 'A' : 'S'}</strong><span>{isAdmin ? 'Admin workspace' : 'Student workspace'}</span></div>
-        </div>
-      </section>
-
-      <section className="dashboard-panel dashboard-panel-dark">
+    <div>
+      <div className='bg-white m-8 p-8 rounded-lg relative'>
         {isAdmin ? <AdminDash/> : <StudentDash/>}
-      </section>
-
-      <div className="dashboard-grid">
-        <section className="dashboard-panel bookings-panel">
-          <div className="section-heading">
-            <div><p className="eyebrow">Next up</p><h2>Upcoming Reservations</h2></div>
-            <a href="/reservations">View all <span>↗</span></a>
-          </div>
+      </div>
+      <div className='bg-white m-8 p-8 rounded-lg'>
+          <h1 className='font-bold text-xl md:text-2xl pb-3 border-b'>Upcoming Reservations</h1>
           { noReservations ? 
-            <div className="empty-state"><span>01</span><p>You have no upcoming reservations!</p></div>
+            <p className='mt-4'>You have no upcoming reservations!</p> 
           :
-            <div className='reservation-strip'>
+            <div className='flex flex-row gap-4 overflow-y-scroll'>
               {upcomingReservations.map((reservation, index) => (
-                  <UpcomingReservationLabel key={index} reservation={reservation} backgroundColor={'#111111'}/>
+                  <UpcomingReservationLabel key={index} reservation={reservation} backgroundColor={'#426276'}/>
               ))} 
             </div>
           }
-        </section>
-
-        <section className="dashboard-panel equipment-panel">
-        <div className="section-heading"><div><p className="eyebrow">In your care</p><h2>Reserved Equipment</h2></div></div>
+      </div>
+      <div className='bg-white m-8 p-8 rounded-lg relative'>
+        <h1 className='font-bold text-xl md:text-2xl pb-3'>Reserved Equipment</h1>
         { noReservations ? 
-          <div className="empty-state"><span>00</span><p>You have no equipment reserved!</p></div>
+          <div className='border-t'>
+            <p className='mt-4'>You have no equipment reserved!</p> 
+          </div>
         :
-        <div className="equipment-table">
-          <div className="equipment-row equipment-row-head">
-            <div>Item</div>
-            <div>ID</div>
+        <div>
+          <div className="flex py-2 font-semibold">
+            <div className="flex-1 pl-4">Item</div>
+            <div className="flex-1">ID</div>
           </div>
           <ul>
             {upcomingReservations.map((reservation) => (
               <li key={reservation.reservationId}>
                   <ul>
                   {reservation.equipmentIDs.map((item) => (
-                    <li key={item.id} className="equipment-row">
-                        <div>{item.name}</div>
-                        <div>{item.id}</div>
+                    <li key={item.id} className="flex py-2 border-t">
+                        <div className="flex-1 pl-4 text-sm md:text-base">{item.name}</div>
+                        <div className="flex-1 text-sm md:text-base">{item.id}</div>
                     </li>
                   ))}
                 </ul>
@@ -116,9 +92,8 @@ function Dashboard({ isAdmin }) {
           </ul>
         </div>
         }
-        </section>
       </div>
-    </main>
+    </div>
   );
 }
 

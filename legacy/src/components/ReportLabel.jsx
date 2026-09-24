@@ -6,7 +6,7 @@ function ReportLabel({ report, backgroundColor }) {
     const navigate = useNavigate();
 
     return (
-        <div className='report-row p-4 rounded-lg relative my-4' style={{backgroundColor: backgroundColor}}>
+        <div className='p-4 rounded-lg relative my-4' style={{backgroundColor: backgroundColor}}>
             <IoIosArrowDroprightCircle 
                 className='absolute right-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10' 
                 color='#426276'

@@ -17,14 +17,14 @@ function AddUserPopup({ addEmail }) {
         <Popup trigger=
             {<div><IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer'/></div>} 
             modal nested
-            className="workspace-popup"
-            overlayStyle={{ backgroundColor: 'rgba(16, 16, 16, 0.68)'}} >
+            contentStyle={{ backgroundColor: '#ECECEC', borderRadius: '0.5rem', border: '2px solid black' }}  
+            overlayStyle={{ backgroundColor: 'rgba(105, 105, 105, 0.5)'}} >
             {
                 close => (
-                    <div className='workspace-modal modal relative'>
-                        <div className='workspace-modal-content content p-4'>
+                    <div className='modal relative'>
+                        <div className='content p-4'>
                             <h1 className='font-bold text-2xl sm:text-3xl pb-6'>Add User</h1>
-                            <label className="workspace-modal-check flex items-center space-x-2 text-sm sm:text-base pb-4">
+                            <label className="flex items-center space-x-2 text-sm sm:text-base pb-4">
                                 <input 
                                 type="checkbox" 
                                 checked={isAdmin} 
@@ -38,15 +38,15 @@ function AddUserPopup({ addEmail }) {
                             <div className='px-5'>
                                 <input type="text" 
                                     placeholder="Email"
-                                    className="workspace-modal-control text-sm sm:text-base border-2 border-black-300 focus:outline-none p-2 w-full bg-white"
+                                    className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white" 
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)} 
                                 />
                             </div>
                         </div>
-                        <div className='workspace-modal-actions text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
+                        <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="workspace-modal-submit px-6 py-2 hover:cursor-pointer"
+                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:scale-110 hover:cursor-pointer"
                                 onClick={() => {
                                     addEmail(isAdmin, email);
                                     setEmail('');
@@ -56,8 +56,8 @@ function AddUserPopup({ addEmail }) {
                                 Submit
                             </button>
                             <IoIosCloseCircle 
-                                color='#2446ff'
-                                className='workspace-modal-close w-8 h-8 sm:w-10 sm:h-10 absolute hover:cursor-pointer'
+                                color='#426276' 
+                                className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:scale-110 hover:cursor-pointer' 
                                 onClick={() => {
                                     setEmail('');
                                     setIsAdmin(false);

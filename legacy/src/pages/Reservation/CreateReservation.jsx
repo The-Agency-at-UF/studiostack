@@ -564,7 +564,7 @@ function CreateReservation() {
     }, []);
 
     return (
-        <div className='workspace-surface form-workspace reservation-form bg-white m-8 p-8 rounded-lg relative'>
+        <div className='bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <h1 className='font-bold text-2xl md:text-3xl pb-6'>Create a New Reservation</h1>
                 {generalError && (
@@ -580,8 +580,8 @@ function CreateReservation() {
                     </div>
                 )}
             </div>
-            <div className='workspace-form-layout flex flex-wrap'>
-                <div className='workspace-form-column flex-auto'>
+            <div className='flex flex-wrap'>
+                <div className='flex-auto'>
                     <div>
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Reservation Name</h2>
                         <div className='pl-2 py-2'>
@@ -597,7 +597,6 @@ function CreateReservation() {
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Client or Internal Team</h2>
                         <div className='pl-2 py-2'>
                             <Select
-                                classNamePrefix="workspace-select"
                                 value={reservationCategory.label === '' ? reservationCategory.label : reservationCategory}
                                 options={allTeams}
                                 isClearable={true}
@@ -622,7 +621,7 @@ function CreateReservation() {
                     )}
                     <div>
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Checkout</h2>
-                        <div className='reservation-time-row pl-2 py-2 flex gap-2'>
+                        <div className='pl-2 py-2 flex gap-2'>
                             <input type="date" 
                                 className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12" 
                                 value={reservationStartDate}
@@ -642,7 +641,7 @@ function CreateReservation() {
                     </div>
                     <div>
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Return</h2>
-                        <div className='reservation-time-row pl-2 py-2 flex gap-2'>
+                        <div className='pl-2 py-2 flex gap-2'>
                             <input type="date" 
                                 className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12" 
                                 value={reservationEndDate}
@@ -662,7 +661,7 @@ function CreateReservation() {
                     </div>
                 </div>
 
-            <div className='workspace-form-column equipment-picker flex-auto relative'>
+            <div className='flex-auto relative'>
                 <h1 className='pl-2 pt-2 text-lg sm:text-xl'>Choose Item(s)</h1>
                 <div onClick={() => checkIfDateFilled(true)}>
                     {selectedEquipment.map((item, index) => (
@@ -670,7 +669,6 @@ function CreateReservation() {
                             <div className="flex items-center space-x-2">
                                 <div className='min-w-75 w-full'>
                                 <Select
-                                    classNamePrefix="workspace-select"
                                     value={item.equipment}
                                     options={availableEquipment}
                                     isClearable={true}
@@ -697,7 +695,7 @@ function CreateReservation() {
             </div>
             <div className='flex justify-center'>
                 <button 
-                    className="workspace-primary-action px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 hover:cursor-pointer"
+                    className="px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 hover:scale-110 hover:cursor-pointer"
                     onClick={() => createReservation()}
                     >
                     Reserve
