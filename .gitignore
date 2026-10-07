@@ -6,6 +6,7 @@ build/
 dist/
 .next/
 out/
+public/photo-codecs/
 
 # Logs and caches
 *.log

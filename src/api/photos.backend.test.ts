@@ -12,15 +12,19 @@ function event(body = '{"contentType":"image/jpeg","size":100}', sub: string | u
 
 describe('photo upload authorization', () => {
   it('accepts supported photos', () => {
-    expect(parseUploadRequest({ contentType: 'image/png', size: MAX_PHOTO_BYTES })).not.toBeNull()
+    expect(parseUploadRequest({ contentType: 'image/jpeg', size: MAX_PHOTO_BYTES })).not.toBeNull()
+    expect(parseUploadRequest({ contentType: 'image/webp', size: 1 })).not.toBeNull()
   })
   it.each([
     { contentType: 'image/svg+xml', size: 10 },
+    { contentType: 'image/png', size: 10 },
+    { contentType: 'image/heic', size: 10 },
+    { contentType: 'image/avif', size: 10 },
     { contentType: 'toString', size: 10 },
-    { contentType: 'image/png', size: 0 },
-    { contentType: 'image/png', size: MAX_PHOTO_BYTES + 1 },
-    { contentType: 'image/png', size: 1.2 },
-    { contentType: 'image/png', size: '100' },
+    { contentType: 'image/jpeg', size: 0 },
+    { contentType: 'image/jpeg', size: MAX_PHOTO_BYTES + 1 },
+    { contentType: 'image/jpeg', size: 1.2 },
+    { contentType: 'image/jpeg', size: '100' },
     null,
   ])('rejects invalid input %j', value => {
     expect(parseUploadRequest(value)).toBeNull()
@@ -65,14 +69,14 @@ describe('photo upload authorization', () => {
     vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'TEST-ONLY-NOT-A-REAL-SECRET')
     vi.stubEnv('AWS_SESSION_TOKEN', '')
     try {
-      const first = await signPhotoUpload('user/one', { contentType: 'image/png', size: 123 })
-      const second = await signPhotoUpload('user/one', { contentType: 'image/png', size: 123 })
-      expect(first.key).toMatch(/^photos\/user%2Fone\/[\w-]+\.png$/)
+      const first = await signPhotoUpload('user/one', { contentType: 'image/jpeg', size: 123 })
+      const second = await signPhotoUpload('user/one', { contentType: 'image/jpeg', size: 123 })
+      expect(first.key).toMatch(/^photos\/user%2Fone\/[\w-]+\.jpg$/)
       expect(second.key).not.toBe(first.key)
       expect(first.url).toContain('studio-stack-photos-dev.s3.us-east-2.amazonaws.com')
       const policy = JSON.parse(Buffer.from(first.fields.Policy, 'base64').toString('utf8'))
       expect(policy.conditions).toContainEqual(['content-length-range', 123, 123])
-      expect(policy.conditions).toContainEqual(['eq', '$Content-Type', 'image/png'])
+      expect(policy.conditions).toContainEqual(['eq', '$Content-Type', 'image/jpeg'])
       expect(first.fields.key).toBe(first.key)
     } finally { vi.unstubAllEnvs() }
   })

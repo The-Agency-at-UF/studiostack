@@ -5,7 +5,6 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
 
 const extensions: Record<string, string> = {
   'image/jpeg': 'jpg',
-  'image/png': 'png',
   'image/webp': 'webp',
 }
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -64,7 +63,7 @@ export function createUploadHandler(signer = signPhotoUpload) {
     } catch {
       return respond(400, { error: 'Invalid JSON' })
     }
-    if (!request) return respond(400, { error: 'Use JPEG, PNG, or WebP, between 1 byte and 10 MiB' })
+    if (!request) return respond(400, { error: 'Use a processed JPEG or WebP, between 1 byte and 10 MiB' })
     try {
       return respond(200, await signer(userId, request))
     } catch {
