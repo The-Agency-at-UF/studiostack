@@ -37,5 +37,8 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: AWS code typecheck
+        run: npm run typecheck:aws
+
       - name: Build
         run: npm run build

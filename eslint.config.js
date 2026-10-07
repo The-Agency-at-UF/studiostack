@@ -3,9 +3,20 @@ import globals from 'globals'
 import react from 'eslint-plugin-react'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
 
 export default [
   { ignores: ['dist', '.next', 'out', 'legacy'] },
+  {
+    files: ['backend/**/*.ts', 'scripts/**/*.ts', 'src/api/**/*.ts'],
+    languageOptions: { parser: tseslint.parser, globals: { ...globals.node, ...globals.browser } },
+    plugins: { '@typescript-eslint': tseslint.plugin },
+    rules: {
+      ...js.configs.recommended.rules,
+      ...tseslint.plugin.configs.recommended.rules,
+      'no-undef': 'off',
+    },
+  },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {

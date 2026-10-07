@@ -28,3 +28,7 @@ out/
 *.jks
 credentials*.json
 service-account*.json
+
+# Local AWS credentials and generated deployment output
+.aws/
+cdk.out/
