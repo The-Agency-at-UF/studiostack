@@ -12,7 +12,7 @@ export async function decodeHeif(bytes: Uint8Array): Promise<HTMLCanvasElement> 
   try {
     images = decoder.decode(bytes)
     const image = images.find(image => image.is_primary()) ?? images[0]
-    if (!image) throw new Error('Could not decode this HEIC/HEIF or AVIF photo')
+    if (!image) throw new Error('Could not decode this HEIC/HEIF photo')
     const width = image.get_width(), height = image.get_height()
     checkPhotoDimensions(width, height)
     canvas.width = width
@@ -21,7 +21,7 @@ export async function decodeHeif(bytes: Uint8Array): Promise<HTMLCanvasElement> 
     if (!context) throw new Error('Photo processing is unavailable in this browser')
     const rgba = context.createImageData(canvas.width, canvas.height)
     await new Promise<void>((resolve, reject) => image.display(rgba, decoded => {
-      if (!decoded) reject(new Error('Could not convert this HEIC/HEIF or AVIF photo'))
+      if (!decoded) reject(new Error('Could not convert this HEIC/HEIF photo'))
       else { context.putImageData(decoded, 0, 0); resolve() }
     }))
     return canvas
