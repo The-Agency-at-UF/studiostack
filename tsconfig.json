@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.aws.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "preserve",
+    "isolatedModules": true,
+    "incremental": true,
+    "resolveJsonModule": true,
+    "plugins": [{ "name": "next" }]
+  },
+  "include": [
+    "next-env.d.ts",
+    "backend/**/*.ts",
+    "scripts/**/*.ts",
+    "src/api/**/*.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "legacy"]
+}

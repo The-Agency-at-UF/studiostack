@@ -6,10 +6,13 @@ build/
 dist/
 .next/
 out/
+public/photo-codecs/
 
 # Logs and caches
 *.log
 .cache/
+*.tsbuildinfo
+next-env.d.ts
 
 # IDE and OS files
 .DS_Store
@@ -28,3 +31,7 @@ out/
 *.jks
 credentials*.json
 service-account*.json
+
+# Local AWS credentials and generated deployment output
+.aws/
+cdk.out/
