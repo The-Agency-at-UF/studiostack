@@ -1,0 +1,20 @@
+# Frontend-only static hosting. Configure the Amplify app as platform WEB.
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 22
+        - nvm use 22
+        - npm ci --include=dev
+    build:
+      commands:
+        - npm run build
+        - test -f out/index.html
+  artifacts:
+    baseDirectory: out
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*

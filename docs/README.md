@@ -15,6 +15,7 @@ This folder is the starting point for product, design, and historical StudioStac
 | [Product requirements](product-requirements.md) | You need to understand a page, user role, workflow, or notification requirement. |
 | [Brand guidelines](brand-guidelines.md) | You are designing or reviewing StudioStack interface work. |
 | [Historical documentation](historical/README.md) | You need context from earlier StudioStack teams. |
+| [Amplify frontend hosting](amplify-hosting.md) | You are connecting GitHub, configuring static hosting, or deploying the frontend. |
 
 ## Documentation rules
 
