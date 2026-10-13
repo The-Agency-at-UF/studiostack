@@ -110,6 +110,28 @@ describe('trusted API identity and strict HTTP inputs', () => {
     await createDatabaseApiHandler({ execute }, config, () => now)(request)
     expect(execute.mock.calls[0][0].email).toBe('real@example.com')
   })
+  it('validates organization-scoped processed photo authorization', async () => {
+    const execute = vi.fn().mockResolvedValue({}), handler = createDatabaseApiHandler({ execute }, config, () => now)
+    const input = { organizationId: org, contentType: 'image/jpeg', size: 1024, requestId }
+    expect((await handler(event('POST /photos/uploads', input))).statusCode).toBe(200)
+    expect(execute).toHaveBeenCalledWith(identity, { operation: 'photoUpload', organizationId: org, input })
+    for (const change of [{ size: 0 }, { size: 10485761 }, { contentType: 'image/png' }, { organizationId: 'bad' }, { key: 'another-user-photo' }, { requestId: 'bad' }]) {
+      execute.mockClear()
+      expect((await handler(event('POST /photos/uploads', { ...input, ...change }))).statusCode).toBe(400)
+      expect(execute).not.toHaveBeenCalled()
+    }
+  })
+  it('routes completion and download without accepting an object key', async () => {
+    const execute = vi.fn().mockResolvedValue({}), handler = createDatabaseApiHandler({ execute }, config, () => now)
+    const completion = event('POST /organizations/{organizationId}/photos/{photoId}/complete', {})
+    completion.pathParameters!.photoId = itemId
+    expect((await handler(completion)).statusCode).toBe(200)
+    expect(execute).toHaveBeenCalledWith(identity, { operation: 'completePhoto', organizationId: org, photoId: itemId })
+    completion.body = '{"key":"photos/attacker/key.jpg"}'
+    expect((await handler(completion)).statusCode).toBe(400)
+    expect((await handler(event('GET /organizations/{organizationId}/inventory/{itemId}/photo'))).statusCode).toBe(200)
+    expect(execute).toHaveBeenCalledWith(identity, { operation: 'downloadPhoto', organizationId: org, itemId })
+  })
 })
 
 describe('tenant authorization and atomic repository operations', () => {

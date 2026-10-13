@@ -1,4 +1,4 @@
-import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiEquipment, ApiReservation, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation } from '../types/database-api'
+import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiEquipment, ApiReservation, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
 type ClientOptions = { baseUrl?: string; getAccessToken: () => Promise<string>; fetch?: typeof fetch }
 type PageOptions = { limit?: number; after?: string }
@@ -43,5 +43,8 @@ export function createDatabaseApiClient(options: ClientOptions) {
     reservation: (org: string, id: string) => request<ApiReservation>(path(org, `reservations/${encodeURIComponent(id)}`)),
     createReservation: (org: string, input: CreateReservation) => request<ApiReservation>(path(org, 'reservations'), 'POST', input),
     cancelReservation: (org: string, id: string) => request<ApiReservation>(path(org, `reservations/${encodeURIComponent(id)}/cancel`), 'POST', {}),
+    createPhotoUpload: (input: CreatePhotoUpload) => request<ApiPhotoUpload>('/photos/uploads', 'POST', input),
+    completePhoto: (org: string, id: string) => request<ApiCompletedPhoto>(path(org, `photos/${encodeURIComponent(id)}/complete`), 'POST', {}),
+    photo: (org: string, itemId: string) => request<ApiPhotoDownload>(path(org, `inventory/${encodeURIComponent(itemId)}/photo`)),
   }
 }

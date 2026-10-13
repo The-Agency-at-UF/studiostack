@@ -32,7 +32,11 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
         return await operation(client)
       } finally { await client.end() }
     },
-  } as Pick<ReturnType<typeof createDatabase>, 'withClient'> )
+  } as Pick<ReturnType<typeof createDatabase>, 'withClient'>, Date.now, {
+    signUpload: async photo => ({ url: 'https://private.test', fields: { key: photo.stagingKey } }),
+    finalize: async photo => ({ key: `photos/${photo.organizationId}/${photo.id}.jpg`, width: 80, height: 60, size: 400, sha256: 'a'.repeat(64) }),
+    signDownload: async () => ({ url: 'https://private.test/signed', expiresIn: 60 }),
+  })
   const listPage = { limit: 100, after: null }
   const startsAt = new Date(Date.now() + 86400_000).toISOString()
   const endsAt = new Date(Date.parse(startsAt) + 3600_000).toISOString()
@@ -77,6 +81,22 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await repository.execute(member, { operation: 'groups', organizationId, page: listPage })).toMatchObject({ items: [group] })
     await expect(repository.execute(member, { operation: 'members', organizationId, page: listPage })).rejects.toMatchObject({ status: 403 })
     expect((await repository.execute(owner, { operation: 'members', organizationId, page: listPage }) as ApiPage<ApiUser>).items).toHaveLength(4)
+  })
+  it('requires organization ownership, completion and attachment for private photos', async () => {
+    const input = { organizationId, contentType: 'image/jpeg' as const, size: 500, requestId: randomUUID() }
+    await expect(repository.execute(member, { operation: 'photoUpload', organizationId, input })).rejects.toMatchObject({ status: 403 })
+    const uploaded = await repository.execute(owner, { operation: 'photoUpload', organizationId, input }) as { photoId: string }
+    expect(await repository.execute(owner, { operation: 'photoUpload', organizationId, input })).toMatchObject({ photoId: uploaded.photoId })
+    const item = await equipment()
+    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: uploaded.photoId } })).rejects.toMatchObject({ status: 409 })
+    expect(await repository.execute(owner, { operation: 'completePhoto', organizationId, photoId: uploaded.photoId })).toMatchObject({ photoId: uploaded.photoId, width: 80 })
+    expect(await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: uploaded.photoId } })).toMatchObject({ photoId: uploaded.photoId })
+    expect(await repository.execute(member, { operation: 'downloadPhoto', organizationId, itemId: item.id })).toMatchObject({ photoId: uploaded.photoId, expiresIn: 60 })
+    await expect(repository.execute(outsider, { operation: 'downloadPhoto', organizationId, itemId: item.id })).rejects.toMatchObject({ status: 403 })
+    const second = await equipment()
+    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: second.id, input: { photoId: uploaded.photoId } })).rejects.toMatchObject({ status: 409 })
+    await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: null } })
+    await expect(repository.execute(member, { operation: 'downloadPhoto', organizationId, itemId: item.id })).rejects.toMatchObject({ status: 404 })
   })
   it.each([outsider, suspended])('rejects unauthorized membership $subject', async identity => {
     await expect(repository.execute(identity, { operation: 'inventory', organizationId, page: listPage })).rejects.toMatchObject({ status: 403 })

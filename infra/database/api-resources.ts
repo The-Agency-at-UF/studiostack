@@ -1,8 +1,8 @@
 import { account, region } from './resources'
-import { databaseApiRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
+import { databaseApiRoutes, privatePhotoRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
 
 /** Additive API stack: no new database, secret, VPC endpoint or execution role. */
-export function databaseApiInfrastructure(env: Record<string, string | undefined>) {
+export function databaseApiInfrastructure(env: Record<string, string | undefined>, includePhotos = false) {
   const config = apiConfiguration(env)
   const functionName = `studiostack-${env.STUDIOSTACK_ENV}-database`
   const functionArn = `arn:aws:lambda:${region}:${account}:function:${functionName}`
@@ -15,11 +15,15 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
       ApiId: config.apiId, IntegrationType: 'AWS_PROXY', IntegrationUri: functionArn, IntegrationMethod: 'POST', PayloadFormatVersion: '2.0', TimeoutInMillis: 29_000,
     } },
   }
-  for (const [index, route] of databaseApiRoutes.entries()) {
+  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : [])].entries()) {
+    // The upload route predates this stack. Deployment updates it in place,
+    // avoiding duplicate routes or deleting the existing AWS resource.
+    if (route !== 'POST /photos/uploads') {
     Resources[`Route${index}`] = { Type: 'AWS::ApiGatewayV2::Route', Properties: {
       ApiId: config.apiId, RouteKey: route, AuthorizationType: 'JWT', AuthorizerId: { Ref: 'Authorizer' }, AuthorizationScopes: [databaseApiScope],
       Target: { 'Fn::Join': ['/', ['integrations', { Ref: 'Integration' }]] },
     } }
+    }
     const [method, path] = route.split(' ')
     Resources[`Permission${index}`] = { Type: 'AWS::Lambda::Permission', Properties: {
       FunctionName: functionName, Action: 'lambda:InvokeFunction', Principal: 'apigateway.amazonaws.com', SourceAccount: account,
