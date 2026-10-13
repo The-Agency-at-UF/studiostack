@@ -18,12 +18,13 @@ async function main() {
     const ca = await readFile(resolve('.aws/database-lambda/certs/us-east-2-bundle.pem'))
     if (!ca.toString().includes('-----BEGIN CERTIFICATE-----')) throw new Error('Download the public regional RDS CA certificate first')
     await writeFile(`${output}/certs/us-east-2-bundle.pem`, ca)
-    await writeFile(`${output}/package.json`, JSON.stringify({ type: 'commonjs' }))
-    await execute(resolve('node_modules/.bin/esbuild'), [`backend/database/${source}.ts`, '--bundle', '--platform=node', '--target=node24', '--format=cjs', '--external:pg-native', `--outfile=${output}/index.js`])
+    await writeFile(`${output}/package.json`, JSON.stringify({ type: 'commonjs', ...(name === 'runtime' ? { dependencies: { sharp: '0.35.5' } } : {}) }))
+    if (name === 'runtime') await execute('npm', ['install', '--omit=dev', '--include=optional', '--os=linux', '--cpu=arm64', '--libc=glibc', '--ignore-scripts'], { cwd: output })
+    await execute(resolve('node_modules/.bin/esbuild'), [`backend/database/${source}.ts`, '--bundle', '--platform=node', '--target=node24', '--format=cjs', '--external:pg-native', '--external:sharp', `--outfile=${output}/index.js`])
     if (name === 'setup') await cp(resolve('backend/database/migrations'), `${output}/migrations`, { recursive: true })
     // Build a new archive rather than updating an old zip: stale entries (such
     // as accidentally packaged env files) must not survive a rebuild.
-    await execute('zip', ['-q', '-r', `${archiveDirectory}/${name}.zip`, 'index.js', 'package.json', 'certs', ...(name === 'setup' ? ['migrations'] : [])], { cwd: output })
+    await execute('zip', ['-q', '-r', `${archiveDirectory}/${name}.zip`, 'index.js', 'package.json', 'certs', ...(name === 'setup' ? ['migrations'] : ['node_modules'])], { cwd: output })
     await rename(`${archiveDirectory}/${name}.zip`, `${directory}/${name}.zip`)
   }
   for (const environment of ['dev', 'prod'] as const) await writeFile(`${directory}/${environment}-grants.sql`, databaseApiGrants(environment))

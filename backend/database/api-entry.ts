@@ -4,6 +4,7 @@ import { databaseConfig } from './config'
 import { createDatabaseHandler } from './handler'
 import { apiConfiguration, createDatabaseApiHandler } from './api'
 import { createApiRepository } from './api-repository'
+import { createPhotoStorage } from './photo-storage'
 
 /** Reuses the existing private database Lambda/role, without expanding IAM. */
 export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | Record<string, never> = {}) {
@@ -13,7 +14,7 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | R
     // Preserve the existing IAM-only empty-payload connection diagnostic. Public
     // API Gateway calls always contain requestContext/version, regardless of body.
     if (Object.keys(event).length === 0) return createDatabaseHandler(database, config)()
-    return createDatabaseApiHandler(createApiRepository(database), apiConfiguration())(event as APIGatewayProxyEventV2WithJWTAuthorizer)
+    return createDatabaseApiHandler(createApiRepository(database, Date.now, createPhotoStorage()), apiConfiguration())(event as APIGatewayProxyEventV2WithJWTAuthorizer)
   } catch {
     return { statusCode: 503, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify({ error: 'Database API temporarily unavailable' }) }
   }

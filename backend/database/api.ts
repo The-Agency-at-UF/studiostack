@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
-import { ApiError, createEquipment, updateEquipment, createReservation, pagination, uuid, object, text } from './api-validation'
+import { ApiError, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
 
 export const databaseApiRoutes = [
   'GET /me', 'POST /me', 'GET /organizations',
@@ -12,6 +12,7 @@ export const databaseApiRoutes = [
   'GET /organizations/{organizationId}/reservations/{reservationId}',
   'POST /organizations/{organizationId}/reservations/{reservationId}/cancel',
 ] as const
+export const privatePhotoRoutes = ['POST /photos/uploads', 'POST /organizations/{organizationId}/photos/{photoId}/complete', 'GET /organizations/{organizationId}/inventory/{itemId}/photo'] as const
 export const databaseApiScope = 'studiostack-api/access'
 export interface ApiConfiguration { apiId: string; issuer: string; clientId: string }
 export function apiConfiguration(env: Record<string, string | undefined> = process.env): ApiConfiguration {
@@ -42,8 +43,13 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (!databaseApiRoutes.some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
   const params = event.queryStringParameters ?? {}
+  if (event.routeKey === 'POST /photos/uploads') {
+    object(params, [])
+    const input = createPhotoUpload(json(event))
+    return { operation: 'photoUpload', organizationId: input.organizationId, input }
+  }
   if (event.routeKey === 'GET /me') {
     object(params, [])
     return { operation: 'me' }
@@ -69,6 +75,10 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
     case 'POST /organizations/{organizationId}/reservations/{reservationId}/cancel':
       object(json(event), [])
       return { operation: 'cancelReservation', organizationId, reservationId: uuid(event.pathParameters?.reservationId) }
+    case 'POST /organizations/{organizationId}/photos/{photoId}/complete':
+      object(json(event), [])
+      return { operation: 'completePhoto', organizationId, photoId: uuid(event.pathParameters?.photoId) }
+    case 'GET /organizations/{organizationId}/inventory/{itemId}/photo': return { operation: 'downloadPhoto', organizationId, itemId: uuid(event.pathParameters?.itemId) }
     default: throw new ApiError(404, 'Route not found')
   }
 }
