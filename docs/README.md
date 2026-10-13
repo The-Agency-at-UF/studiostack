@@ -40,3 +40,5 @@ The active application lives in the repository root. The `legacy/` directory is 
 - [Organization and account UI preview](organization-preview.md)
 
 - [Inventory QR and photo capture preview](inventory-capture.md)
+
+- [Cognito sign-in and provider readiness](login.md)
