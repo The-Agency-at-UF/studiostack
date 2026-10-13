@@ -6,7 +6,7 @@ The repository now has a shared backend-only TypeScript connection layer, separa
 
 On October 12, 2026, the separate [database Lambda deployment](database-lambda-deployment.md) created runtime roles, restricted application credentials and private Secrets Manager connectivity, and deployed dev/prod connection-check functions. Both passed live verified-TLS queries. No schema migration was applied. The website still uses its existing preview session/data; Cognito login and inventory/reservation persistence remain separate integration work.
 
-On October 13, the approved dev rollout (documented in the forthcoming dev rollout PR) applied migrations 001–003 and restricted dev grants, deployed 13 database plus 3 private-photo routes, and passed 43 live authenticated API/photo checks. Production remains at the original connection-check stage with application migrations pending. The preview website is unchanged; the restore drill has separate evidence/status in the rollout guide.
+On October 13, the approved [dev rollout](dev-rollout.md) applied migrations 001–003 and restricted dev grants, deployed 13 database plus 3 private-photo routes, and passed 43 live authenticated API/photo checks. Production remains at the original connection-check stage with application migrations pending. The preview website is unchanged; the restore drill has separate evidence/status in the rollout guide.
 
 ## Code map
 

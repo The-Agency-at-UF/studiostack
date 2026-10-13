@@ -4,7 +4,7 @@
 
 Deployed and verified on **October 12, 2026**, in account `423563856930`, region `us-east-2`. Both functions passed live verified-TLS queries against their matching database using restricted application logins. CloudFormation stack `studiostack-database-connections` manages the endpoint, application secrets, runtime roles, HTTPS rules and log groups. The deployment script manages the function packages and temporary login setup.
 
-This guide records the **October 12 connection-only foundation**. On October 13, the approved development API rollout (documented in the forthcoming dev rollout PR) added schema, Cognito, 13 database and 3 private-photo routes to the dev function. Production remains connection-only. Do not redeploy the older connection package over the dev API; `db:deploy` now refuses that downgrade.
+This guide records the **October 12 connection-only foundation**. On October 13, the approved [development API rollout](dev-rollout.md) added schema, Cognito, 13 database and 3 private-photo routes to the dev function. Production remains connection-only. Do not redeploy the older connection package over the dev API; `db:deploy` now refuses that downgrade.
 
 The original deployment described below was an IAM-invoked, read-only connectivity check, not an application API or schema migration. Its historical verification is separate from the current dev API/restore evidence.
 
