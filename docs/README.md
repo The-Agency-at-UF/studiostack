@@ -38,3 +38,5 @@ The active application lives in the repository root. The `legacy/` directory is 
 - [Dev-only deployment, verification and restore drill](dev-rollout.md)
 
 - [Organization and account UI preview](organization-preview.md)
+
+- [Inventory QR and photo capture preview](inventory-capture.md)
