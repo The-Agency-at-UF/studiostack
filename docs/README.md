@@ -36,3 +36,5 @@ The active application lives in the repository root. The `legacy/` directory is 
 - [Organization-scoped private photo extension](private-photos.md)
 
 - [Dev-only deployment, verification and restore drill](dev-rollout.md)
+
+- [Organization and account UI preview](organization-preview.md)
