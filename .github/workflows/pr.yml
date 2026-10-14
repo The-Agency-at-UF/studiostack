@@ -2,8 +2,6 @@ name: PR Checks
 
 on:
   pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -34,11 +32,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Unit tests
         run: npm test
-
-      - name: AWS code typecheck
-        run: npm run typecheck:aws
 
       - name: Build
         run: npm run build

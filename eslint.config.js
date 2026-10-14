@@ -6,19 +6,10 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default [
-  { ignores: ['dist', '.next', 'out', 'legacy'] },
+  { ignores: ['dist', '.next', 'out', 'legacy', '.aws/**'] },
+  ...tseslint.configs.recommended,
   {
-    files: ['backend/**/*.ts', 'scripts/**/*.ts', 'src/api/**/*.ts'],
-    languageOptions: { parser: tseslint.parser, globals: { ...globals.node, ...globals.browser } },
-    plugins: { '@typescript-eslint': tseslint.plugin },
-    rules: {
-      ...js.configs.recommended.rules,
-      ...tseslint.plugin.configs.recommended.rules,
-      'no-undef': 'off',
-    },
-  },
-  {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,mjs,ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: {
@@ -42,7 +33,8 @@ export default [
       ...react.configs.recommended.rules,
       ...react.configs['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
-      'no-unused-vars': ['error', { varsIgnorePattern: '^React$' }],
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^React$', argsIgnorePattern: '^_' }],
       'react/prop-types': 'off',
       'react/jsx-no-target-blank': 'off',
       'react-refresh/only-export-components': [
@@ -50,5 +42,9 @@ export default [
         { allowConstantExport: true },
       ],
     },
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: { 'no-redeclare': 'off', '@typescript-eslint/no-redeclare': 'error' },
   },
 ]
