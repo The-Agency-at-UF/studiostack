@@ -50,7 +50,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <AppSessionProvider value={session}>
-      <Header isAdmin={isAdmin} logOut={logOut} />
+      <Header isAdmin={isAdmin} logOut={logOut} email={email} />
       <div className="app-content">{children}</div>
       <footer className="sticky-footer">
         <span className="footer-status"><i /> Studio operations online</span>
