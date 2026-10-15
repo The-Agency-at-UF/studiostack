@@ -1,5 +1,5 @@
 import { equipmentCategories } from '../../src/types/database-api'
-import type { CreateEquipment, UpdateEquipment, CreateReservation } from '../../src/types/database-api'
+import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
 
 export class ApiError extends Error {
   constructor(public readonly status: 400 | 401 | 403 | 404 | 409, message: string) { super(message) }
@@ -24,20 +24,26 @@ function category(value: unknown): CreateEquipment['category'] {
   return value as CreateEquipment['category']
 }
 export function createEquipment(value: unknown): CreateEquipment {
-  const body = object(value, ['equipmentCode', 'name', 'category'])
+  const body = object(value, ['equipmentCode', 'name', 'category', 'photoId'])
   const equipmentCode = text(body.equipmentCode, 128)
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(equipmentCode)) throw new ApiError(400, 'Invalid equipment code')
-  return { equipmentCode, name: text(body.name, 120), category: category(body.category) }
+  return { equipmentCode, name: text(body.name, 120), category: category(body.category), ...(body.photoId !== undefined ? { photoId: uuid(body.photoId) } : {}) }
 }
 export function updateEquipment(value: unknown): UpdateEquipment {
-  const body = object(value, ['name', 'category', 'status'])
+  const body = object(value, ['name', 'category', 'status', 'photoId'])
   if (!Object.keys(body).length) throw new ApiError(400, 'At least one field is required')
   if (body.status !== undefined && !['available', 'maintenance', 'retired'].includes(String(body.status))) throw new ApiError(400, 'Invalid equipment status')
   return {
     ...(body.name !== undefined ? { name: text(body.name, 120) } : {}),
     ...(body.category !== undefined ? { category: category(body.category) } : {}),
     ...(body.status !== undefined ? { status: body.status as UpdateEquipment['status'] } : {}),
+    ...(body.photoId !== undefined ? { photoId: body.photoId === null ? null : uuid(body.photoId) } : {}),
   }
+}
+export function createPhotoUpload(value: unknown): CreatePhotoUpload {
+  const body = object(value, ['organizationId', 'contentType', 'size', 'requestId'])
+  if (!['image/jpeg', 'image/webp'].includes(String(body.contentType)) || !Number.isSafeInteger(body.size) || Number(body.size) < 1 || Number(body.size) > 10 * 1024 * 1024) throw new ApiError(400, 'Use a processed JPEG or WebP between 1 byte and 10 MiB')
+  return { organizationId: uuid(body.organizationId), contentType: body.contentType as CreatePhotoUpload['contentType'], size: Number(body.size), requestId: uuid(body.requestId) }
 }
 function date(value: unknown): string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value))) {

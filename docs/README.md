@@ -32,3 +32,5 @@ The active application lives in the repository root. The `legacy/` directory is 
 - [Private database Lambda connection foundation](database-lambda-deployment.md)
 
 - [Authenticated database API MVP](database-api.md)
+
+- [Organization-scoped private photo extension](private-photos.md)

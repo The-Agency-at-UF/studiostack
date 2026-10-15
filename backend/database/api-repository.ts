@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
 import { ApiError } from './api-validation'
-import type { ApiPage, CreateEquipment, UpdateEquipment, CreateReservation } from '../../src/types/database-api'
+import type { ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
+import type { PendingPhoto, PhotoStorage } from './photo-storage'
 
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
@@ -16,11 +17,14 @@ export type ApiRequest =
   | { operation: 'updateEquipment'; organizationId: string; itemId: string; input: UpdateEquipment }
   | { operation: 'createReservation'; organizationId: string; input: CreateReservation }
   | { operation: 'reservation' | 'cancelReservation'; organizationId: string; reservationId: string }
+  | { operation: 'photoUpload'; organizationId: string; input: CreatePhotoUpload }
+  | { operation: 'completePhoto'; organizationId: string; photoId: string }
+  | { operation: 'downloadPhoto'; organizationId: string; itemId: string }
 type User = QueryResultRow & { id: string; email: string | null; displayName: string | null }
 type Membership = QueryResultRow & { role: 'owner' | 'admin' | 'member' }
 type ReservationRow = QueryResultRow & { id: string; userId: string; status: string; requestHash?: string }
 const userColumns = 'id, email, display_name AS "displayName"'
-const equipmentColumns = 'id, equipment_code AS "equipmentCode", name, category, status, created_at AS "createdAt"'
+const equipmentColumns = 'id, equipment_code AS "equipmentCode", name, category, status, created_at AS "createdAt", photo_id AS "photoId"'
 const reservationColumns = `r.id, r.user_id AS "userId", r.name, r.starts_at AS "startsAt", r.ends_at AS "endsAt", r.status, r.created_at AS "createdAt",
   ARRAY(SELECT i.equipment_id FROM app.reservation_items i WHERE i.organization_id = r.organization_id AND i.reservation_id = r.id ORDER BY i.equipment_id) AS "equipmentIds"`
 
@@ -32,7 +36,12 @@ function admin(membership: Membership) {
   if (!['owner', 'admin'].includes(membership.role)) throw new ApiError(403, 'Organization administrator required')
 }
 
-export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now) {
+export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now, storage?: PhotoStorage) {
+  async function checkAttachment(client: DatabaseClient, organizationId: string, photoId?: string | null) {
+    if (!photoId) return
+    const ready = await client.query('SELECT id FROM app.photo_uploads WHERE organization_id = $1 AND id = $2 AND status = $3', [organizationId, photoId, 'ready'])
+    if (!ready.rows.length) throw new ApiError(409, 'Complete a photo in this organization before attaching it')
+  }
   async function dispatch(client: DatabaseClient, identity: Identity, request: ApiRequest): Promise<unknown> {
     if (request.operation === 'register') {
       const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, email, display_name) VALUES ($1, $2, $3, $4)
@@ -82,8 +91,9 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       }
       case 'createEquipment': {
         admin(membership)
-        const { equipmentCode, name, category } = request.input
-        return (await client.query(`INSERT INTO app.inventory (organization_id, equipment_code, name, category) VALUES ($1, $2, $3, $4) RETURNING ${equipmentColumns}`, [organizationId, equipmentCode, name, category])).rows[0]
+        const { equipmentCode, name, category, photoId } = request.input
+        await checkAttachment(client, organizationId, photoId)
+        return (await client.query(`INSERT INTO app.inventory (organization_id, equipment_code, name, category, photo_id) VALUES ($1, $2, $3, $4, $5) RETURNING ${equipmentColumns}`, [organizationId, equipmentCode, name, category, photoId ?? null])).rows[0]
       }
       case 'updateEquipment': {
         admin(membership)
@@ -94,8 +104,9 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
             WHERE i.organization_id = $1 AND i.equipment_id = $2 AND r.status = 'confirmed' AND r.ends_at > now() LIMIT 1`, [organizationId, request.itemId])
           if (booked.rows.length) throw new ApiError(409, 'Cancel active or future reservations before taking equipment out of service')
         }
-        return (await client.query(`UPDATE app.inventory SET name = COALESCE($3, name), category = COALESCE($4, category), status = COALESCE($5, status)
-          WHERE organization_id = $1 AND id = $2 RETURNING ${equipmentColumns}`, [organizationId, request.itemId, request.input.name ?? null, request.input.category ?? null, request.input.status ?? null])).rows[0]
+        await checkAttachment(client, organizationId, request.input.photoId)
+        return (await client.query(`UPDATE app.inventory SET name = COALESCE($3, name), category = COALESCE($4, category), status = COALESCE($5, status), photo_id = CASE WHEN $6::boolean THEN $7::uuid ELSE photo_id END
+          WHERE organization_id = $1 AND id = $2 RETURNING ${equipmentColumns}`, [organizationId, request.itemId, request.input.name ?? null, request.input.category ?? null, request.input.status ?? null, request.input.photoId !== undefined, request.input.photoId ?? null])).rows[0]
       }
       case 'reservations': {
         const result = await client.query<QueryResultRow & { id: string }>(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id = $1
@@ -133,6 +144,43 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         const id = inserted.rows[0].id
         await client.query('INSERT INTO app.reservation_items (organization_id, reservation_id, equipment_id) SELECT $1, $2, unnest($3::uuid[])', [organizationId, id, input.equipmentIds])
         return (await client.query(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id = $1 AND r.id = $2`, [organizationId, id])).rows[0]
+      }
+      case 'photoUpload': {
+        admin(membership)
+        if (!storage) throw new Error('Private photo storage is not configured')
+        const input = request.input
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`photo:${organizationId}:${user.id}:${input.requestId}`])
+        const previous = await client.query('SELECT id, staging_key AS "stagingKey", content_type AS "contentType", input_size AS "inputSize", status, expires_at AS "expiresAt" FROM app.photo_uploads WHERE organization_id = $1 AND uploaded_by = $2 AND request_id = $3', [organizationId, user.id, input.requestId])
+        let photo: PendingPhoto
+        if (previous.rows.length) {
+          const row = previous.rows[0]
+          if (row.inputSize !== input.size || row.contentType !== input.contentType) throw new ApiError(409, 'Photo request ID was used for different content')
+          if (row.status !== 'pending' || Date.parse(String(row.expiresAt)) <= now()) throw new ApiError(409, 'Start a new upload with a new request ID')
+          photo = { id: row.id, organizationId, stagingKey: row.stagingKey, contentType: row.contentType, inputSize: row.inputSize }
+        } else {
+          const id = randomUUID(), stagingKey = `staging/${organizationId}/${id}.${input.contentType === 'image/jpeg' ? 'jpg' : 'webp'}`
+          await client.query('INSERT INTO app.photo_uploads (id, organization_id, uploaded_by, request_id, content_type, input_size, staging_key) VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, organizationId, user.id, input.requestId, input.contentType, input.size, stagingKey])
+          photo = { id, organizationId, stagingKey, contentType: input.contentType, inputSize: input.size }
+        }
+        return { photoId: photo.id, ...await storage.signUpload(photo) }
+      }
+      case 'completePhoto': {
+        admin(membership)
+        if (!storage) throw new Error('Private photo storage is not configured')
+        const result = await client.query('SELECT id, uploaded_by AS "uploadedBy", staging_key AS "stagingKey", content_type AS "contentType", input_size AS "inputSize", status, width, height, stored_size AS size, expires_at AS "expiresAt" FROM app.photo_uploads WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, request.photoId])
+        const photo = result.rows[0]
+        if (!photo || photo.uploadedBy !== user.id) throw new ApiError(404, 'Photo upload not found')
+        if (photo.status === 'ready') return { photoId: photo.id, width: photo.width, height: photo.height, size: photo.size }
+        if (Date.parse(String(photo.expiresAt)) <= now()) throw new ApiError(409, 'Photo upload expired; start a new upload')
+        const stored = await storage.finalize({ id: photo.id, organizationId, stagingKey: photo.stagingKey, contentType: photo.contentType, inputSize: photo.inputSize })
+        await client.query('UPDATE app.photo_uploads SET status = $3, object_key = $4, width = $5, height = $6, stored_size = $7, sha256 = $8 WHERE organization_id = $1 AND id = $2', [organizationId, photo.id, 'ready', stored.key, stored.width, stored.height, stored.size, stored.sha256])
+        return { photoId: photo.id, width: stored.width, height: stored.height, size: stored.size }
+      }
+      case 'downloadPhoto': {
+        if (!storage) throw new Error('Private photo storage is not configured')
+        const result = await client.query('SELECT p.id, p.object_key AS "objectKey" FROM app.inventory i JOIN app.photo_uploads p ON p.organization_id = i.organization_id AND p.id = i.photo_id WHERE i.organization_id = $1 AND i.id = $2 AND p.status = $3', [organizationId, request.itemId, 'ready'])
+        if (!result.rows.length) throw new ApiError(404, 'Attached photo not found')
+        return { photoId: result.rows[0].id, ...await storage.signDownload(result.rows[0].objectKey) }
       }
     }
   }
