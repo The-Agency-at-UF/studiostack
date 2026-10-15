@@ -1,0 +1,135 @@
+// @vitest-environment node
+import { webcrypto } from 'node:crypto'
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
+import { accessToken, authConfiguration, clearSignIn, enterPreview, finishSignIn, isPreview, logoutUrl, signInUrl } from './cognito'
+import { loginProviders, providerName } from './providers'
+
+const config = authConfiguration('http://localhost:5174')
+const values = new Map<string, string>()
+const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) }
+let keyPair: Awaited<ReturnType<typeof webcrypto.subtle.generateKey>>
+let publicKey: object
+const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+async function jwt(claims: object) {
+  const unsigned = `${encode({ alg: 'RS256', kid: 'test-key' })}.${encode(claims)}`
+  const signature = await webcrypto.subtle.sign('RSASSA-PKCS1-v1_5', (keyPair as webcrypto.CryptoKeyPair).privateKey, Buffer.from(unsigned))
+  return `${unsigned}.${Buffer.from(signature).toString('base64url')}`
+}
+async function mockResponse(overrides: { id?: object; access?: object; tamper?: boolean } = {}) {
+  const pending = JSON.parse(values.get('studiostack.oauth.pending')!) as { state: string; nonce: string }
+  const common = { iss: config.issuer, sub: 'test-member', exp: Math.floor(Date.now() / 1000) + 900, iat: Math.floor(Date.now() / 1000) }
+  let access = await jwt({ ...common, token_use: 'access', client_id: config.clientId, scope: 'openid studiostack-api/access', ...overrides.access })
+  if (overrides.tamper) access = `${access.slice(0, -12)}AAAAAAAAAAAA`
+  const id = await jwt({ ...common, token_use: 'id', aud: config.clientId, nonce: pending.nonce, email: 'member@example.test', email_verified: true, ...overrides.id })
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access, id_token: id, refresh_token: 'never-store-this' })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ keys: [publicKey] })))
+  vi.stubGlobal('fetch', fetcher)
+  return { callback: `${config.redirectUri}?code=test-code&state=${pending.state}`, fetcher, access }
+}
+beforeAll(async () => {
+  keyPair = await webcrypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify'])
+  publicKey = { ...await webcrypto.subtle.exportKey('jwk', (keyPair as webcrypto.CryptoKeyPair).publicKey), kid: 'test-key', alg: 'RS256', use: 'sig' }
+})
+beforeEach(() => {
+  vi.stubGlobal('crypto', webcrypto); vi.stubGlobal('sessionStorage', storage); values.clear(); clearSignIn()
+  vi.stubEnv('NEXT_PUBLIC_COGNITO_ENABLED_PROVIDERS', ''); vi.stubEnv('NEXT_PUBLIC_COGNITO_SAML_PROVIDER', '')
+})
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers() })
+
+describe('Cognito browser sign-in', () => {
+  it('fails closed for unconnected social and SAML options', async () => {
+    expect(loginProviders().every(provider => provider.identityProvider === null)).toBe(true)
+    for (const provider of ['google', 'apple', 'saml'] as const) {
+      await expect(signInUrl(config, provider)).rejects.toThrow('not connected')
+    }
+    expect(values.size).toBe(0)
+  })
+  it.each([['google', 'Google'], ['apple', 'SignInWithApple'], ['saml', 'UF']] as const)('routes %s through Cognito with the same PKCE flow', async (provider, name) => {
+    vi.stubEnv('NEXT_PUBLIC_COGNITO_ENABLED_PROVIDERS', 'Google, SignInWithApple, UF')
+    vi.stubEnv('NEXT_PUBLIC_COGNITO_SAML_PROVIDER', 'UF')
+    const url = new URL(await signInUrl(config, provider))
+    expect(url.origin).toBe(config.domain)
+    expect(url.searchParams.get('identity_provider')).toBe(name)
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(url.searchParams.get('redirect_uri')).toBe(config.redirectUri)
+    expect(url.searchParams.get('state')).toBeTruthy()
+    expect(url.searchParams.get('nonce')).toBeTruthy()
+  })
+  it('does not enable an unsafe or non-allowlisted SAML provider', () => {
+    vi.stubEnv('NEXT_PUBLIC_COGNITO_SAML_PROVIDER', 'UF')
+    expect(() => providerName('saml')).toThrow()
+    for (const name of ['https://evil.example', 'Google', 'COGNITO', 'UF&redirect=evil']) {
+      vi.stubEnv('NEXT_PUBLIC_COGNITO_SAML_PROVIDER', name)
+      vi.stubEnv('NEXT_PUBLIC_COGNITO_ENABLED_PROVIDERS', name)
+      expect(() => providerName('saml')).toThrow()
+    }
+  })
+  it('uses code + S256 PKCE and stores only pending proof, state and nonce', async () => {
+    const url = new URL(await signInUrl(config))
+    const pending = JSON.parse(values.get('studiostack.oauth.pending')!)
+    expect(url.origin).toBe(config.domain)
+    expect(url.searchParams.get('response_type')).toBe('code')
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(url.searchParams.get('code_challenge')).not.toBe(pending.verifier)
+    expect(url.searchParams.get('state')).toBe(pending.state)
+    expect(url.searchParams.get('nonce')).toBe(pending.nonce)
+    expect(url.searchParams.has('client_secret')).toBe(false)
+    expect(url.searchParams.has('identity_provider')).toBe(false)
+    expect([...values.keys()]).toEqual(['studiostack.oauth.pending'])
+  })
+  it('requires explicit configuration outside registered localhost', () => {
+    expect(() => authConfiguration('http://127.0.0.1:5174')).toThrow()
+    expect(() => authConfiguration('https://unconfigured.example')).toThrow()
+    expect(new URL(logoutUrl(config)).searchParams.get('logout_uri')).toBe('http://localhost:5174/')
+  })
+  it.each(['wrong-state', 'expired', 'wrong-origin'])('rejects %s before exchanging a code', async reason => {
+    await signInUrl(config)
+    const pending = JSON.parse(values.get('studiostack.oauth.pending')!)
+    if (reason === 'expired') { pending.createdAt = Date.now() - 600_001; values.set('studiostack.oauth.pending', JSON.stringify(pending)) }
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher)
+    await expect(finishSignIn(config, `${reason === 'wrong-origin' ? 'https://evil.example/login/' : config.redirectUri}?code=x&state=${reason === 'wrong-state' ? 'wrong' : pending.state}`)).rejects.toThrow('expired')
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(values.has('studiostack.oauth.pending')).toBe(false)
+  })
+  it('verifies signed tokens, keeps them in memory and prevents duplicate exchanges/replay', async () => {
+    await signInUrl(config)
+    const { callback, fetcher, access } = await mockResponse()
+    const first = finishSignIn(config, callback), second = finishSignIn(config, callback)
+    expect(first).toBe(second)
+    expect(await first).toMatchObject({ subject: 'test-member', label: 'member@example.test' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(String(fetcher.mock.calls[0][1].body)).toContain('code_verifier=')
+    expect(await accessToken()).toBe(access)
+    expect(values.size).toBe(0)
+    await expect(finishSignIn(config, callback)).rejects.toThrow('expired')
+    await expect(accessToken()).rejects.toThrow('session expired')
+  })
+  it.each([
+    { id: { nonce: 'wrong' } }, { id: { aud: 'other-client' } }, { id: { sub: 'other-user' } },
+    { access: { iss: 'https://wrong-issuer.example' } }, { access: { token_use: 'id' } },
+    { access: { client_id: 'other-client' } }, { access: { scope: 'openid' } },
+    { access: { exp: 1 } }, { tamper: true },
+  ])('rejects invalid claims or signatures: %j', async overrides => {
+    await signInUrl(config)
+    const { callback } = await mockResponse(overrides)
+    await expect(finishSignIn(config, callback)).rejects.toThrow()
+    await expect(accessToken()).rejects.toThrow('session expired')
+    expect(values.size).toBe(0)
+  })
+  it('does not display untrusted provider error text', async () => {
+    const url = new URL(await signInUrl(config))
+    await expect(finishSignIn(config, `${config.redirectUri}?error=access_denied&error_description=secret&state=${url.searchParams.get('state')}`)).rejects.toThrow('cancelled')
+    expect(values.size).toBe(0)
+  })
+  it('preview never receives real credentials, and expiry removes access', async () => {
+    await signInUrl(config)
+    const { callback } = await mockResponse()
+    await finishSignIn(config, callback)
+    vi.useFakeTimers(); vi.setSystemTime(Date.now() + 901_000)
+    await expect(accessToken()).rejects.toThrow('session expired')
+    enterPreview()
+    expect(isPreview()).toBe(true)
+    await expect(accessToken()).rejects.toThrow('session expired')
+    expect([...values.entries()]).toEqual([['studiostack.preview', 'yes']])
+  })
+})
