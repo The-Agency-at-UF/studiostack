@@ -30,3 +30,5 @@ The active application lives in the repository root. The `legacy/` directory is 
 
 - [Aurora environments, credentials and identity/group schema](aurora-databases.md)
 - [Private database Lambda connection foundation](database-lambda-deployment.md)
+
+- [Authenticated database API MVP](database-api.md)
