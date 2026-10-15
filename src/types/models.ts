@@ -13,6 +13,8 @@ export interface InventoryData {
   name: string
   category: string
   availability: string
+  /** Private S3 object key, not a public bucket URL or an expiring signed URL. */
+  photoKey?: string
   timestamp?: Timestamp
 }
 export type InventoryItem = InventoryData & { id: string }

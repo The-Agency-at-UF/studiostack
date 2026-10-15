@@ -2,12 +2,14 @@ import type { InventoryItem, AlertMessage } from '../../types/models'
 import React, {useState, useEffect} from 'react'
 import { db, collection, orderBy, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from '../../data/localStore';
 import AddItemPopup from '../../components/AddItemPopup';
+import type { ItemDetails } from '../../components/AddItemPopup';
+import { getDoc, setDoc } from '../../data/localStore';
 import RemoveItemPopup from '../../components/RemoveItemPopup';
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { IoIosAlert } from "react-icons/io";
 import { IoIosCheckmarkCircle } from "react-icons/io";
 
-function Inventory({ isAdmin }: { isAdmin: boolean }) {
+function Inventory({ isAdmin, getAccessToken }: { isAdmin: boolean; getAccessToken?: () => Promise<string> }) {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [filteredList, setFilteredList] = useState<InventoryItem[]>([]);
   const inventoryCollectionRef = collection(db, "inventory");
@@ -50,14 +52,20 @@ function Inventory({ isAdmin }: { isAdmin: boolean }) {
   }, []);
 
   // adds item to database
-  const addItem = (name: string, category: string, availability: string) => {
+  const addItem = async (name: string, category: string, availability: string, details: ItemDetails = {}) => {
     try {
-      addDoc(inventoryCollectionRef, { name: name, category: category, availability: availability, timestamp: serverTimestamp() });
-      setMessage({ text: "Item added successfully.", type: "success" });
+      const data = { name, category, availability, timestamp: serverTimestamp(), ...(details.photoKey ? { photoKey: details.photoKey } : {}) };
+      if (details.equipmentId) {
+        const reference = doc(db, 'inventory', details.equipmentId);
+        if ((await getDoc(reference)).exists()) throw new Error('This equipment ID already exists. Use its existing inventory record or choose a new ID.');
+        await setDoc(reference, data);
+      } else await addDoc(inventoryCollectionRef, data);
+      setMessage({ text: "Item added to the local preview inventory.", type: "success" });
     }
     catch(error) {
       setMessage({ text: "Error adding item.", type: "error" });
       console.log("Error adding item to inventory:", error);
+      throw error;
     }
   }
 
@@ -87,7 +95,7 @@ function Inventory({ isAdmin }: { isAdmin: boolean }) {
                 {
                   isAdmin &&
                     <div className="workspace-actions absolute top-8 right-8 flex space-x-4">
-                      <AddItemPopup addItem={addItem} categoryList={categoryList}/>
+                      <AddItemPopup addItem={addItem} categoryList={categoryList} getAccessToken={getAccessToken}/>
                       <RemoveItemPopup removeItem={removeItem} listOfNames={inventory.map(item => item.name)} listofIDs={inventory.map(item => item.id)}/>
                   </div>
                 }
