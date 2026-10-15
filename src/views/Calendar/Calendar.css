@@ -32,8 +32,8 @@
 
 .calendar-workspace .fc .fc-button:hover,
 .calendar-workspace .fc .fc-button-active {
-  border-color: var(--blue) !important;
-  background: var(--blue) !important;
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
 }
 
 .calendar-workspace .fc-theme-standard td,
@@ -57,8 +57,8 @@
   font-weight: 700;
 }
 
-.calendar-workspace .fc .fc-day-today { background: rgba(36,70,255,.055) !important; }
-.calendar-workspace .fc-event { border: 0; border-radius: 0; color: white !important; background: var(--blue) !important; cursor: pointer; }
+.calendar-workspace .fc .fc-day-today { background: rgba(var(--accent-rgb),.055) !important; }
+.calendar-workspace .fc-event { border: 0; border-radius: 0; color: white !important; background: var(--accent) !important; cursor: pointer; }
 .calendar-workspace .fc-event:hover { background: var(--ink) !important; }
 .calendar-workspace .fc-event .fc-event-title,
 .calendar-workspace .fc-event .fc-event-time { color: inherit !important; }

@@ -22,11 +22,13 @@ body {
 
 button, input, textarea, select { font: inherit; }
 
+input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); }
+
 button, a { -webkit-tap-highlight-color: transparent; }
 
-::selection { color: white; background: #2446ff; }
+::selection { color: white; background: var(--accent); }
 
 :focus-visible {
-  outline: 2px solid #2446ff;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }

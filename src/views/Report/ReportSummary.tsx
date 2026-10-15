@@ -156,7 +156,7 @@ function ReportSummary({ isAdmin, userEmail }: { isAdmin: boolean; userEmail: st
         {/* If user is an admin, they can resolve a report */}
         {isAdmin && reportID && report?.resolved == false &&
             <button
-                className="px-6 py-2 bg-[#A3C1E0] hover:bg-[#426276] hover:text-white rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
+                className="px-6 py-2 bg-[var(--accent-light)] hover:bg-[var(--accent)] hover:text-white rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
                 onClick={() => {
                     resolveReport(reportID);
                     setItemToAvailable(report.itemId);

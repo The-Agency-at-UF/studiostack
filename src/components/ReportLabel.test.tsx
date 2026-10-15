@@ -26,7 +26,7 @@ describe('ReportLabel', () => {
     render(<ReportLabel report={mockReport} backgroundColor="#f0f0f0" />);
 
     // Find the icon by its color which is unique in this component
-    const arrow = document.querySelector('svg[color="#426276"]');
+    const arrow = document.querySelector('svg[color="var(--accent)"]');
 
     if (arrow) {
         fireEvent.click(arrow);

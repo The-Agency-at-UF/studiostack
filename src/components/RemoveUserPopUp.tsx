@@ -43,10 +43,10 @@ function RemoveUserPopup({ removeEmail, listOfEmails }: { removeEmail: (email: s
         }),
         option: (provided, state) => ({
             ...provided,
-            backgroundColor: state.isFocused ? '#A3C1E0' : 'white',
+            backgroundColor: state.isFocused ? 'var(--accent-light)' : 'white',
             color: 'black',
             '&:hover': {
-                backgroundColor: '#A3C1E0',
+                backgroundColor: 'var(--accent-light)',
             },
             fontSize: '0.875rem',
             '@media (min-width: 640px)': {
@@ -103,7 +103,7 @@ function RemoveUserPopup({ removeEmail, listOfEmails }: { removeEmail: (email: s
                                 Submit
                             </button>
                             <IoIosCloseCircle
-                                color='#2446ff'
+                                color='var(--accent)'
                                 className='workspace-modal-close w-8 h-8 sm:w-10 sm:h-10 absolute hover:cursor-pointer'
                                 onClick={() => {
                                     setSelectedOption(null);

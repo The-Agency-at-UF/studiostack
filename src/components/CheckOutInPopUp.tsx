@@ -107,7 +107,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }: { handleChec
     <Popup
       ref={popupRef}
       trigger={
-        <button className="bg-[#A3C1E0] rounded-md px-2 sm:px-4 md:px-6 py-2 lg:text-xl sm:text-lg text-sm hover:cursor-pointer hover:scale-105">
+        <button className="bg-[var(--accent-light)] rounded-md px-2 sm:px-4 md:px-6 py-2 lg:text-xl sm:text-lg text-sm hover:cursor-pointer hover:scale-105">
           {checkOut ? "Check Out" : "Check In"}
         </button>
       }
@@ -147,7 +147,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }: { handleChec
                   <p className="pb-3">Press a button to proceed.</p>
                   <div className="actions flex justify-center space-x-4 pt-4 font-bold">
                     <button
-                      className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                      className="px-6 py-2 bg-[var(--accent-light)] rounded-md hover:cursor-pointer hover:scale-110"
                       onClick={() => {
                         setIsScanning(true);
                         setShowScannerContainer(true);
@@ -156,7 +156,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }: { handleChec
                       Scan QR Code
                     </button>
                     <button
-                      className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                      className="px-6 py-2 bg-[var(--accent-light)] rounded-md hover:cursor-pointer hover:scale-110"
                       onClick={() => setIsManualEntry(true)}
                     >
                       Enter Manually
@@ -188,7 +188,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }: { handleChec
                   />
                   <div className="actions flex justify-center space-x-4 pt-4 font-bold">
                     <button
-                      className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                      className="px-6 py-2 bg-[var(--accent-light)] rounded-md hover:cursor-pointer hover:scale-110"
                       onClick={handleManualSubmit}
                     >
                       Submit
@@ -205,7 +205,7 @@ function CheckOutInPopUp({ handleCheckOutIn, checkOut, correctID }: { handleChec
             }
 
             <IoIosCloseCircle
-              color="#426276"
+              color="var(--accent)"
               className="w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110"
               onClick={() => {
                 if (popupRef.current) {

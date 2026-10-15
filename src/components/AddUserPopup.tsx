@@ -14,7 +14,7 @@ function AddUserPopup({ addEmail }: { addEmail: (isAdmin: boolean, email: string
 
     return (
         <Popup trigger=
-            {<div><IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer'/></div>}
+            {<div><IoIosAddCircle color='var(--accent)' className='w-8 h-8 sm:w-10 sm:h-10 hover:scale-110 hover:cursor-pointer'/></div>}
             modal nested
             className="workspace-popup"
             overlayStyle={{ backgroundColor: 'rgba(16, 16, 16, 0.68)'}} >
@@ -31,7 +31,7 @@ function AddUserPopup({ addEmail }: { addEmail: (isAdmin: boolean, email: string
                                 style={{ opacity: 0 }}
                                 />
                                 {!isAdmin && <BsSquare fill={"black"} className='w-4 h-4 sm:w-5 sm:h-5' />}
-                                {isAdmin && <BsCheckSquare fill={"#426276"} className='w-4 h-4 sm:w-5 sm:h-5' />}
+                                {isAdmin && <BsCheckSquare fill={"var(--accent)"} className='w-4 h-4 sm:w-5 sm:h-5' />}
                                 <span>Is the user an admin?</span>
                             </label>
                             <div className='px-5'>
@@ -55,7 +55,7 @@ function AddUserPopup({ addEmail }: { addEmail: (isAdmin: boolean, email: string
                                 Submit
                             </button>
                             <IoIosCloseCircle
-                                color='#2446ff'
+                                color='var(--accent)'
                                 className='workspace-modal-close w-8 h-8 sm:w-10 sm:h-10 absolute hover:cursor-pointer'
                                 onClick={() => {
                                     setEmail('');

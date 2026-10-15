@@ -81,7 +81,7 @@ function StudentDash() {
                       :
                         <div>
                           {notifications.map((notification, index) => (
-                            <StudentNotification key={index} notification={notification} type={notification.type} closeNotif={closeNotif} canClose={true} iconColor={'#426276'} backgroundColor={'#D1E0EF'}/>
+                            <StudentNotification key={index} notification={notification} type={notification.type} closeNotif={closeNotif} canClose={true} iconColor={'var(--accent)'} backgroundColor={'var(--accent-soft)'}/>
                           ))}
                         </div>
                       }

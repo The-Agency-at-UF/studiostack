@@ -57,7 +57,7 @@ const QRCodeGenerator = ({ equipmentID }: { equipmentID: string }) => {
         <QRCode value={equipmentID} size={256} />
       </div>
       <button
-        className="bg-[#A3C1E0] hover:bg-[#426276] text-xs lg:text-sm cursor-pointer rounded-full text-white w-full"
+        className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-xs lg:text-sm cursor-pointer rounded-full text-white w-full"
         onClick={downloadAction}
       >
         {equipmentID}

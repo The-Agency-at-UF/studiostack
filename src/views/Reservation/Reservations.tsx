@@ -128,7 +128,7 @@ function Reservations({ isAdmin }: { isAdmin: boolean }) {
               </h1>
               <div className="reservation-add hover:cursor-pointer">
                 <IoIosAddCircle
-                  color="#426276"
+                  color="var(--accent)"
                   className="w-8 h-8 sm:w-10 sm:h-10"
                   onClick={() => router.push("/create-reservation")}
                 />
@@ -144,7 +144,7 @@ function Reservations({ isAdmin }: { isAdmin: boolean }) {
                   <ReservationLabel
                     key={index}
                     reservation={reservation}
-                    backgroundColor={"#D1E0EF"}
+                    backgroundColor={"var(--accent-soft)"}
                   />
                 ))}
               </div>
@@ -164,7 +164,7 @@ function Reservations({ isAdmin }: { isAdmin: boolean }) {
                   <div key={index} className="relative">
                     <ReservationLabel
                       reservation={reservation}
-                      backgroundColor={"#D1E0EF"}
+                      backgroundColor={"var(--accent-soft)"}
                     />
                     {isAdmin && (
                       <div className="absolute top-2 right-16">

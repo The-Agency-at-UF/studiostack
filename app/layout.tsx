@@ -11,7 +11,7 @@ import type { ReactNode } from 'react'
 export const metadata: Metadata = {
   title: 'StudioStack',
   description: 'Production equipment operations for The Agency at UF',
-  icons: { icon: '/favicon.png' },
+  icons: { icon: { url: '/favicon.svg', type: 'image/svg+xml' } },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -7,8 +7,8 @@ function ConfirmationPopup({ handle, text, wholeReservation, isReservation }: { 
     return (
         <Popup trigger=
             {//look of the trigger depends on the type of action (from the input)
-                !isReservation ? <div className='flex-1'><button className='bg-[#A3C1E0] hover:bg-[#426276] text-xs lg:text-sm cursor-pointer rounded-full text-white px-6 py-1'>Change Role</button></div> :
-                wholeReservation ? <button className="bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">Cancel Reservation</button> :
+                !isReservation ? <div className='flex-1'><button className='bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-xs lg:text-sm cursor-pointer rounded-full text-white px-6 py-1'>Change Role</button></div> :
+                wholeReservation ? <button className="bg-[var(--accent-light)] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">Cancel Reservation</button> :
                 <div>
                 <IoIosRemoveCircle color='#EB3223' className='w-6 h-6 sm:w-8 sm:h-8 hover:cursor-pointer hover:scale-110' />
                 </div>
@@ -24,7 +24,7 @@ function ConfirmationPopup({ handle, text, wholeReservation, isReservation }: { 
                         </div>
                         <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                                className="px-6 py-2 bg-[var(--accent-light)] rounded-md hover:cursor-pointer hover:scale-110"
                                 onClick={() => {
                                     handle();
                                     close();
@@ -32,7 +32,7 @@ function ConfirmationPopup({ handle, text, wholeReservation, isReservation }: { 
                                 Confirm
                             </button>
                             <IoIosCloseCircle
-                                color='#426276'
+                                color='var(--accent)'
                                 className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110'
                                 onClick={() => {
                                     close()

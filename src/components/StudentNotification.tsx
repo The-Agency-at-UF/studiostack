@@ -41,13 +41,13 @@ function StudentNotification({ notification, type, closeNotif, canClose, iconCol
             {type == "report" &&
             notification?.resolved == true &&
             notification?.userClosed == false &&
-            <div className='p-2 rounded-lg relative m-2 flex items-center' style={{backgroundColor: '#D1E0EF'}}>
-                <IoIosNotifications color='#426276' className='w-8 h-8'/>
+            <div className='p-2 rounded-lg relative m-2 flex items-center' style={{backgroundColor: 'var(--accent-soft)'}}>
+                <IoIosNotifications color='var(--accent)' className='w-8 h-8'/>
                     <h1 className='text-xs sm:text-sm md:text-base p-2'>
                         A report for <strong>{notification?.item}</strong> was resolved by <strong>{notification?.resolvedBy}</strong> on {formatDate(notification?.time)}.
                     </h1>
                 {canClose &&
-                <IoIosClose color='#426276' className='absolute right-5 transform -translate-y-1/2 m-1 sm:w-8 sm:h-8'
+                <IoIosClose color='var(--accent)' className='absolute right-5 transform -translate-y-1/2 m-1 sm:w-8 sm:h-8'
                     onClick={() => closeNotif?.(notification.id)}
                 />}
             </div>

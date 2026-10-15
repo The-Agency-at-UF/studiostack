@@ -126,10 +126,10 @@ function Report({ userEmail }: { userEmail: string }) {
     }),
     option: (provided, state) => ({
         ...provided,
-        backgroundColor: state.isFocused ? '#A3C1E0' : 'white',
+        backgroundColor: state.isFocused ? 'var(--accent-light)' : 'white',
         color: 'black',
         '&:hover': {
-            backgroundColor: '#A3C1E0',
+            backgroundColor: 'var(--accent-light)',
         }
     }),
   };
@@ -308,7 +308,7 @@ function Report({ userEmail }: { userEmail: string }) {
                         <textarea
                         required
                         placeholder="Message..."
-                        className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full h-60"
+                        className="text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full h-60"
                         onChange={(e) => setMessage(e.target.value)}
                         />
                 </div>
@@ -317,7 +317,7 @@ function Report({ userEmail }: { userEmail: string }) {
         </div>
         <div className='flex justify-center'>
             <button
-                className="workspace-primary-action px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
+                className="workspace-primary-action px-6 py-2 bg-[var(--accent-light)] rounded-md text-lg sm:text-xl font-bold mt-4 cursor-pointer"
                 onClick={() => {
                     handleSubmit();
                     setItemtoReported(itemId);

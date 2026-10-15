@@ -91,19 +91,19 @@ function BarGraph({ data, colors, title, fullData }: { data: ChartValue[]; color
             </div>
             <div className='chart-range sm:pl-6 text-white text-sm sm:text-base pt-2 sm:pt-0'>
                 <button
-                className='bg-[#426276] rounded-l-md border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
+                className='bg-[var(--accent)] rounded-l-md border border-white p-1 sm:p-2 hover:bg-[var(--accent-hover)] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 30 Days')}
                 >Past 30 Days</button>
                 <button
-                className='bg-[#426276] border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
+                className='bg-[var(--accent)] border border-white p-1 sm:p-2 hover:bg-[var(--accent-hover)] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 60 Days')}
                 >Past 60 Days</button>
                 <button
-                className='bg-[#426276] border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
+                className='bg-[var(--accent)] border border-white p-1 sm:p-2 hover:bg-[var(--accent-hover)] hover:cursor-pointer'
                 onClick={() => handleSettingChange('Past 90 Days')}
                 >Past 90 Days</button>
                 <button
-                className='bg-[#426276] rounded-r-md border border-white p-1 sm:p-2 hover:bg-[#283b47] hover:cursor-pointer'
+                className='bg-[var(--accent)] rounded-r-md border border-white p-1 sm:p-2 hover:bg-[var(--accent-hover)] hover:cursor-pointer'
                 onClick={() => handleSettingChange('All-Time')}
                 >All-Time</button>
             </div>

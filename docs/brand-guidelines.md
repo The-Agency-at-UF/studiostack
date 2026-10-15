@@ -25,10 +25,12 @@ Operational warnings, errors, and destructive actions should prioritize clarity 
 | White | `#FFFFFF` | `255, 255, 255` | Predominant text on dark surfaces and clean light surfaces |
 | Yellow | `#FFB23E` | `255, 178, 62` | Warm accent used sparingly |
 | Red | `#FF4D56` | `255, 77, 86` | Energetic accent; reserve product red for errors and destructive actions |
-| Dark purple | `#5302D8` | `84, 2, 216` | Primary expressive brand color |
+| Dark purple | `#5302D8` | `83, 2, 216` | Primary expressive brand color |
 | Light purple | `#AB9BFF` | `171, 155, 255` | Supporting purple and lighter accent |
 
 The brand-book color slide accidentally prints `#000000` beneath the white swatch. Its RGB and CMYK values identify the intended color as `#FFFFFF`.
+
+The dark-purple RGB label also lists 84 for red, while the printed hex `#5302D8` resolves to RGB `83, 2, 216`. StudioStack uses the printed hex as the source of truth.
 
 ## Color usage
 
@@ -60,13 +62,16 @@ If the licensed Gentona files are unavailable, use a documented web-safe substit
 
 ## StudioStack implementation note
 
-The current StudioStack interface uses an Agency-inspired operational palette rather than the literal Nerve palette:
+StudioStack uses the official Nerve purples for interface accents, with its existing neutral operational surfaces:
 
 | Current token | Value |
 | --- | --- |
 | Ink | `#101010` |
 | Paper | `#F3EFE6` |
 | Paper light | `#FAF8F2` |
-| Interface blue | `#2446FF` |
+| Primary accent (`--accent`) | `#5302D8` |
+| Light accent (`--accent-light`) | `#AB9BFF` |
+| Hover accent (`--accent-hover`) | `#4202AD` (derived darker purple) |
+| Soft accent (`--accent-soft`) | `#EDE6FB` (derived pale purple) |
 
-Do not describe those values as the official Agency palette. A future visual-system change should either map the product tokens to the official Nerve colors or document why StudioStack retains a distinct product palette.
+The shared tokens in `src/App.css` cover navigation, buttons, links, focus states, calendars, charts, forms, dialogs, and organization previews. Light purple supports dark surfaces and subtle highlights; primary purple supports white-text controls. Error and destructive-action colors remain distinct. The neutral surfaces and derived purple shades are product choices, not additional official Agency colors.
