@@ -1,8 +1,11 @@
 import { mockDocument } from '../../test-utils/fixtures'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import Inventory from './Inventory';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { onSnapshot } from '../../data/localStore';
+import { onSnapshot, getDoc, setDoc } from '../../data/localStore';
+import type { AddInventoryItem } from '../../components/AddItemPopup';
+
+const popup = vi.hoisted(() => ({ addItem: undefined as AddInventoryItem | undefined }));
 
 // Mock specific behavior for this test file
 vi.mocked(onSnapshot<"inventory">).mockImplementation((q, callback) => {
@@ -17,7 +20,7 @@ vi.mocked(onSnapshot<"inventory">).mockImplementation((q, callback) => {
 
 // Mock components that might cause issues in tests
 vi.mock('../../components/AddItemPopup', () => ({
-  default: () => <div data-testid="add-item-popup">Add Item</div>
+  default: ({ addItem }: { addItem: AddInventoryItem }) => { popup.addItem = addItem; return <div data-testid="add-item-popup">Add Item</div> }
 }));
 vi.mock('../../components/RemoveItemPopup', () => ({
   default: () => <div data-testid="remove-item-popup">Remove Item</div>
@@ -67,4 +70,19 @@ describe('Inventory', () => {
     });
   });
 
+  it('does not overwrite equipment when a scanned ID already exists', async () => {
+    vi.mocked(getDoc<'inventory'>).mockResolvedValueOnce({ id: 'UF-001', exists: () => true, data: () => ({ name: 'Existing camera', category: 'Camera & Accessories', availability: 'available' }) });
+    render(<Inventory isAdmin />);
+    await act(async () => {
+      await expect(popup.addItem!('New camera', 'Camera & Accessories', 'available', { equipmentId: 'UF-001' })).rejects.toThrow('already exists');
+    });
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it('uses the scanned ID and keeps a photo key with the inventory record', async () => {
+    vi.mocked(getDoc<'inventory'>).mockResolvedValueOnce({ id: 'UF-NEW-001', exists: () => false, data: () => undefined });
+    render(<Inventory isAdmin />);
+    await act(async () => { await popup.addItem!('New camera', 'Camera & Accessories', 'available', { equipmentId: 'UF-NEW-001', photoKey: 'photos/subject/camera.jpg' }); });
+    expect(setDoc).toHaveBeenCalledWith(expect.objectContaining({ id: 'UF-NEW-001' }), expect.objectContaining({ name: 'New camera', photoKey: 'photos/subject/camera.jpg' }));
+  });
 });
