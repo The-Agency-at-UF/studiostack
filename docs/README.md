@@ -25,3 +25,8 @@ This folder is the starting point for product, design, and historical StudioStac
 - Never place credentials, private keys, access tokens, or local environment files in this folder.
 
 The active application lives in the repository root. The `legacy/` directory is archived reference code and should not receive new product work.
+
+## Database foundation
+
+- [Aurora environments, credentials and identity/group schema](aurora-databases.md)
+- [Private database Lambda connection foundation](database-lambda-deployment.md)
