@@ -1,0 +1,116 @@
+import { StrictMode } from 'react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import AddItemPopup from './AddItemPopup'
+import { preparePhoto } from '../api/preparePhoto'
+import { uploadPreparedPhoto } from '../api/photos'
+
+vi.mock('../api/preparePhoto', () => ({ preparePhoto: vi.fn() }))
+vi.mock('../api/photos', () => ({ uploadPreparedPhoto: vi.fn() }))
+vi.mock('./EquipmentQrScanner', () => ({ default: ({ onCode, onCancel }: { onCode: (code: string) => boolean; onCancel: () => void }) => <div><button onClick={() => onCode('UF-CAMERA-001')} type="button">Read equipment label</button><button onClick={() => onCode('https://untrusted.example')} type="button">Read website label</button><button onClick={onCancel} type="button">Stop camera</button></div> }))
+const prepared = () => new File(['processed jpeg'], 'camera.jpg', { type: 'image/jpeg' })
+const createUrl = vi.fn(() => 'blob:equipment-photo')
+const revokeUrl = vi.fn()
+beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_PHOTO_UPLOAD_API_URL', '')
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: revokeUrl }))
+  vi.mocked(preparePhoto).mockResolvedValue(prepared())
+})
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks() })
+async function open(addItem = vi.fn(), getAccessToken?: () => Promise<string>) {
+  const user = userEvent.setup()
+  const view = render(<StrictMode><AddItemPopup addItem={addItem} categoryList={['Camera', 'Audio']} getAccessToken={getAccessToken} /></StrictMode>)
+  const trigger = screen.getByRole('button', { name: 'Add item' })
+  await user.click(trigger)
+  const dialog = screen.getByRole('dialog', { name: 'Add item' })
+  await user.type(screen.getByLabelText('Item name'), 'Sony FX3')
+  await user.selectOptions(screen.getByLabelText('Category'), 'Camera')
+  return { user, view, dialog, trigger, addItem }
+}
+async function choosePhoto() {
+  fireEvent.change(screen.getByLabelText('Choose equipment photo'), { target: { files: [new File(['original'], 'phone.heic', { type: 'image/heic' })] } })
+  await screen.findByAltText('Selected equipment photo preview')
+}
+describe('Add Item workflow', () => {
+  it('adds an item without opening the camera or uploading and restores focus', async () => {
+    const { user, dialog, trigger, addItem } = await open()
+    expect(screen.queryByText('Stop camera')).not.toBeInTheDocument()
+    expect(preparePhoto).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Add item' }))
+    expect(addItem).toHaveBeenCalledWith('Sony FX3', 'Camera', 'available', {})
+    expect(uploadPreparedPhoto).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+  it('fills the ID from a valid QR code without automatically creating the item', async () => {
+    const { user, dialog, addItem } = await open()
+    await user.click(screen.getByRole('button', { name: 'Scan QR code' }))
+    await user.click(screen.getByRole('button', { name: 'Read equipment label' }))
+    expect(screen.getByLabelText('Equipment ID')).toHaveValue('UF-CAMERA-001')
+    expect(addItem).not.toHaveBeenCalled()
+    expect(screen.queryByText('Stop camera')).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Add item' }))
+    expect(addItem).toHaveBeenCalledWith('Sony FX3', 'Camera', 'available', { equipmentId: 'UF-CAMERA-001' })
+  })
+  it('rejects QR URLs and leaves manual entry available', async () => {
+    const { user, addItem } = await open()
+    await user.click(screen.getByRole('button', { name: 'Scan QR code' }))
+    await user.click(screen.getByRole('button', { name: 'Read website label' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('website links are not accepted')
+    expect(screen.getByLabelText('Equipment ID')).toHaveValue('')
+    expect(addItem).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Stop camera' }))
+    await user.type(screen.getByLabelText('Equipment ID'), 'https://example.test')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add item' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('not a website link')
+    expect(addItem).not.toHaveBeenCalled()
+  })
+  it('prepares previews but blocks uploads from the demo session', async () => {
+    const { user, addItem } = await open()
+    expect(screen.getByLabelText('Take equipment photo')).toHaveAttribute('capture', 'environment')
+    await choosePhoto()
+    expect(preparePhoto).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Upload photo & add item' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Cognito sign-in')
+    expect(uploadPreparedPhoto).not.toHaveBeenCalled()
+    expect(addItem).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Remove photo' }))
+    expect(revokeUrl).toHaveBeenCalledWith('blob:equipment-photo')
+  })
+  it('uploads with the token provider and saves only the private object key', async () => {
+    vi.stubEnv('NEXT_PUBLIC_PHOTO_UPLOAD_API_URL', 'https://api.example.test/photos/uploads')
+    const getToken = vi.fn().mockResolvedValue('authenticated-token')
+    vi.mocked(uploadPreparedPhoto).mockResolvedValueOnce({ key: 'photos/subject/camera.jpg' })
+    const { user, addItem } = await open(vi.fn(), getToken)
+    await choosePhoto()
+    expect(getToken).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Upload photo & add item' }))
+    await waitFor(() => expect(addItem).toHaveBeenCalledWith('Sony FX3', 'Camera', 'available', { photoKey: 'photos/subject/camera.jpg' }))
+    expect(uploadPreparedPhoto).toHaveBeenCalledWith(expect.any(File), 'authenticated-token')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('retains details after a failed item save and reuses the uploaded photo on retry', async () => {
+    vi.stubEnv('NEXT_PUBLIC_PHOTO_UPLOAD_API_URL', 'https://api.example.test/photos/uploads')
+    vi.mocked(uploadPreparedPhoto).mockResolvedValue({ key: 'photos/subject/camera.jpg' })
+    const addItem = vi.fn().mockRejectedValueOnce(new Error('Equipment ID already exists')).mockResolvedValueOnce(undefined)
+    const { user } = await open(addItem, vi.fn().mockResolvedValue('token'))
+    await choosePhoto()
+    await user.click(screen.getByRole('button', { name: 'Upload photo & add item' }))
+    await screen.findByText('Equipment ID already exists')
+    expect(screen.getByLabelText('Item name')).toHaveValue('Sony FX3')
+    await user.click(screen.getByRole('button', { name: 'Upload photo & add item' }))
+    await waitFor(() => expect(addItem).toHaveBeenCalledTimes(2))
+    expect(uploadPreparedPhoto).toHaveBeenCalledOnce()
+  })
+  it('keeps the form open when upload fails without saving a fake photo key', async () => {
+    vi.stubEnv('NEXT_PUBLIC_PHOTO_UPLOAD_API_URL', 'https://api.example.test/photos/uploads')
+    vi.mocked(uploadPreparedPhoto).mockRejectedValueOnce(new Error('Photo upload failed'))
+    const { user, addItem } = await open(vi.fn(), vi.fn().mockResolvedValue('token'))
+    await choosePhoto()
+    await user.click(screen.getByRole('button', { name: 'Upload photo & add item' }))
+    await screen.findByText('Photo upload failed')
+    expect(addItem).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
