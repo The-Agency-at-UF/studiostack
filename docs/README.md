@@ -34,3 +34,5 @@ The active application lives in the repository root. The `legacy/` directory is 
 - [Authenticated database API MVP](database-api.md)
 
 - [Organization-scoped private photo extension](private-photos.md)
+
+- [Dev-only deployment, verification and restore drill](dev-rollout.md)

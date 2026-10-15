@@ -32,5 +32,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test:database
-      - run: npx vitest run src/api/photo-storage.test.ts
+      - run: npx vitest run src/api/photo-storage.test.ts src/api/dev-auth.test.ts
       - run: npm run test:database:postgres

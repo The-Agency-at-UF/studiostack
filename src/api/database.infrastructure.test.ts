@@ -42,6 +42,17 @@ describe('environment-scoped private infrastructure', () => {
     expect(policy.Statement).toContainEqual(expect.objectContaining({ Action: ['secretsmanager:GetSecretValue'], Resource: ['application-secret'], Condition: { StringEquals: { 'aws:SourceVpc': 'vpc-0c566c49de9c91bda' } } }))
     expect(policy.Statement).toContainEqual(expect.objectContaining({ Effect: 'Deny', Condition: { ArnEquals: { 'lambda:SourceFunctionArn': `arn:aws:lambda:${region}:${account}:function:example` } } }))
   })
+  it('adds dev photo access without changing production resources or granting prod maintenance', () => {
+    const old = infrastructure(masters, false), dev = infrastructure(masters, ['dev'], { prefixListId: 'pl-example' })
+    for (const [name, resource] of Object.entries(old.Resources)) if (name.startsWith('Prod')) expect(dev.Resources[name]).toEqual(resource)
+    const endpoint = JSON.stringify(dev.Resources.SecretsEndpoint)
+    expect(endpoint).toContain('dev-master-marker')
+    expect(endpoint).not.toContain('prod-master-marker')
+    expect(endpoint).not.toContain('studiostack-prod-database-setup-role')
+    expect(JSON.stringify(dev.Resources.DevRole)).toContain('studio-stack-photos-dev/staging/*')
+    expect(JSON.stringify(dev.Resources.DevRole)).not.toContain('studio-stack-photos-prod')
+    expect(JSON.stringify(dev.Resources.DevS3Endpoint)).not.toContain('studiostack-prod-database-role')
+  })
 })
 
 describe('fixed-purpose temporary login setup', () => {
