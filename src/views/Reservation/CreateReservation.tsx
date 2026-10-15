@@ -417,7 +417,7 @@ function CreateReservation() {
 
     //overriding styles for the dropdown
     const timeSelectStyle = {
-        base: 'text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12 cursor-pointer'
+        base: 'text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md flex-1 bg-white h-12 cursor-pointer'
     };
 
     const dropdownStyle = {
@@ -437,10 +437,10 @@ function CreateReservation() {
         }),
         option: (provided: CSSObjectWithLabel, state: { isFocused: boolean }) => ({
             ...provided,
-            backgroundColor: state.isFocused ? '#A3C1E0' : 'white',
+            backgroundColor: state.isFocused ? 'var(--accent-light)' : 'white',
             color: 'black',
             '&:hover': {
-                backgroundColor: '#A3C1E0',
+                backgroundColor: 'var(--accent-light)',
             },
             fontSize: '0.875rem',
             '@media (min-width: 640px)': {
@@ -600,7 +600,7 @@ function CreateReservation() {
                         <div className='pl-2 py-2'>
                             <input type="text"
                                 placeholder="ex) Bartram Photoshoot..."
-                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12"
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white h-12"
                                 value={reservationName}
                                 onChange={(e) => setReservationName(e.target.value)}
                             />
@@ -626,7 +626,7 @@ function CreateReservation() {
                         <div className='pl-2 py-2'>
                             <input type="text"
                                 placeholder="ex) Bartram"
-                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12"
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white h-12"
                                 value={reservationOtherCategory}
                                 onChange={(e) => setReservationOtherCategory(e.target.value)}
                             />
@@ -637,7 +637,7 @@ function CreateReservation() {
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Checkout</h2>
                         <div className='reservation-time-row pl-2 py-2 flex gap-2'>
                             <input type="date"
-                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12"
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md flex-1 bg-white h-12"
                                 value={reservationStartDate}
                                 onChange={(e) => handleCheckoutDateChange(e.target.value)}
                             />
@@ -657,7 +657,7 @@ function CreateReservation() {
                         <h2 className='pl-2 pt-2 text-lg sm:text-xl'>Return</h2>
                         <div className='reservation-time-row pl-2 py-2 flex gap-2'>
                             <input type="date"
-                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md flex-1 bg-white h-12"
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md flex-1 bg-white h-12"
                                 value={reservationEndDate}
                                 onChange={(e) => handleCheckinDateChange(e.target.value)}
                             />
@@ -701,7 +701,7 @@ function CreateReservation() {
                         </div>
                     ))}
                     <div className='pl-2 absolute top-2 sm:top-1 right-0'>
-                        <IoIosAddCircle color='#426276' className='w-6 h-6 sm:w-8 sm:h-8 hover:scale-110 hover:cursor-pointer'
+                        <IoIosAddCircle color='var(--accent)' className='w-6 h-6 sm:w-8 sm:h-8 hover:scale-110 hover:cursor-pointer'
                             onClick={addItemDropdown}
                             />
                     </div>
@@ -710,7 +710,7 @@ function CreateReservation() {
             </div>
             <div className='flex justify-center'>
                 <button
-                    className="workspace-primary-action px-6 py-2 bg-[#A3C1E0] rounded-md text-lg sm:text-xl font-bold mt-4 hover:cursor-pointer"
+                    className="workspace-primary-action px-6 py-2 bg-[var(--accent-light)] rounded-md text-lg sm:text-xl font-bold mt-4 hover:cursor-pointer"
                     onClick={() => createReservation()}
                     >
                     Reserve

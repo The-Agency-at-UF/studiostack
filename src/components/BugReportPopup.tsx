@@ -60,7 +60,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
   return (
     <Popup
       trigger={
-        <button className="flex items-center space-x-2 text-white hover:text-[#A3C1E0] transition-colors font-medium">
+        <button className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
           <IoIosBug className="w-5 h-5" />
           <span>Report a Bug</span>
         </button>
@@ -82,7 +82,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
       {(close) => (
         <div className="modal relative">
           <IoIosCloseCircle
-            color="#426276"
+            color="var(--accent)"
             className="w-8 h-8 absolute top-4 right-4 cursor-pointer hover:scale-110 transition-transform z-10"
             onClick={() => handleClose(close)}
           />
@@ -100,7 +100,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                     <input
                       type="text"
                       placeholder="What happened?"
-                      className="border-2 border-gray-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white"
+                      className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                     />
@@ -111,7 +111,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                     <textarea
                       placeholder="Provide more details..."
                       rows={4}
-                      className="border-2 border-gray-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white resize-none"
+                      className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white resize-none"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                     />
@@ -139,7 +139,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                     className={`px-6 py-2 rounded-md font-bold transition-colors ${
                       isSubmitting
                         ? "bg-gray-400 cursor-not-allowed text-gray-700"
-                        : "bg-[#A3C1E0] hover:bg-[#426276] hover:text-white cursor-pointer"
+                        : "bg-[var(--accent-light)] hover:bg-[var(--accent)] hover:text-white cursor-pointer"
                     }`}
                     onClick={() => !isSubmitting && handleSubmit()}
                     disabled={isSubmitting}
@@ -168,7 +168,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                     <h2 className="text-2xl font-bold">Submission Failed</h2>
                     <p className="text-gray-700">{error}</p>
                     <button
-                      className="px-6 py-2 bg-[#A3C1E0] rounded-md font-bold hover:bg-[#426276] hover:text-white transition-colors mt-4"
+                      className="px-6 py-2 bg-[var(--accent-light)] rounded-md font-bold hover:bg-[var(--accent)] hover:text-white transition-colors mt-4"
                       onClick={() => setError(null)}
                     >
                       Try Again

@@ -5,7 +5,7 @@ import { db, getDocs, collection } from '../../data/localStore';
 import BarGraph from '../../components/BarGraph';
 
 const Statistics = () => {
-  const COLORS = ['#2446ff', '#101010', '#6b6963', '#9aacff', '#d7d3c8'];
+  const COLORS = ['var(--accent)', '#101010', '#6b6963', 'var(--accent-light)', '#d7d3c8'];
   const [reservationsEquipment, setReservationsEquipment] = useState<ChartRecord[]>([]);
   const [brokenEquipmentReports, setbrokenEquipmentReports] = useState<ChartRecord[]>([]);
   const [userReports, setUserReports] = useState<ChartRecord[]>([]);
@@ -394,7 +394,7 @@ const Statistics = () => {
                     cy="50%"
                     outerRadius={90}
                     innerRadius={60}
-                    fill="#8884d8"
+                    fill="var(--accent)"
                     dataKey="value"
                   >
                     <Label

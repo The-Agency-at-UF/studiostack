@@ -115,7 +115,7 @@ function Inventory({ isAdmin, getAccessToken }: { isAdmin: boolean; getAccessTok
               <h2 className="font-light pb-2">Search by name:</h2>
               <input type="text"
                   placeholder="Enter item name..."
-                  className="workspace-input text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full lg:w-3/4 bg-white"
+                  className="workspace-input text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full lg:w-3/4 bg-white"
                   value={searchTerm}
                   onChange={(e) => handleSearch(e.target.value)}
               />
@@ -138,10 +138,10 @@ function Inventory({ isAdmin, getAccessToken }: { isAdmin: boolean; getAccessTok
                             <IoIosAlert color='#EB3223' className='w-5 h-5 ml-5 mr-5'/>
                           }
                           {item.availability == "available" &&
-                            <IoIosCheckmarkCircle color='#426276' className='w-5 h-5 ml-5 mr-5'/>
+                            <IoIosCheckmarkCircle color='var(--accent)' className='w-5 h-5 ml-5 mr-5'/>
                           }
                           {item.availability == "checked out" &&
-                            <IoIosCheckmarkCircle color='#426276' className='w-5 h-5 ml-5 mr-5'/>
+                            <IoIosCheckmarkCircle color='var(--accent)' className='w-5 h-5 ml-5 mr-5'/>
                           }
                           </div>
                           <div className="flex-1 pl-4">

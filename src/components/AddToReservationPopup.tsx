@@ -117,10 +117,10 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }: { hand
     }),
     option: (provided, state) => ({
       ...provided,
-      backgroundColor: state.isFocused ? "#A3C1E0" : "white",
+      backgroundColor: state.isFocused ? "var(--accent-light)" : "white",
       color: "black",
       "&:hover": {
-        backgroundColor: "#A3C1E0",
+        backgroundColor: "var(--accent-light)",
       },
       fontSize: "0.875rem",
       "@media (min-width: 640px)": {
@@ -148,7 +148,7 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }: { hand
       trigger={
         <span className="pb-6 sm:pb-8">
           <IoIosAddCircle
-            color="#426276"
+            color="var(--accent)"
             className="absolute right-0 w-6 h-6 sm:w-8 sm:h-8 hover:scale-110 hover:cursor-pointer"
           />
         </span>
@@ -185,7 +185,7 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }: { hand
           </div>
           <div className="text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold">
             <button
-              className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+              className="px-6 py-2 bg-[var(--accent-light)] rounded-md hover:cursor-pointer hover:scale-110"
               onClick={() => {
                 handle(close);
               }}
@@ -193,7 +193,7 @@ function AddToReservationPopup({ handleAdd, reservation, reservationID }: { hand
               Confirm
             </button>
             <IoIosCloseCircle
-              color="#426276"
+              color="var(--accent)"
               className="w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110"
               onClick={() => {
                 setSelectedEquipment(null);

@@ -77,7 +77,7 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }: { ha
     return (
         <Popup trigger=
             {
-                <button className="bg-[#A3C1E0] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">
+                <button className="bg-[var(--accent-light)] rounded-md text-base sm:text-xl font-bold p-1 sm:p-2 hover:cursor-pointer hover:scale-105">
                     Extend Reservation
                 </button>
             }
@@ -96,21 +96,21 @@ function ExtendReservationPopup({ handleEdit, reservation, reservationID }: { ha
                                 </div>
                             )}
                             <input type="datetime-local"
-                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[#426276] focus:outline-none p-2 rounded-md w-full bg-white h-12"
+                                className="text-sm sm:text-base border-2 border-black-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white h-12"
                                 value={reservationEndDate}
                                 onChange={(e) => setReservationEndDate(e.target.value)}
                             />
                         </div>
                         <div className='text-sm sm:text-lg actions flex justify-center space-x-4 pb-6 pt-4 font-bold'>
                             <button
-                                className="px-6 py-2 bg-[#A3C1E0] rounded-md hover:cursor-pointer hover:scale-110"
+                                className="px-6 py-2 bg-[var(--accent-light)] rounded-md hover:cursor-pointer hover:scale-110"
                                 onClick={() => {
                                     handle(close);
                                 }}>
                                 Confirm
                             </button>
                             <IoIosCloseCircle
-                                color='#426276'
+                                color='var(--accent)'
                                 className='w-8 h-8 sm:w-10 sm:h-10 absolute top-2 right-2 sm:top-4 sm:right-4 hover:cursor-pointer hover:scale-110'
                                 onClick={() => {
                                     close()

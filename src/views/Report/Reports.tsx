@@ -70,7 +70,7 @@ function Reports({ isAdmin }: { isAdmin: boolean }) {
         <div className='workspace-surface reports-workspace bg-white m-8 p-8 rounded-lg relative'>
             <div className='pl-2 pr-2'>
                 <div className='workspace-actions absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-4'>
-                    <IoIosAddCircle color='#426276' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => router.push('/create-report')}/>
+                    <IoIosAddCircle color='var(--accent)' className='w-8 h-8 sm:w-10 sm:h-10' onClick={ () => router.push('/create-report')}/>
                 </div>
                 <div className='report-section'>
                     <h1 className='font-bold text-2xl md:text-3xl pb-6 border-b'>Active Reports</h1>
@@ -80,7 +80,7 @@ function Reports({ isAdmin }: { isAdmin: boolean }) {
                         :
                         <div>
                             {activeReports.map((report, index) => (
-                                <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
+                                <ReportLabel key={index} report={report} backgroundColor={'var(--accent-soft)'}/>
                             ))}
                         </div>
                         }
@@ -94,7 +94,7 @@ function Reports({ isAdmin }: { isAdmin: boolean }) {
                     :
                     <div>
                         {resolvedReports.map((report, index) => (
-                            <ReportLabel key={index} report={report} backgroundColor={'#D1E0EF'}/>
+                            <ReportLabel key={index} report={report} backgroundColor={'var(--accent-soft)'}/>
                         ))}
                     </div>
                     }

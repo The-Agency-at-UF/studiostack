@@ -21,8 +21,8 @@ describe('ResolvedLabel', () => {
     };
 
     const { container } = render(<ResolvedLabel {...props} />);
-    const div = container.firstChild;
+    const div = container.firstElementChild as HTMLElement;
 
-    expect(div).toHaveStyle('background-color: #D1E0EF'); // #D1E0EF
+    expect(div.style.backgroundColor).toBe('var(--accent-soft)');
   });
 });

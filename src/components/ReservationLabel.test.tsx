@@ -21,7 +21,7 @@ describe('ReservationLabel', () => {
   };
 
   it('renders correctly with props', () => {
-    render(<ReservationLabel reservation={mockReservation} backgroundColor="#D1E0EF" />);
+    render(<ReservationLabel reservation={mockReservation} backgroundColor="var(--accent-soft)" />);
 
     expect(screen.getByText('Camera Kit 1')).toBeInTheDocument();
     expect(screen.getByText('Items Held: 2')).toBeInTheDocument();
@@ -30,10 +30,10 @@ describe('ReservationLabel', () => {
   });
 
   it('navigates to check-in-out when clicking the arrow', () => {
-    render(<ReservationLabel reservation={mockReservation} backgroundColor="#D1E0EF" />);
+    render(<ReservationLabel reservation={mockReservation} backgroundColor="var(--accent-soft)" />);
 
     // Find the icon by its color
-    const arrow = document.querySelector('svg[color="#426276"]');
+    const arrow = document.querySelector('svg[color="var(--accent)"]');
 
     if (arrow) {
         fireEvent.click(arrow);
@@ -44,8 +44,8 @@ describe('ReservationLabel', () => {
   });
 
   it('has the correct background color', () => {
-    const { container } = render(<ReservationLabel reservation={mockReservation} backgroundColor="#D1E0EF" />);
-    const div = container.firstChild;
-    expect(div).toHaveStyle('background-color: #D1E0EF');
+    const { container } = render(<ReservationLabel reservation={mockReservation} backgroundColor="var(--accent-soft)" />);
+    const div = container.firstElementChild as HTMLElement;
+    expect(div.style.backgroundColor).toBe('var(--accent-soft)');
   });
 });

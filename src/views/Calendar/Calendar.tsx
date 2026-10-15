@@ -88,7 +88,7 @@ const Calendar = ({ isAdmin }: { isAdmin: boolean }) => {
         }}
         events={reservations}
         dayMaxEvents={true}
-        eventColor="#A3C1E0"
+        eventColor="var(--accent-light)"
         eventTextColor="black"
         height={calendarHeight}
         eventClick={handleEventClick}

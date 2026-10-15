@@ -65,10 +65,10 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }: { removeItem: (
         }),
         option: (provided, state) => ({
             ...provided,
-            backgroundColor: state.isFocused ? '#A3C1E0' : 'white',
+            backgroundColor: state.isFocused ? 'var(--accent-light)' : 'white',
             color: 'black',
             '&:hover': {
-                backgroundColor: '#A3C1E0',
+                backgroundColor: 'var(--accent-light)',
             }
         }),
     };
@@ -122,7 +122,7 @@ function RemoveItemPopup({ removeItem, listOfNames, listofIDs }: { removeItem: (
                                 Submit
                             </button>
                             <IoIosCloseCircle
-                                color='#2446ff'
+                                color='var(--accent)'
                                 className='workspace-modal-close w-10 h-10 absolute cursor-pointer'
                                 onClick={() => {
                                     // reset variables on close
