@@ -17,7 +17,7 @@
     "typecheck:aws": "tsc --project tsconfig.aws.json",
     "aws:check": "node --env-file-if-exists=.env.local --import=tsx scripts/check-s3.ts",
     "aws:cors:dev": "node --env-file-if-exists=.env.local --import=tsx scripts/configure-s3-cors.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/qr",
     "db:deploy": "node --import=tsx scripts/deploy-database.ts",
     "db:check:dev": "node --env-file-if-exists=.env.local --env-file=.env.rds.dev.local --import=tsx scripts/check-database.ts",
     "db:check:prod": "node --env-file-if-exists=.env.local --env-file=.env.rds.prod.local --import=tsx scripts/check-database.ts",

@@ -1,0 +1,8 @@
+{
+  "name": "@studiostack/qr",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Equipment label format: build and parse StudioStack item QR codes. Platform-independent; no React, Expo or DOM.",
+  "type": "module",
+  "exports": "./src/index.ts"
+}
