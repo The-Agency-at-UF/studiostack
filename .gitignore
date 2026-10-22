@@ -12,6 +12,7 @@ public/photo-codecs/
 *.log
 .cache/
 *.tsbuildinfo
+next-env.d.ts
 
 # IDE and OS files
 .DS_Store
