@@ -1,9 +1,7 @@
 'use client'
 
-import Report from '../../src/views/Report/Report'
-import { useAppSession } from '../../src/context/AppSessionContext'
+import LiveReports from '../../src/views/Equipment/Reports'
 
 export default function CreateReportPage() {
-  const { email } = useAppSession()
-  return <Report userEmail={email} />
+  return <LiveReports create />
 }
