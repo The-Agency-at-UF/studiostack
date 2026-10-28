@@ -93,6 +93,7 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
       const identity = trustedIdentity(event, config, now())
       const parsed = request(event)
       const value = await repository.execute(identity, parsed)
+      if(parsed.operation==='accounts'&&parsed.resource==='invitations'&&parsed.method==='POST'&&(!parsed.invitationId||parsed.action==='retry'))console.log(JSON.stringify({type:'account-invitation-queued'}))
       if (parsed.operation === 'production' && (
         (parsed.resource === 'actions' && ['approve','request_changes','deny','withdraw','schedule'].includes(String((parsed.body as {action?:string})?.action))) ||
         (parsed.resource === 'deliveries' && parsed.method === 'POST' && parsed.deliveryId)

@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
+import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
 import type {AccountRequest} from '../../backend/accounts/routes'
-import type {ManagedMember,ManagedTeam,OrganizationSettings} from '../types/accounts'
+import type {ManagedMember,ManagedTeam,OrganizationInvitation,OrganizationSettings} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -12,7 +13,7 @@ import { loadMigrations } from '../../backend/database/migrations'
 import { databaseApiGrants } from '../../backend/database/api-grants'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
-import type { ApiEquipment, ApiPage, ApiReservation, ApiUser } from '../types/database-api'
+import type { ApiEquipment, ApiPage, ApiReservation, ApiUser, ApiOrganization } from '../types/database-api'
 
 const connectionString = process.env.DATABASE_API_TEST_URL
 const integration = connectionString ? describe : describe.skip
@@ -340,5 +341,57 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const actor=owners[0].user_id===a.id?owner:secondMember
     if(actor!==owner){const m=(await account<ApiPage<ManagedMember>>(actor,{resource:'members',method:'GET'})).items.find(m=>m.id===a.id)!;await account(actor,{resource:'members',method:'PATCH',memberId:a.id,body:{role:'owner',status:'active',version:m.version,requestId:randomUUID()}})}
     const last=await accountMember(secondMember);if(last.role==='owner')await account(owner,{resource:'members',method:'PATCH',memberId:last.id,body:{role:'member',status:'active',version:last.version,requestId:randomUUID()}})
+  })
+  async function directory(request:DirectoryRequest) {
+    const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await directoryTask(c,request)}finally{await c.end()}
+  }
+  async function invitation(email=`${randomUUID()}@example.org`,role:'member'|'admin'='member') {
+    return account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',body:{email,displayName:'Invited person',role,requestId:randomUUID()}})
+  }
+  it('invitations: creation is authorized, idempotent, and owner-only for administrator invitations',async()=>{
+    const body={email:`${randomUUID()}@example.org`,displayName:'New teammate',role:'member',requestId:randomUUID()}
+    await expect(account(member,{resource:'invitations',method:'POST',body})).rejects.toMatchObject({status:403})
+    const created=await account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',body})
+    expect(created).toMatchObject({status:'pending',deliveryStatus:'queued',role:'member',version:1})
+    expect(await account(owner,{resource:'invitations',method:'POST',body})).toMatchObject({id:created.id,version:1})
+    await expect(account(owner,{resource:'invitations',method:'POST',body:{...body,role:'admin'}})).rejects.toMatchObject({status:409})
+    const m=await accountMember(secondMember),admin=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'admin',status:'active',version:m.version,requestId:randomUUID()}})
+    await expect(account(secondMember,{resource:'invitations',method:'POST',body:{...body,email:'another@example.org',role:'admin',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    await account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:admin.version,requestId:randomUUID()}})
+  })
+  it('invitations: only the verified recipient can accept; membership and audit commit once',async()=>{
+    const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
+    await repository.execute(identity,{operation:'register',displayName:'Invite recipient'})
+    const created=await invitation(identity.email,'admin')
+    expect(await directory({action:'accept',identity:{...identity,email:'wrong@example.org'},organizationId,invitationId:created.id})).toMatchObject({statusCode:404})
+    expect(await directory({action:'list',identity})).toMatchObject({items:[expect.objectContaining({id:created.id,organizationId})]})
+    const request={action:'accept' as const,identity,organizationId,invitationId:created.id}
+    expect(await directory(request)).toEqual({organizationId});expect(await directory(request)).toEqual({organizationId})
+    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({role:'admin',id:organizationId})]})
+    expect((await operator.query("SELECT id FROM app.organization_audit_events WHERE target_id=$1 AND kind='invitation_accepted'",[created.id])).rows).toHaveLength(1)
+  })
+  it('invitations: revoked and expired invitations cannot grant access; retry is versioned',async()=>{
+    const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`};await repository.execute(identity,{operation:'register',displayName:'Recipient'})
+    const revoked=await invitation(identity.email)
+    await expect(account(owner,{resource:'invitations',method:'POST',invitationId:revoked.id,action:'retry',body:{version:revoked.version,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    await operator.query("UPDATE app.organization_invitations SET delivery_status='uncertain' WHERE id=$1",[revoked.id])
+    const retried=await account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',invitationId:revoked.id,action:'retry',body:{version:revoked.version,requestId:randomUUID()}})
+    expect(retried).toMatchObject({version:2,deliveryStatus:'queued'})
+    await account(owner,{resource:'invitations',method:'POST',invitationId:revoked.id,action:'revoke',body:{version:retried.version,requestId:randomUUID()}})
+    expect(await directory({action:'accept',identity,organizationId,invitationId:revoked.id})).toMatchObject({statusCode:404})
+    const expired=await invitation(identity.email)
+    await operator.query("UPDATE app.organization_invitations SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",[expired.id])
+    expect(await directory({action:'accept',identity,organizationId,invitationId:expired.id})).toMatchObject({statusCode:404})
+  })
+  it('invitations: acceptance preserves existing roles and never restores a suspended member',async()=>{
+    const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`},profile=await repository.execute(identity,{operation:'register',displayName:'Existing person'}) as ApiUser
+    const created=await invitation(identity.email)
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'admin','active')",[organizationId,profile.id])
+    expect(await directory({action:'accept',identity,organizationId,invitationId:created.id})).toEqual({organizationId})
+    expect((await repository.execute(identity,{operation:'organizations',page:listPage}) as ApiPage<ApiOrganization>).items[0].role).toBe('admin')
+    const nextIdentity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`},next=await repository.execute(nextIdentity,{operation:'register',displayName:'Suspended person'}) as ApiUser
+    const pending=await invitation(nextIdentity.email)
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','suspended')",[organizationId,next.id])
+    expect(await directory({action:'accept',identity:nextIdentity,organizationId,invitationId:pending.id})).toMatchObject({statusCode:409})
   })
 })
