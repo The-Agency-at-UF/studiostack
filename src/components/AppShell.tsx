@@ -51,6 +51,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }
     boot.current.then(result => {
       if (!active) return
+      if (result.mode === 'authenticated') {
+        const destination = sessionStorage.getItem('studiostack-production-return')
+        sessionStorage.removeItem('studiostack-production-return')
+        if (destination && /^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)) router.replace(destination)
+      }
       setMode(result.mode); setEmail(result.label); setIsAdmin(result.admin); setOrganizations(result.organizations); setExpiresAt(result.expiresAt)
     }).catch(() => {
       if (!active) return
@@ -58,11 +63,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
       setAuthError('Sign-in could not be completed. Try again, or ask your administrator to check your account access.')
     }).finally(() => { if (active) { setReady(true); setBusy(false) } })
     return () => { active = false }
-  }, [])
+  }, [router])
 
   useEffect(() => {
-    if (ready && mode === 'signed-out' && !loginPage) router.replace('/login/')
-  }, [ready, mode, loginPage, router])
+    if (ready && mode === 'signed-out' && !loginPage) {
+      if (pathname.replace(/\/$/,'') === '/production') {
+        const p = new URLSearchParams(window.location.search), org = p.get('organization'), brief = p.get('brief')
+        if (org && brief && /^[a-f0-9-]{36}$/.test(org) && /^[a-f0-9-]{36}$/.test(brief)) sessionStorage.setItem('studiostack-production-return', `/production/?organization=${org}&brief=${brief}`)
+      }
+      router.replace('/login/')
+    }
+  }, [ready, mode, loginPage, router, pathname])
 
   const logOut = useCallback(async () => {
     const real = mode === 'authenticated'
@@ -101,10 +112,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
     {!ready || (mode === 'signed-out' && !loginPage) ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />{busy ? 'Completing secure sign-in…' : 'Opening StudioStack…'}</main>
       : loginPage ? children : <>
         <Header isAdmin={isAdmin} logOut={logOut} email={email} />
-        <aside className="session-banner"><span>{mode === 'authenticated' ? 'Signed in. Workspace pages still use local preview data; cloud-data wiring is pending.' : 'Preview mode — no real account or cloud data.'}</span>
+        <aside className="session-banner"><span>{mode === 'authenticated' ? 'Signed in. Production uses your organization’s cloud data. Other workspace pages remain in preview.' : 'Preview mode — no real account or cloud data.'}</span>
           <Link href="/login/">{mode === 'authenticated' ? 'Your account' : 'Sign in'}</Link></aside>
         <div className="app-content">{children}</div>
-        <footer className="sticky-footer"><span className="footer-status">StudioStack preview workspace</span><BugReportPopup userEmail={email} /></footer>
+        <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><BugReportPopup userEmail={email} /></footer>
       </>}
   </AppSessionProvider>
 }

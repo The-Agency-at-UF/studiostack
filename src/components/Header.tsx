@@ -26,7 +26,8 @@ function Header({ isAdmin, logOut, email }: { isAdmin: boolean; logOut: () => vo
 
   const links = [
     { to: '/', label: 'Home' },
-    { to: '/calendar', label: 'Calendar' },
+    { to: '/production', label: 'Production' },
+    { to: '/calendar', label: 'Gear calendar' },
     { to: '/reservations', label: 'Reservations', related: ['/create-reservation', '/check-in-out'] },
     { to: '/reports', label: 'Reports', related: ['/create-report', '/report-summary'] },
     { to: '/teams', label: 'Teams' },
