@@ -1,3 +1,4 @@
+import {alertEmail,deliverAppAlerts} from '../alerts/delivery'
 import { AdminGetUserCommand, CognitoIdentityProviderClient, ListUsersCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
@@ -17,7 +18,7 @@ interface RecipientDirectory {
   find(subject: string): Promise<{ Username?: string; Attributes?: Attributes }[]>
   get(username: string): Promise<{ Enabled?: boolean; UserAttributes?: Attributes }>
 }
-export async function verifiedRecipient(job: NotificationJob, pool: string, directory: RecipientDirectory) {
+export async function verifiedRecipient(job: Pick<NotificationJob,'recipientSubject'|'recipientIssuer'>, pool: string, directory: RecipientDirectory) {
   const reject = () => Object.assign(new Error('Recipient identity or email is not verified'), { name: 'UnverifiedRecipient' })
   if (job.recipientIssuer !== `https://cognito-idp.us-east-2.amazonaws.com/${pool}` || !/^[a-f0-9-]{36}$/i.test(job.recipientSubject)) throw reject()
   // Classic Cognito usernames are not necessarily their sub. Resolve the stable
@@ -74,5 +75,10 @@ export async function handler() {
         get(username) { return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username})) },
       })
       const email = decisionEmail(job,webUrl); await ses.send(new SendEmailCommand({ FromEmailAddress: sender, Destination: { ToAddresses: [recipient] }, Content: { Simple: { Subject: { Data: email.subject, Charset: 'UTF-8' }, Body: { Text: { Data: email.text, Charset: 'UTF-8' } } } }, EmailTags: [{ Name: 'StudioStackDelivery', Value: job.id }] })); await new Promise(resolve=>setTimeout(resolve,1100)) },
-  }); console.log(JSON.stringify({service:'production-notifications',...result})); return result } finally { lambda.destroy(); ses.destroy(); cognito.destroy() }
+  })
+    const alerts=await deliverAppAlerts({
+      async store(request){const response=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'app-alert-outbox',...request}))}));if(response.FunctionError||!response.Payload)throw new Error('Alert outbox unavailable');const value=JSON.parse(Buffer.from(response.Payload).toString('utf8'));if(request.action==='claim'?!Array.isArray(value.jobs):request.action==='authorize'?typeof value.allowed!=='boolean':typeof value.updated!=='boolean')throw new Error('Invalid alert outbox response');return value},
+      async send(job){const recipient=await verifiedRecipient(job,pool,{async find(subject){return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users??[]},get(username){return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))}}),email=alertEmail(job,webUrl);await ses.send(new SendEmailCommand({FromEmailAddress:sender,Destination:{ToAddresses:[recipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
+    })
+    console.log(JSON.stringify({service:'app-alerts',...alerts}));console.log(JSON.stringify({service:'production-notifications',...result}));return {...result,alerts} } finally { lambda.destroy(); ses.destroy(); cognito.destroy() }
 }
