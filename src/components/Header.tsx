@@ -31,6 +31,7 @@ function Header({ isAdmin, logOut, email }: { isAdmin: boolean; logOut: () => vo
     { to: '/reservations', label: 'Reservations', related: ['/create-reservation', '/check-in-out'] },
     { to: '/reports', label: 'Reports', related: ['/create-report', '/report-summary'] },
     { to: '/teams', label: 'Teams' },
+    { to: '/alerts', label: 'Alerts' },
     { to: '/inventory', label: 'Inventory' },
     ...(isAdmin ? [
       { to: '/statistics', label: 'Statistics' },
