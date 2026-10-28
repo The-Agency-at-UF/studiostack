@@ -1,9 +1,10 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseClient } from '../database/client'
 import { ApiError, object, uuid } from '../database/api-validation'
 import type { Page } from '../database/api-repository'
 import { briefData, briefCommand, productionSettings, version } from './validation'
 import { submissionErrors, type BriefCommand, type BriefData, type ProductionBrief, type ProductionSettings } from '../../src/types/production'
+import type { BriefStorage } from './storage'
 export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
 export type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
 const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
@@ -11,7 +12,7 @@ const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).dige
 const deny = (message = 'You do not have permission for this action'): never => { throw new ApiError(403, message) }
 const conflict = (message = 'This brief changed. Reload it before saving.'): never => { throw new ApiError(409, message) }
 const defaultSettings = (): ProductionSettings => ({ version: 0, reviewerIds: [], executiveIds: [], approvalConfirmsDates: true })
-export async function dispatchProduction(client: DatabaseClient, request: ProductionRequest, context: ProductionContext): Promise<unknown> {
+export async function dispatchProduction(client: DatabaseClient, request: ProductionRequest, context: ProductionContext, storage?: BriefStorage): Promise<unknown> {
   const { organizationId, user, membership } = context
   const admin = ['owner', 'admin'].includes(membership.role)
   const settingsRow = (await client.query('SELECT version, reviewer_ids AS "reviewerIds", executive_ids AS "executiveIds", approval_confirms_dates AS "approvalConfirmsDates" FROM app.production_settings WHERE organization_id = $1', [organizationId])).rows[0]
@@ -27,10 +28,11 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   }
   async function detail(brief: ProductionBrief) {
     const events = await client.query(`SELECT e.id, e.actor_id AS "actorId", COALESCE(u.display_name, 'Team member') AS "actorName", e.kind, e.comment, e.section, e.version, e.created_at AS "createdAt", e.snapshot, e.attachment_snapshot AS attachments, e.shoot_starts_at AS "shootStartsAt", e.shoot_ends_at AS "shootEndsAt" FROM app.production_brief_events e JOIN app.users u ON u.id = e.actor_id WHERE e.organization_id = $1 AND e.brief_id = $2 ORDER BY e.version, e.created_at, e.id`, [organizationId, brief.id])
-    return { ...brief, events: events.rows, attachments: [] }
+    const attachments = await client.query(`SELECT id, name, content_type AS "contentType", size, status, uploaded_by AS "uploadedBy" FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status <> 'discarded' ORDER BY created_at, id`, [organizationId, brief.id])
+    return { ...brief, events: events.rows, attachments: attachments.rows }
   }
   async function event(brief: ProductionBrief, kind: string, requestId: string, requestHash: string, comment = '', section = '', snapshot: BriefData | null = null) {
-    const files: unknown[] = []
+    const files = snapshot ? (await client.query(`SELECT id, name, content_type AS "contentType", size, status, uploaded_by AS "uploadedBy" FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status = 'ready' ORDER BY id`, [organizationId, brief.id])).rows : []
     await client.query('INSERT INTO app.production_brief_events (organization_id, brief_id, actor_id, kind, version, request_id, request_hash, comment, section, snapshot, shoot_starts_at, shoot_ends_at, attachment_snapshot) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id', [organizationId, brief.id, user.id, kind, brief.version, requestId, requestHash, comment, section, snapshot, brief.shootStartsAt, brief.shootEndsAt, JSON.stringify(files)])
   }
   async function previousEvent(requestId: string, fingerprint: string) {
@@ -93,6 +95,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       if (!editable(brief)) deny('Only the author can submit this brief')
       const missing = submissionErrors(brief.data)
       if (missing.length) throw new ApiError(400, `Complete required fields: ${missing.join(', ')}`)
+      const pending = await client.query("SELECT id FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status = 'pending'", [organizationId, brief.id])
+      if (pending.rows.length) conflict('Finish uploading or remove pending attachments before submitting')
       brief.status = 'submitted'; brief.submission++; kind = 'submitted'
     } else if (['approve', 'request_changes', 'deny', 'schedule'].includes(action)) {
       if (!reviewer) deny('Production leadership review access is required')
@@ -117,6 +121,51 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     brief.version++
     await client.query('UPDATE app.production_briefs SET status = $3, version = $4, submission = $5, shoot_starts_at = $6, shoot_ends_at = $7, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, brief.status, brief.version, brief.submission, brief.shootStartsAt, brief.shootEndsAt])
     await event(brief, kind, command.requestId, fingerprint, comment, section, ['submit','approve','request_changes','deny','schedule'].includes(action) ? brief.data : null)
+    return detail(await getBrief())
+  }
+  if (request.resource === 'attachments') {
+    if (!storage) throw new ApiError(503, 'Attachment storage is unavailable')
+    if (request.method === 'POST' && !request.attachmentId) {
+      if (!editable(brief)) deny('Attachments can only be added by the author while editing')
+      const input = object(request.body, ['id', 'name', 'contentType', 'size']), id = uuid(input.id)
+      if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 || Array.from(input.name).some(c => c.charCodeAt(0) < 32 || c === '/' || c === '\\')) throw new ApiError(400, 'Invalid attachment name')
+      if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(String(input.contentType)) || !Number.isSafeInteger(input.size) || Number(input.size) < 1 || Number(input.size) > 20 * 1024 * 1024) throw new ApiError(400, 'Use a PDF, JPEG, PNG or WebP up to 20 MiB')
+      const existing = (await client.query('SELECT * FROM app.production_attachments WHERE organization_id = $1 AND id = $2', [organizationId, id])).rows[0]
+      if (existing && (existing.brief_id !== brief.id || existing.uploaded_by !== user.id || existing.name !== input.name || existing.size !== input.size || existing.content_type !== input.contentType || existing.status !== 'pending')) conflict('Attachment ID already used')
+      if (!existing) {
+        const count = (await client.query(`SELECT count(*)::int AS count FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status <> 'discarded'`, [organizationId, brief.id])).rows[0].count
+        if (count >= 20) throw new ApiError(400, 'Up to 20 attachments per brief')
+        await client.query('INSERT INTO app.production_attachments (id, organization_id, brief_id, uploaded_by, name, content_type, size, object_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [id, organizationId, brief.id, user.id, input.name.trim(), input.contentType, input.size, `briefs/${organizationId}/${brief.id}/${id}`])
+      }
+      return { id, ...await storage.signUpload({ key: `briefs/${organizationId}/${brief.id}/${id}`, contentType: String(input.contentType), size: Number(input.size) }) }
+    }
+    const attachment = (await client.query('SELECT * FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND id = $3 FOR UPDATE', [organizationId, brief.id, request.attachmentId])).rows[0]
+    if (!attachment) throw new ApiError(404, 'Attachment not found')
+    if (request.method === 'GET') {
+      if (attachment.status !== 'ready') {
+        const historical = await client.query(`SELECT id FROM app.production_brief_events WHERE organization_id = $1 AND brief_id = $2 AND attachment_snapshot @> $3::jsonb LIMIT 1`, [organizationId, brief.id, JSON.stringify([{id:attachment.id}])])
+        if (attachment.status !== 'discarded' || !historical.rows.length) conflict('Attachment is not ready')
+      }
+      return storage.signDownload(attachment.object_key, attachment.name)
+    }
+    if (!editable(brief) || attachment.uploaded_by !== user.id) deny()
+    if (request.method === 'DELETE') {
+      await client.query("UPDATE app.production_attachments SET status = 'discarded' WHERE organization_id = $1 AND id = $2", [organizationId, attachment.id])
+      brief.version++
+      await client.query('UPDATE app.production_briefs SET version = $3, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, brief.version])
+      await event(brief, 'attachment_removed', randomUUID(), hash({attachment:attachment.id, action:'remove'}), attachment.name)
+      return { id: attachment.id }
+    }
+    if (attachment.status === 'discarded') conflict('Attachment was removed')
+    object(request.body, [])
+    if (attachment.status === 'ready') return detail(brief)
+    if (attachment.status !== 'ready') {
+      await storage.verify({ key: attachment.object_key, size: attachment.size, contentType: attachment.content_type })
+      await client.query("UPDATE app.production_attachments SET status = 'ready' WHERE organization_id = $1 AND id = $2", [organizationId, attachment.id])
+    }
+    brief.version++
+    await client.query('UPDATE app.production_briefs SET version = $3, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, brief.version])
+    await event(brief, 'attachment_added', randomUUID(), hash({attachment:attachment.id, action:'complete'}), attachment.name)
     return detail(await getBrief())
   }
   throw new ApiError(404, 'Route not found')

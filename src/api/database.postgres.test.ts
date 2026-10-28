@@ -38,7 +38,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     signUpload: async photo => ({ url: 'https://private.test', fields: { key: photo.stagingKey } }),
     finalize: async photo => ({ key: `photos/${photo.organizationId}/${photo.id}.jpg`, width: 80, height: 60, size: 400, sha256: 'a'.repeat(64) }),
     signDownload: async () => ({ url: 'https://private.test/signed', expiresIn: 60 }),
-  })
+  }, { signUpload: async () => ({ url: 'https://files.test', fields: {} }), verify: async () => {}, signDownload: async () => ({ url: 'https://files.test/signed', expiresIn: 60 }) })
   const listPage = { limit: 100, after: null }
   const startsAt = new Date(Date.now() + 86400_000).toISOString()
   const endsAt = new Date(Date.parse(startsAt) + 3600_000).toISOString()
@@ -246,6 +246,15 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const b=await command(secondMember,await command(member,await draft(),'submit'),'approve')
     const withdrawn=await command(member,b,'withdraw');expect(withdrawn.status).toBe('withdrawn');expect(withdrawn.shootStartsAt).toBeNull()
     expect(await command(member,withdrawn,'reopen')).toMatchObject({status:'draft',submission:1})
+  })
+  it('production: attachment completion is owner-scoped and blocks premature submission',async()=>{
+    let b=await draft();const attachmentId=randomUUID(),body={id:attachmentId,name:'Reference.pdf',contentType:'application/pdf',size:120}
+    expect(await production(member,{resource:'attachments',method:'POST',briefId:b.id,body})).toMatchObject({id:attachmentId})
+    await expect(command(member,b,'submit')).rejects.toMatchObject({status:409})
+    b=await production(member,{resource:'attachments',method:'POST',briefId:b.id,attachmentId,body:{}}) as ProductionBrief;expect(b).toMatchObject({attachments:[expect.objectContaining({status:'ready'})]})
+    await command(member,b,'submit')
+    expect(await production(secondMember,{resource:'attachments',method:'GET',briefId:b.id,attachmentId})).toMatchObject({expiresIn:60})
+    await expect(production(secondMember,{resource:'attachments',method:'POST',briefId:b.id,attachmentId,body:{}})).rejects.toMatchObject({status:403})
   })
   it('production: database row security and append-only grants protect decision history',async()=>{
     const c=new pg.Client({connectionString});try {await c.connect();await c.query('SET ROLE "studiostack_dev_app"');expect((await c.query('SELECT id FROM app.production_briefs')).rows).toEqual([])

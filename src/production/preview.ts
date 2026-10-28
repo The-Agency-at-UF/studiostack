@@ -48,5 +48,6 @@ export function createPreviewProductionClient(person: string): ProductionClient 
       else if (c.action === 'comment') { if ((!own && !a.canReview) || !c.comment?.trim() || ['denied','withdrawn'].includes(b.status)) throw new Error('Cannot add this comment'); if (c.section && !briefSections.some(s=>s.title === c.section)) throw new Error('Unknown section'); kind = 'commented' }
       b.version++; append(b,kind,c.comment,c.section,['submit','approve','request_changes','deny','schedule'].includes(c.action) ? structuredClone(b.data) : null); persist(state); return structuredClone(b)
     },
+    attach: async () => { throw new Error('Sign in to upload private attachments. You can use asset links in preview.') }, complete: async () => { throw new Error('Sign in to upload attachments') }, discard: async () => { throw new Error('Sign in to manage attachments') }, download: async () => { throw new Error('Sign in to download attachments') },
   }
 }
