@@ -32,3 +32,6 @@
 .equipment-report-inspector textarea { border:1px solid #d7d0df;padding:12px;min-height:100px;resize:vertical; }
 .equipment-layout:has(.equipment-report-inspector) { grid-template-columns:minmax(0,1fr) minmax(300px,460px); }
 @media(max-width:850px){.equipment-layout:has(.equipment-report-inspector){grid-template-columns:1fr}}
+
+.equipment-calendar { margin:24px 0;font-size:13px;--fc-border-color:#e4deea;--fc-today-bg-color:#f4eefb;--fc-button-bg-color:#7138b8;--fc-button-border-color:#7138b8; }
+@media(max-width:700px){.equipment-calendar .fc-toolbar{flex-wrap:wrap;gap:12px}.equipment-calendar .fc-toolbar-title{font-size:18px}}
