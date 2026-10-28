@@ -33,7 +33,14 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   }
   async function event(brief: ProductionBrief, kind: string, requestId: string, requestHash: string, comment = '', section = '', snapshot: BriefData | null = null) {
     const files = snapshot ? (await client.query(`SELECT id, name, content_type AS "contentType", size, status, uploaded_by AS "uploadedBy" FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status = 'ready' ORDER BY id`, [organizationId, brief.id])).rows : []
-    await client.query('INSERT INTO app.production_brief_events (organization_id, brief_id, actor_id, kind, version, request_id, request_hash, comment, section, snapshot, shoot_starts_at, shoot_ends_at, attachment_snapshot) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id', [organizationId, brief.id, user.id, kind, brief.version, requestId, requestHash, comment, section, snapshot, brief.shootStartsAt, brief.shootEndsAt, JSON.stringify(files)])
+    const result = await client.query('INSERT INTO app.production_brief_events (organization_id, brief_id, actor_id, kind, version, request_id, request_hash, comment, section, snapshot, shoot_starts_at, shoot_ends_at, attachment_snapshot) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id', [organizationId, brief.id, user.id, kind, brief.version, requestId, requestHash, comment, section, snapshot, brief.shootStartsAt, brief.shootEndsAt, JSON.stringify(files)])
+    if (['approved', 'changes_requested', 'denied', 'withdrawn', 'scheduled'].includes(kind)) {
+      // Committed with the decision; a failed transport cannot lose or roll back it.
+      const payload = { reviewer: user.displayName || 'Production leadership', projectName: brief.data.projectName, client: brief.data.client, decision: kind, comment, section, version: brief.version, deliveryDate: brief.data.deliveryDate, shootStartsAt: brief.shootStartsAt, shootEndsAt: brief.shootEndsAt }
+      const recipients = [...new Set([...settings.executiveIds, brief.ownerId])]
+      const activeRecipients = await client.query('SELECT user_id FROM app.organization_memberships WHERE organization_id = $1 AND status = $2 AND user_id = ANY($3::uuid[])', [organizationId, 'active', recipients])
+      for (const recipient of activeRecipients.rows) await client.query('INSERT INTO app.production_outbox (organization_id, brief_id, event_id, recipient_id, payload) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (event_id, recipient_id) DO NOTHING', [organizationId, brief.id, result.rows[0].id, recipient.user_id, payload])
+    }
   }
   async function previousEvent(requestId: string, fingerprint: string) {
     const result = await client.query('SELECT actor_id, request_hash FROM app.production_brief_events WHERE organization_id = $1 AND brief_id = $2 AND request_id = $3', [organizationId, request.briefId, requestId])
@@ -41,7 +48,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (result.rows[0].actor_id !== user.id || result.rows[0].request_hash !== fingerprint) conflict('Request ID already used for different content')
     return true
   }
-  if (request.resource === 'access') return { userId: user.id, canReview: reviewer, canAdminister: admin, isExecutive: executive, notificationsConfigured: false }
+  if (request.resource === 'access') return { userId: user.id, canReview: reviewer, canAdminister: admin, isExecutive: executive, notificationsConfigured: settings.executiveIds.length > 0 && process.env.PRODUCTION_EMAIL_ENABLED === 'yes' }
   if (request.resource === 'settings') {
     if (!admin) deny('An organization administrator manages production access')
     if (request.method === 'GET') return settings
@@ -72,6 +79,19 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     const brief = await getBrief()
     await event(brief, 'created', requestId, fingerprint)
     return detail(brief)
+  }
+  if (request.resource === 'deliveries') {
+    if (!admin && !reviewer && !executive) deny()
+    if (request.method === 'GET') {
+      const result = await client.query(`SELECT id, brief_id AS "briefId", event_id AS "eventId", status, attempts, created_at AS "createdAt", sent_at AS "sentAt" FROM app.production_outbox WHERE organization_id = $1 AND ($2::uuid IS NULL OR id > $2) ORDER BY id LIMIT $3`, [organizationId, request.page.after, request.page.limit + 1])
+      const items = result.rows.slice(0, request.page.limit)
+      return { items, nextCursor: result.rows.length > request.page.limit ? items[items.length - 1].id : null }
+    }
+    if (!admin) deny('Only an administrator can retry delivery')
+    object(request.body, [])
+    const result = await client.query("UPDATE app.production_outbox SET status = 'pending', attempts = 0, next_attempt_at = now(), lease_token = NULL, lease_until = NULL WHERE organization_id = $1 AND id = $2 AND status IN ('failed','uncertain') RETURNING id", [organizationId, request.deliveryId])
+    if (!result.rows.length) conflict('Only failed or uncertain deliveries can be retried')
+    return { id: result.rows[0].id }
   }
   const brief = await getBrief(request.method !== 'GET')
   if (request.resource === 'briefs' && request.method === 'GET') return detail(brief)

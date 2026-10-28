@@ -55,6 +55,21 @@ function repoFixture(role = 'member') {
 }
 
 describe('trusted API identity and strict HTTP inputs', () => {
+  it.each([
+    ['POST /organizations/{organizationId}/production/briefs/{briefId}/actions', {action:'approve',version:1,requestId}, {briefId:itemId}],
+    ['POST /organizations/{organizationId}/production/deliveries/{deliveryId}/retry', {}, {deliveryId:itemId}],
+  ])('signals committed production work without logging customer data: %s',async(route,body,parameters)=>{
+    const log=vi.spyOn(console,'log').mockImplementation(()=>{})
+    try {
+      const execute=vi.fn().mockResolvedValue({projectName:'Private client brief'}),handler=createDatabaseApiHandler({execute},config,()=>now),request=event(route,body)
+      Object.assign(request.pathParameters!,parameters)
+      expect((await handler(request)).statusCode).toBe(200)
+      expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify({type:'production-decision-queued'}))
+      log.mockClear();execute.mockRejectedValue(new Error('Transaction failed'))
+      expect((await handler(request)).statusCode).toBe(503)
+      expect(log).not.toHaveBeenCalled()
+    } finally {log.mockRestore()}
+  })
   it('uses only the authorizer identity and does not invent an email from access tokens', async () => {
     const execute = vi.fn().mockResolvedValue(user)
     const response = await createDatabaseApiHandler({ execute }, config, () => now)(event())

@@ -91,6 +91,14 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
       const identity = trustedIdentity(event, config, now())
       const parsed = request(event)
       const value = await repository.execute(identity, parsed)
+      if (parsed.operation === 'production' && (
+        (parsed.resource === 'actions' && ['approve','request_changes','deny','withdraw','schedule'].includes(String((parsed.body as {action?:string})?.action))) ||
+        (parsed.resource === 'deliveries' && parsed.method === 'POST' && parsed.deliveryId)
+      )) {
+        // Emitted only after the transaction commits. CloudWatch delivers this
+        // small wake-up signal to the outside-VPC sender; no customer data logged.
+        console.log(JSON.stringify({type:'production-decision-queued'}))
+      }
       return respond(200, value)
     } catch (error) {
       if (error instanceof ApiError) return respond(error.status, { error: error.message })
