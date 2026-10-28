@@ -87,7 +87,7 @@ async function main() {
   const { Items } = await aws<{ Items: { RouteKey: string; RouteId: string }[] }>('apigatewayv2', 'get-routes', ['--api-id', vars.DATABASE_API_ID])
   const existing = Items.find(r => r.RouteKey === 'POST /photos/uploads')
   if (!existing) throw new Error('Expected existing photo route absent')
-  await aws('apigatewayv2', 'update-route', ['--api-id', vars.DATABASE_API_ID, '--route-id', existing.RouteId, '--authorization-type', 'JWT', '--authorizer-id', routes.AuthorizerId, '--authorization-scopes', 'studiostack-api/access', '--target', `integrations/${routes.IntegrationId}`])
+  await aws('apigatewayv2', 'update-route', ['--api-id', vars.DATABASE_API_ID, '--route-id', existing.RouteId, '--authorization-type', 'JWT', '--authorizer-id', routes.AuthorizerId, '--authorization-scopes', 'aws.cognito.signin.user.admin', '--target', `integrations/${routes.IntegrationId}`])
   const currentApi = await aws<{ CorsConfiguration?: { AllowOrigins?: string[] } }>('apigatewayv2', 'get-api', ['--api-id', vars.DATABASE_API_ID])
   await aws('apigatewayv2', 'update-api', ['--api-id', vars.DATABASE_API_ID, '--cors-configuration', JSON.stringify({ AllowOrigins: [...new Set([...(currentApi.CorsConfiguration?.AllowOrigins ?? []), 'http://localhost:5174', 'http://localhost:5417'])], AllowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], AllowHeaders: ['Authorization', 'Content-Type'], MaxAge: 300 })])
   await aws('apigatewayv2', 'update-stage', ['--api-id', vars.DATABASE_API_ID, '--stage-name', '$default', '--default-route-settings', JSON.stringify({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 4 })])

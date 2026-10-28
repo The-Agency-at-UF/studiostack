@@ -1,3 +1,4 @@
+import {clearVolatileAuthState} from './volatileStorage'
 import { providerName } from './providers'
 import type { LoginProvider } from './providers'
 /** Public browser configuration only. No AWS keys, client secret or DB credentials. */
@@ -59,7 +60,7 @@ async function verify(token: string, config: AuthConfig, keys: SigningKey[], typ
   const claims = JSON.parse(new TextDecoder().decode(bytes(segments[1]))) as Claims
   if (!valid || claims.iss !== config.issuer || claims.token_use !== type || typeof claims.sub !== 'string' || !claims.sub ||
       typeof claims.exp !== 'number' || claims.exp <= Date.now() / 1000 || typeof claims.iat !== 'number' || claims.iat > Date.now() / 1000 + 60 ||
-      (type === 'id' ? claims.aud !== config.clientId || claims.nonce !== nonce : claims.client_id !== config.clientId || typeof claims.scope !== 'string' || !claims.scope.split(' ').includes('studiostack-api/access'))) throw new Error('Could not verify sign-in. Please try again.')
+      (type === 'id' ? claims.aud !== config.clientId || claims.nonce !== nonce : claims.client_id !== config.clientId || typeof claims.scope !== 'string' || !claims.scope.split(' ').includes('aws.cognito.signin.user.admin'))) throw new Error('Could not verify sign-in. Please try again.')
   return claims
 }
 export function hasCallback(url = window.location.href) { const params = new URL(url).searchParams; return params.has('code') || params.has('error') }
@@ -85,27 +86,31 @@ async function complete(config: AuthConfig, url: string): Promise<SignedInUser> 
     if (!response.ok) throw new Error('Sign-in could not be completed. Please try again.')
     const result = await response.json() as { access_token?: unknown; id_token?: unknown }
     if (typeof result.access_token !== 'string' || typeof result.id_token !== 'string') throw new Error('Invalid sign-in response.')
-    const jwks = await fetch(`${config.issuer}/.well-known/jwks.json`, { credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(15_000) })
-    if (!jwks.ok) throw new Error('Could not verify sign-in. Please try again.')
-    const { keys } = await jwks.json() as { keys?: SigningKey[] }
-    if (!Array.isArray(keys) || keys.length > 10) throw new Error('Invalid sign-in response.')
-    const [access, id] = await Promise.all([verify(result.access_token, config, keys, 'access'), verify(result.id_token, config, keys, 'id', pending.nonce)])
-    if (access.sub !== id.sub) throw new Error('Invalid sign-in response.')
-    const label = id.email_verified === true && typeof id.email === 'string' ? id.email : typeof id.name === 'string' ? id.name : typeof id['cognito:username'] === 'string' ? id['cognito:username'] : 'StudioStack member'
-    const user = { subject: access.sub as string, label: label.slice(0, 254), expiresAt: (access.exp as number) * 1000 }
-    memory = { token: result.access_token, user }
-    sessionStorage.removeItem(previewKey)
-    return user
+    return await acceptPasswordTokens(result.access_token,result.id_token,config,pending.nonce)
   } catch (error) {
     memory = null
     throw error instanceof Error && /^(This sign-in|Invalid sign-in|Sign-in |Could not verify)/.test(error.message) ? error : new Error('Sign-in is temporarily unavailable. Please try again.')
   } finally { sessionStorage.removeItem(pendingKey) }
 }
+/** Validates both SDK and OAuth tokens against the pool signing keys before use. */
+export async function acceptPasswordTokens(accessTokenValue:string,idTokenValue:string,config:AuthConfig,nonce?:string):Promise<SignedInUser>{
+  try{
+    const jwks=await fetch(`${config.issuer}/.well-known/jwks.json`,{credentials:'omit',redirect:'error',signal:AbortSignal.timeout(15000)})
+    if(!jwks.ok)throw new Error('Could not verify sign-in. Please try again.')
+    const {keys}=await jwks.json() as {keys?:SigningKey[]}
+    if(!Array.isArray(keys)||keys.length>10)throw new Error('Invalid sign-in response.')
+    const [access,id]=await Promise.all([verify(accessTokenValue,config,keys,'access'),verify(idTokenValue,config,keys,'id',nonce)])
+    if(access.sub!==id.sub)throw new Error('Invalid sign-in response.')
+    const label=id.email_verified===true&&typeof id.email==='string'?id.email:typeof id.name==='string'?id.name:typeof id['cognito:username']==='string'?id['cognito:username']:'StudioStack member'
+    const user={subject:access.sub as string,label:label.slice(0,254),expiresAt:Number(access.exp)*1000}
+    memory={token:accessTokenValue,user};sessionStorage.removeItem(previewKey);return user
+  }catch{memory=null;clearVolatileAuthState();throw new Error('Could not verify sign-in. Please try again.')}
+}
 export async function accessToken(): Promise<string> {
   if (!memory || memory.user.expiresAt <= Date.now() + 10_000) { memory = null; throw new Error('Your session expired. Sign in again.') }
   return memory.token
 }
-export function clearSignIn() { memory = null; sessionStorage.removeItem(pendingKey); sessionStorage.removeItem(previewKey) }
+export function clearSignIn() { memory = null;clearVolatileAuthState(); sessionStorage.removeItem(pendingKey); sessionStorage.removeItem(previewKey) }
 export function enterPreview() { clearSignIn(); sessionStorage.setItem(previewKey, 'yes') }
 export function isPreview() { return sessionStorage.getItem(previewKey) === 'yes' }
 export function logoutUrl(config = authConfiguration()) { return `${config.domain}/logout?${new URLSearchParams({ client_id: config.clientId, logout_uri: new URL(config.redirectUri).origin + '/' })}` }

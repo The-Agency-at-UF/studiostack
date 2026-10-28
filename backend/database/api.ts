@@ -15,7 +15,7 @@ export const databaseApiRoutes = [
   'POST /organizations/{organizationId}/reservations/{reservationId}/cancel',
 ] as const
 export const privatePhotoRoutes = ['POST /photos/uploads', 'POST /organizations/{organizationId}/photos/{photoId}/complete', 'GET /organizations/{organizationId}/inventory/{itemId}/photo'] as const
-export const databaseApiScope = 'studiostack-api/access'
+export const databaseApiScope = 'aws.cognito.signin.user.admin'
 export interface ApiConfiguration { apiId: string; issuer: string; clientId: string }
 export function apiConfiguration(env: Record<string, string | undefined> = process.env): ApiConfiguration {
   const environment = env.STUDIOSTACK_ENV

@@ -1,0 +1,17 @@
+// @vitest-environment node
+import {beforeEach,describe,expect,it,vi} from 'vitest'
+const m=vi.hoisted(()=>({signIn:vi.fn(),confirm:vi.fn(),reset:vi.fn(),confirmReset:vi.fn(),session:vi.fn(),accept:vi.fn(),configure:vi.fn(),storage:vi.fn(),config:vi.fn()}))
+vi.mock('@aws-amplify/core',()=>({Amplify:{configure:m.configure}}))
+vi.mock('@aws-amplify/auth',()=>({signIn:m.signIn,confirmSignIn:m.confirm,resetPassword:m.reset,confirmResetPassword:m.confirmReset,fetchAuthSession:m.session}))
+vi.mock('@aws-amplify/auth/cognito',()=>({cognitoUserPoolsTokenProvider:{setKeyValueStorage:m.storage,setAuthConfig:m.config}}))
+vi.mock('./cognito',()=>({authConfiguration:()=>config,acceptPasswordTokens:m.accept}))
+import {passwordSignIn,invitationPassword,requestPasswordReset,confirmPasswordReset,passwordRules,passwordError} from './password'
+import {volatileAuthStorage,clearVolatileAuthState} from './volatileStorage'
+const config={issuer:'https://cognito-idp.us-east-2.amazonaws.com/us-east-2_test',clientId:'client',apiUrl:'https://api.test',redirectUri:'https://web.test/login/',domain:'https://pool.test'}
+beforeEach(()=>{vi.clearAllMocks();clearVolatileAuthState();m.signIn.mockResolvedValue({isSignedIn:true,nextStep:{signInStep:'DONE'}});m.session.mockResolvedValue({tokens:{accessToken:{toString:()=> 'access'},idToken:{toString:()=> 'id'}}});m.accept.mockResolvedValue({subject:'subject',label:'member@example.test'})})
+describe('StudioStack password authentication',()=>{
+ it('uses SRP and validates tokens before establishing the app session',async()=>{expect(await passwordSignIn(' Member@Example.test ','example',config)).toMatchObject({step:'done'});expect(m.signIn).toHaveBeenCalledWith({username:'member@example.test',password:'example',options:{authFlowType:'USER_SRP_AUTH'}});expect(m.accept).toHaveBeenCalledWith('access','id',config);expect(m.storage).toHaveBeenCalledWith(volatileAuthStorage)})
+ it('handles the invitation new-password challenge',async()=>{m.signIn.mockResolvedValue({isSignedIn:false,nextStep:{signInStep:'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED'}});expect(await passwordSignIn('member@example.test','temporary',config)).toEqual({step:'new-password'});m.confirm.mockResolvedValue({isSignedIn:true});expect(await invitationPassword('NEWPASS!',config)).toMatchObject({step:'done'});expect(m.confirm).toHaveBeenCalledWith({challengeResponse:'NEWPASS!'})})
+ it('uses email reset and rejects a simulated SMS destination',async()=>{m.reset.mockResolvedValue({nextStep:{resetPasswordStep:'CONFIRM_RESET_PASSWORD_WITH_CODE',codeDeliveryDetails:{deliveryMedium:'EMAIL'}}});await requestPasswordReset('member@example.test',config);m.reset.mockResolvedValue({nextStep:{resetPasswordStep:'CONFIRM_RESET_PASSWORD_WITH_CODE',codeDeliveryDetails:{deliveryMedium:'SMS'}}});await expect(requestPasswordReset('member@example.test',config)).rejects.toThrow('Email recovery');await confirmPasswordReset('member@example.test',' 123456 ','NEWPASS!',config);expect(m.confirmReset).toHaveBeenCalledWith({username:'member@example.test',confirmationCode:'123456',newPassword:'NEWPASS!'})})
+ it('clears SDK tokens from volatile memory and enforces the requested rules',async()=>{await volatileAuthStorage.setItem('refresh','secret');clearVolatileAuthState();expect(await volatileAuthStorage.getItem('refresh')).toBeNull();expect(passwordRules('NEWPASS!')).toBe(true);expect(passwordRules('newpass!')).toBe(false);expect(passwordError({name:'NotAuthorizedException',message:'private'})).toBe('Email or password is incorrect.')})
+})
