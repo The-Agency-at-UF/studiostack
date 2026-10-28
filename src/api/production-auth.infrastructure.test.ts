@@ -1,0 +1,7 @@
+import {describe,it,expect} from 'vitest'
+import {productionAuthInfrastructure} from '../../infra/production/auth'
+describe('Production authentication boundaries',()=>{
+ it('retains separate identities with email-only recovery and approved password rules',()=>{const t=productionAuthInfrastructure('https://main.example.amplifyapp.com'),p=t.Resources.Pool;expect(p.DeletionPolicy).toBe('Retain');expect(p.Properties.DeletionProtection).toBe('ACTIVE');expect(p.Properties.AdminCreateUserConfig.AllowAdminCreateUserOnly).toBe(true);expect(p.Properties.AccountRecoverySetting.RecoveryMechanisms).toEqual([{Name:'verified_email',Priority:1}]);expect(p.Properties.Policies.PasswordPolicy).toEqual({MinimumLength:8,RequireUppercase:true,RequireLowercase:false,RequireNumbers:false,RequireSymbols:true})})
+ it('uses native SRP, no client secret and exact production redirects',()=>{const c=productionAuthInfrastructure('https://main.example.amplifyapp.com').Resources.Client.Properties;expect(c.GenerateSecret).toBe(false);expect(c.ExplicitAuthFlows).toContain('ALLOW_USER_SRP_AUTH');expect(c.CallbackURLs).toEqual(['https://main.example.amplifyapp.com/login/']);expect(JSON.stringify(c)).not.toContain('localhost');expect(c.PreventUserExistenceErrors).toBe('ENABLED')})
+ it.each(['http://studio.test','https://studio.test/other','https://localhost'])('refuses non-production origin %s',origin=>expect(()=>productionAuthInfrastructure(origin)).toThrow())
+})
