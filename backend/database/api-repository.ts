@@ -1,3 +1,5 @@
+import {dispatchReports} from '../equipment/reports'
+import type {ReportRequest} from '../equipment/report-routes'
 import {dispatchEquipment} from '../equipment/repository'
 import type {EquipmentRequest} from '../equipment/routes'
 import {reservationColumns} from '../equipment/columns'
@@ -15,6 +17,7 @@ import type { PendingPhoto, PhotoStorage } from './photo-storage'
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
 export type ApiRequest =
+  | ReportRequest
   | EquipmentRequest
   | AccountRequest
   | ProductionRequest
@@ -79,6 +82,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     await client.query("SELECT set_config('app.organization_id', $1, true)", [organizationId])
 
     if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage)
+    if(request.operation==='reports')return dispatchReports(client,request,{organizationId,user,membership})
     if (request.operation === 'equipment')return dispatchEquipment(client,request,{organizationId,user,membership},now)
     if (request.operation === 'accounts') return dispatchAccounts(client, request, { organizationId, user, membership })
     switch (request.operation) {
@@ -115,6 +119,10 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
           const booked = await client.query(`SELECT 1 FROM app.reservation_items i JOIN app.reservations r ON r.organization_id = i.organization_id AND r.id = i.reservation_id
             WHERE i.organization_id = $1 AND i.equipment_id = $2 AND r.status = 'confirmed' AND r.fulfillment_status<>'returned' AND (r.ends_at > now() OR r.fulfillment_status='checked_out') LIMIT 1`, [organizationId, request.itemId])
           if (booked.rows.length) throw new ApiError(409, 'Cancel active or future reservations before taking equipment out of service')
+        }
+        if(request.input.status==='available'){
+          const reports=await client.query("SELECT 1 FROM app.equipment_reports WHERE organization_id=$1 AND equipment_id=$2 AND severity='high' AND status<>'resolved' LIMIT 1",[organizationId,request.itemId])
+          if(reports.rows.length)throw new ApiError(409,'Resolve high-severity reports before restoring service')
         }
         await checkAttachment(client, organizationId, request.input.photoId)
         return (await client.query(`UPDATE app.inventory SET name = COALESCE($3, name), category = COALESCE($4, category), status = COALESCE($5, status), version=version+1, photo_id = CASE WHEN $6::boolean THEN $7::uuid ELSE photo_id END

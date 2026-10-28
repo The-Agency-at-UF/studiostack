@@ -1,3 +1,4 @@
+import {reportRoutes} from '../../backend/equipment/report-routes'
 import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes } from '../../backend/production/routes'
 import {accountRoutes} from '../../backend/accounts/routes'
@@ -18,7 +19,7 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
       ApiId: config.apiId, IntegrationType: 'AWS_PROXY', IntegrationUri: functionArn, IntegrationMethod: 'POST', PayloadFormatVersion: '2.0', TimeoutInMillis: 29_000,
     } },
   }
-  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes, ...accountRoutes, ...equipmentRoutes].entries()) {
+  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes, ...accountRoutes, ...equipmentRoutes, ...reportRoutes].entries()) {
     // The upload route predates this stack. Deployment updates it in place,
     // avoiding duplicate routes or deleting the existing AWS resource.
     if (route !== 'POST /photos/uploads') {
