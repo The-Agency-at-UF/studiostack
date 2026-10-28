@@ -5,7 +5,7 @@ import AppShell from './AppShell'
 import { useAppSession } from '../context/AppSessionContext'
 
 const mocks = vi.hoisted(() => ({
-  pathname: '/login/', push: vi.fn(), replace: vi.fn(), finish: vi.fn(), register: vi.fn(), organizations: vi.fn(),
+  pathname: '/login/', push: vi.fn(), replace: vi.fn(), finish: vi.fn(), me:vi.fn(),register: vi.fn(), organizations: vi.fn(),
   preview: false, clear: vi.fn(), token: vi.fn(),
 }))
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useRouter: () => ({ push: mocks.push, replace: mocks.replace }) }))
@@ -17,7 +17,7 @@ vi.mock('../auth/cognito', () => ({
   isPreview: () => mocks.preview, clearSignIn: mocks.clear,
   enterPreview: () => { mocks.preview = true }, signInUrl: vi.fn(), logoutUrl: () => 'https://provider.example.test/logout',
 }))
-vi.mock('../api/database', () => ({ createDatabaseApiClient: () => ({ register: mocks.register, organizations: mocks.organizations }) }))
+vi.mock('../api/database', () => ({ createDatabaseApiClient: () => ({me:mocks.me, register: mocks.register, organizations: mocks.organizations }) }))
 function Controls() {
   const session = useAppSession()
   return <><output>{session.mode}/{session.email}/{String(session.isAdmin)}/{session.getAccessToken ? 'token' : 'no-token'}</output>
@@ -27,7 +27,7 @@ function Controls() {
 beforeEach(() => {
   vi.clearAllMocks(); mocks.pathname = '/login/'; mocks.preview = false
   localStorage.clear(); window.history.replaceState(null, '', '/login/')
-  mocks.register.mockResolvedValue({}); mocks.organizations.mockResolvedValue({ items: [] })
+  mocks.me.mockResolvedValue({}); mocks.register.mockResolvedValue({}); mocks.organizations.mockResolvedValue({ items: [] })
   mocks.finish.mockResolvedValue({ label: 'member@example.test', subject: 'member-subject', expiresAt: Date.now() + 900_000 })
 })
 afterEach(cleanup)

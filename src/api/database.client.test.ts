@@ -1,6 +1,8 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDatabaseApiClient } from './database'
+
+afterEach(()=>vi.useRealTimers())
 
 describe('authenticated database browser client', () => {
   it.each(['http://example.com', 'https://user:password@example.com', 'https://example.com?token=private', 'https://example.com#token'])('rejects unsafe URLs %s', baseUrl => {
@@ -32,4 +34,13 @@ describe('authenticated database browser client', () => {
     await client.inventory('org/id', { limit: 10, after: 'cursor' })
     expect(fetcher.mock.calls[0][0]).toBe('https://example.com/dev/organizations/org%2Fid/inventory?limit=10&after=cursor')
   })
+  it('backs off transient reads without retrying writes',async()=>{
+    vi.useFakeTimers()
+    const fetcher=vi.fn().mockResolvedValueOnce({ok:false,status:429}).mockResolvedValue({ok:true,json:async()=>({id:'me'})})
+    const client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher})
+    const result=client.me();await vi.advanceTimersByTimeAsync(1000);expect(await result).toEqual({id:'me'});expect(fetcher).toHaveBeenCalledTimes(2)
+    fetcher.mockReset().mockResolvedValue({ok:false,status:503})
+    await expect(client.register('Name')).rejects.toMatchObject({status:503});expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
 })

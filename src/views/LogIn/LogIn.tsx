@@ -1,5 +1,6 @@
 'use client'
 
+import type {ReactNode} from 'react'
 import Link from 'next/link'
 import { HiOutlineArrowRight, HiOutlineArrowUpRight, HiOutlineLockClosed, HiOutlineCheckCircle, HiOutlineBuildingOffice2 } from 'react-icons/hi2'
 import { FcGoogle } from 'react-icons/fc'
@@ -25,8 +26,9 @@ export interface LoginProps {
   authenticated?: boolean
   label?: string
   organizations?: ApiOrganization[]
+  accountActions?:ReactNode
 }
-export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [] }: LoginProps) {
+export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],accountActions }: LoginProps) {
   return <main className="login-page">
     <section className="login-brand" aria-label="About StudioStack">
       <div className="login-brand-top"><span className="login-kicker">The equipment workspace</span><span className="login-edition">01 / ACCESS</span></div>
@@ -50,6 +52,7 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
             {organizations.length ? <ul>{organizations.map(org => <li key={org.id}><span>{org.name}</span><small>{org.role}</small></li>)}</ul>
               : <p>Your account is ready. Ask an organization administrator to add your membership before accessing cloud data.</p>}
           </div>
+          {accountActions}
           {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}
           <p className="login-security-note">Production briefs use your organization’s live records. Other workspace pages remain in preview.</p>
           <button className="login-text-action" onClick={() => void onSignOut?.()}>Sign out of this account</button>
