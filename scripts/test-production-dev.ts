@@ -5,6 +5,14 @@ import { readMetadata, withMaintenance, invokeMaintenance } from './deploy-dev-a
 import { syntheticSignIn, type TestIdentity } from './test-dev-auth'
 import { emptyBrief, type ProductionBrief } from '../src/types/production'
 async function ownedKey(key:string,org:string) { if (!key.includes(org)) throw new Error('Unowned verification object') }
+async function removeSyntheticAccounts(pool:string,users:TestIdentity[]) {
+  let failed=false
+  for(const user of users) {
+    try {await aws('cognito-idp','admin-delete-user',['--user-pool-id',pool,'--username',user.username])}
+    catch(error) {if((error as {code?:string}).code!=='UserNotFoundException')failed=true}
+  }
+  if(failed)throw new Error('Some synthetic accounts could not be removed; inspect the cleanup manifest')
+}
 async function main() {
   await guardDevApply()
   const metadata=await readMetadata(),runId=`20261027-${randomBytes(4).toString('hex')}`,organizationId=randomUUID(),otherOrganizationId=randomUUID(),users:TestIdentity[]=[],checks:string[]=[],keys:string[]=[]
@@ -85,12 +93,7 @@ async function main() {
       if(seeded) await withMaintenance(metadata,runId,async()=>{const result=await invokeMaintenance<{ok:boolean}>({...fixture,action:'cleanup'});if(!result.ok)throw new Error('Fixture cleanup failed')})
       for(const key of keys) { await ownedKey(key,organizationId);await aws('s3api','delete-object',['--bucket','studio-stack-photos-dev','--key',key]) }
       record.fixtureCleanupPending=false;await writeFile(`${devDirectory}/production-verification-cleanup.json`,JSON.stringify(record,null,2))
-    } finally {
-      for(const u of users) {
-        try { await aws('cognito-idp','admin-delete-user',['--user-pool-id',metadata.auth.UserPoolId,'--username',u.username]) }
-        catch(error) { if((error as {code?:string}).code!=='UserNotFoundException')throw error }
-      }
-    }
+    } finally {await removeSyntheticAccounts(metadata.auth.UserPoolId,users)}
     if(verified)await writeFile(`${devDirectory}/production-verification.json`,JSON.stringify({runId,checks,verifiedAt:new Date().toISOString(),cleanupPending:false},null,2))
     console.log('Synthetic development accounts and fixtures cleaned up')
   }
