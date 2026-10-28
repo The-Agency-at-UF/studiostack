@@ -25,7 +25,10 @@
     "db:migrate:prod": "node --env-file-if-exists=.env.local --env-file=.env.rds.prod.local --import=tsx scripts/migrate-database.ts",
     "test:database": "vitest run src/api/database.backend.test.ts src/api/database.infrastructure.test.ts src/api/database.api.test.ts src/api/database.client.test.ts",
     "db:api:prepare": "node --import=tsx scripts/prepare-database-api.ts",
-    "test:database:postgres": "node --import=tsx scripts/test-database-api-postgres.ts"
+    "test:database:postgres": "node --import=tsx scripts/test-database-api-postgres.ts",
+    "production:deploy:dev": "node --import=tsx scripts/deploy-dev-api.ts --apply-dev",
+    "production:web:dev": "node --import=tsx scripts/deploy-production-web.ts --apply-dev",
+    "production:notifications:dev": "node --import=tsx scripts/deploy-production-notifications.ts --apply-dev"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1158.0",
