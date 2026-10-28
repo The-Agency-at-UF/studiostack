@@ -1,4 +1,5 @@
 import { productionClient } from './production'
+import {accountClient} from './accounts'
 import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiEquipment, ApiReservation, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
 type ClientOptions = { baseUrl?: string; getAccessToken: () => Promise<string>; fetch?: typeof fetch }
@@ -31,6 +32,7 @@ export function createDatabaseApiClient(options: ClientOptions) {
     return response.json() as Promise<T>
   }
   return {
+    accounts: (org:string) => accountClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`administration/${resource}`),method,body)),
     production: (org: string) => productionClient(<T>(resource: string, method?: string, body?: unknown) => request<T>(path(org, `production/${resource}`), method, body)),
     me: () => request<ApiUser>('/me'),
     register: (displayName?: string) => request<ApiUser>('/me', 'POST', displayName === undefined ? {} : { displayName }),
