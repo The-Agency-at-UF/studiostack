@@ -1,3 +1,4 @@
+import { productionRoutes } from '../../backend/production/routes'
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
@@ -54,6 +55,21 @@ function repoFixture(role = 'member') {
 }
 
 describe('trusted API identity and strict HTTP inputs', () => {
+  it.each([
+    ['POST /organizations/{organizationId}/production/briefs/{briefId}/actions', {action:'approve',version:1,requestId}, {briefId:itemId}],
+    ['POST /organizations/{organizationId}/production/deliveries/{deliveryId}/retry', {}, {deliveryId:itemId}],
+  ])('signals committed production work without logging customer data: %s',async(route,body,parameters)=>{
+    const log=vi.spyOn(console,'log').mockImplementation(()=>{})
+    try {
+      const execute=vi.fn().mockResolvedValue({projectName:'Private client brief'}),handler=createDatabaseApiHandler({execute},config,()=>now),request=event(route,body)
+      Object.assign(request.pathParameters!,parameters)
+      expect((await handler(request)).statusCode).toBe(200)
+      expect(log).toHaveBeenCalledExactlyOnceWith(JSON.stringify({type:'production-decision-queued'}))
+      log.mockClear();execute.mockRejectedValue(new Error('Transaction failed'))
+      expect((await handler(request)).statusCode).toBe(503)
+      expect(log).not.toHaveBeenCalled()
+    } finally {log.mockRestore()}
+  })
   it('uses only the authorizer identity and does not invent an email from access tokens', async () => {
     const execute = vi.fn().mockResolvedValue(user)
     const response = await createDatabaseApiHandler({ execute }, config, () => now)(event())
@@ -254,7 +270,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(serialized).toContain(`${config.apiId}/*/GET/me`)

@@ -1,3 +1,4 @@
+import { productionRoutes, productionRequest } from '../production/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
 import { ApiError, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
@@ -37,13 +38,14 @@ function trustedIdentity(event: APIGatewayProxyEventV2WithJWTAuthorizer, config:
   return { issuer: config.issuer, subject: claims.sub, email }
 }
 function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
-  if (typeof event.body !== 'string' || event.body.length > 24_000) throw new ApiError(400, 'A JSON body up to 16 KiB is required')
+  if (typeof event.body !== 'string' || event.body.length > 90_000) throw new ApiError(400, 'A JSON body up to 64 KiB is required')
   const body = event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body
-  if (Buffer.byteLength(body) > 16_384) throw new ApiError(400, 'Request body is too large')
+  if (Buffer.byteLength(body) > 65_536) throw new ApiError(400, 'Request body is too large')
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...productionRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (productionRoutes.includes(event.routeKey)) return productionRequest(event, () => json(event))
   const params = event.queryStringParameters ?? {}
   if (event.routeKey === 'POST /photos/uploads') {
     object(params, [])
@@ -87,7 +89,17 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
     const respond = (statusCode: number, value: unknown) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }, body: JSON.stringify(value) })
     try {
       const identity = trustedIdentity(event, config, now())
-      return respond(200, await repository.execute(identity, request(event)))
+      const parsed = request(event)
+      const value = await repository.execute(identity, parsed)
+      if (parsed.operation === 'production' && (
+        (parsed.resource === 'actions' && ['approve','request_changes','deny','withdraw','schedule'].includes(String((parsed.body as {action?:string})?.action))) ||
+        (parsed.resource === 'deliveries' && parsed.method === 'POST' && parsed.deliveryId)
+      )) {
+        // Emitted only after the transaction commits. CloudWatch delivers this
+        // small wake-up signal to the outside-VPC sender; no customer data logged.
+        console.log(JSON.stringify({type:'production-decision-queued'}))
+      }
+      return respond(200, value)
     } catch (error) {
       if (error instanceof ApiError) return respond(error.status, { error: error.message })
       // Never return raw SQL, credentials, AWS details, or customer data in errors.

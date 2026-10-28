@@ -4,7 +4,12 @@ on:
   pull_request:
     paths:
       - 'backend/database/**'
+      - 'backend/production/**'
       - 'infra/database/**'
+      - 'infra/production/**'
+      - 'src/production/**'
+      - 'src/api/production.ts'
+      - 'src/types/production.ts'
       - 'src/api/database*'
       - 'src/api/privatePhotos*'
       - 'src/api/photo-storage*'
@@ -12,6 +17,7 @@ on:
       - 'src/types/database-api.ts'
       - 'scripts/*database-api*.ts'
       - 'scripts/*dev*.ts'
+      - 'scripts/*production*.ts'
       - 'package*.json'
       - '.github/workflows/database-api.yml'
   workflow_dispatch:

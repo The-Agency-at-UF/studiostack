@@ -2,7 +2,7 @@ import { equipmentCategories } from '../../src/types/database-api'
 import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
 
 export class ApiError extends Error {
-  constructor(public readonly status: 400 | 401 | 403 | 404 | 409, message: string) { super(message) }
+  constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 503, message: string) { super(message) }
 }
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function uuid(value: unknown): string {

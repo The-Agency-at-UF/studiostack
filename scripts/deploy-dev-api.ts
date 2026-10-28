@@ -72,11 +72,11 @@ async function main() {
     console.log(`Applied dev migrations: ${result.applied.join(', ')}`)
   })
   const vars = await devVariables(metadata)
-  const fn = await aws<{ Role: string; Architectures: string[] }>('lambda', 'get-function-configuration', ['--function-name', 'studiostack-dev-database'])
+  const fn = await aws<{ Role: string; Architectures: string[]; Environment?: { Variables?: Record<string, string> } }>('lambda', 'get-function-configuration', ['--function-name', 'studiostack-dev-database'])
   if (fn.Role !== roleArn('studiostack-dev-database-role') || fn.Architectures[0] !== 'arm64') throw new Error('Unexpected dev Lambda owner/architecture')
   await aws('lambda', 'update-function-code', ['--function-name', 'studiostack-dev-database', '--zip-file', `fileb://${resolve('.aws/database-api/runtime.zip')}`])
   await waitFunction('studiostack-dev-database')
-  await aws('lambda', 'update-function-configuration', ['--function-name', 'studiostack-dev-database', '--memory-size', '1024', '--timeout', '28', '--environment', JSON.stringify({ Variables: vars })])
+  await aws('lambda', 'update-function-configuration', ['--function-name', 'studiostack-dev-database', '--memory-size', '1024', '--timeout', '28', '--environment', JSON.stringify({ Variables: { ...fn.Environment?.Variables, ...vars } })])
   await waitFunction('studiostack-dev-database')
   const quota = await aws<{ AccountLimit: { ConcurrentExecutions: number; UnreservedConcurrentExecutions: number } }>('lambda', 'get-account-settings')
   if (quota.AccountLimit.UnreservedConcurrentExecutions >= 104) await aws('lambda', 'put-function-concurrency', ['--function-name', 'studiostack-dev-database', '--reserved-concurrent-executions', '4'])
@@ -88,7 +88,8 @@ async function main() {
   const existing = Items.find(r => r.RouteKey === 'POST /photos/uploads')
   if (!existing) throw new Error('Expected existing photo route absent')
   await aws('apigatewayv2', 'update-route', ['--api-id', vars.DATABASE_API_ID, '--route-id', existing.RouteId, '--authorization-type', 'JWT', '--authorizer-id', routes.AuthorizerId, '--authorization-scopes', 'studiostack-api/access', '--target', `integrations/${routes.IntegrationId}`])
-  await aws('apigatewayv2', 'update-api', ['--api-id', vars.DATABASE_API_ID, '--cors-configuration', JSON.stringify({ AllowOrigins: ['http://localhost:5174', 'http://localhost:5417'], AllowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'], AllowHeaders: ['Authorization', 'Content-Type'], MaxAge: 300 })])
+  const currentApi = await aws<{ CorsConfiguration?: { AllowOrigins?: string[] } }>('apigatewayv2', 'get-api', ['--api-id', vars.DATABASE_API_ID])
+  await aws('apigatewayv2', 'update-api', ['--api-id', vars.DATABASE_API_ID, '--cors-configuration', JSON.stringify({ AllowOrigins: [...new Set([...(currentApi.CorsConfiguration?.AllowOrigins ?? []), 'http://localhost:5174', 'http://localhost:5417'])], AllowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], AllowHeaders: ['Authorization', 'Content-Type'], MaxAge: 300 })])
   await aws('apigatewayv2', 'update-stage', ['--api-id', vars.DATABASE_API_ID, '--stage-name', '$default', '--default-route-settings', JSON.stringify({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 4 })])
   // Preserve all unrelated lifecycle rules. Only abandoned dev staging expires.
   let rules: Record<string, unknown>[] = []
@@ -96,6 +97,6 @@ async function main() {
   const lifecycle = { Rules: [...rules.filter(r => r.ID !== 'studiostack-dev-staging'), { ID: 'studiostack-dev-staging', Status: 'Enabled', Filter: { Prefix: 'staging/' }, Expiration: { Days: 1 }, AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 } }] }
   await aws('s3api', 'put-bucket-lifecycle-configuration', ['--bucket', 'studio-stack-photos-dev', '--lifecycle-configuration', JSON.stringify(lifecycle)])
   await writeFile(`${devDirectory}/api-deployment.json`, JSON.stringify({ deployedAt: new Date().toISOString(), routes, userPoolId: metadata.auth.UserPoolId, apiId: vars.DATABASE_API_ID }, null, 2))
-  console.log('Dev 13 database + 3 photo routes deployed with Cognito scope; bucket remains private')
+  console.log('Development database, photo and production-workflow routes deployed with Cognito scope; bucket remains private')
 }
 if (process.argv[1]?.endsWith('deploy-dev-api.ts')) main().catch(error => { console.error(error instanceof Error ? error.message : 'Dev API rollout failed'); process.exitCode = 1 })

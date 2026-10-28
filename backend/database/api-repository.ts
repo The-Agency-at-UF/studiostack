@@ -1,3 +1,5 @@
+import { dispatchProduction, type ProductionRequest } from '../production/repository'
+import type { BriefStorage } from '../production/storage'
 import { createHash, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
@@ -8,6 +10,7 @@ import type { PendingPhoto, PhotoStorage } from './photo-storage'
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
 export type ApiRequest =
+  | ProductionRequest
   | { operation: 'me' }
   | { operation: 'register'; displayName: string | null }
   | { operation: 'organizations'; page: Page }
@@ -36,7 +39,7 @@ function admin(membership: Membership) {
   if (!['owner', 'admin'].includes(membership.role)) throw new ApiError(403, 'Organization administrator required')
 }
 
-export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now, storage?: PhotoStorage) {
+export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now, storage?: PhotoStorage, briefStorage?: BriefStorage) {
   async function checkAttachment(client: DatabaseClient, organizationId: string, photoId?: string | null) {
     if (!photoId) return
     const ready = await client.query('SELECT id FROM app.photo_uploads WHERE organization_id = $1 AND id = $2 AND status = $3', [organizationId, photoId, 'ready'])
@@ -69,6 +72,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     if (!membership) throw new ApiError(403, 'Active organization membership required')
     await client.query("SELECT set_config('app.organization_id', $1, true)", [organizationId])
 
+    if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage)
     switch (request.operation) {
       case 'members': {
         admin(membership)

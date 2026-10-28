@@ -41,7 +41,7 @@ export async function signInUrl(config = authConfiguration(), provider?: LoginPr
   const identityProvider = provider ? providerName(provider) : undefined
   const verifier = random(), state = random(), nonce = random()
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
-  const query = new URLSearchParams({ response_type: 'code', client_id: config.clientId, redirect_uri: config.redirectUri, scope: 'openid profile studiostack-api/access',
+  const query = new URLSearchParams({ response_type: 'code', client_id: config.clientId, redirect_uri: config.redirectUri, scope: 'openid profile email aws.cognito.signin.user.admin studiostack-api/access',
     code_challenge_method: 'S256', code_challenge: base64url(new Uint8Array(digest)), state, nonce })
   if (identityProvider) query.set('identity_provider', identityProvider)
   sessionStorage.setItem(pendingKey, JSON.stringify({ state, nonce, verifier, createdAt: Date.now(), redirectUri: config.redirectUri } satisfies Pending))

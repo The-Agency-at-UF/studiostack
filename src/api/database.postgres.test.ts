@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { outboxTask } from '../../backend/production/outbox'
+import type { ProductionRequest } from '../../backend/production/repository'
+import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
 import { beforeAll, afterAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
@@ -36,7 +39,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     signUpload: async photo => ({ url: 'https://private.test', fields: { key: photo.stagingKey } }),
     finalize: async photo => ({ key: `photos/${photo.organizationId}/${photo.id}.jpg`, width: 80, height: 60, size: 400, sha256: 'a'.repeat(64) }),
     signDownload: async () => ({ url: 'https://private.test/signed', expiresIn: 60 }),
-  })
+  }, { signUpload: async () => ({ url: 'https://files.test', fields: {} }), verify: async () => {}, signDownload: async () => ({ url: 'https://files.test/signed', expiresIn: 60 }) })
   const listPage = { limit: 100, after: null }
   const startsAt = new Date(Date.now() + 86400_000).toISOString()
   const endsAt = new Date(Date.parse(startsAt) + 3600_000).toISOString()
@@ -172,4 +175,106 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await connection.query('ROLLBACK')
     } finally { await connection.end() }
   })
+  function production(identity: Identity, input: Omit<ProductionRequest, 'operation' | 'organizationId' | 'page'> & Partial<Pick<ProductionRequest,'organizationId'|'page'>>) {
+    return repository.execute(identity,{ operation:'production',organizationId,page:listPage,...input })
+  }
+  async function draft() {
+    const data = { ...emptyBrief(), projectName:'Example shoot', client:'Example client',managers:'Account manager',deliveryDate:new Date(Date.now()+30*86400_000).toISOString().slice(0,10), productionTypes:['Videography' as const],fields:{ summary:'Film an interview.',objective:'Introduce the program.',audience:'Students',platform:'YouTube',deliverables:'One interview film.',location:'Campus',shootEstimate:'Next week',proposedStart:new Date(Date.now()+7*86400_000).toISOString().slice(0,10),proposedEnd:new Date(Date.now()+7*86400_000).toISOString().slice(0,10) } }
+    return await production(member,{resource:'briefs',method:'POST',body:{data,requestId:randomUUID()}}) as ProductionBrief
+  }
+  async function command(identity:Identity,b:ProductionBrief,action:BriefCommand['action'],comment='') {
+    return await production(identity,{resource:'actions',method:'POST',briefId:b.id,body:{action,version:b.version,requestId:randomUUID(),comment}}) as ProductionBrief
+  }
+  it('production: only admins assign active reviewers and ELT memberships',async()=>{
+    const settings = {version:0,reviewerIds:[profiles[secondMember.subject].id],executiveIds:[],approvalConfirmsDates:true}
+    await expect(production(member,{resource:'settings',method:'PATCH',body:settings})).rejects.toMatchObject({status:403})
+    await expect(production(owner,{resource:'settings',method:'PATCH',body:{...settings,reviewerIds:[profiles.outsider.id]}})).rejects.toMatchObject({status:400})
+    expect(await production(owner,{resource:'settings',method:'PATCH',body:settings})).toMatchObject({version:1})
+    await expect(production(owner,{resource:'settings',method:'PATCH',body:settings})).rejects.toMatchObject({status:409})
+    expect(await production(secondMember,{resource:'access',method:'GET'})).toMatchObject({canReview:true,canAdminister:false})
+    expect(await production(owner,{resource:'access',method:'GET'})).toMatchObject({canReview:false,canAdminister:true})
+  })
+  it('production: persists drafts, hides them from reviewers, and enforces tenant membership',async()=>{
+    const b=await draft()
+    expect(await production(member,{resource:'briefs',method:'GET',briefId:b.id})).toMatchObject({data:{projectName:'Example shoot'},version:1})
+    await expect(production(secondMember,{resource:'briefs',method:'GET',briefId:b.id})).rejects.toMatchObject({status:404})
+    await expect(production(outsider,{resource:'briefs',method:'GET',briefId:b.id})).rejects.toMatchObject({status:403})
+    await expect(production(outsider,{resource:'briefs',method:'GET',briefId:b.id,organizationId:otherOrganizationId})).rejects.toMatchObject({status:404})
+  })
+  it('production: validates submission and preserves an immutable submission snapshot',async()=>{
+    let b=await draft()
+    const missing={...b.data,client:''}
+    b=await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{data:missing,version:b.version,requestId:randomUUID()}}) as ProductionBrief
+    await expect(command(member,b,'submit')).rejects.toMatchObject({status:400})
+    b=await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{data:{...missing,client:'Restored client'},version:b.version,requestId:randomUUID()}}) as ProductionBrief
+    b=await command(member,b,'submit')
+    expect(b.status).toBe('submitted');expect(b.events.at(-1)?.snapshot?.client).toBe('Restored client')
+    await expect(production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{data:b.data,version:b.version,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    const changed=await command(secondMember,b,'request_changes','Add more detail to the deliverables.')
+    const saved=await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{data:{...changed.data,client:'New client'},version:changed.version,requestId:randomUUID()}}) as ProductionBrief
+    expect(saved.events.find(e=>e.kind==='submitted')?.snapshot?.client).toBe('Restored client')
+    const resubmitted=await command(member,saved,'submit');expect(resubmitted.submission).toBe(2)
+  })
+  it('production: approval confirms shoot dates, records the reviewer, and enqueues exactly one email',async()=>{
+    const b=await command(member,await draft(),'submit'),body={action:'approve',version:b.version,requestId:randomUUID()}
+    await expect(production(member,{resource:'actions',method:'POST',briefId:b.id,body})).rejects.toMatchObject({status:403})
+    const approved=await production(secondMember,{resource:'actions',method:'POST',briefId:b.id,body}) as ProductionBrief
+    expect(approved.status).toBe('approved');expect(approved.shootStartsAt).toBeTruthy()
+    expect(approved.events.at(-1)).toMatchObject({kind:'approved',actorId:profiles[secondMember.subject].id})
+    expect(await production(secondMember,{resource:'actions',method:'POST',briefId:b.id,body})).toMatchObject({id:b.id,version:approved.version})
+    const jobs=await operator.query('SELECT payload FROM app.production_outbox WHERE brief_id=$1',[b.id]);expect(jobs.rows).toHaveLength(1);expect(jobs.rows[0].payload).toMatchObject({reviewer:'second-member',decision:'approved'})
+  })
+  it('production: only one concurrent leadership decision can succeed',async()=>{
+    const b=await command(member,await draft(),'submit')
+    const results=await Promise.allSettled([command(secondMember,b,'approve'),command(secondMember,b,'deny','Scope is not feasible.')])
+    expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1)
+    expect(results.filter(r=>r.status==='rejected')).toEqual([expect.objectContaining({reason:expect.objectContaining({status:409})})])
+    expect((await operator.query('SELECT id FROM app.production_outbox WHERE brief_id=$1',[b.id])).rows).toHaveLength(1)
+  })
+  it('production: month-only estimates need concrete dates at approval',async()=>{
+    let b=await draft();const data={...b.data,fields:{...b.data.fields,proposedStart:'',proposedEnd:'',shootEstimate:'November'}}
+    b=await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{data,version:b.version,requestId:randomUUID()}}) as ProductionBrief;b=await command(member,b,'submit')
+    await expect(command(secondMember,b,'approve')).rejects.toMatchObject({status:400})
+    const start=new Date(Date.now()+86400_000).toISOString(),end=new Date(Date.now()+2*86400_000).toISOString()
+    expect(await production(secondMember,{resource:'actions',method:'POST',briefId:b.id,body:{action:'approve',version:b.version,requestId:randomUUID(),shootStartsAt:start,shootEndsAt:end}})).toMatchObject({status:'approved'})
+  })
+  it('production: stale saves fail, retries deduplicate, and changed request IDs conflict',async()=>{
+    const b=await draft(),body={data:{...b.data,projectName:'Changed name'},version:b.version,requestId:randomUUID()}
+    const saved=await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body}) as ProductionBrief
+    expect(await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body})).toMatchObject({version:saved.version})
+    await expect(production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{...body,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    await expect(production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{...body,data:b.data}})).rejects.toMatchObject({status:409})
+  })
+  it('production: withdrawing removes confirmation; reopening retains history',async()=>{
+    const b=await command(secondMember,await command(member,await draft(),'submit'),'approve')
+    const withdrawn=await command(member,b,'withdraw');expect(withdrawn.status).toBe('withdrawn');expect(withdrawn.shootStartsAt).toBeNull()
+    expect(await command(member,withdrawn,'reopen')).toMatchObject({status:'draft',submission:1})
+  })
+  it('production: attachment completion is owner-scoped and blocks premature submission',async()=>{
+    let b=await draft();const attachmentId=randomUUID(),body={id:attachmentId,name:'Reference.pdf',contentType:'application/pdf',size:120}
+    expect(await production(member,{resource:'attachments',method:'POST',briefId:b.id,body})).toMatchObject({id:attachmentId})
+    await expect(command(member,b,'submit')).rejects.toMatchObject({status:409})
+    b=await production(member,{resource:'attachments',method:'POST',briefId:b.id,attachmentId,body:{}}) as ProductionBrief;expect(b).toMatchObject({attachments:[expect.objectContaining({status:'ready'})]})
+    await command(member,b,'submit')
+    expect(await production(secondMember,{resource:'attachments',method:'GET',briefId:b.id,attachmentId})).toMatchObject({expiresIn:60})
+    await expect(production(secondMember,{resource:'attachments',method:'POST',briefId:b.id,attachmentId,body:{}})).rejects.toMatchObject({status:403})
+  })
+  it('production: queue leasing avoids duplicate claims and acknowledges only the current lease',async()=>{
+    const connect=async()=>{const c=new pg.Client({connectionString});await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return c}
+    const a=await connect(),b=await connect()
+    try {
+      const [one,two]=await Promise.all([outboxTask(a,{action:'claim'}),outboxTask(b,{action:'claim'})]);const ids=[...(one.jobs??[]),...(two.jobs??[])].map(j=>j.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      const job=one.jobs?.[0]??two.jobs?.[0];expect(job).toBeTruthy()
+      expect(await outboxTask(a,{action:'ack',organizationId:job!.organizationId,id:job!.id,leaseToken:randomUUID(),outcome:'sent'})).toEqual({updated:false})
+      expect(await outboxTask(a,{action:'ack',organizationId:job!.organizationId,id:job!.id,leaseToken:job!.leaseToken,outcome:'sent'})).toEqual({updated:true})
+      expect(await outboxTask(a,{action:'ack',organizationId:job!.organizationId,id:job!.id,leaseToken:job!.leaseToken,outcome:'sent'})).toEqual({updated:false})
+    } finally {await a.end();await b.end()}
+  })
+  it('production: database row security and append-only grants protect decision history',async()=>{
+    const c=new pg.Client({connectionString});try {await c.connect();await c.query('SET ROLE "studiostack_dev_app"');expect((await c.query('SELECT id FROM app.production_briefs')).rows).toEqual([])
+      for(const sql of ['UPDATE app.production_brief_events SET comment=\'tampered\'','DELETE FROM app.production_briefs','DELETE FROM app.production_outbox']) await expect(c.query(sql)).rejects.toMatchObject({code:'42501'})
+    }finally{await c.end()}
+  })
+
 })
