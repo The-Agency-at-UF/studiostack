@@ -13,7 +13,7 @@ export async function syntheticSignIn(metadata: DevMetadata, runId: string, labe
     await aws('cognito-idp', 'admin-set-user-password', ['--user-pool-id', metadata.auth.UserPoolId, '--username', username, '--password', password, '--permanent'])
     const verifier = randomBytes(32).toString('base64url'), state = randomBytes(24).toString('base64url')
     const challenge = createHash('sha256').update(verifier).digest('base64url')
-    const query = new URLSearchParams({ response_type: 'code', client_id: metadata.auth.AppClientId, redirect_uri: 'http://localhost:5417/callback', scope: 'openid profile studiostack-api/access', code_challenge: challenge, code_challenge_method: 'S256', state })
+    const query = new URLSearchParams({ response_type: 'code', client_id: metadata.auth.AppClientId, redirect_uri: 'http://localhost:5417/callback', scope: 'openid profile email aws.cognito.signin.user.admin studiostack-api/access', code_challenge: challenge, code_challenge_method: 'S256', state })
     const cookies = new Map<string, string>()
     async function request(url: string, init?: Parameters<typeof fetch>[1]) {
       const response = await fetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(20_000), headers: { ...(Object.fromEntries(new Headers(init?.headers))), Cookie: [...cookies].map(([k, v]) => `${k}=${v}`).join('; ') } })

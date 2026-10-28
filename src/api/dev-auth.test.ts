@@ -11,6 +11,7 @@ it('keeps development login invite/admin-only and uses scoped public OAuth code 
   expect(client.AllowedOAuthFlows).toEqual(['code'])
   expect(client.AllowedOAuthScopes).toContain('studiostack-api/access')
   expect(client.AccessTokenValidity).toBe(15)
-  expect(client.CallbackURLs.every(url => url.startsWith('http://localhost:'))).toBe(true)
+  expect(client.CallbackURLs).toEqual(['http://localhost:5174/login/','http://localhost:5417/callback','https://dev.dvmmztb0u3m9g.amplifyapp.com/login/'])
+  expect(template.Resources.Pool.Properties.AdminCreateUserConfig.InviteMessageTemplate.EmailMessage).toContain('{####}')
   expect(JSON.stringify(template)).not.toContain('studiostack-prod')
 })
