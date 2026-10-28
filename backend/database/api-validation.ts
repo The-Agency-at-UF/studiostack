@@ -45,7 +45,7 @@ export function createPhotoUpload(value: unknown): CreatePhotoUpload {
   if (!['image/jpeg', 'image/webp'].includes(String(body.contentType)) || !Number.isSafeInteger(body.size) || Number(body.size) < 1 || Number(body.size) > 10 * 1024 * 1024) throw new ApiError(400, 'Use a processed JPEG or WebP between 1 byte and 10 MiB')
   return { organizationId: uuid(body.organizationId), contentType: body.contentType as CreatePhotoUpload['contentType'], size: Number(body.size), requestId: uuid(body.requestId) }
 }
-function date(value: unknown): string {
+export function date(value: unknown): string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value))) {
     throw new ApiError(400, 'Dates must be ISO timestamps with a timezone')
   }

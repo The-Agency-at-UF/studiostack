@@ -1,3 +1,4 @@
+import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes } from '../../backend/production/routes'
 import {accountRoutes} from '../../backend/accounts/routes'
 // @vitest-environment node
@@ -41,6 +42,7 @@ function repoFixture(role = 'member') {
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
     let rows: unknown[] = []
     if (sql.includes('FROM app.users WHERE') || sql.startsWith('INSERT INTO app.users')) rows = [user]
+    else if(sql.startsWith('SELECT reservation_days AS days'))rows=[{days:7}]
     else if (sql.includes('SELECT m.role FROM')) rows = values[0] === org ? [{ role }] : []
     else if (sql.includes('r.request_hash')) rows = existing ? [existing] : []
     else if (sql.includes('SELECT id, status FROM app.inventory')) rows = [{ id: itemId, status: available ? 'available' : 'maintenance' }]
@@ -271,7 +273,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length + accountRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length + accountRoutes.length + equipmentRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(serialized).toContain(`${config.apiId}/*/GET/me`)
@@ -282,9 +284,9 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     expect(migration.sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(5)
     expect(migration.sql).toContain('FOREIGN KEY (organization_id, equipment_id)')
     const grants = databaseApiGrants('dev')
-    expect(grants).toContain('GRANT UPDATE (status) ON app.reservations')
+    expect(grants).toContain('GRANT UPDATE (name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations')
     expect(grants).not.toMatch(/GRANT ALL|schema_migrations|TO "studiostack_prod_app"|CREATE/)
-    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"'])
+    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"'])
     expect(grants).toContain('GRANT UPDATE (role, status, version) ON app.organization_memberships')
   })
 })

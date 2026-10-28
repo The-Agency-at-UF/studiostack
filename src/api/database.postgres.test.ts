@@ -1,3 +1,5 @@
+import type {EquipmentRequest} from '../../backend/equipment/routes'
+import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '../types/equipment'
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
@@ -407,6 +409,58 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('equipment schema: a returned reservation must have a real return timestamp',async()=>{
     const item=await equipment(),reservation=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as ApiReservation
     await expect(operator.query("UPDATE app.reservations SET fulfillment_status='returned',checked_out_at=now(),returned_at=NULL WHERE id=$1",[reservation.id])).rejects.toMatchObject({code:'23514'})
+  })
+
+  function workflow<T=EquipmentReservation>(actor:Identity,reservationId:string,resource:string,body?:unknown,method='POST',query:Record<string,string>={}){return repository.execute(actor,{operation:'equipment',organizationId,reservationId,resource,method,body,query} as EquipmentRequest) as Promise<T>}
+  async function nearBooking(item:ApiEquipment,actor=member){const start=new Date(Date.now()+5*60000).toISOString();return await repository.execute(actor,{operation:'createReservation',organizationId,input:{...booking(item),startsAt:start,endsAt:new Date(Date.parse(start)+3600000).toISOString()}}) as EquipmentReservation}
+  it('equipment: checkout is owner-scoped, durable, idempotent and prevents cancellation',async()=>{
+    const item=await equipment(),r=await nearBooking(item),body={version:r.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good',notes:'Ready'}]}
+    await expect(workflow(secondMember,r.id,'checkout',body)).rejects.toMatchObject({status:404})
+    const out=await workflow(member,r.id,'checkout',body);expect(out).toMatchObject({fulfillmentStatus:'checked_out',version:r.version+1});expect(out.checkedOutAt).toBeTruthy()
+    expect(await workflow(member,r.id,'checkout',body)).toMatchObject({version:out.version})
+    expect((await operator.query('SELECT id FROM app.equipment_checkouts WHERE reservation_id=$1',[r.id])).rows).toHaveLength(1)
+    await expect(repository.execute(member,{operation:'cancelReservation',organizationId,reservationId:r.id})).rejects.toMatchObject({status:409})
+    await expect(workflow(outsider,r.id,'checkout',body)).rejects.toMatchObject({status:403})
+  })
+  it('equipment: a damaged return creates one report and takes the item out of service atomically',async()=>{
+    const item=await equipment(),r=await nearBooking(item),out=await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good'}]})
+    await expect(workflow(member,r.id,'return',{version:out.version,requestId:randomUUID(),conditions:[{equipmentId:randomUUID(),condition:'damaged'}]})).rejects.toMatchObject({status:400})
+    const body={version:out.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'damaged',notes:'Broken mount during shoot.'}]},returned=await workflow(member,r.id,'return',body)
+    expect(returned).toMatchObject({fulfillmentStatus:'returned',version:out.version+1});expect(returned.returnedAt).toBeTruthy()
+    expect(await workflow(member,r.id,'return',body)).toMatchObject({version:returned.version})
+    expect((await operator.query('SELECT status,condition FROM app.inventory WHERE id=$1',[item.id])).rows[0]).toEqual({status:'maintenance',condition:'damaged'})
+    const reports=(await operator.query<EquipmentReport>('SELECT id,title,description FROM app.equipment_reports WHERE reservation_id=$1',[r.id])).rows;expect(reports).toHaveLength(1);expect(reports[0].description).toContain('Broken mount')
+    expect((await operator.query('SELECT returned_at FROM app.equipment_checkouts WHERE reservation_id=$1',[r.id])).rows[0].returned_at).toBeTruthy()
+  })
+  it('equipment: overdue physical checkout prevents another borrower taking the same item',async()=>{
+    const item=await equipment(),r=await nearBooking(item);await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good'}]})
+    await operator.query("UPDATE app.reservations SET starts_at=now()-interval '1 hour',ends_at=now()-interval '1 second' WHERE id=$1",[r.id])
+    const next=await nearBooking(item,secondMember)
+    await expect(workflow(secondMember,next.id,'checkout',{version:next.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good'}]})).rejects.toMatchObject({status:409})
+  })
+  it('equipment: edits and extensions preserve versions and reject conflicting bookings',async()=>{
+    const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as EquipmentReservation
+    const start=new Date(Date.parse(endsAt)+3600000).toISOString();await repository.execute(secondMember,{operation:'createReservation',organizationId,input:{...booking(item),startsAt:start,endsAt:new Date(Date.parse(start)+3600000).toISOString()}})
+    const body={...booking(item),name:'Updated shoot',endsAt:new Date(Date.parse(endsAt)+1800000).toISOString(),version:r.version}
+    const edited=await workflow(member,r.id,'{reservationId}',body,'PATCH');expect(edited).toMatchObject({name:'Updated shoot',version:r.version+1})
+    expect(await workflow(member,r.id,'{reservationId}',body,'PATCH')).toMatchObject({version:edited.version})
+    await expect(workflow(member,r.id,'{reservationId}',{...body,endsAt:new Date(Date.parse(start)+1800000).toISOString(),version:edited.version,requestId:randomUUID()},'PATCH')).rejects.toMatchObject({status:409})
+    await expect(workflow(member,r.id,'{reservationId}',{...body,requestId:randomUUID()},'PATCH')).rejects.toMatchObject({status:409})
+  })
+  it('equipment: concurrent reservation edits cannot book the same free item twice',async()=>{
+    const a=await equipment(),b=await equipment(),shared=await equipment(),r1=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(a)}) as EquipmentReservation,r2=await repository.execute(secondMember,{operation:'createReservation',organizationId,input:booking(b)}) as EquipmentReservation
+    const results=await Promise.allSettled([workflow(member,r1.id,'{reservationId}',{...booking(shared),version:r1.version},'PATCH'),workflow(secondMember,r2.id,'{reservationId}',{...booking(shared),version:r2.version},'PATCH')])
+    expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect(results.find(r=>r.status==='rejected')).toMatchObject({reason:{status:409}})
+  })
+  it('equipment: availability hides project and borrower details from other members',async()=>{
+    const item=await equipment(),r=await repository.execute(secondMember,{operation:'createReservation',organizationId,input:booking(item)}) as EquipmentReservation
+    const page=await workflow<ApiPage<EquipmentAvailability>>(member,r.id,'availability',undefined,'GET',{startsAt,endsAt,limit:'100'}),row=page.items.find(row=>row.id===r.id)!
+    expect(row.equipmentIds).toContain(item.id);expect(row).not.toHaveProperty('userId');expect(row).not.toHaveProperty('name')
+    await expect(repository.execute(member,{operation:'reservation',organizationId,reservationId:r.id})).rejects.toMatchObject({status:404})
+  })
+  it('equipment: reservation creation respects the saved organization length policy',async()=>{
+    const item=await equipment(),policy=(await operator.query('SELECT reservation_days FROM app.organizations WHERE id=$1',[organizationId])).rows[0]
+    try{await operator.query('UPDATE app.organizations SET reservation_days=2 WHERE id=$1',[organizationId]);await expect(repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(item),endsAt:new Date(Date.parse(startsAt)+3*86400000).toISOString()}})).rejects.toMatchObject({status:400})}finally{await operator.query('UPDATE app.organizations SET reservation_days=$2 WHERE id=$1',[organizationId,policy.reservation_days])}
   })
 
 })

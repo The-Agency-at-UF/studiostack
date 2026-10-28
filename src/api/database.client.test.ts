@@ -43,4 +43,10 @@ describe('authenticated database browser client', () => {
     await expect(client.register('Name')).rejects.toMatchObject({status:503});expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps equipment writes scoped to the selected organization',async()=>{
+    const fetcher=vi.fn().mockResolvedValue({ok:true,json:async()=>({id:'booking'})}),client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher}),body={version:1,requestId:'request',conditions:[{equipmentId:'item',condition:'good' as const,notes:''}]}
+    await client.equipment('org/id').checkout('booking/id',body)
+    expect(fetcher).toHaveBeenCalledWith('https://example.com/organizations/org%2Fid/equipment/reservations/booking%2Fid/checkout',expect.objectContaining({method:'POST',body:JSON.stringify(body)}))
+  })
+
 })

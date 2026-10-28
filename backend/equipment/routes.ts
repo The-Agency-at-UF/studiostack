@@ -1,0 +1,6 @@
+import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
+import {object,pagination,uuid} from '../database/api-validation'
+const prefix='/organizations/{organizationId}/equipment'
+export const equipmentRoutes=[`PATCH ${prefix}/reservations/{reservationId}`,`POST ${prefix}/reservations/{reservationId}/checkout`,`POST ${prefix}/reservations/{reservationId}/return`,`GET ${prefix}/reservations/{reservationId}/activity`,`GET ${prefix}/availability`]
+export interface EquipmentRequest {operation:'equipment';organizationId:string;method:string;resource:string;reservationId?:string;body?:unknown;query:Record<string,string|undefined>}
+export function equipmentRequest(event:APIGatewayProxyEventV2WithJWTAuthorizer,json:()=>unknown):EquipmentRequest{const method=event.requestContext.http.method,resource=event.routeKey.split('/').at(-1)!,query=event.queryStringParameters??{};if(method!=='GET')object(query,[]);else if(resource==='activity')pagination(query);return {operation:'equipment',organizationId:uuid(event.pathParameters?.organizationId),method,resource,...(event.pathParameters?.reservationId?{reservationId:uuid(event.pathParameters.reservationId)}:{}),...(method!=='GET'?{body:json()}:{}),query}}

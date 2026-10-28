@@ -1,7 +1,9 @@
+import {equipmentClient} from './equipment'
+import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
 import { productionClient } from './production'
 import type {PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
-import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiEquipment, ApiReservation, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
+import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
 type ClientOptions = { baseUrl?: string; getAccessToken: () => Promise<string>; fetch?: typeof fetch }
 type PageOptions = { limit?: number; after?: string }
@@ -40,6 +42,7 @@ export function createDatabaseApiClient(options: ClientOptions) {
   return {
     pendingInvitations:()=>request<{items:PendingInvitation[]}>('/account/invitations'),
     acceptInvitation:(id:string,organizationId:string)=>request<{organizationId:string}>(`/account/invitations/${encodeURIComponent(id)}/accept`,'POST',{organizationId}),
+    equipment:(org:string)=>equipmentClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`equipment/${resource}`),method,body)),
     accounts: (org:string) => accountClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`administration/${resource}`),method,body)),
     production: (org: string) => productionClient(<T>(resource: string, method?: string, body?: unknown) => request<T>(path(org, `production/${resource}`), method, body)),
     me: () => request<ApiUser>('/me'),
@@ -48,13 +51,13 @@ export function createDatabaseApiClient(options: ClientOptions) {
     members: (org: string, page?: PageOptions) => request<ApiPage<ApiMember>>(paged(path(org, 'members'), page)),
     groups: (org: string, page?: PageOptions) => request<ApiPage<ApiGroup>>(paged(path(org, 'groups'), page)),
     createGroup: (org: string, name: string) => request<ApiGroup>(path(org, 'groups'), 'POST', { name }),
-    inventory: (org: string, page?: PageOptions) => request<ApiPage<ApiEquipment>>(paged(path(org, 'inventory'), page)),
-    createEquipment: (org: string, input: CreateEquipment) => request<ApiEquipment>(path(org, 'inventory'), 'POST', input),
-    updateEquipment: (org: string, itemId: string, input: UpdateEquipment) => request<ApiEquipment>(path(org, `inventory/${encodeURIComponent(itemId)}`), 'PATCH', input),
-    reservations: (org: string, page?: PageOptions) => request<ApiPage<ApiReservation>>(paged(path(org, 'reservations'), page)),
-    reservation: (org: string, id: string) => request<ApiReservation>(path(org, `reservations/${encodeURIComponent(id)}`)),
-    createReservation: (org: string, input: CreateReservation) => request<ApiReservation>(path(org, 'reservations'), 'POST', input),
-    cancelReservation: (org: string, id: string) => request<ApiReservation>(path(org, `reservations/${encodeURIComponent(id)}/cancel`), 'POST', {}),
+    inventory: (org: string, page?: PageOptions) => request<ApiPage<EquipmentRecord>>(paged(path(org, 'inventory'), page)),
+    createEquipment: (org: string, input: CreateEquipment) => request<EquipmentRecord>(path(org, 'inventory'), 'POST', input),
+    updateEquipment: (org: string, itemId: string, input: UpdateEquipment) => request<EquipmentRecord>(path(org, `inventory/${encodeURIComponent(itemId)}`), 'PATCH', input),
+    reservations: (org: string, page?: PageOptions) => request<ApiPage<EquipmentReservation>>(paged(path(org, 'reservations'), page)),
+    reservation: (org: string, id: string) => request<EquipmentReservation>(path(org, `reservations/${encodeURIComponent(id)}`)),
+    createReservation: (org: string, input: CreateReservation) => request<EquipmentReservation>(path(org, 'reservations'), 'POST', input),
+    cancelReservation: (org: string, id: string) => request<EquipmentReservation>(path(org, `reservations/${encodeURIComponent(id)}/cancel`), 'POST', {}),
     createPhotoUpload: (input: CreatePhotoUpload) => request<ApiPhotoUpload>('/photos/uploads', 'POST', input),
     completePhoto: (org: string, id: string) => request<ApiCompletedPhoto>(path(org, `photos/${encodeURIComponent(id)}/complete`), 'POST', {}),
     photo: (org: string, itemId: string) => request<ApiPhotoDownload>(path(org, `inventory/${encodeURIComponent(itemId)}/photo`)),

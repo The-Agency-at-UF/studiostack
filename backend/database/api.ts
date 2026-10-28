@@ -1,3 +1,4 @@
+import {equipmentRoutes,equipmentRequest} from '../equipment/routes'
 import { productionRoutes, productionRequest } from '../production/routes'
 import {accountRoutes,accountRequest} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
@@ -45,7 +46,8 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...productionRoutes, ...accountRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...productionRoutes, ...accountRoutes, ...equipmentRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if(equipmentRoutes.includes(event.routeKey))return equipmentRequest(event,()=>json(event))
   if (accountRoutes.includes(event.routeKey)) return accountRequest(event, () => json(event))
   if (productionRoutes.includes(event.routeKey)) return productionRequest(event, () => json(event))
   const params = event.queryStringParameters ?? {}
