@@ -9,3 +9,11 @@
 .equipment-inspector summary { cursor:pointer;font-size:13px;margin:16px 0; }
 .equipment-empty { padding:28px 0;color:#756d7e; }
 @media(max-width:850px){.equipment-layout{grid-template-columns:1fr}.equipment-inspector{border-left:0;border-top:1px solid #e4deea;padding:24px 0}}
+.equipment-filter { max-width:260px;margin:16px 0; }
+.equipment-detail-list { font-size:13px;padding:18px 0;display:grid;gap:8px; }
+.equipment-detail-actions { display:grid;gap:14px;margin:18px 0;font-size:13px;color:#7138b8; }
+.equipment-detail-actions a { text-decoration:underline; }
+.equipment-pick-list { max-height:320px;overflow:auto;display:grid;gap:14px;margin-top:12px;font-size:13px; }
+.equipment-pick-list small { display:block;color:#756d7e;font-size:11px;margin-top:4px; }
+.equipment-overdue { color:#a52b3e!important; }
+.equipment-editor fieldset fieldset { margin:0;border:0; }
