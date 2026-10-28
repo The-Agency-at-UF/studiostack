@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'backend/database/**'
+      - 'backend/accounts/**'
       - 'backend/production/**'
       - 'infra/database/**'
       - 'infra/production/**'
@@ -15,6 +16,8 @@ on:
       - 'src/api/photo-storage*'
       - 'src/api/dev-auth*'
       - 'src/types/database-api.ts'
+      - 'src/types/accounts.ts'
+      - 'src/api/accounts*'
       - 'scripts/*database-api*.ts'
       - 'scripts/*dev*.ts'
       - 'scripts/*production*.ts'
