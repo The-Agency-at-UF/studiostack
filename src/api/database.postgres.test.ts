@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
+import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
 import type {ManagedMember,ManagedTeam,OrganizationInvitation,OrganizationSettings} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
@@ -393,5 +394,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const pending=await invitation(nextIdentity.email)
     await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','suspended')",[organizationId,next.id])
     expect(await directory({action:'accept',identity:nextIdentity,organizationId,invitationId:pending.id})).toMatchObject({statusCode:409})
+  })
+  it('invitations: concurrent workers claim unique jobs and acknowledge only the current lease',async()=>{
+    async function queue(request:InvitationQueueRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await invitationQueueTask(c,request)}finally{await c.end()}}
+    await invitation()
+    const [one,two]=await Promise.all([queue({action:'claim'}),queue({action:'claim'})]),jobs=[...('jobs'in one?one.jobs??[]:[]),...('jobs'in two?two.jobs??[]:[])]
+    expect(new Set(jobs.map(j=>j.id)).size).toBe(jobs.length);expect(jobs.length).toBeGreaterThan(0)
+    const job=jobs[0],ack={action:'ack' as const,organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome:'sent' as const}
+    expect(await queue({...ack,leaseToken:randomUUID()})).toEqual({updated:false})
+    expect(await queue(ack)).toEqual({updated:true});expect(await queue(ack)).toEqual({updated:false})
   })
 })

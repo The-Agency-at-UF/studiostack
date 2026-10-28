@@ -26,7 +26,7 @@ export function apiConfiguration(env: Record<string, string | undefined> = proce
   }
   return { apiId: expectedApi, issuer: `https://cognito-idp.us-east-2.amazonaws.com/${env.COGNITO_USER_POOL_ID}`, clientId: env.COGNITO_APP_CLIENT_ID! }
 }
-function trustedIdentity(event: APIGatewayProxyEventV2WithJWTAuthorizer, config: ApiConfiguration, now: number): Identity {
+export function trustedIdentity(event: APIGatewayProxyEventV2WithJWTAuthorizer, config: ApiConfiguration, now: number): Identity {
   const claims = event.requestContext?.authorizer?.jwt?.claims
   if (event.version !== '2.0' || event.requestContext?.apiId !== config.apiId || !claims || claims.iss !== config.issuer || claims.client_id !== config.clientId ||
       claims.token_use !== 'access' || typeof claims.sub !== 'string' || !claims.sub || claims.sub.length > 256 ||
