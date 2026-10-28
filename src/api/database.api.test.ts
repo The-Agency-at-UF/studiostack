@@ -278,7 +278,9 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length + accountRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
-    expect(serialized).toContain(`${config.apiId}/*/GET/me`)
+    expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
+    expect(serialized).toContain(`${config.apiId}/*/*/*`)
+    expect(Object.values(template.Resources).filter((r:unknown)=>(r as {Type:string}).Type==='AWS::Lambda::Permission')).toHaveLength(1)
     expect(serialized).not.toMatch(/AWS::IAM::Role|AWS::Lambda::Url|ixzikwz8n5|rds!cluster|photos\/uploads/)
   })
   it('limits administration grants to reviewed columns and team links without DDL', async () => {
