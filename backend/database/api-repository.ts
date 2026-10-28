@@ -1,3 +1,5 @@
+import {dispatchAlerts} from '../alerts/repository'
+import type {AlertRequest} from '../alerts/routes'
 import {dispatchReports} from '../equipment/reports'
 import type {ReportRequest} from '../equipment/report-routes'
 import {dispatchEquipment} from '../equipment/repository'
@@ -17,6 +19,7 @@ import type { PendingPhoto, PhotoStorage } from './photo-storage'
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
 export type ApiRequest =
+  | AlertRequest
   | ReportRequest
   | EquipmentRequest
   | AccountRequest
@@ -82,6 +85,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     await client.query("SELECT set_config('app.organization_id', $1, true)", [organizationId])
 
     if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage)
+    if(request.operation==='alerts')return dispatchAlerts(client,request,{organizationId,user})
     if(request.operation==='reports')return dispatchReports(client,request,{organizationId,user,membership})
     if (request.operation === 'equipment')return dispatchEquipment(client,request,{organizationId,user,membership},now)
     if (request.operation === 'accounts') return dispatchAccounts(client, request, { organizationId, user, membership })

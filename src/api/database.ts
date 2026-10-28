@@ -1,3 +1,4 @@
+import {alertClient} from './alerts'
 import {reportClient} from './reports'
 import {equipmentClient} from './equipment'
 import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
@@ -43,6 +44,7 @@ export function createDatabaseApiClient(options: ClientOptions) {
   return {
     pendingInvitations:()=>request<{items:PendingInvitation[]}>('/account/invitations'),
     acceptInvitation:(id:string,organizationId:string)=>request<{organizationId:string}>(`/account/invitations/${encodeURIComponent(id)}/accept`,'POST',{organizationId}),
+    alerts:(org:string)=>alertClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,'alerts'+resource),method,body)),
     reports:(org:string)=>reportClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,'equipment/reports'+(resource.startsWith('?')||!resource?resource:'/'+resource)),method,body)),
     equipment:(org:string)=>equipmentClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`equipment/${resource}`),method,body)),
     accounts: (org:string) => accountClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`administration/${resource}`),method,body)),
