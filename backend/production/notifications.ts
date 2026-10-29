@@ -1,3 +1,4 @@
+import {assertRecipientAllowed} from '../email/feedback'
 import {alertEmail,deliverAppAlerts} from '../alerts/delivery'
 import { AdminGetUserCommand, CognitoIdentityProviderClient, ListUsersCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
@@ -56,6 +57,7 @@ export async function handler() {
   if (!pool || !/^us-east-2_[a-zA-Z0-9]+$/.test(pool)) throw new Error('Recipient directory is not configured')
   const cognito = new CognitoIdentityProviderClient({ region:'us-east-2', maxAttempts:1 })
   const lambda = new LambdaClient({ region: 'us-east-2', maxAttempts: 1 }), ses = new SESv2Client({ region: 'us-east-2', maxAttempts: 1 })
+  const recipientAllowed=(email:string)=>assertRecipientAllowed(email,async request=>{const result=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'email-feedback',...request}))}));if(result.FunctionError||!result.Payload)throw new Error('Recipient suppression lookup failed');const value=JSON.parse(Buffer.from(result.Payload).toString());if(typeof value.allowed!=='boolean')throw new Error('Recipient suppression unavailable');return value})
   try {
     // Warming is read-only and may safely repeat while an idle dev Aurora writer
     // resumes. Never automatically replay an ambiguous claim or email send.
@@ -74,11 +76,11 @@ export async function handler() {
         async find(subject) { return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users ?? [] },
         get(username) { return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username})) },
       })
-      const email = decisionEmail(job,webUrl); await ses.send(new SendEmailCommand({ FromEmailAddress: sender, Destination: { ToAddresses: [recipient] }, Content: { Simple: { Subject: { Data: email.subject, Charset: 'UTF-8' }, Body: { Text: { Data: email.text, Charset: 'UTF-8' } } } }, EmailTags: [{ Name: 'StudioStackDelivery', Value: job.id }] })); await new Promise(resolve=>setTimeout(resolve,1100)) },
+      const email = decisionEmail(job,webUrl);await recipientAllowed(recipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}), FromEmailAddress: sender, Destination: { ToAddresses: [recipient] }, Content: { Simple: { Subject: { Data: email.subject, Charset: 'UTF-8' }, Body: { Text: { Data: email.text, Charset: 'UTF-8' } } } }, EmailTags: [{ Name: 'StudioStackDelivery', Value: job.id }] })); await new Promise(resolve=>setTimeout(resolve,1100)) },
   })
     const alerts=await deliverAppAlerts({
       async store(request){const response=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'app-alert-outbox',...request}))}));if(response.FunctionError||!response.Payload)throw new Error('Alert outbox unavailable');const value=JSON.parse(Buffer.from(response.Payload).toString('utf8'));if(request.action==='claim'?!Array.isArray(value.jobs):request.action==='authorize'?typeof value.allowed!=='boolean':typeof value.updated!=='boolean')throw new Error('Invalid alert outbox response');return value},
-      async send(job){const recipient=await verifiedRecipient(job,pool,{async find(subject){return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users??[]},get(username){return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))}}),email=alertEmail(job,webUrl);await ses.send(new SendEmailCommand({FromEmailAddress:sender,Destination:{ToAddresses:[recipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
+      async send(job){const recipient=await verifiedRecipient(job,pool,{async find(subject){return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users??[]},get(username){return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))}}),email=alertEmail(job,webUrl);await recipientAllowed(recipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[recipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
     })
     console.log(JSON.stringify({service:'app-alerts',...alerts}));console.log(JSON.stringify({service:'production-notifications',...result}));return {...result,alerts} } finally { lambda.destroy(); ses.destroy(); cognito.destroy() }
 }

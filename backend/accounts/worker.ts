@@ -1,3 +1,4 @@
+import {assertRecipientAllowed} from '../email/feedback'
 import {AdminCreateUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
@@ -51,6 +52,7 @@ export async function handler(event:Record<string,unknown>={}) {
     }
     if(!ready)throw new Error('Database was not ready for invitation delivery')
     const result=await deliverInvitations({store:input=>invoke('account-invitation-queue',input),send:async job=>{
+      await assertRecipientAllowed(job.email,request=>invoke('email-feedback',request))
       const users=(await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`email = ${JSON.stringify(job.email)}`,Limit:2}))).Users??[]
       if(users.length>1)throw Object.assign(new Error('Ambiguous recipient'),{name:'UnverifiedRecipient'})
       if(!users.length){await cognito.send(new AdminCreateUserCommand({UserPoolId:pool,Username:job.email,DesiredDeliveryMediums:['EMAIL'],UserAttributes:[{Name:'email',Value:job.email},{Name:'name',Value:job.displayName}]}));return}

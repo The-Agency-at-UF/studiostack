@@ -1,3 +1,4 @@
+import {feedbackTask,emailHash,type FeedbackRequest} from '../../backend/email/feedback'
 import {alertOutboxTask,type AlertOutboxRequest} from '../../backend/alerts/outbox'
 import type {AlertRequest} from '../../backend/alerts/routes'
 import type {AppAlert,AlertPreferences} from '../types/alerts'
@@ -582,6 +583,23 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await operator.query("INSERT INTO app.email_suppressions(email_hash,reason,event_id) VALUES($1,'bounce',$2)",[hash,event])
     await expect(operator.query("INSERT INTO app.email_feedback_events(id,kind,receipt_hash) VALUES($1,'bounce',$2)",[event,hash])).rejects.toMatchObject({code:'23505'})
     await operator.query('DELETE FROM app.email_suppressions WHERE event_id=$1',[event]);await operator.query('DELETE FROM app.email_feedback_events WHERE id=$1',[event])
+  })
+
+  async function feedback(r:FeedbackRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await feedbackTask(c,r)}finally{await c.end()}}
+  it('feedback: permanent suppression is durable, private and idempotent',async()=>{
+    const input={action:'record' as const,id:randomUUID(),kind:'bounce' as const,hashes:[emailHash('bounce@test.invalid')]}
+    expect(await feedback(input)).toEqual({recorded:true,suppressed:1});expect(await feedback(input)).toEqual({recorded:false,suppressed:0});expect(await feedback({action:'check',emailHash:input.hashes[0]})).toEqual({allowed:false})
+    expect(await feedback({action:'check',emailHash:emailHash('different@test.invalid')})).toEqual({allowed:true})
+    await expect(feedback({...input,kind:'complaint'})).rejects.toThrow('changed')
+  })
+  it('feedback: bounce before equipment acknowledgement preserves suppression',async()=>{
+    const pref=await alerts<AlertPreferences>(secondMember,{resource:'preferences'});await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:pref.version}})
+    const id=randomUUID();await operator.query("INSERT INTO app.user_alerts(id,organization_id,recipient_id,kind,title,message,target_path,dedupe_key,email_status) VALUES($1,$2,$3,'report_update','Fixture','Fixture',$4,$5,'pending')",[id,organizationId,profiles['second-member'].id,'/report-summary/?report='+id,id])
+    const job=(await alertQueue({action:'claim'})).jobs!.find(j=>j.id===id)!;expect(job).toBeDefined()
+    await feedback({action:'record',id:randomUUID(),kind:'bounce',hashes:[emailHash('equipment@test.invalid')],deliveryId:id})
+    expect(await alertQueue({action:'ack',organizationId,id,leaseToken:job.leaseToken,outcome:'sent'})).toEqual({updated:true})
+    expect((await operator.query('SELECT email_status FROM app.user_alerts WHERE id=$1',[id])).rows[0].email_status).toBe('suppressed')
+    const current=await alerts<AlertPreferences>(secondMember,{resource:'preferences'});await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:current.version}})
   })
 
 })
