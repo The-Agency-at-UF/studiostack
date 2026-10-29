@@ -11,7 +11,8 @@ export async function alertOutboxTask(client:DatabaseClient,r:AlertOutboxRequest
   if(r.action!=='claim'){
    await client.query("SELECT set_config('app.organization_id',$1,true)",[r.organizationId])
    if(r.action==='authorize'){const value=await client.query(`SELECT a.id FROM app.user_alerts a JOIN app.alert_preferences p ON p.organization_id=a.organization_id AND p.user_id=a.recipient_id JOIN app.organization_memberships m ON m.organization_id=a.organization_id AND m.user_id=a.recipient_id WHERE a.organization_id=$1 AND a.id=$2 AND a.lease_token=$3 AND a.email_status='sending' AND a.lease_until>now() AND p.equipment_email AND m.status='active'`,[r.organizationId,r.id,r.leaseToken]);await client.query('COMMIT');return {allowed:value.rows.length===1}}
-   const outcome=(await client.query('SELECT 1 FROM app.email_feedback_events WHERE delivery_id=$1 LIMIT 1',[r.id])).rows.length?'suppressed':r.outcome
+   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['mail-feedback:'+r.id])
+      const outcome=(await client.query('SELECT 1 FROM app.email_feedback_events WHERE delivery_id=$1 LIMIT 1',[r.id])).rows.length?'suppressed':r.outcome
    const value=await client.query(`UPDATE app.user_alerts SET email_status=CASE WHEN $4='retry' THEN CASE WHEN attempts>=5 THEN 'failed' ELSE 'pending' END ELSE $4 END,next_attempt_at=now()+least(3600,power(2,attempts)*60)*interval '1 second',sent_at=CASE WHEN $4='sent' THEN now() ELSE sent_at END,lease_token=NULL,lease_until=NULL WHERE organization_id=$1 AND id=$2 AND lease_token=$3 AND email_status='sending' RETURNING id`,[r.organizationId,r.id,r.leaseToken,outcome]);await client.query('COMMIT');return {updated:value.rows.length===1}
   }
   const organizations=await client.query('SELECT id FROM app.organizations ORDER BY id'),jobs:AlertJob[]=[]

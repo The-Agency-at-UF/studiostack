@@ -602,4 +602,12 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const current=await alerts<AlertPreferences>(secondMember,{resource:'preferences'});await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:current.version}})
   })
 
+  it('feedback: simultaneous provider events and acknowledgements always retain suppression',async()=>{
+    for(let attempt=0;attempt<5;attempt++){
+      const id=randomUUID(),leaseToken=randomUUID();await operator.query("INSERT INTO app.user_alerts(id,organization_id,recipient_id,kind,title,message,target_path,dedupe_key,email_status,lease_token,lease_until) VALUES($1,$2,$3,'report_update','Race fixture','Fixture',$4,$5,'sending',$6,now()+interval '5 minutes')",[id,organizationId,profiles.owner.id,'/report-summary/?report='+id,id,leaseToken])
+      await Promise.all([feedback({action:'record',id:randomUUID(),kind:'complaint',hashes:[emailHash(id+'@test.invalid')],deliveryId:id}),alertQueue({action:'ack',organizationId,id,leaseToken,outcome:'sent'})])
+      expect((await operator.query('SELECT email_status FROM app.user_alerts WHERE id=$1',[id])).rows[0].email_status).toBe('suppressed')
+    }
+  })
+
 })

@@ -10,6 +10,7 @@ export async function feedbackTask(client:DatabaseClient,r:FeedbackRequest){
  if(r.action==='check')return {allowed:!(await client.query('SELECT 1 FROM app.email_suppressions WHERE email_hash=$1',[r.emailHash])).rows.length}
  const receipt=createHash('sha256').update(JSON.stringify(r)).digest('hex');await client.query('BEGIN')
  try{
+  for(const job of [r.deliveryId,r.invitationId].filter((id):id is string=>Boolean(id)).sort())await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['mail-feedback:'+job])
   const value=await client.query('INSERT INTO app.email_feedback_events(id,kind,receipt_hash,delivery_id,invitation_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING RETURNING id',[r.id,r.kind,receipt,r.deliveryId??null,r.invitationId??null])
   if(!value.rows.length){const previous=await client.query('SELECT receipt_hash FROM app.email_feedback_events WHERE id=$1',[r.id]);if(previous.rows[0]?.receipt_hash!==receipt)throw new Error('Feedback receipt changed');await client.query('COMMIT');return {recorded:false,suppressed:0}}
   const suppressed=await client.query('INSERT INTO app.email_suppressions(email_hash,reason,event_id) SELECT unnest($1::text[]),$2,$3 ON CONFLICT(email_hash) DO NOTHING RETURNING email_hash',[r.hashes,r.kind,r.id])

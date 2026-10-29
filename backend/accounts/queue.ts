@@ -14,6 +14,7 @@ export async function invitationQueueTask(client:DatabaseClient,request:Invitati
   try {
     if(request.action==='ack') {
       await client.query("SELECT set_config('app.organization_id',$1,true)",[request.organizationId])
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['mail-feedback:'+request.id])
       const outcome=(await client.query('SELECT 1 FROM app.email_feedback_events WHERE invitation_id=$1 LIMIT 1',[request.id])).rows.length?'failed':request.outcome
       const result=await client.query(`UPDATE app.organization_invitations SET delivery_status=CASE WHEN $4='retry' THEN CASE WHEN attempts>=5 THEN 'failed' ELSE 'queued' END ELSE $4 END,next_attempt_at=now()+LEAST(3600,power(2,attempts)*60)*interval '1 second',lease_token=NULL,lease_until=NULL,delivered_at=CASE WHEN $4='sent' THEN now() ELSE delivered_at END WHERE organization_id=$1 AND id=$2 AND lease_token=$3 AND delivery_status='sending' RETURNING id`,[request.organizationId,request.id,request.leaseToken,outcome])
       await client.query('COMMIT');return {updated:result.rows.length===1}
