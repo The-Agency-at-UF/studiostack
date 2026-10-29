@@ -576,4 +576,12 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:3}})
   })
 
+  it('email feedback schema: recipient hashes are constrained and events deduplicated',async()=>{
+    const event=randomUUID(),hash='a'.repeat(64);await operator.query("INSERT INTO app.email_feedback_events(id,kind,receipt_hash) VALUES($1,'bounce',$2)",[event,hash])
+    await expect(operator.query("INSERT INTO app.email_suppressions(email_hash,reason,event_id) VALUES('raw@address.test','bounce',$1)",[event])).rejects.toMatchObject({code:'23514'})
+    await operator.query("INSERT INTO app.email_suppressions(email_hash,reason,event_id) VALUES($1,'bounce',$2)",[hash,event])
+    await expect(operator.query("INSERT INTO app.email_feedback_events(id,kind,receipt_hash) VALUES($1,'bounce',$2)",[event,hash])).rejects.toMatchObject({code:'23505'})
+    await operator.query('DELETE FROM app.email_suppressions WHERE event_id=$1',[event]);await operator.query('DELETE FROM app.email_feedback_events WHERE id=$1',[event])
+  })
+
 })
