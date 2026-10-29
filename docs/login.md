@@ -1,6 +1,6 @@
 # StudioStack sign-in
 
-`/login/` contains StudioStack's own email/password, email-recovery and invited-account password screens. Cognito handles authentication through Amplify's SRP flow; the app does not send passwords to the StudioStack database API. Public signup is disabled. Organization administrators issue invitations.
+`/login/` contains StudioStack's own email/password, email-recovery and invited-account password screens. Cognito handles authentication through Amplify's SRP flow; the app does not send passwords to the StudioStack database API. People can create an account from **Sign up**, verify the email code, and then sign in. Creating an account grants no organization membership or role. Organization administrators issue workspace invitations. Unconfirmed accounts return to email verification on sign-in, with an explicit resend option.
 
 The approved policy requires at least **8 characters, one uppercase letter and one special character**. Lowercase letters and digits are optional. Recovery uses **verified email only**; the interface does not display simulated SMS destinations.
 

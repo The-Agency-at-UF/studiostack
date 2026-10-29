@@ -952,3 +952,5 @@
 .login-password-form { animation:rise-in .2s ease both; }
 @media(prefers-reduced-motion:reduce){.login-password-form{animation:none}.login-password-form input{transition:none}}
 .login-password-field { display:grid;gap:8px; }
+.login-account-switch { margin:0;color:var(--muted);font-size:12px; }
+.login-account-switch .login-text-action { margin:0 0 0 4px; }

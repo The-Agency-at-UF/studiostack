@@ -22,8 +22,7 @@ describe('StudioStack sign-in', () => {
       expect(screen.getByRole('button', { name })).toBeDisabled()
     }
     expect(screen.queryByRole('button', { name: /sign up/i })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('Need access?'))
-    expect(screen.getByText(/Public signup is not enabled/)).toBeInTheDocument()
+    expect(screen.queryByText('Need access?')).not.toBeInTheDocument()
   })
   it('prevents repeat clicks while signing in and announces errors', () => {
     render(<LogIn onSignIn={vi.fn()} onPreview={vi.fn()} busy error="Sign-in failed. Please try again." />)
