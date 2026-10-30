@@ -49,4 +49,9 @@ describe('authenticated database browser client', () => {
     expect(fetcher).toHaveBeenCalledWith('https://example.com/organizations/org%2Fid/equipment/reservations/booking%2Fid/checkout',expect.objectContaining({method:'POST',body:JSON.stringify(body)}))
   })
 
+  it('keeps report list query parameters on the collection route',async()=>{
+    const fetcher=vi.fn().mockResolvedValue({ok:true,json:async()=>({items:[],nextCursor:null})}),client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher})
+    await client.reports('org/id').list();expect(fetcher.mock.calls[0][0]).toBe('https://example.com/organizations/org%2Fid/equipment/reports?limit=100')
+  })
+
 })

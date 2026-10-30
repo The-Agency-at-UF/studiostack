@@ -1,3 +1,4 @@
+import type {ReportRequest} from '../../backend/equipment/report-routes'
 import type {EquipmentRequest} from '../../backend/equipment/routes'
 import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '../types/equipment'
 // @vitest-environment node
@@ -461,6 +462,53 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('equipment: reservation creation respects the saved organization length policy',async()=>{
     const item=await equipment(),policy=(await operator.query('SELECT reservation_days FROM app.organizations WHERE id=$1',[organizationId])).rows[0]
     try{await operator.query('UPDATE app.organizations SET reservation_days=2 WHERE id=$1',[organizationId]);await expect(repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(item),endsAt:new Date(Date.parse(startsAt)+3*86400000).toISOString()}})).rejects.toMatchObject({status:400})}finally{await operator.query('UPDATE app.organizations SET reservation_days=$2 WHERE id=$1',[organizationId,policy.reservation_days])}
+  })
+
+  function report<T=EquipmentReport>(actor:Identity,value:Partial<ReportRequest>){return repository.execute(actor,{operation:'reports',organizationId,method:'GET',activity:false,page:listPage,...value} as ReportRequest) as Promise<T>}
+  async function issue(item:ApiEquipment,severity='high'){return report(member,{method:'POST',body:{equipmentId:item.id,title:'Equipment damage',description:'Mount needs inspection.',severity,requestId:randomUUID()}})}
+  it('reports: creation is durable and idempotent and high-severity gear is quarantined',async()=>{
+    const item=await equipment(),body={equipmentId:item.id,title:'Broken mount',description:'The camera mount is cracked.',severity:'high',requestId:randomUUID()},created=await report(member,{method:'POST',body})
+    expect(created).toMatchObject({equipmentId:item.id,reportedBy:profiles.member.id,status:'open',version:1})
+    expect(await report(member,{method:'POST',body})).toMatchObject({id:created.id})
+    expect((await operator.query('SELECT status FROM app.inventory WHERE id=$1',[item.id])).rows[0].status).toBe('maintenance')
+    expect((await report<ApiPage<EquipmentReport>>(secondMember,{})).items.some(r=>r.id===created.id)).toBe(true)
+  })
+  it('reports: tenant and reservation links do not disclose another borrower records',async()=>{
+    const item=await equipment(),r=await repository.execute(secondMember,{operation:'createReservation',organizationId,input:booking(item)}) as EquipmentReservation
+    await expect(report(member,{method:'POST',body:{equipmentId:item.id,reservationId:r.id,title:'Linked issue',description:'Something broke.',severity:'low',requestId:randomUUID()}})).rejects.toMatchObject({status:404})
+    await expect(report(outsider,{method:'POST',body:{equipmentId:item.id,title:'Issue',description:'Foreign issue.',severity:'low',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    const foreign=await repository.execute(outsider,{operation:'createEquipment',organizationId:otherOrganizationId,input:{equipmentCode:'FOREIGN-REPORT',name:'Other studio camera',category:'Camera & Accessories'}}) as ApiEquipment
+    const foreignIssue=await report(outsider,{organizationId:otherOrganizationId,method:'POST',body:{equipmentId:foreign.id,title:'Other studio issue',description:'Foreign issue.',severity:'low',requestId:randomUUID()}})
+    await expect(report(owner,{reportId:foreignIssue.id})).rejects.toMatchObject({status:404})
+  })
+  it('reports: only administrators resolve, with versions, repair notes and explicit restoration',async()=>{
+    const item=await equipment(),r=await issue(item),body={status:'resolved',resolution:'Replaced the mount and tested.',restoreService:true,condition:'good',version:r.version,requestId:randomUUID()}
+    await expect(report(member,{method:'PATCH',reportId:r.id,body})).rejects.toMatchObject({status:403})
+    await expect(report(owner,{method:'PATCH',reportId:r.id,body:{...body,resolution:''}})).rejects.toMatchObject({status:400})
+    const resolved=await report(owner,{method:'PATCH',reportId:r.id,body});expect(resolved).toMatchObject({status:'resolved',version:2,resolvedBy:profiles.owner.id})
+    expect(await report(owner,{method:'PATCH',reportId:r.id,body})).toMatchObject({version:2})
+    expect((await operator.query('SELECT status,condition FROM app.inventory WHERE id=$1',[item.id])).rows[0]).toEqual({status:'available',condition:'good'})
+    await expect(report(owner,{method:'PATCH',reportId:r.id,body:{...body,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+  })
+  it('reports: restoration waits until every high-severity issue is resolved and reopening quarantines again',async()=>{
+    const item=await equipment(),a=await issue(item),b=await issue(item),body={status:'resolved',resolution:'Repaired.',restoreService:true,condition:'good',version:1,requestId:randomUUID()}
+    await expect(report(owner,{method:'PATCH',reportId:a.id,body})).rejects.toMatchObject({status:409})
+    await report(owner,{method:'PATCH',reportId:a.id,body:{...body,restoreService:false}})
+    const resolved=await report(owner,{method:'PATCH',reportId:b.id,body:{...body,requestId:randomUUID()}})
+    expect((await operator.query('SELECT status FROM app.inventory WHERE id=$1',[item.id])).rows[0].status).toBe('available')
+    await report(owner,{method:'PATCH',reportId:b.id,body:{status:'open',resolution:'',restoreService:false,version:resolved.version,requestId:randomUUID()}})
+    expect((await operator.query('SELECT status FROM app.inventory WHERE id=$1',[item.id])).rows[0].status).toBe('maintenance')
+  })
+  it('reports: collaboration comments are immutable and duplicate requests add only one event',async()=>{
+    const item=await equipment(),r=await issue(item,'low'),body={message:'Inspected the mount.\nWaiting for a part.',requestId:randomUUID()},event=await report<{id:string;details:{message:string}}>(secondMember,{method:'POST',activity:true,reportId:r.id,body})
+    expect(event.details.message).toBe(body.message);expect(await report(secondMember,{method:'POST',activity:true,reportId:r.id,body})).toMatchObject({id:event.id})
+    const page=await report<ApiPage<{kind:string}>>(member,{activity:true,reportId:r.id});expect(page.items.filter(e=>e.kind==='report_comment')).toHaveLength(1)
+    const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');await expect(c.query('DELETE FROM app.equipment_events')).rejects.toMatchObject({code:'42501'})}finally{await c.end()}
+  })
+  it('reports: concurrent status changes cannot overwrite a newer resolution',async()=>{
+    const item=await equipment(),r=await issue(item),body={status:'in_progress',resolution:'',restoreService:false,version:r.version,requestId:randomUUID()}
+    const results=await Promise.allSettled([report(owner,{method:'PATCH',reportId:r.id,body}),report(owner,{method:'PATCH',reportId:r.id,body:{...body,status:'resolved',resolution:'Repaired.',requestId:randomUUID()}})])
+    expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect(results.find(r=>r.status==='rejected')).toMatchObject({reason:{status:409}})
   })
 
 })

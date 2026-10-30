@@ -22,6 +22,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE (name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations TO ${role};
     GRANT DELETE ON app.reservation_items TO ${role};
     GRANT SELECT,INSERT ON app.equipment_checkouts,app.equipment_reports,app.equipment_events TO ${role};
+    GRANT UPDATE(status,resolution,resolved_by,resolved_at,updated_at,version) ON app.equipment_reports TO ${role};
     GRANT UPDATE(returned_by,returned_at,return_condition,return_notes) ON app.equipment_checkouts TO ${role};
     GRANT SELECT, INSERT ON app.production_settings, app.production_briefs, app.production_brief_events, app.production_attachments, app.production_outbox TO ${role};
     GRANT UPDATE (version, reviewer_ids, executive_ids, approval_confirms_dates) ON app.production_settings TO ${role};
