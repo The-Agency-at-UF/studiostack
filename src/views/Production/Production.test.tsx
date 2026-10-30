@@ -2,6 +2,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Production from './Production'
+import {invalidateCache,setCached} from '../../api/cache'
 import { AppSessionProvider } from '../../context/AppSessionContext'
 vi.mock('next/dynamic',()=>({default:()=>()=> <p>Calendar surface</p>}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.org'})}))
@@ -9,6 +10,27 @@ function renderPreview() { return render(<AppSessionProvider value={{email:'demo
 beforeEach(()=>{localStorage.clear();window.history.replaceState(null,'','/production/');vi.restoreAllMocks()})
 afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals()})
 describe('production workspace',()=>{
+  it('keeps cached production usable while a return visit refresh is pending',async()=>{
+    setCached('production:cache-org',{briefs:[],clients:[],deliveries:[],access:{userId:'member',canReview:false,canAdminister:false,isExecutive:false}})
+    vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})))
+    render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
+    expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading',{name:'Start with a brief'})).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button',{name:'Production calendar'}))
+    expect(screen.getByText('Calendar surface')).toBeInTheDocument()
+  })
+  it('finishes loading once with production caching enabled and keeps tabs usable',async()=>{
+    invalidateCache()
+    let accessCalls=0
+    const fetcher=vi.fn((url:string)=>{
+      if(url.endsWith('/access')){accessCalls++;if(accessCalls>1)return new Promise<Response>(()=>{});return Promise.resolve(new Response(JSON.stringify({userId:'member',canReview:false,canAdminister:false,isExecutive:false}))) }
+      return Promise.resolve(new Response(JSON.stringify({items:[],nextCursor:null})))
+    })
+    vi.stubGlobal('fetch',fetcher)
+    const view=render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
+    try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('button',{name:'Production calendar'}));expect(screen.getByText('Calendar surface')).toBeInTheDocument();expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
+  })
+
   it('supports a complete edit-only draft and submission with conditional fields',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     await user.click(screen.getByRole('button',{name:/New brief/}));await screen.findByRole('heading',{name:'New production brief'})

@@ -9,6 +9,7 @@ import { briefSections, emptyBrief, productionTypes, statusLabels, submissionErr
 import type { ApiMember } from '../../types/database-api'
 import type { ProductionClient } from '../../api/production'
 import EmailVerification from './EmailVerification'
+import {getCached,setCached,invalidateCache} from '../../api/cache'
 import './Production.css'
 const ProductionCalendar = dynamic(() => import('./ProductionCalendar'), { ssr: false, loading: () => <p role="status">Loading calendar…</p> })
 const errorText = (error: unknown) => error instanceof DatabaseApiClientError ? ({
@@ -32,18 +33,24 @@ function useProductionClient(organizationId: string, person: string) {
     catch { return { api: null, database: null, error: 'The authenticated production service is not configured at this address.' } }
   }, [session.mode, session.getAccessToken, organizationId, person])
 }
+type CachedProduction = { briefs: ProductionBrief[]; access: ProductionAccess | null; deliveries: Delivery[] }
 export default function Production() {
   const session = useAppSession(), preview = session.mode === 'preview'
+  const {organizations,selectedOrganizationId,setSelectedOrganizationId} = session
   const [organizationId, setOrganizationId] = useState(session.selectedOrganizationId??session.organizations?.[0]?.id ?? '')
   const appliedOrganizationLink=useRef(false)
-  useEffect(() => { const id = appliedOrganizationLink.current?null:new URLSearchParams(window.location.search).get('organization');appliedOrganizationLink.current=true; if (id && session.organizations?.some(o => o.id === id)) {setOrganizationId(id);session.setSelectedOrganizationId?.(id)} else if(session.selectedOrganizationId)setOrganizationId(session.selectedOrganizationId) }, [session.organizations,session.selectedOrganizationId,session.setSelectedOrganizationId])
+  useEffect(() => { const id = appliedOrganizationLink.current?null:new URLSearchParams(window.location.search).get('organization');appliedOrganizationLink.current=true; if (id && organizations?.some(o => o.id === id)) {setOrganizationId(id);setSelectedOrganizationId?.(id)} else if(selectedOrganizationId)setOrganizationId(selectedOrganizationId) }, [organizations,selectedOrganizationId,setSelectedOrganizationId])
   const [person, setPerson] = useState('preview-author')
   const { api, database, error: configurationError } = useProductionClient(organizationId, person)
-  const [briefs, setBriefs] = useState<ProductionBrief[]>([]), [access, setAccess] = useState<ProductionAccess | null>(null)
+  const cacheKey = `production:${organizationId}${preview ? ':' + person : ''}`
+  // Read the initial snapshot only when the workspace changes. Cache writes
+  // must not recreate refresh and restart its loading effect.
+  const cached = useMemo(() => getCached<CachedProduction>(cacheKey), [cacheKey])
+  const [briefs, setBriefs] = useState<ProductionBrief[]>(cached?.briefs ?? []), [access, setAccess] = useState<ProductionAccess | null>(cached?.access ?? null)
   const [selected, setSelected] = useState<ProductionBrief | null>(null), [form, setForm] = useState<BriefData>(emptyBrief)
   const [tab, setTab] = useState<'briefs' | 'calendar' | 'decisions' | 'settings'>('briefs')
-  const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
-  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>([])
+  const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(!cached), [busy, setBusy] = useState(false)
+  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
   const generation = useRef(0), mutation = useRef<{ key: string; id: string } | null>(null)
   const selection = useRef(0)
@@ -51,18 +58,46 @@ export default function Production() {
   const refresh = useCallback(async () => {
     if (!api) return
     const current = generation.current
-    const a = await api.access(), all: ProductionBrief[] = [], outbox: Delivery[] = []
-    let after: string | undefined
-    do { const p = await api.list(after); all.push(...p.items); after = p.nextCursor ?? undefined } while (after)
-    if (a.canAdminister || a.canReview || a.isExecutive) { do { const p = await api.deliveries(after); outbox.push(...p.items); after = p.nextCursor ?? undefined } while (after) }
-    if (current === generation.current) { setAccess(a); setBriefs(all); setDeliveries(outbox) }
-  }, [api])
+    const a = await api.access()
+    if (current !== generation.current) return
+    setAccess(a)
+
+    const [briefsRes, deliveriesRes] = await Promise.allSettled([
+      (async () => {
+        const all: ProductionBrief[] = []
+        let after: string | undefined
+        do { const p = await api.list(after); all.push(...p.items); after = p.nextCursor ?? undefined } while (after)
+        return all
+      })(),
+      (async () => {
+        if (!a.canAdminister && !a.canReview && !a.isExecutive) return []
+        const outbox: Delivery[] = []
+        let after: string | undefined
+        do { const p = await api.deliveries(after); outbox.push(...p.items); after = p.nextCursor ?? undefined } while (after)
+        return outbox
+      })()
+    ])
+
+    if (current !== generation.current) return
+    if (briefsRes.status === 'fulfilled') setBriefs(briefsRes.value)
+    else setError(errorText(briefsRes.reason))
+    if (deliveriesRes.status === 'fulfilled') setDeliveries(deliveriesRes.value)
+    if (briefsRes.status === 'fulfilled') {
+      setCached(cacheKey, {
+        briefs: briefsRes.value,
+        access: a,
+        deliveries: deliveriesRes.status === 'fulfilled' ? deliveriesRes.value : (cached?.deliveries ?? [])
+      })
+    }
+  }, [api, cacheKey, cached])
   useEffect(() => {
-    const effectGeneration = ++generation.current; selection.current++; setSelected(null); setAccess(null); setBriefs([]); setError(''); setNotice(''); setDirty(false); setLoading(true)
+    const effectGeneration = ++generation.current; selection.current++; setSelected(null); setError(''); setNotice(''); setDirty(false)
+    setBriefs(cached?.briefs ?? []); setAccess(cached?.access ?? null); setDeliveries(cached?.deliveries ?? [])
+    setLoading(!cached)
     let active = true
     refresh().then(async () => { const id = new URLSearchParams(window.location.search).get('brief'); if (id && api) { const b = await api.get(id); if (active) accept(b) } }).catch(e => { if (active) setError(errorText(e)) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false; generation.current = effectGeneration + 1 }
-  }, [refresh,api])
+  }, [refresh,api,cached])
   useEffect(() => { const unload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }; window.addEventListener('beforeunload', unload); return () => window.removeEventListener('beforeunload', unload) }, [dirty])
   const mayLeave = () => !dirty || window.confirm('Discard unsaved changes to this brief?')
   const accept = (brief: ProductionBrief) => { setSelected(brief); setForm(structuredClone(brief.data)); setDirty(false); setSnapshot(null) }
@@ -76,7 +111,7 @@ export default function Production() {
     if (!api || busy) return
     const g = generation.current
     setBusy(true); setError(''); setNotice('')
-    try { const b = await task(api); if (g !== generation.current) return; if (b) accept(b); mutation.current = null; setNotice('Saved.'); await refresh() }
+    try { const b = await task(api); if (g !== generation.current) return; if (b) accept(b); mutation.current = null; setNotice('Saved.'); invalidateCache(cacheKey); await refresh() }
     catch (e) { if (g === generation.current) setError(errorText(e)) } finally { if (g === generation.current) setBusy(false) }
   }
   const save = () => selected && run(client => client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))))
@@ -102,7 +137,13 @@ export default function Production() {
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
     <nav className="production-tabs" aria-label="Production views">{(['briefs','calendar', ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])] as const).map(t => <button key={t} disabled={busy} aria-current={tab === t ? 'page' : undefined} onClick={() => selectView(t as typeof tab)}>{({ briefs: 'Briefs', calendar: 'Production calendar', decisions: 'Decisions & delivery', settings: 'Access & notifications' } as Record<string,string>)[t]}</button>)}</nav>
     <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={() => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() })) }}>Reload</button></p>}{notice && <p role="status">{notice}</p>}</div>
-    {loading ? <p role="status">Loading production workspace…</p> : !api || !access ? null : tab === 'settings' ? <ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} /> : tab === 'decisions' ? <DecisionFeed api={api} briefs={briefs} deliveries={deliveries} access={access} preview={preview} onOpen={id => { setTab('briefs'); void open(id) }} onRefresh={refresh} /> : <>
+    {loading ? <p role="status">Loading production workspace…</p> : !api ? null : !access ? (
+      <div className="production-empty">
+        <h2>Production workspace unavailable</h2>
+        <p>The production workspace could not be loaded. Check your connection or try again.</p>
+        <button className="production-primary" disabled={busy} onClick={() => void refresh()}>Retry loading workspace</button>
+      </div>
+    ) : tab === 'settings' ? <ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} /> : tab === 'decisions' ? <DecisionFeed api={api} briefs={briefs} deliveries={deliveries} access={access} preview={preview} onOpen={id => { setTab('briefs'); void open(id) }} onRefresh={refresh} /> : <>
       {!selected && (tab === 'calendar' ? <ProductionCalendar briefs={briefs} onOpen={id => void open(id)} /> : <>
         <div className="production-toolbar"><label className="production-search">Search briefs<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Project, client, or author" /></label><label>Status<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><button className="production-primary" disabled={busy} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create'))) }}>New brief <span aria-hidden="true">↗</span></button></div>
         <div className="production-table-wrap"><table className="production-table"><thead><tr><th>Project / client</th><th>Status</th><th>Requested by</th><th>Shoot</th><th>Delivery</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{filtered.map(b => <tr key={b.id}><td><button className="production-row-title" disabled={busy} onClick={() => void open(b.id)}>{b.data.projectName || 'Untitled brief'}</button><span>{b.data.client || 'Client not added'}</span></td><td><span className={`production-status status-${b.status}`}>{statusLabels[b.status]}</span></td><td>{b.ownerName}</td><td>{b.shootStartsAt ? dateLabel(b.shootStartsAt) : b.data.fields.proposedStart ? `${dateLabel(b.data.fields.proposedStart)} · tentative` : b.data.fields.shootEstimate || 'Not proposed'}</td><td>{b.data.deliveryDate ? dateLabel(b.data.deliveryDate) : 'Not set'}</td><td><button disabled={busy} aria-label={`Open ${b.data.projectName || 'untitled brief'}`} onClick={() => void open(b.id)}>↗</button></td></tr>)}</tbody></table>{!filtered.length && <div className="production-empty"><h2>{briefs.length ? 'No matching briefs' : 'Start with a brief'}</h2><p>{briefs.length ? 'Try another search or status.' : 'Create a production request to share the scope, dates, and deliverables with Production leadership.'}</p></div>}</div>
