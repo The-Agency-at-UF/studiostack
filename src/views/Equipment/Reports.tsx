@@ -4,17 +4,40 @@ import type {FormEvent} from 'react'
 import Link from 'next/link'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import {equipmentConditions,type EquipmentRecord,type EquipmentReport,type EquipmentReservation,type EquipmentEvent,type UpdateEquipmentReport} from '../../types/equipment'
+import {getCached,setCached,invalidateCache} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
+type CachedReports = { rows: EquipmentReport[]; items: EquipmentRecord[]; bookings: EquipmentReservation[] }
 const label=(status:string)=>status.replaceAll('_',' ')
 export default function LiveReports({create=false}:{create?:boolean}){const c=useLiveOrganization();return c?<ReportsWorkspace key={c.organization.id} api={c.api} org={c.organization.id} admin={c.admin} create={create}/>:<main className="administration"><h1>Equipment reports</h1><p>Select an active organization in your account to report equipment issues.</p></main>}
 function ReportsWorkspace({api,org,admin,create}:{api:DatabaseApi;org:string;admin:boolean;create:boolean}){
-  const client=useMemo(()=>api.reports(org),[api,org]),[rows,setRows]=useState<EquipmentReport[]>([]),[items,setItems]=useState<EquipmentRecord[]>([]),[bookings,setBookings]=useState<EquipmentReservation[]>([]),[selected,setSelected]=useState(''),[adding,setAdding]=useState(create),[filter,setFilter]=useState('active'),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('')
-  const load=useCallback(async()=>({rows:await allPages(after=>client.list(after)),items:await allPages(after=>api.inventory(org,{limit:100,after})),bookings:await allPages(after=>api.reservations(org,{limit:100,after}))}),[client,api,org])
-  const accept=useCallback((v:Awaited<ReturnType<typeof load>>)=>{setRows(v.rows);setItems(v.items);setBookings(v.bookings)},[])
+  const cacheKey = `reports:${org}`
+  const cached = getCached<CachedReports>(cacheKey)
+  const cachedInventory = getCached<EquipmentRecord[]>(`inventory:${org}`)
+  const cachedReservations = getCached<{ bookings: EquipmentReservation[] }>(`reservations:${org}`)
+  const initialItems = cached?.items ?? cachedInventory ?? []
+  const initialBookings = cached?.bookings ?? cachedReservations?.bookings ?? []
+
+  const client=useMemo(()=>api.reports(org),[api,org]),[rows,setRows]=useState<EquipmentReport[]>(cached?.rows ?? []),[items,setItems]=useState<EquipmentRecord[]>(initialItems),[bookings,setBookings]=useState<EquipmentReservation[]>(initialBookings),[selected,setSelected]=useState(''),[adding,setAdding]=useState(create),[filter,setFilter]=useState('active'),[loading,setLoading]=useState(!cached),[error,setError]=useState(''),[notice,setNotice]=useState('')
+  const load=useCallback(async()=>{
+    const [rows,items,bookings]=await Promise.all([
+      allPages(after=>client.list(after)),
+      allPages(after=>api.inventory(org,{limit:100,after})),
+      allPages(after=>api.reservations(org,{limit:100,after}))
+    ])
+    return {rows,items,bookings}
+  },[client,api,org])
+  const accept=useCallback((v:Awaited<ReturnType<typeof load>>)=>{
+    setRows(v.rows);setItems(v.items);setBookings(v.bookings)
+    setCached(cacheKey, { rows: v.rows, items: v.items, bookings: v.bookings })
+  },[cacheKey])
   useEffect(()=>{let active=true;load().then(v=>{if(!active)return;accept(v);const q=new URLSearchParams(window.location.search),id=q.get('report')??q.get('reportID');if(id&&v.rows.some(r=>r.id===id))setSelected(id)}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
   async function refresh(){setLoading(true);setError('');try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
-  async function saved(row:EquipmentReport){setRows(v=>[row,...v.filter(r=>r.id!==row.id)]);setSelected(row.id);setAdding(false);setNotice('Report saved.');try{accept(await load())}catch(e){setError(equipmentError(e))}}
+  async function saved(row:EquipmentReport){
+    invalidateCache(`reports:${org}`)
+    invalidateCache(`dashboard:${org}`)
+    setRows(v=>[row,...v.filter(r=>r.id!==row.id)]);setSelected(row.id);setAdding(false);setNotice('Report saved.');try{accept(await load())}catch(e){setError(equipmentError(e))}
+  }
   const current=rows.find(r=>r.id===selected),visible=rows.filter(r=>filter==='all'||(filter==='resolved'?r.status==='resolved':r.status!=='resolved')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
   return <main className="administration"><header><div><p className="administration-eyebrow">Equipment care</p><h1>Equipment reports</h1><p>Track damage, discuss repairs and return equipment to service.</p></div><div className="administration-actions"><button disabled={loading} onClick={()=>void refresh()}>Refresh</button><button onClick={()=>{setAdding(true);setSelected('');setNotice('')}}>Report an issue</button></div></header>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<p role="status">Loading equipment reports…</p>}
