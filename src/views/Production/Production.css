@@ -154,4 +154,4 @@
   .production-print dd { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 3px 0; }
   .production-print p { font-size: 12px; margin: 10px 0; }
 }
-.production-client-filter{display:grid;gap:8px;margin:16px 0;max-width:360px}
+.production-client-filter{display:grid;gap:8px;margin:16px 0;max-width:360px}.production-crew-person{display:grid;gap:10px;margin:12px 0}.production-crew-person label{display:flex;gap:8px;align-items:center}.production-crew-person input[type=text]{flex:1}

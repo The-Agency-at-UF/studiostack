@@ -1,0 +1,12 @@
+'use client'
+import {useEffect,useState} from 'react'
+import type {ApiMember} from '../../types/database-api'
+import type {ProductionAssignment,ProductionBrief} from '../../types/production'
+export default function ProductionCrew({brief,canAssign,disabled,loadMembers,onAssign}:{brief:ProductionBrief;canAssign:boolean;disabled:boolean;loadMembers:()=>Promise<ApiMember[]>;onAssign:(crew:Pick<ProductionAssignment,'userId'|'role'>[])=>Promise<void>}){
+ const [people,setPeople]=useState<ApiMember[]>([]),[crew,setCrew]=useState(brief.crew??[]),[error,setError]=useState(''),[loading,setLoading]=useState(canAssign)
+ useEffect(()=>{if(!canAssign)return;let active=true;loadMembers().then(p=>{if(active)setPeople(p.filter(m=>m.status==='active'))}).catch(()=>{if(active)setError('Could not load active teammates.')}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[loadMembers,canAssign])
+ const ready=brief.status==='approved'&&Boolean(brief.shootStartsAt),saved=brief.crew??[]
+ return <section className="production-settings"><h2>Shoot crew & readiness</h2><p>{brief.status!=='approved'?'Awaiting approval':!brief.shootStartsAt?'Awaiting confirmed shoot dates':saved.length?'Scheduled · Crew assigned':'Scheduled · Awaiting crew'}</p>{saved.length>0&&<ul>{saved.map(a=><li key={a.userId}>{a.name} · {a.role}</li>)}</ul>}
+ {canAssign&&ready&&<form onSubmit={e=>{e.preventDefault();void onAssign(crew.map(({userId,role})=>({userId,role})))}}><fieldset disabled={disabled||loading}><legend>Assign active teammates</legend>{loading&&<p role="status">Loading teammates…</p>}{error&&<p role="alert">{error}</p>}{people.map(p=>{const a=crew.find(a=>a.userId===p.id);return <div className="production-crew-person" key={p.id}><label><input type="checkbox" checked={Boolean(a)} onChange={e=>setCrew(v=>e.target.checked?[...v,{userId:p.id,name:p.displayName||'Team member',role:'Crew'}]:v.filter(a=>a.userId!==p.id))}/>{p.displayName||p.email||'Team member'}</label>{a&&<label>Assignment / role<input aria-label={`Assignment for ${p.displayName||p.email||p.id}`} value={a.role} maxLength={80} required onChange={e=>setCrew(v=>v.map(a=>a.userId===p.id?{...a,role:e.target.value}:a))}/></label>}</div>})}<p>Assignments appear on the calendar and notify each teammate in Alerts. Overlapping crew assignments are blocked.</p><button className="production-primary" disabled={disabled||loading||Boolean(error)}>Save crew assignments</button></fieldset></form>}
+ </section>
+}
