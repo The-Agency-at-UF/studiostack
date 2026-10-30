@@ -54,14 +54,14 @@ export function infrastructure(masterSecrets: Record<'dev' | 'prod', string>, in
       RoleName: `${runtimeName}-role`, AssumeRolePolicyDocument: trust,
       Policies: [{ PolicyName: 'private-database-runtime', PolicyDocument: executionPolicy(runtimeName, [ref(secret)]) }],
     } }
-    if (env.name === 'dev' && devPhotos) {
+    if (devPhotos) {
       const policy = executionPolicy(runtimeName, [ref(secret)])
-      const photoPolicy = { Effect: 'Allow', Action: ['s3:GetObject', 's3:PutObject'], Resource: ['arn:aws:s3:::studio-stack-photos-dev/staging/*', 'arn:aws:s3:::studio-stack-photos-dev/photos/*', 'arn:aws:s3:::studio-stack-photos-dev/briefs/*'] }
+      const photoPolicy = { Effect: 'Allow', Action: ['s3:GetObject', 's3:PutObject'], Resource: ['staging','photos','briefs'].map(prefix=>`arn:aws:s3:::studio-stack-photos-${env.name}/${prefix}/*`) }
       resources[role] = { Type: 'AWS::IAM::Role', Properties: { RoleName: `${runtimeName}-role`, AssumeRolePolicyDocument: trust,
         Policies: [{ PolicyName: 'private-database-runtime', PolicyDocument: { ...policy, Statement: [...policy.Statement, photoPolicy] } }] } }
-      resources.DevS3Egress = { Type: 'AWS::EC2::SecurityGroupEgress', Properties: { GroupId: env.group, IpProtocol: 'tcp', FromPort: 443, ToPort: 443, DestinationPrefixListId: devPhotos.prefixListId, Description: 'Dev private photos via S3 gateway endpoint' } }
-      resources.DevS3Endpoint = { Type: 'AWS::EC2::VPCEndpoint', Properties: { VpcId: vpc, VpcEndpointType: 'Gateway', ServiceName: `com.amazonaws.${region}.s3`, RouteTableIds: ['rtb-025b169991c9eb5a7'],
-        PolicyDocument: { Version: '2012-10-17', Statement: [{ ...photoPolicy, Principal: '*', Condition: { ArnEquals: { 'aws:PrincipalArn': attr(role, 'Arn') } } }] }, Tags: [{ Key: 'Name', Value: 'studiostack-dev-s3-vpce' }, { Key: 'ManagedBy', Value: 'StudioStack' }] } }
+      resources[`${env.logical}S3Egress`] = { Type: 'AWS::EC2::SecurityGroupEgress', Properties: { GroupId: env.group, IpProtocol: 'tcp', FromPort: 443, ToPort: 443, DestinationPrefixListId: devPhotos.prefixListId, Description: `${env.name} private photos via S3 gateway endpoint` } }
+      if(env.name==='dev')resources.DevS3Endpoint = { Type: 'AWS::EC2::VPCEndpoint', Properties: { VpcId: vpc, VpcEndpointType: 'Gateway', ServiceName: `com.amazonaws.${region}.s3`, RouteTableIds: ['rtb-025b169991c9eb5a7'],
+        PolicyDocument: { Version: '2012-10-17', Statement: environments.map(e=>({ Effect:'Allow',Action:['s3:GetObject','s3:PutObject'],Resource:['staging','photos','briefs'].map(prefix=>`arn:aws:s3:::studio-stack-photos-${e.name}/${prefix}/*`),Principal:'*',Condition:{ArnEquals:{'aws:PrincipalArn':attr(`${e.logical}Role`,'Arn')}} })) }, Tags: [{ Key: 'Name', Value: 'studiostack-dev-s3-vpce' }, { Key: 'ManagedBy', Value: 'StudioStack' }] } }
     }
     for (const name of [runtimeName, setupName]) {
       resources[`${env.logical}${name === runtimeName ? 'Runtime' : 'Setup'}Log`] = {
