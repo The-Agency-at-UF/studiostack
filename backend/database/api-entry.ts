@@ -1,3 +1,4 @@
+import {alertOutboxRequest,alertOutboxTask} from '../alerts/outbox'
 import { outboxTask, parseOutboxRequest } from '../production/outbox'
 import {directoryRequest,directoryTask} from '../accounts/directory'
 import {invitationQueueRequest,invitationQueueTask} from '../accounts/queue'
@@ -15,6 +16,10 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | R
   try {
     const config = databaseConfig()
     const database = createDatabase(config)
+    if ('task' in event && event.task==='app-alert-outbox' && !('requestContext' in event) && !('version' in event)) {
+      const input={...event};delete input.task
+      return database.withClient(client=>alertOutboxTask(client,alertOutboxRequest(input)))
+    }
     if ('task' in event && event.task==='account-invitation-queue' && !('requestContext' in event) && !('version' in event)) {
       const input={...event};delete input.task
       return database.withClient(client=>invitationQueueTask(client,invitationQueueRequest(input)))

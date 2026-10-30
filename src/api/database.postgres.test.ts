@@ -1,3 +1,4 @@
+import {alertOutboxTask,type AlertOutboxRequest} from '../../backend/alerts/outbox'
 import type {AlertRequest} from '../../backend/alerts/routes'
 import type {AppAlert,AlertPreferences} from '../types/alerts'
 import type {ReportRequest} from '../../backend/equipment/report-routes'
@@ -554,6 +555,25 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(first.items.find(a=>a.targetPath.endsWith(old.id))?.kind).toBe('overdue_equipment')
     expect((await alerts<ApiPage<AppAlert>>(owner)).items.some(a=>a.targetPath.endsWith(old.id))).toBe(true)
     expect((await alerts<ApiPage<AppAlert>>(secondMember)).items.some(a=>a.targetPath.endsWith(old.id))).toBe(false)
+  })
+
+  async function alertQueue(r:AlertOutboxRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await alertOutboxTask(c,r)}finally{await c.end()}}
+  it('alerts: delivery claims once, validates current preferences and acknowledges only its lease',async()=>{
+    await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:0}})
+    const item=await equipment(),r=await issue(item,'low');await report(secondMember,{method:'POST',reportId:r.id,activity:true,body:{message:'Inspecting.',requestId:randomUUID()}});await report(owner,{method:'POST',reportId:r.id,activity:true,body:{message:'Replacement ordered.',requestId:randomUUID()}})
+    const results=await Promise.all([alertQueue({action:'claim'}),alertQueue({action:'claim'})]),jobs=results.flatMap(v=>v.jobs??[]);expect(jobs).toHaveLength(1)
+    const job=jobs[0];expect(await alertQueue({action:'authorize',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken})).toEqual({allowed:true})
+    expect(await alertQueue({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:randomUUID(),outcome:'sent'})).toEqual({updated:false})
+    await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:1}})
+    expect(await alertQueue({action:'authorize',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken})).toEqual({allowed:false})
+    expect(await alertQueue({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome:'skipped'})).toEqual({updated:true})
+  })
+  it('alerts: expired leases become uncertain instead of sending duplicate messages',async()=>{
+    await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:2}})
+    const item=await equipment(),r=await issue(item,'low');await report(secondMember,{method:'POST',reportId:r.id,activity:true,body:{message:'Tracking.',requestId:randomUUID()}});await report(owner,{method:'POST',reportId:r.id,activity:true,body:{message:'Repair booked.',requestId:randomUUID()}})
+    const claimed=await alertQueue({action:'claim'}),job=claimed.jobs![0];expect(job).toBeDefined();await operator.query("UPDATE app.user_alerts SET lease_until=now()-interval '1 minute' WHERE id=$1",[job.id])
+    expect((await alertQueue({action:'claim'})).jobs).toHaveLength(0);expect((await operator.query('SELECT email_status FROM app.user_alerts WHERE id=$1',[job.id])).rows[0].email_status).toBe('uncertain')
+    await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:3}})
   })
 
 })
