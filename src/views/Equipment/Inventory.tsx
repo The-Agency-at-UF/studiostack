@@ -1,4 +1,5 @@
 'use client'
+import {DetailPanel} from '../../components/workspace/WorkspaceUI'
 import type {EquipmentRecord} from '../../types/equipment'
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react'
 import type {FormEvent} from 'react'
@@ -34,17 +35,19 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
       .finally(()=>{if(active)setLoading(false)})
     return()=>{active=false}
   },[api,organizationId,cacheKey,cached])
-  const current=items.find(i=>i.id===selected),filtered=items.filter(i=>(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(query.toLowerCase()))
-  return <main className="administration"><header><div><p className="administration-eyebrow">Equipment workspace</p><h1>Inventory</h1><p>{items.length} items · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div><div className="administration-actions"><button onClick={()=>{setError('');void load().catch(e=>setError(equipmentError(e)))}}>Refresh</button>{admin&&<button onClick={()=>{setAdding(true);setSelected(null)}}>Add item</button>}</div></header>
+  const [view,setView]=useState('all')
+  const current=items.find(i=>i.id===selected),filtered=items.filter(i=>(view==='all'||view==='out'&&i.checkedOut||view==='ready'&&!i.checkedOut&&i.status==='available'||view==='service'&&i.status==='maintenance')&&(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(query.toLowerCase()))
+  return <main className="administration workspace-surface inventory-workspace"><header><div><p className="administration-eyebrow">Equipment workspace</p><h1>Inventory</h1><p>{items.length} items · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div><div className="administration-actions"><button onClick={()=>{setError('');void load().catch(e=>setError(equipmentError(e)))}}>Refresh</button>{admin&&<button className="ws-button-primary" onClick={()=>{setAdding(true);setSelected(null)}}>Add item</button>}</div></header>
     {error&&<p role="alert">{error}</p>}{loading&&<p role="status">Loading inventory…</p>}
+<nav className="production-tabs" aria-label="Inventory views">{[['all','All production equipment'],['ready','Available'],['out','Checked out'],['service','Maintenance']].map(([id,label])=><button key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav>
     <div className="administration-form"><label>Search inventory<input type="search" value={query} onChange={e=>setQuery(e.target.value)}/></label><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</select></label></div>
     {!loading&&!error&&!filtered.length&&<p className="equipment-empty">No matching equipment. {admin?'Add an item to get started.':''}</p>}
     <div className="equipment-layout"><section className="administration-table"><table><thead><tr><th>Item</th><th>Category</th><th>Condition</th><th>Service status</th></tr></thead><tbody>{filtered.map(i=><tr key={i.id}><td><button className="equipment-item-link" onClick={()=>{setSelected(i.id);setAdding(false)}}>{i.name}</button><small>{i.equipmentCode}</small></td><td>{i.category}</td><td>{i.condition}</td><td>{i.checkedOut?'Checked out':i.status}</td></tr>)}</tbody></table></section>
-      {(current||adding)&&<aside className="equipment-inspector" aria-label="Equipment details"><button className="equipment-item-link" onClick={()=>{setSelected(null);setAdding(false)}}>Close details</button><h2>{current?.name??'Add equipment'}</h2>
+      {(current||adding)&&<DetailPanel className="equipment-inspector" label="Equipment details"><button className="equipment-item-link" onClick={()=>{setSelected(null);setAdding(false)}}>Close details</button><h2>{current?.name??'Add equipment'}</h2>
         {current?.photoId&&<PrivatePhoto key={`${current.id}:${current.photoId}`} api={api} organizationId={organizationId} item={current}/>}
         {current&&<details><summary>Equipment QR label</summary><QRCodeGenerator equipmentID={current.equipmentCode}/></details>}
         {admin&&<ItemEditor key={current?.id??'new'} api={api} organizationId={organizationId} item={current} onSaved={async item=>{setAdding(false);setSelected(item.id);invalidateCache(`photo:${organizationId}:${item.id}`);invalidateCache(`inventory:${organizationId}`);invalidateCache('dashboard:');await load()}}/>}
-      </aside>}
+      </DetailPanel>}
     </div>
   </main>
 }

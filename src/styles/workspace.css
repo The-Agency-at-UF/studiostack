@@ -105,6 +105,10 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 :is(.equipment-calendar,.production-calendar) .fc-toolbar-title { font-size:var(--text-lg); }
 :is(.equipment-calendar,.production-calendar) .fc-daygrid-event { white-space:normal; }
 :is(.equipment-calendar,.production-calendar) .fc-event-title { overflow-wrap:anywhere; }
+.app-content#workspace-content .equipment-layout { grid-template-columns:minmax(0,1fr) minmax(260px,320px); gap:var(--space-6); }
+.app-content#workspace-content .equipment-layout:not(:has(.equipment-inspector)) { grid-template-columns:1fr; }
+.equipment-inspector { min-width:0; overflow-wrap:anywhere; }
+.administration-form > label { min-width:0; }
 .app-content#workspace-content .equipment-overdue { color:var(--danger)!important; }
 .app-content#workspace-content .equipment-empty { color:var(--muted); font-size:var(--text-sm); }
 .app-content#workspace-content .section-inline-error { border:0; border-radius:var(--radius-control); background:var(--danger-soft); }
@@ -113,6 +117,8 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 @media(max-width:1199px) {
   .production-page .production-detail-grid { grid-template-columns:1fr; }
   .production-page .production-inspector { border-left:0; border-top:1px solid var(--line); padding:var(--space-6) 0 0; }
+  .app-content#workspace-content .equipment-layout { grid-template-columns:1fr; }
+  .equipment-inspector { border-left:0; border-top:1px solid var(--line); padding:var(--space-6) 0; }
 }
 @media(max-width:767px) {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page),.app-content#workspace-content .live-dashboard.administration { padding:var(--space-6) var(--space-4); }
@@ -159,4 +165,6 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 body { min-width:0; }
 :is(.production-type-options,.production-calendar-options) label,.administration .administration-checkbox { min-height:var(--control-height); }
 :is(.production-calendar,.equipment-calendar) .fc-daygrid-event { min-height:var(--control-height); }
+.app-content#workspace-content .administration .equipment-item-link { border:0; background:transparent; color:var(--accent); padding:0; text-align:left; }
+.app-content#workspace-content .administration .equipment-item-link:hover { background:transparent; text-decoration:underline; }
 .app-content#workspace-content :is(.administration-eyebrow,.production-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
