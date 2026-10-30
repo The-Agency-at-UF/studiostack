@@ -54,7 +54,7 @@ export function date(value: unknown): string {
   return new Date(value).toISOString()
 }
 export function createReservation(value: unknown, now?: number): CreateReservation {
-  const body = object(value, ['name', 'startsAt', 'endsAt', 'equipmentIds', 'requestId'])
+  const body = object(value, ['clientAccountId','name', 'startsAt', 'endsAt', 'equipmentIds', 'requestId'])
   const startsAt = date(body.startsAt), endsAt = date(body.endsAt)
   if ((now !== undefined && Date.parse(startsAt) < now) || Date.parse(endsAt) <= Date.parse(startsAt) || Date.parse(endsAt) - Date.parse(startsAt) > 90 * 86400_000) {
     throw new ApiError(400, 'Reservations must start in the future and last at most 90 days')
@@ -62,7 +62,7 @@ export function createReservation(value: unknown, now?: number): CreateReservati
   if (!Array.isArray(body.equipmentIds) || body.equipmentIds.length < 1 || body.equipmentIds.length > 50) throw new ApiError(400, 'Select 1 to 50 equipment items')
   const equipmentIds = body.equipmentIds.map(uuid).sort()
   if (new Set(equipmentIds).size !== equipmentIds.length) throw new ApiError(400, 'Equipment IDs must be unique')
-  return { name: text(body.name, 120), startsAt, endsAt, equipmentIds, requestId: uuid(body.requestId) }
+  return { ...(body.clientAccountId===undefined?{}:{clientAccountId:body.clientAccountId===null?null:uuid(body.clientAccountId)}),name: text(body.name, 120), startsAt, endsAt, equipmentIds, requestId: uuid(body.requestId) }
 }
 export function pagination(params: Record<string, string | undefined> = {}) {
   if (Object.keys(params).some(key => !['limit', 'after'].includes(key))) throw new ApiError(400, 'Invalid query parameters')
