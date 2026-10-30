@@ -1,6 +1,7 @@
 import 'reactjs-popup/dist/index.css'
 import '../src/index.css'
 import '../src/App.css'
+import '../src/styles/tokens.css'
 import '../src/views/Calendar/Calendar.css'
 import '../src/views/Calendar/MiniCalendar.css'
 import '../src/views/Organization/Organization.css'

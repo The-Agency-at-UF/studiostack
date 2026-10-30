@@ -174,7 +174,7 @@
 }
 
 .app-content > div > .bg-white h1 {
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-weight: 800;
   letter-spacing: -.04em;
 }
@@ -207,7 +207,7 @@
 .dashboard-intro h1, .login-statement h1 {
   margin: 0;
   color: var(--ink);
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(58px, 8.2vw, 132px);
   font-weight: 800;
   line-height: .79;
@@ -230,7 +230,7 @@
   border-bottom: 1px solid var(--line);
 }
 
-.dashboard-metrics strong { font-family: "Manrope", sans-serif; font-size: 26px; letter-spacing: -.05em; }
+.dashboard-metrics strong { font-family: var(--font-ui); font-size: 26px; letter-spacing: -.05em; }
 .dashboard-metrics span { color: var(--muted); font-size: 12px; }
 
 .dashboard-panel {
@@ -253,7 +253,7 @@
 .control-panel-heading { padding-bottom: 36px; border-bottom: 1px solid rgba(255,255,255,.2); }
 .control-panel-heading h2, .section-heading h2 {
   margin: 0;
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(30px, 4vw, 55px);
   font-weight: 700;
   line-height: 1;
@@ -320,7 +320,7 @@
 .reservation-strip { display: flex; gap: 16px; overflow-x: auto; padding-top: 22px; }
 
 .empty-state { min-height: 180px; display: flex; flex-direction: column; justify-content: flex-end; padding-top: 24px; }
-.empty-state span { color: var(--accent); font-family: "Manrope", sans-serif; font-size: 62px; font-weight: 700; line-height: 1; letter-spacing: -.06em; }
+.empty-state span { color: var(--accent); font-family: var(--font-ui); font-size: 62px; font-weight: 700; line-height: 1; letter-spacing: -.06em; }
 .empty-state p { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
 
 .equipment-table { padding-top: 22px; }
@@ -418,7 +418,7 @@
   margin: 0;
   padding: 18px 0 !important;
   border-color: var(--ink) !important;
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(30px, 3vw, 44px) !important;
   letter-spacing: -.05em;
 }
@@ -434,7 +434,7 @@
 
 .report-row:hover { color: var(--accent); padding-left: 12px !important; }
 .report-row svg { color: var(--accent) !important; cursor: pointer; }
-.report-row h2 { font-family: "Manrope", sans-serif; letter-spacing: -.025em; }
+.report-row h2 { font-family: var(--font-ui); letter-spacing: -.025em; }
 
 .inventory-filters {
   display: flex;
@@ -497,7 +497,7 @@
 }
 
 .statistics-total-empty strong {
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: 64px;
   line-height: .9;
   letter-spacing: -.06em;
@@ -512,7 +512,7 @@
   text-transform: uppercase;
 }
 .overdue-panel > div { padding: clamp(24px, 3vw, 40px); color: white; background: var(--ink); }
-.overdue-panel h2 { margin: 0 0 20px; padding: 0 !important; font-family: "Manrope", sans-serif; font-size: 27px !important; letter-spacing: -.04em; }
+.overdue-panel h2 { margin: 0 0 20px; padding: 0 !important; font-family: var(--font-ui); font-size: 27px !important; letter-spacing: -.04em; }
 .overdue-panel .border-t { border-color: rgba(255,255,255,.18) !important; }
 .overdue-panel h1 { font-size: 16px !important; letter-spacing: 0 !important; }
 
@@ -520,7 +520,7 @@
   margin: 0;
   padding: 34px 0 18px !important;
   border-top: 1px solid var(--ink);
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(34px, 4vw, 50px) !important;
   line-height: 1;
   letter-spacing: -.055em;
@@ -533,7 +533,7 @@
   border-top: 4px solid var(--accent);
   background: #eeebe3;
 }
-.statistics-chart h2 { padding-left: 0 !important; font-family: "Manrope", sans-serif; letter-spacing: -.035em; }
+.statistics-chart h2 { padding-left: 0 !important; font-family: var(--font-ui); letter-spacing: -.035em; }
 .statistics-chart svg { max-width: 100%; }
 .chart-range { display: flex; flex-wrap: wrap; gap: 1px; padding-left: 0 !important; padding-top: 18px !important; }
 .chart-range button {
@@ -547,7 +547,7 @@
 }
 .chart-range button:hover { background: var(--accent) !important; }
 .statistics-record { margin-top: 28px; border-top: 1px solid var(--ink); }
-.statistics-record h2 { padding-left: 0 !important; font-family: "Manrope", sans-serif; letter-spacing: -.04em; }
+.statistics-record h2 { padding-left: 0 !important; font-family: var(--font-ui); letter-spacing: -.04em; }
 
 /* Reservation lists and task forms use the same operational hierarchy. */
 .reservations-workspace > div { padding-top: 12px; }
@@ -563,7 +563,7 @@
 .reservation-section > h1 {
   margin: 0;
   padding: 0 !important;
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(30px, 3vw, 44px) !important;
   line-height: 1;
   letter-spacing: -.05em;
@@ -687,7 +687,7 @@
   margin: 0 0 24px;
   padding: 0 68px 20px 0 !important;
   border-bottom: 1px solid var(--ink);
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(32px, 4vw, 46px) !important;
   line-height: 1;
   letter-spacing: -.05em;
@@ -710,7 +710,7 @@
 .item-dialog { position: fixed; inset: 0; width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; padding: 30px 32px; border: 0; border-top: 5px solid var(--accent); color: var(--ink); background: var(--paper-light); animation: workspace-modal-in .2s ease-out both; }
 .item-dialog::backdrop { background: rgba(16,16,16,.68); backdrop-filter: blur(3px); }
 .item-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 20px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
-.item-dialog-heading h2 { margin: 0; font-family: 'Manrope', sans-serif; font-size: 36px; font-weight: 800; letter-spacing: -.05em; line-height: 1; }
+.item-dialog-heading h2 { margin: 0; font-family: var(--font-ui); font-size: 36px; font-weight: 800; letter-spacing: -.05em; line-height: 1; }
 .item-dialog-heading .eyebrow { margin: 0 0 10px; }
 .item-dialog-heading button { display: grid; place-items: center; width: 36px; height: 36px; padding: 6px; border: 1px solid var(--line); color: var(--ink); background: transparent; cursor: pointer; }
 .item-dialog-heading button svg { width: 22px; height: 22px; }
@@ -800,7 +800,7 @@
 .login-access-top button:disabled { opacity: .5; cursor: wait; }
 .login-form-area { width: 100%; max-width: 430px; margin: auto; padding: 38px 0; animation: rise-in .55s .12s ease both; }
 .login-section-number { display: inline-block; margin-bottom: 22px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
-.login-form-area h1 { margin: 0; color: var(--ink); font-family: "Manrope", sans-serif; font-size: clamp(36px, 3.8vw, 58px); line-height: 1.1; font-weight: 800; letter-spacing: -.055em; }
+.login-form-area h1 { margin: 0; color: var(--ink); font-family: var(--font-ui); font-size: clamp(36px, 3.8vw, 58px); line-height: 1.1; font-weight: 800; letter-spacing: -.055em; }
 .login-description { margin: 20px 0 26px; color: var(--muted); font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
 .login-account-note { display: flex; gap: 13px; align-items: flex-start; padding: 22px 0; margin-bottom: 14px; border-top: 1px solid var(--line); }
 .login-account-note > svg { width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px; }
