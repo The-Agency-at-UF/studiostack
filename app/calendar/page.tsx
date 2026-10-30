@@ -1,3 +1,7 @@
 'use client'
-import LiveEquipmentCalendar from '../../src/views/Equipment/Calendar'
-export default function CalendarPage(){return <LiveEquipmentCalendar/>}
+import dynamic from 'next/dynamic'
+const Calendar = dynamic(() => import('../../src/views/Equipment/Calendar'), {
+  ssr: false,
+  loading: () => <main className="administration"><h1>Equipment calendar</h1><p role="status">Loading equipment calendar…</p></main>,
+})
+export default function CalendarPage(){return <Calendar/>}
