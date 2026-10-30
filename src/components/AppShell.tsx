@@ -10,6 +10,7 @@ import { AppSessionProvider } from '../context/AppSessionContext'
 import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
 import {restorePasswordSession,signOutPasswordSession} from '../auth/password'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
+import { invalidateCache } from '../api/cache'
 import type { ApiOrganization } from '../types/database-api'
 import type {SignedInUser} from '../auth/cognito'
 import type { LoginProvider } from '../auth/providers'
@@ -46,6 +47,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     let active = true
     try { authConfiguration() } catch { setConfigured(false) }
     if (!boot.current) {
+      invalidateCache()
       const url = window.location.href
       if (hasCallback(url)) {
         window.history.replaceState(null, '', '/login/')
@@ -100,6 +102,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   }, [ready, mode, loginPage, router, pathname])
 
   const logOut = useCallback(async () => {
+    invalidateCache()
     bootedByUser.current = false
     const real = mode === 'authenticated'
     if(real)try{await signOutPasswordSession()}catch{/* Clear local session even if revocation fails. */}
@@ -131,6 +134,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     catch { setAuthError('Sign-in is unavailable at this address. Use localhost:5174 or ask your administrator to configure this website.'); setBusy(false) }
   }, [])
   const openPreview = useCallback(async () => {
+    invalidateCache()
     bootedByUser.current = true
     const real = mode === 'authenticated'
     if(real)try{await signOutPasswordSession()}catch{/* Clear local session even if revocation fails. */}
@@ -143,6 +147,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     router.push('/')
   }, [mode, router])
   const completeSignIn=useCallback(async(user:SignedInUser)=>{
+    invalidateCache()
     bootedByUser.current = true
     setBusy(true);setAuthError('')
     try{const result=await loadAccount(user);setSubject(user.subject);const saved=localStorage.getItem('studiostack.organization.'+user.subject);setSelectedOrganizationId(saved&&result.organizations.some(o=>o.id===saved)?saved:'');setMode(result.mode);setEmail(result.label);setIsAdmin(result.admin);setOrganizations(result.organizations);setExpiresAt(result.expiresAt);setReady(true)
