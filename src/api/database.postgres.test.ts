@@ -196,6 +196,18 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   async function command(identity:Identity,b:ProductionBrief,action:BriefCommand['action'],comment='') {
     return await production(identity,{resource:'actions',method:'POST',briefId:b.id,body:{action,version:b.version,requestId:randomUUID(),comment}}) as ProductionBrief
   }
+  it('agency: client accounts stay tenant scoped and group briefs and bookings',async()=>{
+    const c=await production(owner,{resource:'clients',method:'POST',body:{name:'Agency test client'}}) as {id:string}
+    expect(await production(owner,{resource:'clients',method:'POST',body:{name:'agency TEST client'}})).toMatchObject({id:c.id})
+    await expect(production(member,{resource:'clients',method:'POST',body:{name:'Unauthorized'}})).rejects.toMatchObject({status:403})
+    const d=await draft()
+    const saved=await production(member,{resource:'briefs',method:'PATCH',briefId:d.id,body:{version:d.version,requestId:randomUUID(),data:{...d.data,clientAccountId:c.id}}}) as ProductionBrief
+    expect(saved.data).toMatchObject({clientAccountId:c.id,client:'Agency test client'})
+    const other=(await operator.query('INSERT INTO app.client_accounts(organization_id,name) VALUES($1,$2) RETURNING id',[otherOrganizationId,'Other tenant client'])).rows[0]
+    await expect(production(member,{resource:'briefs',method:'PATCH',briefId:saved.id,body:{version:saved.version,requestId:randomUUID(),data:{...saved.data,clientAccountId:other.id}}})).rejects.toMatchObject({status:400})
+    const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(item),clientAccountId:c.id}}) as ApiReservation
+    expect(r.clientAccountId).toBe(c.id)
+  })
   it('production: only admins assign active reviewers and ELT memberships',async()=>{
     const settings = {version:0,reviewerIds:[profiles[secondMember.subject].id],executiveIds:[],approvalConfirmsDates:true}
     await expect(production(member,{resource:'settings',method:'PATCH',body:settings})).rejects.toMatchObject({status:403})

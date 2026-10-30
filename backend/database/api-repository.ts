@@ -156,7 +156,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       }
       case 'createReservation': {
         const input = request.input
-        const fingerprint = createHash('sha256').update(JSON.stringify({ name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, equipmentIds: input.equipmentIds })).digest('hex')
+        const fingerprint = createHash('sha256').update(JSON.stringify({clientAccountId:input.clientAccountId, name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, equipmentIds: input.equipmentIds })).digest('hex')
         // Serialize retries by caller+org+request ID, then lock equipment in ID order.
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${organizationId}:${user.id}:${input.requestId}`])
         const previous = await client.query<ReservationRow>(`SELECT ${reservationColumns}, r.request_hash AS "requestHash" FROM app.reservations r WHERE r.organization_id = $1 AND r.user_id = $2 AND r.request_id = $3`, [organizationId, user.id, input.requestId])
@@ -173,7 +173,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         const conflicts = await client.query(`SELECT 1 FROM app.reservation_items i JOIN app.reservations r ON r.organization_id = i.organization_id AND r.id = i.reservation_id
           WHERE i.organization_id = $1 AND i.equipment_id = ANY($2::uuid[]) AND r.status = 'confirmed' AND r.fulfillment_status<>'returned' AND r.starts_at < $4::timestamptz AND r.ends_at > $3::timestamptz LIMIT 1`, [organizationId, input.equipmentIds, input.startsAt, input.endsAt])
         if (conflicts.rows.length) throw new ApiError(409, 'Equipment is already reserved for this time')
-        const inserted = await client.query<{ id: string }>('INSERT INTO app.reservations (organization_id, user_id, name, starts_at, ends_at, request_id, request_hash) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [organizationId, user.id, input.name, input.startsAt, input.endsAt, input.requestId, fingerprint])
+        if(input.clientAccountId){const c=await client.query('SELECT id FROM app.client_accounts WHERE organization_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE',[organizationId,input.clientAccountId]);if(!c.rows.length)throw new ApiError(400,'Choose an active client account in this organization')}
+        const inserted = await client.query<{ id: string }>('INSERT INTO app.reservations (organization_id, user_id, name, starts_at, ends_at, request_id, request_hash,client_account_id) VALUES ($1, $2, $3, $4, $5, $6, $7,$8) RETURNING id', [organizationId, user.id, input.name, input.startsAt, input.endsAt, input.requestId, fingerprint,input.clientAccountId??null])
         const id = inserted.rows[0].id
         await client.query('INSERT INTO app.reservation_items (organization_id, reservation_id, equipment_id) SELECT $1, $2, unnest($3::uuid[])', [organizationId, id, input.equipmentIds])
         return (await client.query(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id = $1 AND r.id = $2`, [organizationId, id])).rows[0]
