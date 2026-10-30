@@ -6,6 +6,8 @@ it('keeps development login invite/admin-only and uses scoped public OAuth code 
   const template = devAuthInfrastructure()
   expect(template.Resources.Pool.Properties.AdminCreateUserConfig.AllowAdminCreateUserOnly).toBe(true)
   expect(template.Resources.Pool.Properties.UserPoolTier).toBe('LITE')
+  expect(template.Resources.Pool.Properties.AccountRecoverySetting).toEqual({RecoveryMechanisms:[{Name:'verified_email',Priority:1}]})
+  expect(template.Resources.Pool.Properties.Policies.PasswordPolicy).toEqual({MinimumLength:8,RequireUppercase:true,RequireLowercase:false,RequireNumbers:false,RequireSymbols:true})
   const client = template.Resources.Client.Properties
   expect(client.GenerateSecret).toBe(false)
   expect(client.AllowedOAuthFlows).toEqual(['code'])
