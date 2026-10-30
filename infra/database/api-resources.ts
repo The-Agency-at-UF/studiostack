@@ -29,12 +29,12 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
       Target: { 'Fn::Join': ['/', ['integrations', { Ref: 'Integration' }]] },
     } }
     }
-    const [method, path] = route.split(' ')
-    Resources[`Permission${index}`] = { Type: 'AWS::Lambda::Permission', Properties: {
-      FunctionName: functionName, Action: 'lambda:InvokeFunction', Principal: 'apigateway.amazonaws.com', SourceAccount: account,
-      SourceArn: `arn:aws:execute-api:${region}:${account}:${config.apiId}/*/${method}${path.replace(/\{[a-zA-Z]+\}/g, '*')}`,
-    } }
   }
+  // One service permission for this exact account/API avoids Lambda's 20 KiB
+  // resource-policy limit. Every route still uses JWT/scopes; the handler also
+  // checks issuer, client, token use, API identity and the exact route allowlist.
+  Resources.ApiInvokePermission={Type:'AWS::Lambda::Permission',Properties:{FunctionName:functionName,Action:'lambda:InvokeFunction',Principal:'apigateway.amazonaws.com',SourceAccount:account,SourceArn:`arn:aws:execute-api:${region}:${account}:${config.apiId}/*/*/*`}}
+
   return { AWSTemplateFormatVersion: '2010-09-09', Description: 'StudioStack JWT-protected database API routes', Resources,
     Outputs: { AuthorizerId: { Value: { Ref: 'Authorizer' } }, IntegrationId: { Value: { Ref: 'Integration' } } } }
 }

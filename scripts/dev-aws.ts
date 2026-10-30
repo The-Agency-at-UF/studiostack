@@ -26,7 +26,9 @@ export async function guardDevApply() {
 }
 export async function applyStack(name: string, template: unknown) {
   const file = `${devDirectory}/${name}.json`
-  await writeFile(file, JSON.stringify(template, null, 2))
+  const body=JSON.stringify(template)
+  if(Buffer.byteLength(body)>51200)throw new Error('CloudFormation template exceeds inline limit; use a private S3 template URL')
+  await writeFile(file,body)
   const { StackSummaries } = await aws<{ StackSummaries: { StackName: string; StackStatus: string }[] }>('cloudformation', 'list-stacks')
   const existing = StackSummaries.some(s => s.StackName === name && s.StackStatus !== 'DELETE_COMPLETE')
   if (existing) {

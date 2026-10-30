@@ -83,6 +83,10 @@ async function main() {
   else console.log(`Account concurrency ${quota.AccountLimit.ConcurrentExecutions}: reservation unavailable; dev stage throttling and database connection limit retained`)
   const connection = await invoke<{ ok: boolean }>('studiostack-dev-database', {})
   if (!connection.ok) throw new Error('Dev restricted connection check failed')
+  await deployDevRoutes(metadata)
+}
+export async function deployDevRoutes(metadata:DevMetadata){
+  const vars=await devVariables(metadata)
   const routes = await applyStack('studiostack-dev-database-api', databaseApiInfrastructure(vars, true))
   const { Items } = await aws<{ Items: { RouteKey: string; RouteId: string }[] }>('apigatewayv2', 'get-routes', ['--api-id', vars.DATABASE_API_ID])
   const existing = Items.find(r => r.RouteKey === 'POST /photos/uploads')
