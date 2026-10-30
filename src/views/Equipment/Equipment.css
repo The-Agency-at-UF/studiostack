@@ -35,3 +35,10 @@
 
 .equipment-calendar { margin:24px 0;font-size:13px;--fc-border-color:#e4deea;--fc-today-bg-color:#f4eefb;--fc-button-bg-color:#7138b8;--fc-button-border-color:#7138b8; }
 @media(max-width:700px){.equipment-calendar .fc-toolbar{flex-wrap:wrap;gap:12px}.equipment-calendar .fc-toolbar-title{font-size:18px}}
+
+.equipment-alert-list li { display:flex;justify-content:space-between;gap:24px;align-items:center;padding:24px 0;border-bottom:1px solid #e4deea; }
+.equipment-alert-list h2 { font-size:15px;margin:0 0 8px; }
+.equipment-alert-list p { font-size:13px;color:#756d7e; }
+.equipment-alert-list small { display:block;margin-top:10px;font-size:11px;color:#756d7e; }
+.equipment-alert-list .unread h2 { color:#7138b8; }
+@media(max-width:700px){.equipment-alert-list li{align-items:flex-start;flex-direction:column}.equipment-alert-list .administration-actions{flex-wrap:wrap}}
