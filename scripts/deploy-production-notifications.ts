@@ -1,3 +1,4 @@
+import {emailConfigurationSet} from './email-configuration'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
@@ -19,7 +20,7 @@ async function main() {
   const zip=resolve(`${directory}/sender.zip`);await rm(zip,{force:true});await execute('zip',['-q',zip,'index.js'],{cwd:directory})
   const key=`deployments/production/${Date.now()}/sender.zip`
   await aws('s3api','put-object',['--bucket','studio-stack-photos-dev','--key',key,'--body',zip,'--server-side-encryption','AES256'])
-  const stack = productionNotificationInfrastructure({environment:'dev',artifactBucket:'studio-stack-photos-dev',artifactKey:key,sender,identity,webUrl:web.origin,userPoolId:metadata.auth.UserPoolId,enabled:true})
+  const stack = productionNotificationInfrastructure({environment:'dev',configurationSet:await emailConfigurationSet('dev'),artifactBucket:'studio-stack-photos-dev',artifactKey:key,sender,identity,webUrl:web.origin,userPoolId:metadata.auth.UserPoolId,enabled:true})
   await applyStack('studiostack-dev-production-notifications',stack)
   const name='studiostack-dev-database'
   const config = await aws<{Environment:{Variables:Record<string,string>}}>('lambda','get-function-configuration',['--function-name',name])
