@@ -4,7 +4,7 @@ import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes,agencyProductionRoutes } from '../../backend/production/routes'
 import {accountRoutes} from '../../backend/accounts/routes'
 import { account, region } from './resources'
-import { databaseApiRoutes, privatePhotoRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
+import { databaseApiRoutes, privatePhotoRoutes, bugReportRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
 
 /** Additive API stack: no new database, secret, VPC endpoint or execution role. */
 export function databaseApiInfrastructure(env: Record<string, string | undefined>, includePhotos = false) {
@@ -20,7 +20,7 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
       ApiId: config.apiId, IntegrationType: 'AWS_PROXY', IntegrationUri: functionArn, IntegrationMethod: 'POST', PayloadFormatVersion: '2.0', TimeoutInMillis: 29_000,
     } },
   }
-  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes.filter(route=>!agencyProductionRoutes.includes(route)), ...accountRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes,...agencyProductionRoutes].entries()) {
+  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes.filter(route=>!agencyProductionRoutes.includes(route)), ...accountRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes,...agencyProductionRoutes,...bugReportRoutes].entries()) {
     // The upload route predates this stack. Deployment updates it in place,
     // avoiding duplicate routes or deleting the existing AWS resource.
     if (route !== 'POST /photos/uploads') {
