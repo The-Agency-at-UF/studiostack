@@ -1,4 +1,5 @@
 'use client'
+import {DetailPanel} from '../../components/workspace/WorkspaceUI'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import type {FormEvent} from 'react'
 import Link from 'next/link'
@@ -39,11 +40,11 @@ function ReportsWorkspace({api,org,admin,create}:{api:DatabaseApi;org:string;adm
     setRows(v=>[row,...v.filter(r=>r.id!==row.id)]);setSelected(row.id);setAdding(false);setNotice('Report saved.');try{accept(await load())}catch(e){setError(equipmentError(e))}
   }
   const current=rows.find(r=>r.id===selected),visible=rows.filter(r=>filter==='all'||(filter==='resolved'?r.status==='resolved':r.status!=='resolved')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
-  return <main className="administration"><header><div><p className="administration-eyebrow">Equipment care</p><h1>Equipment reports</h1><p>Track damage, discuss repairs and return equipment to service.</p></div><div className="administration-actions"><button disabled={loading} onClick={()=>void refresh()}>Refresh</button><button onClick={()=>{setAdding(true);setSelected('');setNotice('')}}>Report an issue</button></div></header>
+  return <main className="administration workspace-surface"><header><div><p className="administration-eyebrow">Equipment care</p><h1>Equipment reports</h1><p>Track damage, discuss repairs and return equipment to service.</p></div><div className="administration-actions"><button disabled={loading} onClick={()=>void refresh()}>Refresh</button><button className="ws-button-primary" onClick={()=>{setAdding(true);setSelected('');setNotice('')}}>Report an issue</button></div></header>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<p role="status">Loading equipment reports…</p>}
     <label className="equipment-filter">Show reports<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Active reports</option><option value="resolved">Resolved reports</option><option value="all">All reports</option></select></label>
     <div className="equipment-layout"><section className="administration-table"><table><thead><tr><th>Issue / equipment</th><th>Severity</th><th>Status</th></tr></thead><tbody>{visible.map(r=><tr key={r.id}><td><button className="equipment-item-link" onClick={()=>{setSelected(r.id);setAdding(false);setNotice('')}}>{r.title}</button><small>{items.find(i=>i.id===r.equipmentId)?.name??'Equipment item'}</small></td><td>{r.severity}</td><td>{label(r.status)}</td></tr>)}</tbody></table>{!loading&&!visible.length&&<p className="equipment-empty">No matching reports.</p>}</section>
-    {!loading&&(adding||current)&&<aside className="equipment-inspector equipment-report-inspector" aria-label="Report details"><button className="equipment-item-link" onClick={()=>{setAdding(false);setSelected('')}}>Close details</button>{adding?<><h2>Report an equipment issue</h2><ReportForm api={api} org={org} items={items} bookings={bookings} onSaved={saved}/></>:current&&<ReportDetails key={current.id} api={api} org={org} admin={admin} report={current} item={items.find(i=>i.id===current.equipmentId)} onSaved={saved}/>}</aside>}
+    {!loading&&(adding||current)&&<DetailPanel className="equipment-inspector equipment-report-inspector" label="Report details"><button className="equipment-item-link" onClick={()=>{setAdding(false);setSelected('')}}>Close details</button>{adding?<><h2>Report an equipment issue</h2><ReportForm api={api} org={org} items={items} bookings={bookings} onSaved={saved}/></>:current&&<ReportDetails key={current.id} api={api} org={org} admin={admin} report={current} item={items.find(i=>i.id===current.equipmentId)} onSaved={saved}/>}</DetailPanel>}
     </div>
   </main>
 }
