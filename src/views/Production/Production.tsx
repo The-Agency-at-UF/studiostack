@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useAppSession } from '../../context/AppSessionContext'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
@@ -8,6 +9,7 @@ import { briefSections, emptyBrief, productionTypes, statusLabels, submissionErr
 import type { ApiMember } from '../../types/database-api'
 import type { ProductionClient } from '../../api/production'
 import './Production.css'
+const ProductionCalendar = dynamic(() => import('./ProductionCalendar'), { ssr: false, loading: () => <p role="status">Loading calendar…</p> })
 const errorText = (error: unknown) => error instanceof DatabaseApiClientError ? ({ 400: 'Check the required fields, dates and review reason.', 401: 'Your session expired. Sign in again.', 403: 'Your account does not have permission for this action.', 404: 'This record is unavailable.', 409: 'This record changed or the action conflicts with its status. Reload before trying again.', 503: 'Production services are unavailable. Your unsaved work is still here.' }[error.status] ?? 'The request failed. Try again.') : error instanceof Error ? error.message : 'Something went wrong. Try again.'
 const dateLabel = (value: string | null) => value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'Not scheduled'
 function useProductionClient(organizationId: string, person: string) {
@@ -27,7 +29,7 @@ export default function Production() {
   const { api, database, error: configurationError } = useProductionClient(organizationId, person)
   const [briefs, setBriefs] = useState<ProductionBrief[]>([]), [access, setAccess] = useState<ProductionAccess | null>(null)
   const [selected, setSelected] = useState<ProductionBrief | null>(null), [form, setForm] = useState<BriefData>(emptyBrief)
-  const [tab, setTab] = useState<'briefs' | 'settings'>('briefs')
+  const [tab, setTab] = useState<'briefs' | 'calendar' | 'settings'>('briefs')
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
@@ -84,14 +86,14 @@ export default function Production() {
     </div></header>
     {preview && <p className="production-info">Local preview. Changes stay in this browser.</p>}
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
-    <nav className="production-tabs" aria-label="Production views">{(['briefs', ...(access?.canAdminister ? ['settings'] : [])] as const).map(t => <button key={t} disabled={busy} aria-current={tab === t ? 'page' : undefined} onClick={() => selectView(t as typeof tab)}>{({ briefs: 'Briefs', calendar: 'Production calendar', decisions: 'Decisions & delivery', settings: 'Production access' } as Record<string,string>)[t]}</button>)}</nav>
+    <nav className="production-tabs" aria-label="Production views">{(['briefs','calendar', ...(access?.canAdminister ? ['settings'] : [])] as const).map(t => <button key={t} disabled={busy} aria-current={tab === t ? 'page' : undefined} onClick={() => selectView(t as typeof tab)}>{({ briefs: 'Briefs', calendar: 'Production calendar', decisions: 'Decisions & delivery', settings: 'Production access' } as Record<string,string>)[t]}</button>)}</nav>
     <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={() => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() })) }}>Reload</button></p>}{notice && <p role="status">{notice}</p>}</div>
     {loading ? <p role="status">Loading production workspace…</p> : !api || !access ? null : tab === 'settings' ? <ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} /> : <>
-      {!selected && (<>
+      {!selected && (tab === 'calendar' ? <ProductionCalendar briefs={briefs} onOpen={id => void open(id)} /> : <>
         <div className="production-toolbar"><label className="production-search">Search briefs<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Project, client, or author" /></label><label>Status<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><button className="production-primary" disabled={busy} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create'))) }}>New brief <span aria-hidden="true">↗</span></button></div>
         <div className="production-table-wrap"><table className="production-table"><thead><tr><th>Project / client</th><th>Status</th><th>Requested by</th><th>Shoot</th><th>Delivery</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{filtered.map(b => <tr key={b.id}><td><button className="production-row-title" disabled={busy} onClick={() => void open(b.id)}>{b.data.projectName || 'Untitled brief'}</button><span>{b.data.client || 'Client not added'}</span></td><td><span className={`production-status status-${b.status}`}>{statusLabels[b.status]}</span></td><td>{b.ownerName}</td><td>{b.shootStartsAt ? dateLabel(b.shootStartsAt) : b.data.fields.proposedStart ? `${dateLabel(b.data.fields.proposedStart)} · tentative` : b.data.fields.shootEstimate || 'Not proposed'}</td><td>{b.data.deliveryDate ? dateLabel(b.data.deliveryDate) : 'Not set'}</td><td><button disabled={busy} aria-label={`Open ${b.data.projectName || 'untitled brief'}`} onClick={() => void open(b.id)}>↗</button></td></tr>)}</tbody></table>{!filtered.length && <div className="production-empty"><h2>{briefs.length ? 'No matching briefs' : 'Start with a brief'}</h2><p>{briefs.length ? 'Try another search or status.' : 'Create a production request to share the scope, dates, and deliverables with Production leadership.'}</p></div>}</div>
       </>)}
-      {selected && <div className="production-detail"><div className="production-detail-header"><button disabled={busy} onClick={() => { if (mayLeave()) { setSelected(null); setDirty(false) } }}>← Back to briefs</button><span className={`production-status status-${selected.status}`}>{statusLabels[selected.status]}</span><span>Revision {selected.version} · Submission {selected.submission}</span><button disabled={busy} onClick={() => window.print()}>Print / save PDF</button></div>
+      {selected && <div className="production-detail"><div className="production-detail-header"><button disabled={busy} onClick={() => { if (mayLeave()) { setSelected(null); setDirty(false) } }}>← Back to {tab === 'calendar' ? 'calendar' : 'briefs'}</button><span className={`production-status status-${selected.status}`}>{statusLabels[selected.status]}</span><span>Revision {selected.version} · Submission {selected.submission}</span><button disabled={busy} onClick={() => window.print()}>Print / save PDF</button></div>
         <div className="production-detail-grid"><div>
           <form className="production-form" onSubmit={e => { e.preventDefault(); void save() }}>
             <h2>{selected.data.projectName || 'New production brief'}</h2><p className="production-muted">Created by {selected.ownerName} · {new Date(selected.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</p>
