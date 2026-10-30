@@ -8,7 +8,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
 import { AppSessionProvider } from '../context/AppSessionContext'
 import { accessToken, authConfiguration, clearSignIn, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
-import { createDatabaseApiClient } from '../api/database'
+import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
 import type { ApiOrganization } from '../types/database-api'
 import type { LoginProvider } from '../auth/providers'
 
@@ -22,6 +22,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>('signed-out')
   const [email, setEmail] = useState(''), [isAdmin, setIsAdmin] = useState(false)
   const [organizations, setOrganizations] = useState<ApiOrganization[]>([])
+  const [selectedOrganizationId,setSelectedOrganizationId]=useState('')
   const [ready, setReady] = useState(false), [busy, setBusy] = useState(false)
   const [authError, setAuthError] = useState(''), [configured, setConfigured] = useState(true)
   const [expiresAt, setExpiresAt] = useState<number>()
@@ -42,6 +43,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         if (hasCallback(url)) {
           const config = authConfiguration(), user = await finishSignIn(config, url)
           const api = createDatabaseApiClient({ baseUrl: config.apiUrl, getAccessToken: accessToken })
+          try{await api.me()}catch(error){if(!(error instanceof DatabaseApiClientError)||error.status!==404)throw error}
           await api.register(user.label.slice(0, 120))
           const result = await api.organizations({ limit: 100 })
           return { mode: 'authenticated', label: user.label, admin: ['owner', 'admin'].includes(result.items[0]?.role), organizations: result.items, expiresAt: user.expiresAt }
@@ -105,15 +107,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
     if (real) { try { window.location.assign(logoutUrl()); return } catch { /* Preview never receives credentials. */ } }
     router.push('/')
   }, [mode, router])
-  const session = useMemo(() => ({ email, isAdmin, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,
-    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, isAdmin, mode, signIn, openPreview, logOut, busy, authError, configured, organizations])
+  const refreshOrganizations=useCallback(async()=>{const result=await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken}).organizations({limit:100});setOrganizations(result.items)},[])
+  const selectedOrganization=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0]
+  const currentAdmin=mode==='authenticated'?['owner','admin'].includes(selectedOrganization?.role):isAdmin
+  const session = useMemo(() => ({ email, isAdmin:currentAdmin, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId,refreshOrganizations,
+    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, isAdmin, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations])
 
   return <AppSessionProvider value={session}>
     {!ready || (mode === 'signed-out' && !loginPage) ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />{busy ? 'Completing secure sign-in…' : 'Opening StudioStack…'}</main>
       : loginPage ? children : <>
-        <Header isAdmin={isAdmin} logOut={logOut} email={email} />
+        <Header isAdmin={currentAdmin} logOut={logOut} email={email} />
         <aside className="session-banner"><span>{mode === 'authenticated' ? 'Signed in. Production uses your organization’s cloud data. Other workspace pages remain in preview.' : 'Preview mode — no real account or cloud data.'}</span>
           <Link href="/login/">{mode === 'authenticated' ? 'Your account' : 'Sign in'}</Link></aside>
+        {mode==='authenticated'&&organizations.length>0&&pathname.replace(/\/$/,'')!=='/production'&&<label className="workspace-selector">Organization<select value={selectedOrganization?.id??''} onChange={e=>setSelectedOrganizationId(e.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label>}
         <div className="app-content">{children}</div>
         <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><BugReportPopup userEmail={email} /></footer>
       </>}

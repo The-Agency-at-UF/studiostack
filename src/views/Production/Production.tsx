@@ -24,8 +24,9 @@ function useProductionClient(organizationId: string, person: string) {
 }
 export default function Production() {
   const session = useAppSession(), preview = session.mode === 'preview'
-  const [organizationId, setOrganizationId] = useState(session.organizations?.[0]?.id ?? '')
-  useEffect(() => { const id = new URLSearchParams(window.location.search).get('organization'); if (id && session.organizations?.some(o => o.id === id)) setOrganizationId(id) }, [session.organizations])
+  const [organizationId, setOrganizationId] = useState(session.selectedOrganizationId??session.organizations?.[0]?.id ?? '')
+  const appliedOrganizationLink=useRef(false)
+  useEffect(() => { const id = appliedOrganizationLink.current?null:new URLSearchParams(window.location.search).get('organization');appliedOrganizationLink.current=true; if (id && session.organizations?.some(o => o.id === id)) {setOrganizationId(id);session.setSelectedOrganizationId?.(id)} else if(session.selectedOrganizationId)setOrganizationId(session.selectedOrganizationId) }, [session.organizations,session.selectedOrganizationId,session.setSelectedOrganizationId])
   const [person, setPerson] = useState('preview-author')
   const { api, database, error: configurationError } = useProductionClient(organizationId, person)
   const [briefs, setBriefs] = useState<ProductionBrief[]>([]), [access, setAccess] = useState<ProductionAccess | null>(null)
@@ -84,7 +85,7 @@ export default function Production() {
   const selectView = (next: typeof tab) => { if (mayLeave()) { setTab(next); setSelected(null); setDirty(false); setSnapshot(null) } }
   return <main className="production-page">
     <header className="production-heading"><div><p className="production-eyebrow">Production workspace</p><h1>Briefs & production</h1><p>Plan the work, review the brief, and confirm the shoot.</p></div><div className="production-context">
-      {preview ? <label>Preview as<select value={person} disabled={busy} onChange={e => { if (mayLeave()) setPerson(e.target.value) }}>{previewPeople.map(p => <option value={p.id} key={p.id}>{p.displayName}</option>)}</select></label> : <label>Organization<select disabled={busy} value={organizationId} onChange={e => { if (mayLeave()) setOrganizationId(e.target.value) }}>{session.organizations?.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>}
+      {preview ? <label>Preview as<select value={person} disabled={busy} onChange={e => { if (mayLeave()) setPerson(e.target.value) }}>{previewPeople.map(p => <option value={p.id} key={p.id}>{p.displayName}</option>)}</select></label> : <label>Organization<select disabled={busy} value={organizationId} onChange={e => { if (mayLeave()) {setOrganizationId(e.target.value);session.setSelectedOrganizationId?.(e.target.value)} }}>{session.organizations?.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>}
     </div></header>
     {preview && <p className="production-info">Local preview. Changes stay in this browser; attachments and email delivery require sign-in.</p>}
     {!preview && session.getAccessToken && <EmailVerification getAccessToken={session.getAccessToken} />}

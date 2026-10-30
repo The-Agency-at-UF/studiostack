@@ -1,4 +1,5 @@
 import { productionClient } from './production'
+import type {PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
 import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiEquipment, ApiReservation, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
@@ -24,14 +25,21 @@ export function createDatabaseApiClient(options: ClientOptions) {
   async function request<T>(resource: string, method = 'GET', body?: unknown): Promise<T> {
     const token = await options.getAccessToken()
     if (!token || /\s/.test(token)) throw new Error('A real access token is required')
-    const response = await send(`${base.href.replace(/\/$/, '')}${resource}`, {
+    let response:Response
+    for(let attempt=0;;attempt++) {
+      response = await send(`${base.href.replace(/\/$/, '')}${resource}`, {
       method, headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}), cache: 'no-store', credentials: 'omit', redirect: 'error',
     })
+      if(method!=='GET'||![429,502,503,504].includes(response.status)||attempt>=3)break
+      await new Promise(resolve=>setTimeout(resolve,1000*2**attempt))
+    }
     if (!response.ok) throw new DatabaseApiClientError(response.status)
     return response.json() as Promise<T>
   }
   return {
+    pendingInvitations:()=>request<{items:PendingInvitation[]}>('/account/invitations'),
+    acceptInvitation:(id:string,organizationId:string)=>request<{organizationId:string}>(`/account/invitations/${encodeURIComponent(id)}/accept`,'POST',{organizationId}),
     accounts: (org:string) => accountClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`administration/${resource}`),method,body)),
     production: (org: string) => productionClient(<T>(resource: string, method?: string, body?: unknown) => request<T>(path(org, `production/${resource}`), method, body)),
     me: () => request<ApiUser>('/me'),

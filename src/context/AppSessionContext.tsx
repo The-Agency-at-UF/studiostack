@@ -20,6 +20,9 @@ export interface AppSession {
   authError?: string
   configured?: boolean
   organizations?: ApiOrganization[]
+  selectedOrganizationId?: string
+  setSelectedOrganizationId?: (id:string)=>void
+  refreshOrganizations?: ()=>Promise<void>
 }
 const AppSessionContext = createContext<AppSession | null>(null)
 

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Production from './Production'
@@ -7,7 +7,7 @@ vi.mock('next/dynamic',()=>({default:()=>()=> <p>Calendar surface</p>}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.org'})}))
 function renderPreview() { return render(<AppSessionProvider value={{email:'demo@example.org',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'preview'}}><Production /></AppSessionProvider>) }
 beforeEach(()=>{localStorage.clear();window.history.replaceState(null,'','/production/');vi.restoreAllMocks()})
-afterEach(()=>{cleanup();vi.unstubAllGlobals()})
+afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals()})
 describe('production workspace',()=>{
   it('supports a complete edit-only draft and submission with conditional fields',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
@@ -41,9 +41,11 @@ describe('production workspace',()=>{
     expect(screen.queryByRole('button',{name:'Access & notifications'})).not.toBeInTheDocument()
   })
   it('never substitutes preview records when an authenticated service request fails',async()=>{
+    vi.useFakeTimers()
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{}',{status:503})))
     render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'11111111-1111-4111-8111-111111111111',name:'Real org',slug:'real',role:'member'}]}}><Production /></AppSessionProvider>)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Production services are unavailable')
+    await act(async()=>{await vi.advanceTimersByTimeAsync(7100)})
+    expect(screen.getByText(/Production services are unavailable/)).toHaveAttribute('role','alert')
     expect(screen.queryByRole('button',{name:'Campus stories'})).not.toBeInTheDocument()
     expect(screen.queryByText(/Local preview/)).not.toBeInTheDocument()
   })
