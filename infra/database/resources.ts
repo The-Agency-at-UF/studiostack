@@ -56,7 +56,7 @@ export function infrastructure(masterSecrets: Record<'dev' | 'prod', string>, in
     } }
     if (env.name === 'dev' && devPhotos) {
       const policy = executionPolicy(runtimeName, [ref(secret)])
-      const photoPolicy = { Effect: 'Allow', Action: ['s3:GetObject', 's3:PutObject'], Resource: ['arn:aws:s3:::studio-stack-photos-dev/staging/*', 'arn:aws:s3:::studio-stack-photos-dev/photos/*'] }
+      const photoPolicy = { Effect: 'Allow', Action: ['s3:GetObject', 's3:PutObject'], Resource: ['arn:aws:s3:::studio-stack-photos-dev/staging/*', 'arn:aws:s3:::studio-stack-photos-dev/photos/*', 'arn:aws:s3:::studio-stack-photos-dev/briefs/*'] }
       resources[role] = { Type: 'AWS::IAM::Role', Properties: { RoleName: `${runtimeName}-role`, AssumeRolePolicyDocument: trust,
         Policies: [{ PolicyName: 'private-database-runtime', PolicyDocument: { ...policy, Statement: [...policy.Statement, photoPolicy] } }] } }
       resources.DevS3Egress = { Type: 'AWS::EC2::SecurityGroupEgress', Properties: { GroupId: env.group, IpProtocol: 'tcp', FromPort: 443, ToPort: 443, DestinationPrefixListId: devPhotos.prefixListId, Description: 'Dev private photos via S3 gateway endpoint' } }

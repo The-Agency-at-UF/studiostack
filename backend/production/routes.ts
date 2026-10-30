@@ -6,6 +6,8 @@ export const productionRoutes = [
   `GET ${prefix}/access`, `GET ${prefix}/settings`, `PATCH ${prefix}/settings`,
   `GET ${prefix}/briefs`, `POST ${prefix}/briefs`, `GET ${prefix}/briefs/{briefId}`, `PATCH ${prefix}/briefs/{briefId}`,
   `POST ${prefix}/briefs/{briefId}/actions`,
+  `POST ${prefix}/briefs/{briefId}/attachments`, `POST ${prefix}/briefs/{briefId}/attachments/{attachmentId}/complete`,
+  `GET ${prefix}/briefs/{briefId}/attachments/{attachmentId}`, `DELETE ${prefix}/briefs/{briefId}/attachments/{attachmentId}`,
 ]
 export function productionRequest(event: APIGatewayProxyEventV2WithJWTAuthorizer, body: () => unknown): ProductionRequest {
   const method = event.requestContext.http.method, path = event.routeKey.split(' ')[1].slice(prefix.length).split('/').filter(Boolean)
