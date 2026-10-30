@@ -33,7 +33,7 @@ export async function fixtures(event: { action: 'seed' | 'digest' | 'cleanup'; o
     if (ownership.rows.length !== 2) throw new Error('Fixture ownership mismatch')
     if (event.action === 'cleanup') {
       // Exact run-owned fixtures only, in FK order. Production is forbidden above.
-      for (const table of ['user_alerts','alert_preferences','equipment_events','equipment_checkouts','equipment_reports','organization_audit_events', 'organization_invitations', 'production_outbox', 'production_brief_events', 'production_attachments', 'production_briefs', 'production_settings', 'reservation_items', 'reservations', 'inventory', 'photo_uploads', 'user_group_memberships', 'user_groups', 'organization_memberships']) await client.query(`DELETE FROM app.${table} WHERE organization_id = ANY($1::uuid[])`, [ids])
+      for (const table of ['production_assignments','user_alerts','alert_preferences','equipment_events','equipment_checkouts','equipment_reports','organization_audit_events', 'organization_invitations', 'production_outbox', 'production_brief_events', 'production_attachments', 'production_briefs', 'production_settings', 'reservation_items', 'reservations','client_accounts', 'inventory', 'photo_uploads', 'user_group_memberships', 'user_groups', 'organization_memberships']) await client.query(`DELETE FROM app.${table} WHERE organization_id = ANY($1::uuid[])`, [ids])
       await client.query('DELETE FROM app.organizations WHERE id = ANY($1::uuid[])', [ids])
       await client.query('DELETE FROM app.users u WHERE cognito_issuer = $1 AND cognito_subject = ANY($2::text[]) AND NOT EXISTS (SELECT 1 FROM app.organization_memberships m WHERE m.user_id = u.id)', [issuer, event.subjects])
       return { ok: true, action: 'cleanup' }
