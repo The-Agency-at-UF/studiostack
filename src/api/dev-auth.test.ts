@@ -2,9 +2,10 @@
 import { it, expect } from 'vitest'
 import { devAuthInfrastructure } from '../../infra/database/dev-auth'
 
-it('keeps development login invite/admin-only and uses scoped public OAuth code clients', () => {
+it('allows email-verified development signup and uses scoped public OAuth code clients', () => {
   const template = devAuthInfrastructure()
-  expect(template.Resources.Pool.Properties.AdminCreateUserConfig.AllowAdminCreateUserOnly).toBe(true)
+  expect(template.Resources.Pool.Properties.AdminCreateUserConfig.AllowAdminCreateUserOnly).toBe(false)
+  expect(template.Resources.Pool.Properties.AutoVerifiedAttributes).toEqual(['email'])
   expect(template.Resources.Pool.Properties.UserPoolTier).toBe('LITE')
   expect(template.Resources.Pool.Properties.AccountRecoverySetting).toEqual({RecoveryMechanisms:[{Name:'verified_email',Priority:1}]})
   expect(template.Resources.Pool.Properties.Policies.PasswordPolicy).toEqual({MinimumLength:8,RequireUppercase:true,RequireLowercase:false,RequireNumbers:false,RequireSymbols:true})
