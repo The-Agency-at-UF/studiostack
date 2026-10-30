@@ -1,3 +1,4 @@
+import {feedbackRequest,feedbackTask} from '../email/feedback'
 import {alertOutboxRequest,alertOutboxTask} from '../alerts/outbox'
 import { outboxTask, parseOutboxRequest } from '../production/outbox'
 import {directoryRequest,directoryTask} from '../accounts/directory'
@@ -16,6 +17,7 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | R
   try {
     const config = databaseConfig()
     const database = createDatabase(config)
+    if ('task' in event && event.task==='email-feedback' && !('requestContext' in event) && !('version' in event)) {const input={...event};delete input.task;return database.withClient(client=>feedbackTask(client,feedbackRequest(input)))}
     if ('task' in event && event.task==='app-alert-outbox' && !('requestContext' in event) && !('version' in event)) {
       const input={...event};delete input.task
       return database.withClient(client=>alertOutboxTask(client,alertOutboxRequest(input)))
