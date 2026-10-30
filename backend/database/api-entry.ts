@@ -1,3 +1,4 @@
+import { outboxTask, parseOutboxRequest } from '../production/outbox'
 import { createBriefStorage } from '../production/storage'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
 import { createDatabase } from './client'
@@ -12,6 +13,10 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | R
   try {
     const config = databaseConfig()
     const database = createDatabase(config)
+    if ('task' in event && event.task === 'production-outbox' && !('requestContext' in event) && !('version' in event)) {
+      const request = { ...event }; delete request.task
+      return database.withClient(client => outboxTask(client, parseOutboxRequest(request)))
+    }
     // Preserve the existing IAM-only empty-payload connection diagnostic. Public
     // API Gateway calls always contain requestContext/version, regardless of body.
     if (Object.keys(event).length === 0) return createDatabaseHandler(database, config)()

@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { outboxTask } from '../../backend/production/outbox'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -214,19 +215,21 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(saved.events.find(e=>e.kind==='submitted')?.snapshot?.client).toBe('Restored client')
     const resubmitted=await command(member,saved,'submit');expect(resubmitted.submission).toBe(2)
   })
-  it('production: approval confirms shoot dates, records the reviewer',async()=>{
+  it('production: approval confirms shoot dates, records the reviewer, and enqueues exactly one email',async()=>{
     const b=await command(member,await draft(),'submit'),body={action:'approve',version:b.version,requestId:randomUUID()}
     await expect(production(member,{resource:'actions',method:'POST',briefId:b.id,body})).rejects.toMatchObject({status:403})
     const approved=await production(secondMember,{resource:'actions',method:'POST',briefId:b.id,body}) as ProductionBrief
     expect(approved.status).toBe('approved');expect(approved.shootStartsAt).toBeTruthy()
     expect(approved.events.at(-1)).toMatchObject({kind:'approved',actorId:profiles[secondMember.subject].id})
     expect(await production(secondMember,{resource:'actions',method:'POST',briefId:b.id,body})).toMatchObject({id:b.id,version:approved.version})
+    const jobs=await operator.query('SELECT payload FROM app.production_outbox WHERE brief_id=$1',[b.id]);expect(jobs.rows).toHaveLength(1);expect(jobs.rows[0].payload).toMatchObject({reviewer:'second-member',decision:'approved'})
   })
   it('production: only one concurrent leadership decision can succeed',async()=>{
     const b=await command(member,await draft(),'submit')
     const results=await Promise.allSettled([command(secondMember,b,'approve'),command(secondMember,b,'deny','Scope is not feasible.')])
     expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1)
     expect(results.filter(r=>r.status==='rejected')).toEqual([expect.objectContaining({reason:expect.objectContaining({status:409})})])
+    expect((await operator.query('SELECT id FROM app.production_outbox WHERE brief_id=$1',[b.id])).rows).toHaveLength(1)
   })
   it('production: month-only estimates need concrete dates at approval',async()=>{
     let b=await draft();const data={...b.data,fields:{...b.data.fields,proposedStart:'',proposedEnd:'',shootEstimate:'November'}}
@@ -255,6 +258,18 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await command(member,b,'submit')
     expect(await production(secondMember,{resource:'attachments',method:'GET',briefId:b.id,attachmentId})).toMatchObject({expiresIn:60})
     await expect(production(secondMember,{resource:'attachments',method:'POST',briefId:b.id,attachmentId,body:{}})).rejects.toMatchObject({status:403})
+  })
+  it('production: queue leasing avoids duplicate claims and acknowledges only the current lease',async()=>{
+    const connect=async()=>{const c=new pg.Client({connectionString});await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return c}
+    const a=await connect(),b=await connect()
+    try {
+      const [one,two]=await Promise.all([outboxTask(a,{action:'claim'}),outboxTask(b,{action:'claim'})]);const ids=[...(one.jobs??[]),...(two.jobs??[])].map(j=>j.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      const job=one.jobs?.[0]??two.jobs?.[0];expect(job).toBeTruthy()
+      expect(await outboxTask(a,{action:'ack',organizationId:job!.organizationId,id:job!.id,leaseToken:randomUUID(),outcome:'sent'})).toEqual({updated:false})
+      expect(await outboxTask(a,{action:'ack',organizationId:job!.organizationId,id:job!.id,leaseToken:job!.leaseToken,outcome:'sent'})).toEqual({updated:true})
+      expect(await outboxTask(a,{action:'ack',organizationId:job!.organizationId,id:job!.id,leaseToken:job!.leaseToken,outcome:'sent'})).toEqual({updated:false})
+    } finally {await a.end();await b.end()}
   })
   it('production: database row security and append-only grants protect decision history',async()=>{
     const c=new pg.Client({connectionString});try {await c.connect();await c.query('SET ROLE "studiostack_dev_app"');expect((await c.query('SELECT id FROM app.production_briefs')).rows).toEqual([])
