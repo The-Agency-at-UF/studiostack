@@ -20,10 +20,16 @@ export default function Administration({section}:{section:Section}) {
   const generation=useRef(0),mutation=useRef<{key:string;id:string}|null>(null)
   const load=useCallback(async()=>{if(!api)return;const g=generation.current,s=await api.settings();if(g!==generation.current)return;setSettings(s)
     if(!['admin','owner'].includes(s.role)){if(section==='teams'){const rows=await all(after=>database!.groups(org!,{limit:100,after}));if(g===generation.current)setDirectory(rows)}return}
-    if(section!=='settings'){const m=await all(api.members);if(g!==generation.current)return;setMembers(m)}
-    if(section==='people'){const rows=await all(api.invitations);if(g===generation.current)setInvitations(rows)}
-    if(section==='teams'){const rows=await all(api.teams);if(g===generation.current)setTeams(rows)}
-    if(section==='settings'){const rows=await all(api.activity);if(g===generation.current)setActivity(rows)}
+    if(section==='people'){
+      const [m,rows]=await Promise.all([all(api.members),all(api.invitations)])
+      if(g===generation.current){setMembers(m);setInvitations(rows)}
+    }else if(section==='teams'){
+      const [m,rows]=await Promise.all([all(api.members),all(api.teams)])
+      if(g===generation.current){setMembers(m);setTeams(rows)}
+    }else if(section==='settings'){
+      const rows=await all(api.activity)
+      if(g===generation.current)setActivity(rows)
+    }
   },[api,section,database,org])
   useEffect(()=>{const g=++generation.current;setSettings(null);setMembers([]);setTeams([]);setInvitations([]);setActivity([]);setDirectory([]);setError('');setNotice('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
   async function run(key:string,task:(client:AccountClient,id:string)=>Promise<unknown>){if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`;if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};setBusy(true);setError('');setNotice('');try{await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.');await session.refreshOrganizations?.();if(g===generation.current)await load()}catch(e){if(g===generation.current)setError(message(e))}finally{if(g===generation.current)setBusy(false)}}
