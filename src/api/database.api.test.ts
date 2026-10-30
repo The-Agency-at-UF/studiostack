@@ -6,7 +6,7 @@ import {accountRoutes} from '../../backend/accounts/routes'
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
-import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, databaseApiScope } from '../../backend/database/api'
+import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, databaseApiScope } from '../../backend/database/api'
 import { ApiError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
@@ -275,13 +275,22 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length + accountRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
     expect(serialized).toContain(`${config.apiId}/*/*/*`)
     expect(Object.values(template.Resources).filter((r:unknown)=>(r as {Type:string}).Type==='AWS::Lambda::Permission')).toHaveLength(1)
     expect(serialized).not.toMatch(/AWS::IAM::Role|AWS::Lambda::Url|ixzikwz8n5|rds!cluster|photos\/uploads/)
+  })
+  it('validates the signed-in bug report and strips unknown fields',async()=>{
+    const execute=vi.fn().mockResolvedValue({id:requestId}),handler=createDatabaseApiHandler({execute},config,()=>now)
+    const route='POST /organizations/{organizationId}/bug-reports'
+    const valid=event(route,{title:'Broken button',description:'First line\nSecond line',pagePath:'/inventory/',requestId})
+    expect((await handler(valid)).statusCode).toBe(200)
+    expect(execute).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({operation:'bugReport',organizationId:org,pagePath:'/inventory/'}))
+    expect((await handler(event(route,{title:'x',description:'x',pagePath:'//evil.example',requestId}))).statusCode).toBe(400)
+    expect((await handler(event(route,{title:'x',description:'x',pagePath:'/inventory/',requestId,userEmail:'other@example.test'}))).statusCode).toBe(400)
   })
   it('limits administration grants to reviewed columns and team links without DDL', async () => {
     const migration = (await loadMigrations()).find(value => value.name.startsWith('002_'))!

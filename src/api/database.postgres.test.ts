@@ -81,6 +81,16 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await repository.execute(member, { operation: 'organizations', page: listPage })).toMatchObject({ items: [{ id: organizationId }], nextCursor: null })
     expect(await repository.execute(suspended, { operation: 'organizations', page: listPage })).toMatchObject({ items: [] })
   })
+  it('persists submitted bug reports once and keeps other organizations out',async()=>{
+    const input={operation:'bugReport' as const,organizationId,title:'Test issue',description:'Details\nwith context',pagePath:'/inventory/',requestId:randomUUID()}
+    const first=await repository.execute(member,input) as {id:string}
+    expect(await repository.execute(member,input)).toEqual(first)
+    await expect(repository.execute(member,{...input,title:'Different'})).rejects.toMatchObject({status:409})
+    await expect(repository.execute(outsider,input)).rejects.toMatchObject({status:403})
+    const own=await repository.execute(member,{operation:'bugReports',organizationId,page:listPage}) as ApiPage<{id:string}>;expect(own.items).toEqual([expect.objectContaining({id:first.id})])
+    const other=await repository.execute(secondMember,{operation:'bugReports',organizationId,page:listPage}) as ApiPage<{id:string}>;expect(other.items).toEqual([])
+    const rows=await operator.query('SELECT count(*)::int AS count FROM app.bug_reports WHERE organization_id=$1 AND id=$2',[organizationId,first.id]);expect(rows.rows[0].count).toBe(1)
+  })
   it('persists admin inventory changes and refuses member writes', async () => {
     const item = await equipment()
     expect(await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { name: 'Updated camera' } })).toMatchObject({ id: item.id, name: 'Updated camera' })

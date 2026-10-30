@@ -5,7 +5,7 @@ import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
 import { productionClient } from './production'
 import type {PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
-import type { ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
+import type { ApiBugReport, ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
 // Coalesce only identical, currently pending reads. Never retain responses or
 // share requests between identities, URLs, or fetch transports.
@@ -99,6 +99,8 @@ export function createDatabaseApiClient(options: ClientOptions) {
     equipment:(org:string)=>equipmentClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`equipment/${resource}`),method,body)),
     accounts: (org:string) => accountClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`administration/${resource}`),method,body)),
     production: (org: string) => productionClient(<T>(resource: string, method?: string, body?: unknown) => request<T>(path(org, `production/${resource}`), method, body)),
+    bugReports:(org:string,page?:PageOptions)=>request<ApiPage<ApiBugReport>>(paged(path(org,'bug-reports'),page)),
+    submitBugReport:(org:string,input:{title:string;description:string;pagePath:string;requestId:string})=>request<{id:string}>(path(org,'bug-reports'),'POST',input),
     me: () => request<ApiUser>('/me'),
     register: (displayName?: string) => request<ApiUser>('/me', 'POST', displayName === undefined ? {} : { displayName }),
     organizations: (page?: PageOptions) => request<ApiPage<ApiOrganization>>(paged('/organizations', page)),

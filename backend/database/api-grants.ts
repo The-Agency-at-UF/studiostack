@@ -8,6 +8,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT SELECT,INSERT ON app.client_accounts,app.production_assignments TO ${role};
     GRANT UPDATE(name,archived_at,version) ON app.client_accounts TO ${role};
     GRANT DELETE ON app.production_assignments TO ${role};
+    GRANT SELECT,INSERT ON app.bug_reports TO ${role};
     GRANT USAGE ON SCHEMA app TO ${role};
     GRANT SELECT,INSERT ON app.email_feedback_events,app.email_suppressions TO ${role};
     GRANT SELECT,INSERT ON app.alert_preferences,app.user_alerts TO ${role};

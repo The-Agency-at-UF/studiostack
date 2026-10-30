@@ -8,6 +8,7 @@ export interface ApiMember extends ApiUser { role: ApiOrganization['role']; stat
 export interface ApiGroup { id: string; name: string }
 export interface ApiEquipment { id: string; equipmentCode: string; name: string; category: EquipmentCategory; status: EquipmentStatus; createdAt: string; photoId: string | null }
 export interface ApiReservation { readOnly?: boolean; clientAccountId?:string|null; id: string; userId: string; name: string; startsAt: string; endsAt: string; status: 'confirmed' | 'cancelled'; equipmentIds: string[]; createdAt: string }
+export interface ApiBugReport {id:string;title:string;description:string;pagePath:string;createdAt:string}
 export interface ApiPage<T> { items: T[]; nextCursor: string | null }
 export interface CreateEquipment { equipmentCode: string; name: string; category: EquipmentCategory; photoId?: string }
 export interface UpdateEquipment { name?: string; category?: EquipmentCategory; status?: EquipmentStatus; photoId?: string | null }
