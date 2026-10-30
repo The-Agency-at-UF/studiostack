@@ -17,6 +17,7 @@ This folder is the starting point for product, design, and historical StudioStac
 | [Historical documentation](historical/README.md) | You need context from earlier StudioStack teams. |
 | [Production workflow](production-workflow.md) | You need brief intake, review roles, calendar, attachments, decision notifications and dev deployment. |
 | [Production release](production-release.md) | You are preparing a separately approved production rollout. |
+| [Deployment 12](releases/2026-10-30-deployment-12.md) | You need what the October 30 UI release changed, how it was verified, and its rollback. |
 
 ## Documentation rules
 
