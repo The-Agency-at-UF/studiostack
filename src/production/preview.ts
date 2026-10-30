@@ -21,6 +21,7 @@ export function createPreviewProductionClient(person: string): ProductionClient 
     clients:async()=>({items:[],nextCursor:null}),
     createClient:async()=>{throw new Error('Manage client accounts in your signed-in organization')},
     updateClient:async()=>{throw new Error('Manage client accounts in your signed-in organization')},
+    assign:async()=>{throw new Error('Assign crew in your signed-in organization')},
     access: async () => access(load()), settings: async () => { const s = load(); if (!access(s).canAdminister) throw new Error('Administrator required'); return structuredClone(s.settings) },
     saveSettings: async input => { const state = load(); if (!access(state).canAdminister) throw new Error('Administrator required'); if (input.version !== state.settings.version) throw new Error('Settings changed. Reload first.'); state.settings = { ...input, version: input.version + 1 }; persist(state); return structuredClone(state.settings) },
     list: async () => { const s = load(); return { items: structuredClone(s.briefs.filter(b => readable(b, s))), nextCursor: null } },

@@ -208,6 +208,28 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(item),clientAccountId:c.id}}) as ApiReservation
     expect(r.clientAccountId).toBe(c.id)
   })
+  it('agency: leadership assigns active crew and commits one private alert per assignment',async()=>{
+    const b=await command(owner,await command(member,await draft(),'submit'),'approve')
+    const crewCommand={version:b.version,requestId:randomUUID(),assignments:[{userId:profiles[secondMember.subject].id,role:'Videographer'}]}
+    await expect(production(member,{resource:'crew',method:'POST',briefId:b.id,body:crewCommand})).rejects.toMatchObject({status:403})
+    await expect(production(owner,{resource:'crew',method:'POST',briefId:b.id,body:{...crewCommand,assignments:[{userId:profiles.outsider.id,role:'Crew'}]}})).rejects.toMatchObject({status:400})
+    const assigned=await production(owner,{resource:'crew',method:'POST',briefId:b.id,body:crewCommand}) as ProductionBrief
+    expect(assigned.crew).toEqual([expect.objectContaining({userId:profiles[secondMember.subject].id,role:'Videographer'})])
+    await production(owner,{resource:'crew',method:'POST',briefId:b.id,body:crewCommand})
+    const inbox=await alerts<ApiPage<AppAlert>>(secondMember),matches=inbox.items.filter(a=>a.targetPath===`/production/?brief=${b.id}`)
+    expect(matches).toHaveLength(1);expect(matches[0]).toMatchObject({kind:'production_assignment',emailStatus:'skipped'})
+    expect((await alerts<ApiPage<AppAlert>>(member)).items.some(a=>a.id===matches[0].id)).toBe(false)
+    expect(await production(secondMember,{resource:'briefs',method:'GET',briefId:b.id})).toMatchObject({id:b.id})
+    await production(owner,{resource:'crew',method:'POST',briefId:b.id,body:{version:assigned.version,requestId:randomUUID(),assignments:[]}})
+  })
+  it('agency: concurrent shoots cannot assign the same person twice',async()=>{
+    const a=await command(owner,await command(member,await draft(),'submit'),'approve'),b=await command(owner,await command(member,await draft(),'submit'),'approve')
+    const outcomes=await Promise.allSettled([a,b].map(brief=>production(owner,{resource:'crew',method:'POST',briefId:brief.id,body:{version:brief.version,requestId:randomUUID(),assignments:[{userId:profiles[secondMember.subject].id,role:'Crew'}]}})))
+    expect(outcomes.filter(r=>r.status==='fulfilled')).toHaveLength(1)
+    expect(outcomes.find(r=>r.status==='rejected')).toMatchObject({reason:{status:409}})
+    const winner=(outcomes.find(r=>r.status==='fulfilled') as PromiseFulfilledResult<ProductionBrief>).value
+    await production(owner,{resource:'crew',method:'POST',briefId:winner.id,body:{version:winner.version,requestId:randomUUID(),assignments:[]}})
+  })
   it('production: only admins assign active reviewers and ELT memberships',async()=>{
     const settings = {version:0,reviewerIds:[profiles[secondMember.subject].id],executiveIds:[],approvalConfirmsDates:true}
     await expect(production(member,{resource:'settings',method:'PATCH',body:settings})).rejects.toMatchObject({status:403})
