@@ -1,3 +1,4 @@
+import {emailConfigurationSet} from './email-configuration'
 import {execFile} from 'node:child_process'
 import {promisify} from 'node:util'
 import {mkdir,readFile,writeFile} from 'node:fs/promises'
@@ -23,7 +24,7 @@ async function main(){
   await execute('zip',['-q',zip,'index.js'],{cwd:directory})
   const key=`deployments/accounts/${Date.now()}/worker.zip`
   await aws('s3api','put-object',['--bucket','studio-stack-photos-dev','--key',key,'--body',zip,'--server-side-encryption','AES256'])
-  await applyStack('studiostack-dev-accounts',accountInfrastructure({environment:'dev',artifactBucket:'studio-stack-photos-dev',artifactKey:key,pool:metadata.auth.UserPoolId,client:metadata.auth.AppClientId,apiId:'vugf6fpl4k',authorizerId:routes.routes.AuthorizerId,sender,webUrl:web.origin}))
+  await applyStack('studiostack-dev-accounts',accountInfrastructure({environment:'dev',configurationSet:await emailConfigurationSet('dev'),artifactBucket:'studio-stack-photos-dev',artifactKey:key,pool:metadata.auth.UserPoolId,client:metadata.auth.AppClientId,apiId:'vugf6fpl4k',authorizerId:routes.routes.AuthorizerId,sender,webUrl:web.origin}))
   const result=await invoke<{claimed:number;sent:number;failed:number}>('studiostack-dev-accounts',{})
   await writeFile(`${devDirectory}/account-deployment.json`,JSON.stringify({worker:'studiostack-dev-accounts',sender,webUrl:web.origin,result,deployedAt:new Date().toISOString()},null,2))
   console.log('Development account delivery and verified invitation acceptance deployed')
