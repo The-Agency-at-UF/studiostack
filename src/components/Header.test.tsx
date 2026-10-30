@@ -8,6 +8,28 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('Header', () => {
+  it.each(['Home','Production','Gear calendar','Reservations','Reports','Teams','Alerts','Inventory','Statistics','Users','Organization'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
+    const user = userEvent.setup(); const logOut = vi.fn(); const view = render(<Header isAdmin logOut={logOut} />);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    const link = screen.getByRole('link', { name }); const clicked = vi.fn(); link.addEventListener('click', clicked);
+    fireEvent.pointerDown(link);
+    expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('link', { name })).toBe(link);
+    fireEvent.click(link); expect(clicked).toHaveBeenCalledOnce();
+    view.rerender(<Header isAdmin logOut={logOut} email="updated@example.test" />);
+    expect(screen.getByRole('link', { name })).toBe(link);
+  });
+
+  it('keeps mobile links mounted through header updates and closes the menu after navigation', async () => {
+    const user=userEvent.setup(), logOut=vi.fn();const view=render(<Header isAdmin={false} logOut={logOut} />);
+    await user.click(screen.getByRole('button',{name:'Toggle navigation'}));
+    const mobile=view.container.querySelector('.mobile-nav-links')!;
+    const link=Array.from(mobile.querySelectorAll('a')).find(a=>a.textContent==='Reports')!;
+    view.rerender(<Header isAdmin={false} logOut={logOut} email="member@example.test" />);
+    expect(link.isConnected).toBe(true);expect(view.container.querySelector('.mobile-nav-links')).toBe(mobile);
+    await user.click(link);expect(view.container.querySelector('.mobile-nav-links')).toBeNull();expect(logOut).not.toHaveBeenCalled();
+  });
+
   it('renders StudioStack logo', () => {
     render(<Header isAdmin={false} logOut={() => {}} />);
     expect(screen.getByAltText('StudioStack')).toBeInTheDocument();
@@ -45,7 +67,7 @@ describe('Header', () => {
     await user.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('preview@example.com')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'My reservations' })).toHaveFocus();
+    expect(screen.getByRole('link', { name: 'Account & workspaces' })).toHaveFocus();
     expect(screen.getByRole('link', { name: 'Organization settings' })).toHaveAttribute('href', '/organization/settings');
     await user.keyboard('{Escape}');
     expect(trigger).toHaveFocus();
@@ -100,5 +122,22 @@ describe('Header', () => {
     await user.click(screen.getByRole('button', { name: 'Account' }));
     fireEvent.blur(screen.getByRole('link', { name: 'My reservations' }), { relatedTarget: screen.getByRole('link', { name: 'Book gear' }) });
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
+  });
+});
+
+describe('Workspace drawer accessibility', () => {
+  it('contains keyboard focus, dismisses with Escape, and restores its trigger', async () => {
+    const user=userEvent.setup();render(<Header isAdmin logOut={vi.fn()}/>);
+    const trigger=screen.getByRole('button',{name:'Toggle navigation'});
+    await user.click(trigger);
+    expect(screen.getByRole('dialog',{name:'Workspace navigation'})).toHaveAttribute('aria-modal','true');
+    const close=screen.getByRole('button',{name:'Close navigation drawer'});
+    expect(close).toHaveFocus();
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(screen.getByRole('button',{name:'Account'})).toHaveFocus();
+    await user.keyboard('{Tab}');expect(close).toHaveFocus();
+    await user.keyboard('{Escape}');expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded','false');
+    expect(document.body.style.overflow).not.toBe('hidden');
   });
 });
