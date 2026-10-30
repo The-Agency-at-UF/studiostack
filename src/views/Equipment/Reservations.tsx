@@ -4,21 +4,53 @@ import type {FormEvent} from 'react'
 import Link from 'next/link'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReservation,EquipmentAvailability} from '../../types/equipment'
+import {getCached,setCached,invalidateCache} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 export const localTime=(iso:string)=>{const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 export const reservationLabel=(r:EquipmentReservation)=>r.status==='cancelled'?'Cancelled':r.fulfillmentStatus==='checked_out'?'Checked out':r.fulfillmentStatus==='returned'?'Returned':'Reserved'
 const dateLabel=(iso:string)=>new Date(iso).toLocaleString()
+type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[] }
 export default function LiveReservations({create=false}:{create?:boolean}){const context=useLiveOrganization();return context?<ReservationWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id} create={create}/>:<main className="administration"><h1>Reservations</h1><p>Select an active organization in your account to reserve equipment.</p></main>}
 function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organizationId:string;create:boolean}) {
-  const [rows,setRows]=useState<EquipmentReservation[]>([]),[inventory,setInventory]=useState<EquipmentRecord[]>([]),[maxDays,setMaxDays]=useState(7),[selected,setSelected]=useState(''),[editing,setEditing]=useState(create),[adding,setAdding]=useState(create),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[filter,setFilter]=useState('active')
-  const load=useCallback(async()=>{const settings=await api.accounts(organizationId).settings(),items=await allPages(after=>api.inventory(organizationId,{limit:100,after})),bookings=await allPages(after=>api.reservations(organizationId,{limit:100,after}));return {settings,items,bookings}},[api,organizationId])
-  const accept=useCallback((value:Awaited<ReturnType<typeof load>>)=>{setRows(value.bookings);setInventory(value.items);setMaxDays(value.settings.reservationDays)},[])
+  const cacheKey = `reservations:${organizationId}`
+  const cached = getCached<CachedReservations>(cacheKey)
+  const [rows,setRows]=useState<EquipmentReservation[]>(cached?.bookings ?? [])
+  const [inventory,setInventory]=useState<EquipmentRecord[]>(cached?.items ?? [])
+  const [maxDays,setMaxDays]=useState(cached?.settings.reservationDays ?? 7)
+  const [selected,setSelected]=useState('')
+  const [editing,setEditing]=useState(create)
+  const [adding,setAdding]=useState(create)
+  const [loading,setLoading]=useState(!cached)
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const [notice,setNotice]=useState('')
+  const [filter,setFilter]=useState('active')
+  const load=useCallback(async()=>{
+    const [settingsRes, itemsRes, bookingsRes] = await Promise.allSettled([
+      api.accounts(organizationId).settings(),
+      allPages(after=>api.inventory(organizationId,{limit:100,after})),
+      allPages(after=>api.reservations(organizationId,{limit:100,after}))
+    ])
+    if (bookingsRes.status === 'rejected') throw bookingsRes.reason
+    if (itemsRes.status === 'rejected') throw itemsRes.reason
+    return {
+      settings: settingsRes.status === 'fulfilled' ? settingsRes.value : { reservationDays: 7 },
+      items: itemsRes.status === 'fulfilled' ? itemsRes.value : [],
+      bookings: bookingsRes.status === 'fulfilled' ? bookingsRes.value : []
+    }
+  },[api,organizationId])
+  const accept=useCallback((value:Awaited<ReturnType<typeof load>>)=>{
+    setRows(value.bookings)
+    setInventory(value.items)
+    setMaxDays(value.settings.reservationDays)
+    setCached(cacheKey, value)
+  },[cacheKey])
   useEffect(()=>{let active=true;load().then(value=>{if(active){accept(value);const id=new URLSearchParams(window.location.search).get('reservation');if(id&&value.bookings.some(r=>r.id===id))setSelected(id)}}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
   const current=rows.find(r=>r.id===selected),visible=rows.filter(r=>filter==='all'||r.status==='confirmed'&&r.fulfillmentStatus!=='returned'&&(filter!=='overdue'||r.fulfillmentStatus==='checked_out'&&Date.parse(r.endsAt)<Date.now())).sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt))
   async function refresh(){setError('');setLoading(true);try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
-  async function saved(row:EquipmentReservation){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);setSelected(row.id);setEditing(false);setAdding(false);setNotice('Reservation saved.');try{accept(await load())}catch(e){setError(equipmentError(e))}}
-  async function cancel(){if(!current||busy)return;setBusy(true);setError('');try{await saved(await api.cancelReservation(organizationId,current.id));setNotice('Reservation cancelled.')}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
+  async function saved(row:EquipmentReservation){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);setSelected(row.id);setEditing(false);setAdding(false);setNotice('Reservation saved.');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
+  async function cancel(){if(!current||busy)return;setBusy(true);setError('');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{await saved(await api.cancelReservation(organizationId,current.id));setNotice('Reservation cancelled.')}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
   return <main className="administration"><header><div><p className="administration-eyebrow">Equipment bookings</p><h1>Reservations</h1><p>Book equipment, adjust dates and follow pickup and return.</p></div><div className="administration-actions"><button disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button onClick={()=>{setAdding(true);setEditing(true);setSelected('');setNotice('')}}>New reservation</button></div></header>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<p role="status">Loading reservations…</p>}
     <label className="equipment-filter">Show<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Active bookings</option><option value="overdue">Overdue checkouts</option><option value="all">All history</option></select></label>
