@@ -6,6 +6,7 @@ import {accountRoutes,accountRequest} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
 import { ApiError, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
+import { DatabaseUnavailableError } from './client'
 
 export const databaseApiRoutes = [
   'GET /me', 'POST /me', 'GET /organizations',
@@ -113,6 +114,18 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
     } catch (error) {
       if (error instanceof ApiError) return respond(error.status, { error: error.message })
       // Never return raw SQL, credentials, AWS details, or customer data in errors.
+      if (error instanceof DatabaseUnavailableError && error.diagnosticStage === 'connection') {
+        return {
+          statusCode: 503,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+            'Retry-After': '2'
+          },
+          body: JSON.stringify({ error: 'Database connection is initializing; please retry shortly' })
+        }
+      }
       return respond(503, { error: 'Database API temporarily unavailable' })
     }
   }

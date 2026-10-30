@@ -12,11 +12,29 @@ import { apiConfiguration, createDatabaseApiHandler } from './api'
 import { createApiRepository } from './api-repository'
 import { createPhotoStorage } from './photo-storage'
 
+let cachedRuntime: {
+  config: ReturnType<typeof databaseConfig>
+  database: ReturnType<typeof createDatabase>
+  apiHandler: ReturnType<typeof createDatabaseApiHandler>
+  databaseHandler: ReturnType<typeof createDatabaseHandler>
+} | undefined
+
+function getRuntime() {
+  if (!cachedRuntime) {
+    const config = databaseConfig()
+    const database = createDatabase(config)
+    const repository = createApiRepository(database, Date.now, createPhotoStorage(), createBriefStorage())
+    const apiHandler = createDatabaseApiHandler(repository, apiConfiguration())
+    const databaseHandler = createDatabaseHandler(database, config)
+    cachedRuntime = { config, database, apiHandler, databaseHandler }
+  }
+  return cachedRuntime
+}
+
 /** Reuses the private database Lambda with environment-scoped service permissions. */
 export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | Record<string, never> = {}) {
   try {
-    const config = databaseConfig()
-    const database = createDatabase(config)
+    const { database, apiHandler, databaseHandler } = getRuntime()
     if ('task' in event && event.task==='email-feedback' && !('requestContext' in event) && !('version' in event)) {const input={...event};delete input.task;return database.withClient(client=>feedbackTask(client,feedbackRequest(input)))}
     if ('task' in event && event.task==='app-alert-outbox' && !('requestContext' in event) && !('version' in event)) {
       const input={...event};delete input.task
@@ -36,8 +54,8 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | R
     }
     // Preserve the existing IAM-only empty-payload connection diagnostic. Public
     // API Gateway calls always contain requestContext/version, regardless of body.
-    if (Object.keys(event).length === 0) return createDatabaseHandler(database, config)()
-    return createDatabaseApiHandler(createApiRepository(database, Date.now, createPhotoStorage(), createBriefStorage()), apiConfiguration())(event as APIGatewayProxyEventV2WithJWTAuthorizer)
+    if (Object.keys(event).length === 0) return databaseHandler()
+    return apiHandler(event as APIGatewayProxyEventV2WithJWTAuthorizer)
   } catch {
     return { statusCode: 503, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify({ error: 'Database API temporarily unavailable' }) }
   }

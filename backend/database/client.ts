@@ -41,9 +41,18 @@ async function credentials(config: DatabaseConfig, refresh: boolean): Promise<Da
   } finally { service.destroy() }
 }
 
+const certificates = new Map<string, string>()
+async function cachedCertificate(path: string): Promise<string> {
+  const cached = certificates.get(path)
+  if (cached) return cached
+  const cert = await readFile(path, 'utf8')
+  certificates.set(path, cert)
+  return cert
+}
+
 const defaultDependencies: DatabaseDependencies = {
   credentials,
-  certificate: path => readFile(path, 'utf8'),
+  certificate: cachedCertificate,
   client: config => new pg.Client(config),
 }
 
@@ -62,6 +71,7 @@ function connectionOptions(config: DatabaseConfig, auth: DatabaseCredentials, ca
     options: '-c idle_in_transaction_session_timeout=20000',
     application_name: `studiostack-${config.environment}-${purpose}`,
     keepAlive: true,
+    keepAliveInitialDelayMillis: 1000,
   }
 }
 
@@ -77,14 +87,26 @@ export function createDatabase(config: DatabaseConfig, deps: DatabaseDependencie
       stage = 'connection'
       client = deps.client(connectionOptions(config, auth, ca, purpose))
       try { await client.connect() } catch (error) {
-        // Retry ONLY establishment after password rotation. Never replay SQL or
-        // callbacks: retrying a write could duplicate a reservation or checkout.
-        if ((error as { code?: string })?.code !== '28P01') throw error
-        await client.end().catch(() => undefined)
-        client = undefined
-        auth = parseCredentials(await deps.credentials(config, true))
-        client = deps.client(connectionOptions(config, auth, ca, purpose))
-        await client.connect()
+        const code = (error as { code?: string })?.code
+        if (code === '28P01') {
+          // Retry ONLY establishment after password rotation. Never replay SQL or
+          // callbacks: retrying a write could duplicate a reservation or checkout.
+          await client.end().catch(() => undefined)
+          client = undefined
+          auth = parseCredentials(await deps.credentials(config, true))
+          client = deps.client(connectionOptions(config, auth, ca, purpose))
+          await client.connect()
+        } else if (code && ['57P03', 'ECONNRESET', 'ECONNREFUSED'].includes(code)) {
+          // Aurora Serverless resume or transient database startup connection failure.
+          // Retry establishment once before executing any SQL or callbacks.
+          await client.end().catch(() => undefined)
+          client = undefined
+          await new Promise(r => setTimeout(r, 1000))
+          client = deps.client(connectionOptions(config, auth, ca, purpose))
+          await client.connect()
+        } else {
+          throw error
+        }
       }
       stage = 'operation'
       return await operation(client)
