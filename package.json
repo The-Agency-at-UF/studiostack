@@ -7,7 +7,7 @@
     "predev": "tsx scripts/prepare-photo-codecs.ts",
     "dev": "next dev --hostname 0.0.0.0 --port 5174",
     "build": "next build",
-    "prebuild": "tsx scripts/prepare-photo-codecs.ts",
+    "prebuild": "tsx scripts/clean-static-output.ts && tsx scripts/prepare-photo-codecs.ts",
     "start": "next start --hostname 0.0.0.0 --port 5174",
     "lint": "eslint .",
     "test": "vitest run",
@@ -28,7 +28,8 @@
     "test:database:postgres": "node --import=tsx scripts/test-database-api-postgres.ts",
     "production:deploy:dev": "node --import=tsx scripts/deploy-dev-api.ts --apply-dev",
     "production:web:dev": "node --import=tsx scripts/deploy-production-web.ts --apply-dev",
-    "production:notifications:dev": "node --import=tsx scripts/deploy-production-notifications.ts --apply-dev"
+    "production:notifications:dev": "node --import=tsx scripts/deploy-production-notifications.ts --apply-dev",
+    "postbuild": "tsx scripts/prepare-static-routes.ts"
   },
   "dependencies": {
     "@aws-amplify/auth": "^6.21.2",
