@@ -1,5 +1,6 @@
 import type { Reservation } from '../../types/models'
 import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { db, getDocs, collection } from '../../data/localStore';
 import StudentDash from "../../components/StudentDash";
 import AdminDash from "../../components/AdminDash";
@@ -8,6 +9,8 @@ import UpcomingReservationLabel from '../../components/UpcomingReservationLabel'
 function Dashboard({ isAdmin }: { isAdmin: boolean }) {
   const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([]);
   const [noReservations, setNoReservations] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const currentDate = new Date();
 
   useEffect(() => {
@@ -41,7 +44,10 @@ function Dashboard({ isAdmin }: { isAdmin: boolean }) {
 
       } catch (error) {
         console.log("Error fetching upcoming reservations", error);
+        setFetchError('Unable to load upcoming reservations.');
         setNoReservations(true);
+      } finally {
+        setLoading(false);
       }
     };
     fetchUpcomingReservations()
@@ -77,24 +83,32 @@ function Dashboard({ isAdmin }: { isAdmin: boolean }) {
         <section className="dashboard-panel bookings-panel">
           <div className="section-heading">
             <div><p className="eyebrow">Next up</p><h2>Upcoming Reservations</h2></div>
-            <a href="/reservations">View all <span>↗</span></a>
+            <Link href="/reservations">View all <span>↗</span></Link>
           </div>
-          { noReservations ?
+          { loading ? (
+            <div className="empty-state"><p role="status">Loading reservations…</p></div>
+          ) : fetchError ? (
+            <div className="empty-state"><p role="alert">{fetchError}</p></div>
+          ) : noReservations ? (
             <div className="empty-state"><span>01</span><p>You have no upcoming reservations!</p></div>
-          :
+          ) : (
             <div className='reservation-strip'>
               {upcomingReservations.map((reservation, index) => (
                   <UpcomingReservationLabel key={index} reservation={reservation} backgroundColor={'#111111'}/>
               ))}
             </div>
-          }
+          )}
         </section>
 
         <section className="dashboard-panel equipment-panel">
         <div className="section-heading"><div><p className="eyebrow">In your care</p><h2>Reserved Equipment</h2></div></div>
-        { noReservations ?
+        { loading ? (
+          <div className="empty-state"><p role="status">Loading equipment…</p></div>
+        ) : fetchError ? (
+          <div className="empty-state"><p role="alert">{fetchError}</p></div>
+        ) : noReservations ? (
           <div className="empty-state"><span>00</span><p>You have no equipment reserved!</p></div>
-        :
+        ) : (
         <div className="equipment-table">
           <div className="equipment-row equipment-row-head">
             <div>Item</div>
@@ -115,7 +129,7 @@ function Dashboard({ isAdmin }: { isAdmin: boolean }) {
             ))}
           </ul>
         </div>
-        }
+        )}
         </section>
       </div>
     </main>
