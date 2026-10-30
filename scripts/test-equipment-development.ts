@@ -40,9 +40,9 @@ async function main(){
   await call(alerts+'/preferences','PATCH',member,{equipmentEmail:true,version:0})
   const comment={message:'Synthetic repair update.',requestId:randomUUID()};await call(gear+`/reports/${report.id}/activity`,'POST',owner,comment);await call(gear+`/reports/${report.id}/activity`,'POST',owner,comment)
   const memberAlerts=await call<{items:AppAlert[]}>(alerts,'GET',member),notice=memberAlerts.items.find(a=>a.targetPath.endsWith(report.id))!
-  if(!notice||notice.emailStatus!=='pending')throw new Error('Opt-in report alert was not queued')
+  if(!notice||!['pending','sending','sent'].includes(notice.emailStatus))throw new Error('Opt-in report alert has unexpected delivery state ('+(notice?.emailStatus??'missing')+')')
   await call(alerts+`/${notice.id}/read`,'POST',owner,{},404);await call(alerts+`/${notice.id}/read`,'POST',member,{})
-  const delivery=await invoke<{alerts:{failed:number;sent:number}}>('studiostack-dev-production-notifications',{});if(delivery.alerts.failed||delivery.alerts.sent<1)throw new Error('Simulator equipment email delivery failed')
+  if(notice.emailStatus==='pending')await invoke('studiostack-dev-production-notifications',{});let delivered=notice.emailStatus==='sent';for(let attempt=0;!delivered&&attempt<15;attempt++){await pause(1000);const page=await call<{items:AppAlert[]}>(alerts,'GET',member),state=page.items.find(a=>a.id===notice.id)?.emailStatus;if(state==='sent'){delivered=true;break}if(['failed','uncertain','suppressed'].includes(state??''))throw new Error('Simulator equipment email failed ('+state+')')}if(!delivered)throw new Error('Simulator equipment email did not complete')
   const resolve={status:'resolved',resolution:'Fixture mount repaired.',restoreService:true,condition:'good',version:report.version,requestId:randomUUID()}
   await call(gear+`/reports/${report.id}`,'PATCH',member,resolve,403);await call(gear+`/reports/${report.id}`,'PATCH',owner,resolve)
   const restored=await call<{items:EquipmentRecord[]}>(org+'/inventory','GET',member);if(restored.items.find(i=>i.id===item.id)?.status!=='available')throw new Error('Resolution did not restore equipment')
