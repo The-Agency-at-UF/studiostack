@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
 import { AppSessionProvider } from '../context/AppSessionContext'
@@ -170,10 +169,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : mode === 'signed-out' ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : <>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} />
-        <aside className="session-banner"><span>{mode === 'authenticated' ? 'Signed in. Production, inventory and administration use live organization records. Gear bookings and reports are still in preview.' : 'Preview mode — no real account or cloud data.'}</span>
-          <Link href="/login/">{mode === 'authenticated' ? 'Your account' : 'Sign in'}</Link></aside>
-        {mode==='authenticated'&&organizations.length>0&&pathname.replace(/\/$/,'')!=='/production'&&<label className="workspace-selector">Organization<select value={selectedOrganization?.id??''} onChange={e=>setSelectedOrganizationId(e.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label>}
-        <div className="app-content">{children}</div>
+        <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
         <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><BugReportPopup userEmail={email} /></footer>
       </>}
   </AppSessionProvider>
