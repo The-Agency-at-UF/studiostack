@@ -42,6 +42,11 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .ws-status-success { background:var(--success-soft); color:var(--success); }
 .ws-status-warning { background:var(--warning-soft); color:var(--warning); }
 .ws-status-danger { background:var(--danger-soft); color:var(--danger); }
+.app-content#workspace-content .live-dashboard.administration { padding:var(--space-8); }
+.live-dashboard .equipment-summary { margin:var(--space-6) 0; padding:var(--space-5) 0; gap:var(--space-6); }
+.live-dashboard .equipment-summary dd { font-size:var(--text-xl); font-weight:var(--weight-bold); letter-spacing:normal; font-variant-numeric:tabular-nums; margin-top:var(--space-2); }
+.live-dashboard .equipment-summary dt,.live-dashboard .equipment-summary small { font-size:var(--text-xs); }
+.live-dashboard .equipment-summary div { min-width:120px; }
 .app-content#workspace-content .administration section { border-color:var(--line); }
 .app-content#workspace-content :is(.administration,.production-page) :is(table,.production-table) { font-size:var(--text-sm); border-collapse:collapse; width:100%; text-align:left; }
 .app-content#workspace-content :is(.administration,.production-page) :is(th,td) { padding:var(--space-4) var(--space-3); border-bottom:1px solid var(--line); vertical-align:middle; }
@@ -50,12 +55,18 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) td small { font-size:var(--text-xs); color:var(--muted); }
 .app-content#workspace-content .administration :is(.administration-table,.equipment-table-scroll) { overflow-x:auto; }
 .administration td a { color:var(--accent); }
+.app-content#workspace-content .equipment-overdue { color:var(--danger)!important; }
+.app-content#workspace-content .equipment-empty { color:var(--muted); font-size:var(--text-sm); }
+.app-content#workspace-content .section-inline-error { border:0; border-radius:var(--radius-control); background:var(--danger-soft); }
+.app-content#workspace-content .section-inline-error p { color:var(--danger); }
 .administration-actions { flex-wrap:wrap; }
 @media(max-width:1199px) {
 }
 @media(max-width:767px) {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page),.app-content#workspace-content .live-dashboard.administration { padding:var(--space-6) var(--space-4); }
   .ws-page-header,.administration header,.production-heading { flex-direction:column; }
+  .live-dashboard .equipment-summary { display:grid; grid-template-columns:1fr 1fr; }
+  .live-dashboard .equipment-summary div { min-width:0; }
   .ws-actions { width:100%; }
   .ws-actions .ws-button { flex:1; }
   .app-content#workspace-content :is(.administration,.production-page) :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { font-size:var(--text-base); }
