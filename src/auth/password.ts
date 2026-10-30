@@ -1,10 +1,23 @@
 import {Amplify} from '@aws-amplify/core'
-import {signIn,confirmSignIn,signUp,confirmSignUp,resendSignUpCode,resetPassword,confirmResetPassword,fetchAuthSession,type SignInOutput} from '@aws-amplify/auth'
+import {signIn,confirmSignIn,signUp,confirmSignUp,resendSignUpCode,resetPassword,confirmResetPassword,fetchAuthSession,signOut as amplifySignOut,type SignInOutput} from '@aws-amplify/auth'
 import {cognitoUserPoolsTokenProvider} from '@aws-amplify/auth/cognito'
 import {volatileAuthStorage} from './volatileStorage'
 import {acceptPasswordTokens,authConfiguration,type AuthConfig,type SignedInUser} from './cognito'
 let configured=''
 function configure(config:AuthConfig){const key=`${config.issuer}:${config.clientId}`;if(configured===key)return;const auth={Cognito:{userPoolId:config.issuer.split('/').at(-1)!,userPoolClientId:config.clientId}};cognitoUserPoolsTokenProvider.setKeyValueStorage(volatileAuthStorage);cognitoUserPoolsTokenProvider.setAuthConfig(auth);Amplify.configure({Auth:auth},{Auth:{tokenProvider:cognitoUserPoolsTokenProvider}});configured=key}
+let restoring:Promise<SignedInUser|null>|undefined
+let signingOut=false
+export async function restorePasswordSession(config=authConfiguration(),forceRefresh=false){
+ if(signingOut)return null
+ if(restoring)return restoring
+ configure(config)
+ restoring=(async()=>{const {tokens}=await fetchAuthSession(forceRefresh?{forceRefresh:true}:undefined);if(!tokens?.accessToken||!tokens.idToken)return null;return acceptPasswordTokens(tokens.accessToken.toString(),tokens.idToken.toString(),config)})()
+ try{return await restoring}finally{restoring=undefined}
+}
+export async function signOutPasswordSession(config=authConfiguration()){
+ signingOut=true
+ try{await restoring?.catch(()=>null);configure(config);await amplifySignOut()}finally{signingOut=false}
+}
 export type PasswordStep={step:'new-password'}|{step:'reset-password'}|{step:'confirm-sign-up'}|{step:'done';user:SignedInUser}
 async function result(output:SignInOutput,config:AuthConfig):Promise<PasswordStep>{
   if(output.isSignedIn){const {tokens}=await fetchAuthSession();if(!tokens?.accessToken||!tokens.idToken)throw new Error('Invalid sign-in response');return {step:'done',user:await acceptPasswordTokens(tokens.accessToken.toString(),tokens.idToken.toString(),config)}}

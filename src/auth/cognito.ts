@@ -9,8 +9,24 @@ type SigningKey = { kid?: string; kty?: string; use?: string; alg?: string; n?: 
 type Pending = { state: string; nonce: string; verifier: string; createdAt: number; redirectUri: string }
 const pendingKey = 'studiostack.oauth.pending'
 const previewKey = 'studiostack.preview'
+const sessionTokenKey = 'studiostack.session.token'
+const sessionUserKey = 'studiostack.session.user'
 let memory: { token: string; user: SignedInUser } | null = null
 let finishing: Promise<SignedInUser> | undefined
+
+function readStorage(storage?: Storage, key = ''): string | null {
+  try { return storage?.getItem(key) ?? null } catch { return null }
+}
+function writeStorage(storage: Storage | undefined, key: string, value: string) {
+  try { storage?.setItem(key, value) } catch { /* ignore storage errors */ }
+}
+function removeStorage(storage: Storage | undefined, key: string) {
+  try { storage?.removeItem(key) } catch { /* ignore storage errors */ }
+}
+
+export function getStoredSession(): { token: string; user: SignedInUser } | null {
+  return memory && memory.user.expiresAt > Date.now() + 10_000 ? memory : null
+}
 
 export function authConfiguration(origin = window.location.origin): AuthConfig {
   const local = origin === 'http://localhost:5174'
@@ -92,25 +108,95 @@ async function complete(config: AuthConfig, url: string): Promise<SignedInUser> 
     throw error instanceof Error && /^(This sign-in|Invalid sign-in|Sign-in |Could not verify)/.test(error.message) ? error : new Error('Sign-in is temporarily unavailable. Please try again.')
   } finally { sessionStorage.removeItem(pendingKey) }
 }
+export class AuthenticationUnavailable extends Error {constructor(){super('Authentication service is unavailable. Try again when connected.')}}
+/** Drop verified in-memory tokens without discarding a recoverable SDK session. */
+export function forgetVerifiedSession(){memory=null}
+
+interface JwksCacheEntry {
+  keys: SigningKey[]
+  fetchedAt: number
+}
+const jwksCache = new Map<string, JwksCacheEntry>()
+const JWKS_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
+export function clearJwksCache(issuer?: string) {
+  if (issuer) jwksCache.delete(issuer)
+  else jwksCache.clear()
+}
+
+function extractKid(token: string): string | undefined {
+  try {
+    const segments = token.split('.')
+    if (segments.length !== 3 || token.length > 16_000) return undefined
+    const header = JSON.parse(new TextDecoder().decode(bytes(segments[0]))) as { kid?: string; alg?: string }
+    return typeof header.kid === 'string' && header.alg === 'RS256' ? header.kid : undefined
+  } catch {
+    return undefined
+  }
+}
+
+async function fetchSigningKeys(config: AuthConfig): Promise<SigningKey[]> {
+  let jwks: Response
+  try {
+    jwks = await fetch(`${config.issuer}/.well-known/jwks.json`, {
+      credentials: 'omit',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch {
+    throw new AuthenticationUnavailable()
+  }
+  if (!jwks.ok) throw new AuthenticationUnavailable()
+  const { keys } = await jwks.json() as { keys?: SigningKey[] }
+  if (!Array.isArray(keys) || keys.length > 10) throw new Error('Invalid sign-in response.')
+  jwksCache.set(config.issuer, { keys, fetchedAt: Date.now() })
+  return keys
+}
+
+async function getSigningKeys(config: AuthConfig, requiredKids: (string | undefined)[]): Promise<SigningKey[]> {
+  const cached = jwksCache.get(config.issuer)
+  const validKids = requiredKids.filter((k): k is string => Boolean(k))
+  const hasAllKids = validKids.length > 0 && validKids.every(kid => cached?.keys.some(k => k.kid === kid))
+  if (cached && hasAllKids && Date.now() - cached.fetchedAt < JWKS_CACHE_TTL_MS) {
+    return cached.keys
+  }
+  return fetchSigningKeys(config)
+}
+
 /** Validates both SDK and OAuth tokens against the pool signing keys before use. */
 export async function acceptPasswordTokens(accessTokenValue:string,idTokenValue:string,config:AuthConfig,nonce?:string):Promise<SignedInUser>{
+  const accessKid = extractKid(accessTokenValue)
+  const idKid = extractKid(idTokenValue)
+  const keys = await getSigningKeys(config, [accessKid, idKid])
   try{
-    const jwks=await fetch(`${config.issuer}/.well-known/jwks.json`,{credentials:'omit',redirect:'error',signal:AbortSignal.timeout(15000)})
-    if(!jwks.ok)throw new Error('Could not verify sign-in. Please try again.')
-    const {keys}=await jwks.json() as {keys?:SigningKey[]}
-    if(!Array.isArray(keys)||keys.length>10)throw new Error('Invalid sign-in response.')
     const [access,id]=await Promise.all([verify(accessTokenValue,config,keys,'access'),verify(idTokenValue,config,keys,'id',nonce)])
     if(access.sub!==id.sub)throw new Error('Invalid sign-in response.')
     const label=id.email_verified===true&&typeof id.email==='string'?id.email:typeof id.name==='string'?id.name:typeof id['cognito:username']==='string'?id['cognito:username']:'StudioStack member'
     const user={subject:access.sub as string,label:label.slice(0,254),expiresAt:Number(access.exp)*1000}
-    memory={token:accessTokenValue,user};sessionStorage.removeItem(previewKey);return user
-  }catch{memory=null;clearVolatileAuthState();throw new Error('Could not verify sign-in. Please try again.')}
+    memory={token:accessTokenValue,user}
+    removeStorage(globalThis.localStorage,sessionTokenKey);removeStorage(globalThis.localStorage,sessionUserKey)
+    removeStorage(globalThis.sessionStorage, previewKey)
+    return user
+  }catch{clearSignIn();throw new Error('Could not verify sign-in. Please try again.')}
 }
 export async function accessToken(): Promise<string> {
-  if (!memory || memory.user.expiresAt <= Date.now() + 10_000) { memory = null; throw new Error('Your session expired. Sign in again.') }
+  const session = getStoredSession()
+  if (session) return session.token
+  const {restorePasswordSession}=await import('./password')
+  let restored:SignedInUser|null=null
+  try{restored=await restorePasswordSession()}catch{/* A failed refresh cannot establish a session. */}
+  if(!restored||!memory)throw new Error('Your session expired. Sign in again.')
   return memory.token
 }
-export function clearSignIn() { memory = null;clearVolatileAuthState(); sessionStorage.removeItem(pendingKey); sessionStorage.removeItem(previewKey) }
-export function enterPreview() { clearSignIn(); sessionStorage.setItem(previewKey, 'yes') }
-export function isPreview() { return sessionStorage.getItem(previewKey) === 'yes' }
+export function clearSignIn() {
+  memory = null
+  clearVolatileAuthState()
+  clearJwksCache()
+  removeStorage(globalThis.localStorage, sessionTokenKey)
+  removeStorage(globalThis.localStorage, sessionUserKey)
+  removeStorage(globalThis.sessionStorage, pendingKey)
+  removeStorage(globalThis.sessionStorage, previewKey)
+}
+export function enterPreview() { clearSignIn(); writeStorage(globalThis.sessionStorage, previewKey, 'yes') }
+export function isPreview() { return readStorage(globalThis.sessionStorage, previewKey) === 'yes' }
 export function logoutUrl(config = authConfiguration()) { return `${config.domain}/logout?${new URLSearchParams({ client_id: config.clientId, logout_uri: new URL(config.redirectUri).origin + '/' })}` }

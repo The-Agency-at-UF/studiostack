@@ -1,12 +1,14 @@
 // @vitest-environment node
 import { webcrypto } from 'node:crypto'
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { accessToken, acceptPasswordTokens, authConfiguration, clearSignIn, enterPreview, finishSignIn, isPreview, logoutUrl, signInUrl } from './cognito'
+import { accessToken, acceptPasswordTokens, authConfiguration, clearJwksCache, clearSignIn, enterPreview, finishSignIn, getStoredSession, isPreview, logoutUrl, signInUrl } from './cognito'
 import { loginProviders, providerName } from './providers'
 
 const config = authConfiguration('http://localhost:5174')
 const values = new Map<string, string>()
 const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) }
+const localValues = new Map<string, string>()
+const localStorageMock = { get length(){return localValues.size},key:(index:number)=>[...localValues.keys()][index]??null,getItem: (key: string) => localValues.get(key) ?? null, setItem: (key: string, value: string) => localValues.set(key, value), removeItem: (key: string) => localValues.delete(key) }
 let keyPair: Awaited<ReturnType<typeof webcrypto.subtle.generateKey>>
 let publicKey: object
 const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
@@ -31,7 +33,7 @@ beforeAll(async () => {
   publicKey = { ...await webcrypto.subtle.exportKey('jwk', (keyPair as webcrypto.CryptoKeyPair).publicKey), kid: 'test-key', alg: 'RS256', use: 'sig' }
 })
 beforeEach(() => {
-  vi.stubGlobal('crypto', webcrypto); vi.stubGlobal('sessionStorage', storage); values.clear(); clearSignIn()
+  vi.stubGlobal('crypto', webcrypto); vi.stubGlobal('sessionStorage', storage); vi.stubGlobal('localStorage', localStorageMock); values.clear(); localValues.clear(); clearSignIn()
   vi.stubEnv('NEXT_PUBLIC_COGNITO_ENABLED_PROVIDERS', ''); vi.stubEnv('NEXT_PUBLIC_COGNITO_SAML_PROVIDER', '')
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers() })
@@ -139,6 +141,52 @@ describe('Cognito browser sign-in', () => {
     expect(await acceptPasswordTokens(access,id,config)).toMatchObject({subject:'sdk-user',label:'member@example.test'});expect(await accessToken()).toBe(access);expect(values.size).toBe(0)
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({keys:[publicKey]}))))
     await expect(acceptPasswordTokens(id,id,config)).rejects.toThrow('verify sign-in');await expect(accessToken()).rejects.toThrow('expired')
+  })
+  it('retains stored SDK tokens when signing-key service is temporarily unavailable',async()=>{
+    localValues.set('studiostack.cognito.example.refreshToken','retained')
+    vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new TypeError('network unavailable')))
+    await expect(acceptPasswordTokens('access','id',config)).rejects.toThrow('unavailable')
+    expect(localValues.get('studiostack.cognito.example.refreshToken')).toBe('retained')
+    expect(getStoredSession()).toBeNull()
+  })
+  it('never trusts a user and bearer token injected into local storage', () => {
+    localValues.set('studiostack.session.token','forged')
+    localValues.set('studiostack.session.user',JSON.stringify({subject:'forged',label:'Admin',expiresAt:Date.now()+999999}))
+    expect(getStoredSession()).toBeNull()
+  })
+  it('keeps a verified session in memory for the current page', async () => {
+    await signInUrl(config)
+    const { callback, access } = await mockResponse()
+    const user = await finishSignIn(config, callback)
+    expect(getStoredSession()?.token).toBe(access)
+    expect(getStoredSession()?.user.label).toBe(user.label)
+    expect(await accessToken()).toBe(access)
+  })
+  it('caches JWKS signing keys in memory to eliminate redundant network round-trips', async () => {
+    const common = { iss: config.issuer, sub: 'cached-user', exp: Math.floor(Date.now() / 1000) + 900, iat: Math.floor(Date.now() / 1000) }
+    const access1 = await jwt({ ...common, token_use: 'access', client_id: config.clientId, scope: 'aws.cognito.signin.user.admin' })
+    const id1 = await jwt({ ...common, token_use: 'id', aud: config.clientId, email: 'member1@example.test', email_verified: true })
+    const access2 = await jwt({ ...common, token_use: 'access', client_id: config.clientId, scope: 'aws.cognito.signin.user.admin' })
+    const id2 = await jwt({ ...common, token_use: 'id', aud: config.clientId, email: 'member2@example.test', email_verified: true })
+
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ keys: [publicKey] }))))
+    vi.stubGlobal('fetch', fetcher)
+
+    // First acceptance fetches JWKS from network
+    const user1 = await acceptPasswordTokens(access1, id1, config)
+    expect(user1.label).toBe('member1@example.test')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    // Second acceptance uses cached JWKS keys in memory (0 network requests)
+    const user2 = await acceptPasswordTokens(access2, id2, config)
+    expect(user2.label).toBe('member2@example.test')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    // Explicit cache clearance causes next acceptance to fetch fresh keys
+    clearJwksCache()
+    const user3 = await acceptPasswordTokens(access1, id1, config)
+    expect(user3.label).toBe('member1@example.test')
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
 })
