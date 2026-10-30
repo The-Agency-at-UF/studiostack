@@ -87,10 +87,10 @@
 .production-calendar-options { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
 .production-calendar-options h2 { margin-right: auto; }
 .production-calendar-options label { flex-direction: row; align-items: center; }
-.production-calendar .fc { margin-top: 24px; background: #fffdf8; padding: 22px; border: 1px solid #ded7e6; border-radius: 6px; }
+.production-calendar .fc { margin-top: 24px; background: var(--surface); padding: 22px; border: 1px solid #ded7e6; border-radius: 6px; }
 .production-calendar .fc-toolbar-title { font-size: 22px; font-weight: 650; }
 .production-calendar .fc .fc-button { background: #f2ecfd; color: #43266b; border-color: #ded1f7; box-shadow: none; }
-.production-calendar .fc .fc-button-active { background: #5302d8 !important; color: white !important; }
+.production-calendar .fc .fc-button-active { background: var(--accent) !important; color: white !important; }
 .production-calendar .fc-event { cursor: pointer; padding: 3px 5px; font-size: 11px; }
 .production-unscheduled { padding: 24px 0; }
 .production-unscheduled h3 { font-weight: 600; margin-bottom: 12px; }

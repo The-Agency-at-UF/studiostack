@@ -33,7 +33,7 @@
 .equipment-layout:has(.equipment-report-inspector) { grid-template-columns:minmax(0,1fr) minmax(300px,460px); }
 @media(max-width:850px){.equipment-layout:has(.equipment-report-inspector){grid-template-columns:1fr}}
 
-.equipment-calendar { margin:24px 0;font-size:13px;--fc-border-color:#e4deea;--fc-today-bg-color:#f4eefb;--fc-button-bg-color:#7138b8;--fc-button-border-color:#7138b8; }
+.equipment-calendar { margin:24px 0;font-size:13px;--fc-border-color:var(--line);--fc-today-bg-color:#f4eefb;--fc-button-bg-color:var(--accent);--fc-button-border-color:var(--accent); }
 @media(max-width:700px){.equipment-calendar .fc-toolbar{flex-wrap:wrap;gap:12px}.equipment-calendar .fc-toolbar-title{font-size:18px}}
 
 .equipment-alert-list li { display:flex;justify-content:space-between;gap:24px;align-items:center;padding:24px 0;border-bottom:1px solid #e4deea; }
