@@ -511,4 +511,15 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect(results.find(r=>r.status==='rejected')).toMatchObject({reason:{status:409}})
   })
 
+  it('alert schema: optional email defaults off; deduplication and leases are constrained',async()=>{
+    const pref=await operator.query('INSERT INTO app.alert_preferences(organization_id,user_id) VALUES($1,$2) RETURNING equipment_email',[organizationId,profiles.owner.id]);expect(pref.rows[0].equipment_email).toBe(false)
+    const args=[organizationId,profiles.owner.id,'report_update','Repair update','A repair changed.','/report-summary/?report='+randomUUID(),'schema-check']
+    const sql='INSERT INTO app.user_alerts(organization_id,recipient_id,kind,title,message,target_path,dedupe_key) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,email_status'
+    const row=(await operator.query(sql,args)).rows[0];expect(row.email_status).toBe('skipped')
+    await expect(operator.query(sql,args)).rejects.toMatchObject({code:'23505'})
+    await expect(operator.query("UPDATE app.user_alerts SET email_status='sending' WHERE id=$1",[row.id])).rejects.toMatchObject({code:'23514'})
+    await expect(operator.query(sql,[...args.slice(0,5),'https://external.invalid','bad-target'])).rejects.toMatchObject({code:'23514'})
+    await operator.query('DELETE FROM app.user_alerts WHERE id=$1',[row.id]);await operator.query('DELETE FROM app.alert_preferences WHERE organization_id=$1 AND user_id=$2',[organizationId,profiles.owner.id])
+  })
+
 })
