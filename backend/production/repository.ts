@@ -27,10 +27,21 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (!brief || !readable(brief)) throw new ApiError(404, 'Brief not found')
     return brief
   }
+  async function crew(briefIds:string[]){
+    return (await client.query(`SELECT a.brief_id AS "briefId",a.user_id AS "userId",coalesce(u.display_name,'Team member') AS name,a.role FROM app.production_assignments a JOIN app.users u ON u.id=a.user_id JOIN app.organization_memberships m ON m.organization_id=a.organization_id AND m.user_id=a.user_id WHERE a.organization_id=$1 AND a.brief_id=ANY($2::uuid[]) AND m.status='active' ORDER BY a.assigned_at,a.user_id`,[organizationId,briefIds])).rows
+  }
+  async function checkCrewSchedule(ids:string[],brief:ProductionBrief){
+    for(const id of [...ids].sort())await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`production-crew:${organizationId}:${id}`])
+    const overlap=await client.query("SELECT a.user_id FROM app.production_assignments a JOIN app.production_briefs b ON b.organization_id=a.organization_id AND b.id=a.brief_id WHERE a.organization_id=$1 AND a.brief_id<>$2 AND a.user_id=ANY($3::uuid[]) AND b.status='approved' AND b.shoot_starts_at<$5 AND b.shoot_ends_at>$4 LIMIT 1",[organizationId,brief.id,ids,brief.shootStartsAt,brief.shootEndsAt])
+    if(overlap.rows.length)conflict('A crew member is already assigned to an overlapping shoot')
+  }
+  async function notifyCrew(brief:ProductionBrief,eventId:string){
+    await client.query(`INSERT INTO app.user_alerts(organization_id,recipient_id,kind,title,message,target_path,dedupe_key) SELECT $1,a.user_id,'production_assignment','Production schedule updated',$3,$4,$5 FROM app.production_assignments a JOIN app.organization_memberships m ON m.organization_id=a.organization_id AND m.user_id=a.user_id WHERE a.organization_id=$1 AND a.brief_id=$2 AND m.status='active' ON CONFLICT(organization_id,recipient_id,dedupe_key) DO NOTHING`,[organizationId,brief.id,`The schedule or approval for ${brief.data.projectName} changed. Review the latest shoot details.`,`/production/?brief=${brief.id}`,'crew:'+eventId])
+  }
   async function detail(brief: ProductionBrief) {
     const events = await client.query(`SELECT e.id, e.actor_id AS "actorId", COALESCE(u.display_name, 'Team member') AS "actorName", e.kind, e.comment, e.section, e.version, e.created_at AS "createdAt", e.snapshot, e.attachment_snapshot AS attachments, e.shoot_starts_at AS "shootStartsAt", e.shoot_ends_at AS "shootEndsAt" FROM app.production_brief_events e JOIN app.users u ON u.id = e.actor_id WHERE e.organization_id = $1 AND e.brief_id = $2 ORDER BY e.version, e.created_at, e.id`, [organizationId, brief.id])
     const attachments = await client.query(`SELECT id, name, content_type AS "contentType", size, status, uploaded_by AS "uploadedBy" FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status <> 'discarded' ORDER BY created_at, id`, [organizationId, brief.id])
-    return { ...brief, events: events.rows, attachments: attachments.rows }
+    return { ...brief, crew:await crew([brief.id]),events: events.rows, attachments: attachments.rows }
   }
   async function event(brief: ProductionBrief, kind: string, requestId: string, requestHash: string, comment = '', section = '', snapshot: BriefData | null = null) {
     const files = snapshot ? (await client.query(`SELECT id, name, content_type AS "contentType", size, status, uploaded_by AS "uploadedBy" FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2 AND status = 'ready' ORDER BY id`, [organizationId, brief.id])).rows : []
@@ -42,6 +53,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       const activeRecipients = await client.query('SELECT user_id FROM app.organization_memberships WHERE organization_id = $1 AND status = $2 AND user_id = ANY($3::uuid[])', [organizationId, 'active', recipients])
       for (const recipient of activeRecipients.rows) await client.query('INSERT INTO app.production_outbox (organization_id, brief_id, event_id, recipient_id, payload) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (event_id, recipient_id) DO NOTHING', [organizationId, brief.id, result.rows[0].id, recipient.user_id, payload])
     }
+    return result.rows[0].id as string
   }
   async function resolveClient(data:BriefData,previous?:BriefData){
     if(!data.clientAccountId)return
@@ -75,7 +87,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   if (request.resource === 'briefs' && request.method === 'GET' && !request.briefId) {
     const { page } = request
     const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND ($2::uuid IS NULL OR b.id > $2) AND ($4::boolean OR b.owner_id = $5 OR ($6::boolean AND b.status <> 'draft')) ORDER BY b.id LIMIT $3`, [organizationId, page.after, page.limit + 1, admin, user.id, true])
-    const items = result.rows.slice(0, page.limit).map(b => ({ ...b, events: [], attachments: [] }))
+    const visible=result.rows.slice(0,page.limit),assignments=await crew(visible.map(b=>b.id))
+    const items = visible.map(b => ({ ...b, crew:assignments.filter(a=>a.briefId===b.id),events: [], attachments: [] }))
     return { items, nextCursor: result.rows.length > page.limit ? items[items.length - 1].id : null }
   }
   if (request.resource === 'briefs' && request.method === 'POST' && !request.briefId) {
@@ -116,6 +129,30 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     await event(brief, 'saved', requestId, fingerprint)
     return detail(await getBrief())
   }
+  if(request.resource==='crew'){
+    if(!reviewer)deny('Production leadership is required to assign crew')
+    const body=object(request.body,['version','requestId','assignments']),expected=version(body.version),requestId=uuid(body.requestId)
+    if(!Array.isArray(body.assignments)||body.assignments.length>50)throw new ApiError(400,'Choose up to 50 crew members')
+    const assignments=body.assignments.map(value=>{const v=object(value,['userId','role']);if(typeof v.role!=='string'||!v.role.trim()||v.role.length>80||Array.from(v.role).some(c=>c.charCodeAt(0)<32))throw new ApiError(400,'A crew role is required');return {userId:uuid(v.userId),role:v.role.trim()}}).sort((a,b)=>a.userId.localeCompare(b.userId))
+    if(new Set(assignments.map(a=>a.userId)).size!==assignments.length)throw new ApiError(400,'Select each crew member once')
+    const fingerprint=hash({assignments,version:expected})
+    if(await previousEvent(requestId,fingerprint))return detail(brief)
+    if(expected!==brief.version)conflict()
+    if(brief.status!=='approved'||!brief.shootStartsAt)conflict('Approve and confirm shoot dates before assigning crew')
+    const previous=await crew([brief.id]),ids=[...new Set([...previous,...assignments].map(a=>a.userId))].sort()
+    await checkCrewSchedule(assignments.map(a=>a.userId),brief)
+    const members=await client.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND user_id=ANY($2::uuid[]) AND status='active' FOR SHARE",[organizationId,assignments.map(a=>a.userId)])
+    if(members.rows.length!==assignments.length)throw new ApiError(400,'Choose active members of this organization')
+    await client.query('DELETE FROM app.production_assignments WHERE organization_id=$1 AND brief_id=$2',[organizationId,brief.id])
+    for(const a of assignments)await client.query('INSERT INTO app.production_assignments(organization_id,brief_id,user_id,role,assigned_by) VALUES($1,$2,$3,$4,$5)',[organizationId,brief.id,a.userId,a.role,user.id])
+    brief.version++
+    await client.query('UPDATE app.production_briefs SET version=$3,updated_at=now() WHERE organization_id=$1 AND id=$2',[organizationId,brief.id,brief.version])
+    const eventId=await event(brief,'crew_assigned',requestId,fingerprint,JSON.stringify(assignments))
+    for(const id of ids){const next=assignments.find(a=>a.userId===id),old=previous.find(a=>a.userId===id);if(next?.role===old?.role)continue
+      await client.query(`INSERT INTO app.user_alerts(organization_id,recipient_id,kind,title,message,target_path,dedupe_key) SELECT $1,$2,'production_assignment',$3,$4,$5,$6 WHERE EXISTS(SELECT 1 FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active') ON CONFLICT(organization_id,recipient_id,dedupe_key) DO NOTHING`,[organizationId,id,next?'You have a production assignment':'Production assignment removed',next?`You are assigned as ${next.role} for ${brief.data.projectName}. Open the shoot for dates and client details.`:`You are no longer assigned to ${brief.data.projectName}.`,`/production/?brief=${brief.id}`,'crew:'+eventId])
+    }
+    return detail(await getBrief())
+  }
   if (request.resource === 'actions') {
     const command = briefCommand(request.body), fingerprint = hash(command)
     if (await previousEvent(command.requestId, fingerprint)) return detail(brief)
@@ -149,9 +186,11 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       if (['denied', 'withdrawn'].includes(brief.status)) conflict('Reopen the brief before commenting')
       kind = 'commented'
     }
+    if(brief.status==='approved')await checkCrewSchedule((await crew([brief.id])).map(a=>a.userId),brief)
     brief.version++
     await client.query('UPDATE app.production_briefs SET status = $3, version = $4, submission = $5, shoot_starts_at = $6, shoot_ends_at = $7, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, brief.status, brief.version, brief.submission, brief.shootStartsAt, brief.shootEndsAt])
-    await event(brief, kind, command.requestId, fingerprint, comment, section, ['submit','approve','request_changes','deny','schedule'].includes(action) ? brief.data : null)
+    const eventId=await event(brief, kind, command.requestId, fingerprint, comment, section, ['submit','approve','request_changes','deny','schedule'].includes(action) ? brief.data : null)
+    if(['scheduled','approved','changes_requested','withdrawn'].includes(kind))await notifyCrew(brief,eventId)
     return detail(await getBrief())
   }
   if (request.resource === 'attachments') {

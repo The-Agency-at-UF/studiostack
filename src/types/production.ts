@@ -44,10 +44,11 @@ export const briefSections: Section[] = [
   ] },
 ]
 export interface ClientAccount {id:string;name:string;version:number;archivedAt:string|null}
+export interface ProductionAssignment {userId:string;name:string;role:string}
 export interface BriefData { clientAccountId?:string|null; projectName: string; client: string; managers: string; supervisor: string; deliveryDate: string; productionTypes: ProductionType[]; fields: Record<string, string> }
 export interface BriefEvent { id: string; actorId: string; actorName: string; kind: string; comment: string; section: string; version: number; createdAt: string; snapshot: BriefData | null; attachments?: BriefAttachment[]; shootStartsAt?: string | null; shootEndsAt?: string | null }
 export interface BriefAttachment { id: string; name: string; contentType: string; size: number; status: 'pending' | 'ready'; uploadedBy: string }
-export interface ProductionBrief { id: string; organizationId: string; ownerId: string; ownerName: string; status: BriefStatus; version: number; submission: number; data: BriefData; shootStartsAt: string | null; shootEndsAt: string | null; createdAt: string; updatedAt: string; events: BriefEvent[]; attachments: BriefAttachment[] }
+export interface ProductionBrief { crew?:ProductionAssignment[]; id: string; organizationId: string; ownerId: string; ownerName: string; status: BriefStatus; version: number; submission: number; data: BriefData; shootStartsAt: string | null; shootEndsAt: string | null; createdAt: string; updatedAt: string; events: BriefEvent[]; attachments: BriefAttachment[] }
 export interface ProductionSettings { version: number; reviewerIds: string[]; executiveIds: string[]; approvalConfirmsDates: boolean }
 export interface ProductionAccess { userId: string; canReview: boolean; canAdminister: boolean; isExecutive: boolean; notificationsConfigured: boolean }
 export type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'comment' | 'withdraw' | 'reopen' | 'schedule'
