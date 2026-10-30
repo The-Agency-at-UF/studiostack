@@ -6,7 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default [
-  { ignores: ['dist', '.next', 'out', 'legacy', '.aws/**'] },
+  { ignores: ['dist', '.next', 'out', 'legacy', '.aws/**', '.agents/**', '.gradientdeck/**'] },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{js,mjs,ts,tsx}'],
