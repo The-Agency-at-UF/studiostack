@@ -38,10 +38,10 @@ export interface LoginProps {
 export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
   return <main className="login-page">
     <section className="login-brand" aria-label="About StudioStack">
-      <div className="login-brand-top"><span className="login-kicker">The equipment workspace</span><span className="login-edition">01 / ACCESS</span></div>
+      <div className="login-brand-top"><span className="login-kicker">The Agency at UF</span><span className="login-edition">Studio workspace</span></div>
       <div className="login-brand-center">
         <img src={logo.src ?? logo} className="login-wordmark" alt="StudioStack" />
-        <p>Keep your gear, bookings<br />and people in one place.</p>
+        <p>Production, equipment,<br />and your team.</p>
         <div className="login-orbit" aria-hidden="true"><div /><div /><div /><span>SS</span></div>
       </div>
       <div className="login-brand-bottom"><span>Built for teams.<br />Ready for the next production.</span><span className="login-brand-arrow" aria-hidden="true">↗</span></div>
@@ -49,7 +49,7 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
     <section className="login-access" aria-labelledby="login-title">
       <div className="login-access-top"><span>YOUR WORKSPACE, CONNECTED.</span><button type="button" onClick={onPreview} disabled={busy}>Explore preview <HiOutlineArrowUpRight aria-hidden="true" /></button></div>
       <div className="login-form-area">
-        <span className="login-section-number">{authenticated ? 'ACCOUNT / 01' : accessSection??'SIGN IN / 01'}</span>
+        <span className="login-section-number">{authenticated ? 'Your account' : accessSection?.replace(/ \/ 01$/, '')??'Sign in'}</span>
         <h1 id="login-title">{authenticated ? 'You’re signed in.' : accessHeading??'Welcome back.'}</h1>
         <p className="login-description">{authenticated ? label : accessDescription??'Sign in to access your organization’s workspace.'}</p>
         {authenticated ? <>

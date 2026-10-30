@@ -1,32 +1,35 @@
-.administration { max-width:1200px;margin:32px auto;padding:32px;background:#fffdf9;color:#30283c; }
+.administration { max-width:1200px;margin:32px auto;padding:32px;background:var(--surface);color:var(--ink); }
 .administration header { display:flex;justify-content:space-between;align-items:center;gap:24px;padding-bottom:24px; }
 .administration h1 { font-size:30px;line-height:1.2;font-weight:650;letter-spacing:-.8px; }
 .administration-eyebrow { font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#755d8d;margin-bottom:8px; }
-.administration header p:last-child { margin-top:10px;color:#756d7e;font-size:14px; }
-.administration section { border-top:1px solid #e4deea;padding:24px 0; }
+.administration header p:last-child { margin-top:10px;color:var(--muted);font-size:14px; }
+.administration section { border-top:1px solid var(--line);padding:24px 0; }
 .administration h2 { font-size:18px;font-weight:600;margin-bottom:18px; }
 .administration-form { display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px; }
 .administration label { display:flex;flex-direction:column;gap:7px;font-size:13px; }
-.administration input,.administration select { border:1px solid #d7d0df;border-radius:4px;background:white;padding:10px 12px;color:#30283c;max-width:100%; }
-.administration button { background:#7138b8;color:white;border-radius:4px;padding:10px 16px;font-size:13px;transition:background .15s; }
-.administration button:hover { background:#5c2a9a; }
+.administration input,.administration select { border:1px solid var(--line-strong);border-radius:4px;background:white;padding:10px 12px;color:var(--ink);max-width:100%; }
+.administration button { background:var(--accent);color:white;border-radius:4px;padding:10px 16px;font-size:13px;transition:background .15s; }
+.administration button:hover { background:var(--accent-hover); }
 .administration button:disabled { opacity:.45;cursor:default; }
 .administration [role=alert] { color:#9b2435;padding:14px 0; }
 .administration [role=status] { padding:12px 0;color:#4c6356; }
-.administration-hint { font-size:12px;color:#756d7e;margin-top:14px;max-width:720px; }
+.administration-hint { font-size:12px;color:var(--muted);margin-top:14px;max-width:720px; }
 .administration-table { overflow:auto; }
 .administration table { width:100%;border-collapse:collapse;font-size:13px; }
-.administration th { text-align:left;font-weight:500;color:#756d7e; }
-.administration th,.administration td { padding:12px 14px 12px 0;border-bottom:1px solid #eae5ef; }
-.administration td small,.administration-list span,.administration-list small { display:block;color:#756d7e;margin-top:4px; }
-.administration-list li { display:flex;justify-content:space-between;align-items:center;gap:24px;padding:15px 0;border-bottom:1px solid #eae5ef;font-size:13px; }
+.administration th { text-align:left;font-weight:500;color:var(--muted); }
+.administration th,.administration td { padding:12px 14px 12px 0;border-bottom:1px solid var(--line); }
+.administration td small,.administration-list span,.administration-list small { display:block;color:var(--muted);margin-top:4px; }
+.administration-list li { display:flex;justify-content:space-between;align-items:center;gap:24px;padding:15px 0;border-bottom:1px solid var(--line);font-size:13px; }
 .administration-actions { display:flex;gap:10px; }
-.administration-team { border-bottom:1px solid #e4deea;padding:16px 0; }
+.administration-team { border-bottom:1px solid var(--line);padding:16px 0; }
 .administration-team summary { cursor:pointer;font-weight:550; }
 .administration-team form { display:grid;gap:18px;max-width:600px;margin-top:20px; }
 .administration-team fieldset { display:flex;flex-wrap:wrap;gap:16px; }
 .administration-team legend { font-size:13px;margin-bottom:10px; }
 .administration .administration-checkbox { flex-direction:row;align-items:center; }
-.administration-checkbox input { width:16px;height:16px;accent-color:#7138b8; }
+.administration-checkbox input { width:16px;height:16px;accent-color:var(--accent); }
 @media(max-width:700px){.administration{margin:16px;padding:20px}.administration h1{font-size:25px}.administration-list li{align-items:flex-start;flex-direction:column}.administration-form label{width:100%}.administration-actions{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.administration button{transition:none}}
+.administration.workspace-surface { background:#fff; }
+.administration.workspace-surface header h1 { font-family:var(--font-ui);font-size:clamp(38px,4vw,58px);font-weight:800;line-height:.95;letter-spacing:-.055em; }
+@media(max-width:700px){.administration.workspace-surface header h1{font-size:36px}}
