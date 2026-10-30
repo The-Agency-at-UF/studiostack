@@ -1,11 +1,18 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Popup from './Popup';
+import {useAppSession} from '../context/AppSessionContext';
+import {createDatabaseApiClient} from '../api/database';
+import {authConfiguration} from '../auth/cognito';
+import type {ApiBugReport} from '../types/database-api';
 import { IoIosCloseCircle, IoIosBug } from "react-icons/io";
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 
 function BugReportPopup({ userEmail }: { userEmail: string }) {
-  const pathname = usePathname();
+  const pathname = usePathname(), session=useAppSession();
+  const request=useRef<{key:string;id:string}|null>(null),historyGeneration=useRef(0);
+  useEffect(()=>{historyGeneration.current++;setHistory([]);setHistoryError('');setHistoryLoading(false)},[session.selectedOrganizationId,session.email]);
+  const [history,setHistory]=useState<ApiBugReport[]>([]),[historyError,setHistoryError]=useState(''),[historyLoading,setHistoryLoading]=useState(false)
   const [currentUrl, setCurrentUrl] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -35,22 +42,38 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
         status: "Open",
       };
 
-      await addDoc(collection(db, "bugReports"), reportData);
+      if(session.mode==='authenticated'){
+        const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
+        if(!organizationId||!session.getAccessToken)throw new Error('Organization unavailable')
+        const payload={title:title.trim(),description:description.trim(),pagePath:pathname||'/'},key=JSON.stringify(payload)
+        if(request.current?.key!==key)request.current={key,id:crypto.randomUUID()}
+        await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}).submitBugReport(organizationId,{...payload,requestId:request.current.id})
+        request.current=null
+      }else await addDoc(collection(db, "bugReports"), reportData);
       setSubmitted(true);
 
       // Reset fields
       setTitle("");
       setDescription("");
     } catch (err) {
-      console.error("Error submitting bug report:", err);
+      void err;
       setError("Failed to submit bug report. Please try again later.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  async function loadHistory(){
+    const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
+    if(!organizationId||!session.getAccessToken)return
+    const generation=historyGeneration.current;setHistoryLoading(true);setHistoryError('')
+    try{const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after});items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
+  }
+
   const handleClose = (close: () => void) => {
+    historyGeneration.current++;setHistoryLoading(false);
     setSubmitted(false);
+    setHistory([]);setHistoryError('');
     setError(null);
     setTitle("");
     setDescription("");
@@ -94,12 +117,13 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                   Report a Bug
                 </h1>
 
+                {session.mode==='authenticated'&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>Your submitted reports</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>No reports yet.</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
                 <div className="space-y-4">
                   <div>
                     <label className="block font-semibold mb-1">Title</label>
                     <input
                       type="text"
-                      placeholder="What happened?"
+                      placeholder="What happened?" maxLength={160}
                       className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
@@ -109,7 +133,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                   <div>
                     <label className="block font-semibold mb-1">Description</label>
                     <textarea
-                      placeholder="Provide more details..."
+                      placeholder="Provide more details..." maxLength={4000}
                       rows={4}
                       className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white resize-none"
                       value={description}
