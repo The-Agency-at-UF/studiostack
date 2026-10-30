@@ -404,4 +404,9 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await queue({...ack,leaseToken:randomUUID()})).toEqual({updated:false})
     expect(await queue(ack)).toEqual({updated:true});expect(await queue(ack)).toEqual({updated:false})
   })
+  it('equipment schema: a returned reservation must have a real return timestamp',async()=>{
+    const item=await equipment(),reservation=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as ApiReservation
+    await expect(operator.query("UPDATE app.reservations SET fulfillment_status='returned',checked_out_at=now(),returned_at=NULL WHERE id=$1",[reservation.id])).rejects.toMatchObject({code:'23514'})
+  })
+
 })
