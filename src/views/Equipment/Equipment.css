@@ -27,3 +27,8 @@
 .equipment-history p { margin-top:12px; }
 .equipment-history p span { display:block;color:#756d7e;white-space:pre-wrap;margin-top:5px; }
 @media(max-width:850px){.equipment-handoff-layout{grid-template-columns:1fr}}
+.equipment-report-description { white-space:pre-wrap;font-size:13px;margin:16px 0;overflow-wrap:anywhere; }
+.equipment-report-inspector h3 { font-weight:600;margin:18px 0 12px;font-size:14px; }
+.equipment-report-inspector textarea { border:1px solid #d7d0df;padding:12px;min-height:100px;resize:vertical; }
+.equipment-layout:has(.equipment-report-inspector) { grid-template-columns:minmax(0,1fr) minmax(300px,460px); }
+@media(max-width:850px){.equipment-layout:has(.equipment-report-inspector){grid-template-columns:1fr}}
