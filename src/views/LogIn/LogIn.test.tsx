@@ -70,4 +70,12 @@ describe('StudioStack sign-in', () => {
     expect(screen.getByText('Invited studio')).toBeInTheDocument()
     expect(screen.getByText('member')).toBeInTheDocument()
   })
+  it('opens live Production after sign-in without replacing the real session with preview', () => {
+    const onPreview = vi.fn()
+    render(<LogIn onSignIn={vi.fn()} onPreview={onPreview} authenticated organizations={[{ id: 'org', slug: 'studio', name: 'Real studio', role: 'owner' }]} />)
+    expect(screen.getByRole('link', { name: 'Open Production' })).toHaveAttribute('href', '/production')
+    expect(screen.queryByRole('button', { name: 'Open workspace preview' })).not.toBeInTheDocument()
+    expect(onPreview).not.toHaveBeenCalled()
+  })
+
 })

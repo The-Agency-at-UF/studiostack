@@ -50,8 +50,8 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
             {organizations.length ? <ul>{organizations.map(org => <li key={org.id}><span>{org.name}</span><small>{org.role}</small></li>)}</ul>
               : <p>Your account is ready. Ask an organization administrator to add your membership before accessing cloud data.</p>}
           </div>
-          <button className="login-primary" onClick={onPreview}>Open workspace preview <HiOutlineArrowRight aria-hidden="true" /></button>
-          <p className="login-security-note">The workspace UI currently uses preview data, not your organization’s live records.</p>
+          {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}
+          <p className="login-security-note">Production briefs use your organization’s live records. Other workspace pages remain in preview.</p>
           <button className="login-text-action" onClick={() => void onSignOut?.()}>Sign out of this account</button>
         </> : <>
           <div className="login-providers" role="group" aria-label="Sign-in options">
