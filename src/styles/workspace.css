@@ -114,6 +114,27 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content .section-inline-error { border:0; border-radius:var(--radius-control); background:var(--danger-soft); }
 .app-content#workspace-content .section-inline-error p { color:var(--danger); }
 .administration-actions { flex-wrap:wrap; }
+.app-content#workspace-content .organization-page .org-heading h1 { font-size:var(--text-title); }
+.org-workspace { border-top:1px solid var(--line); border-radius:var(--radius-panel); overflow:hidden; }
+.org-heading { padding:var(--space-6) 0; }
+.org-dialog { border-radius:var(--radius-panel); }
+.org-page-note { font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
+.app-content#workspace-content > div > .bg-white { box-shadow:none!important; border:0; border-radius:var(--radius-panel)!important; margin:0 auto!important; background:var(--surface)!important; }
+.login-page .login-access { background:var(--surface); }
+.login-page .login-brand { background:var(--frame); }
+.login-page .login-form-area h1 { font-family:var(--font-ui); font-size:var(--text-title); letter-spacing:-.02em; font-weight:var(--weight-bold); }
+.login-page .login-description { font-size:var(--text-base); }
+.login-page .login-section-number { font-size:var(--text-xs); letter-spacing:normal; text-transform:none; }
+.login-page .login-brand-center>p { color:var(--on-frame-muted); }
+.login-page .login-brand-top,.login-page .login-brand-bottom { color:var(--on-frame-muted); font-size:var(--text-xs); letter-spacing:normal; }
+.login-page .login-brand-arrow { color:var(--accent-light); }
+.login-page .login-orbit { display:none; }
+.login-page .login-brand::after { content:''; position:absolute; bottom:0; left:0; right:0; height:var(--space-1); background:linear-gradient(90deg,var(--accent),var(--accent-light)); }
+.login-page :is(.login-primary,.login-provider,.login-password-form input,.login-workspace-picker select) { border-radius:var(--radius-control); }
+.login-page :is(button,.login-text-action) { min-height:var(--control-height); }
+.login-page .login-password-form label { font-size:var(--text-sm); }
+.login-page .login-password-form input { font-size:var(--text-base); background:var(--surface); }
+.login-page .login-account-switch,.login-page .login-password-note { font-size:var(--text-sm); }
 @media(max-width:1199px) {
   .production-page .production-detail-grid { grid-template-columns:1fr; }
   .production-page .production-inspector { border-left:0; border-top:1px solid var(--line); padding:var(--space-6) 0 0; }
@@ -139,6 +160,11 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .production-calendar .fc .fc-toolbar { flex-wrap:wrap; }
   .ws-record-list li { align-items:flex-start; }
   .ws-record-list li .ws-status { margin-top:var(--space-2); }
+  .login-page .login-brand { min-height:240px; }
+  .login-page .login-wordmark { max-width:280px; }
+  .login-page .login-brand-center { padding:var(--space-8) 0; }
+  .login-page .login-brand-center > p { font-size:var(--text-lg); margin-top:var(--space-4); }
+  .login-page .login-form-area { padding:var(--space-8) 0; }
 }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .ws-button { transition:none; } }
 @media print {
