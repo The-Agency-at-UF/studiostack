@@ -62,16 +62,16 @@ If the licensed Gentona files are unavailable, use a documented web-safe substit
 
 ## StudioStack implementation note
 
-StudioStack uses the official Nerve purples for interface accents, with its existing neutral operational surfaces:
+The approved October 30, 2026 overhaul uses a black navigation frame and calm white operational surfaces. `DESIGN.md` records the product direction. `src/styles/tokens.css` is the shared source of truth; `src/styles/workspace.css` applies it to current and legacy route surfaces.
 
-| Current token | Value |
-| --- | --- |
-| Ink | `#101010` |
-| Paper | `#F3EFE6` |
-| Paper light | `#FAF8F2` |
-| Primary accent (`--accent`) | `#5302D8` |
-| Light accent (`--accent-light`) | `#AB9BFF` |
-| Hover accent (`--accent-hover`) | `#4202AD` (derived darker purple) |
-| Soft accent (`--accent-soft`) | `#EDE6FB` (derived pale purple) |
+| Token | Value | Use |
+| --- | --- | --- |
+| `--frame` | `#000000` | Navigation and authentication brand panel |
+| `--surface` | `#FFFFFF` | Working surfaces |
+| `--paper` | `#F5F5F7` | Neutral canvas |
+| `--ink` | `#19171E` | Operational text |
+| `--accent` | `#5302D8` | Primary actions and selected views |
+| `--accent-light` | `#AB9BFF` | Active markers and focus on black |
+| `--accent-soft` | `#F0EBFF` | Subtle selection and information backgrounds |
 
-The shared tokens in `src/App.css` cover navigation, buttons, links, focus states, calendars, charts, forms, dialogs, and organization previews. Light purple supports dark surfaces and subtle highlights; primary purple supports white-text controls. Error and destructive-action colors remain distinct. The neutral surfaces and derived purple shades are product choices, not additional official Agency colors.
+The neutral and semantic shades are product choices, not new official Agency colors. Red retains error/destructive meaning, while success and warning have explicit text labels. Gentona remains preferred; no licensed font files are supplied, so the application consistently uses the documented Franklin Gothic/Arial fallback. Gradients are limited to the authentication brand area. Routine workspaces do not use decorative blobs, graph-paper backgrounds or offset shadows.

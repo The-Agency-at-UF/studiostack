@@ -3,14 +3,14 @@
 .org-preview > span { flex-shrink: 0; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .org-preview p { margin: 0; }
 .org-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; padding: 40px 0 32px; animation: rise-in .3s ease both; }
-.org-heading h1 { margin: 0; font-family: 'Manrope', sans-serif; font-size: clamp(36px, 4.6vw, 66px); letter-spacing: -.055em; line-height: 1.08; font-weight: 800; }
+.org-heading h1 { margin: 0; font-family: var(--font-ui); font-size: clamp(36px, 4.6vw, 66px); letter-spacing: -.055em; line-height: 1.08; font-weight: 800; }
 .org-heading p:not(.eyebrow) { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
 .org-switcher { display: grid; gap: 8px; min-width: 240px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .organization-page select, .org-dialog select { cursor: pointer; }
 .org-switcher select, .org-filters select { border: 1px solid var(--line); padding: 12px; background: var(--paper-light); color: var(--ink); font-size: 13px; letter-spacing: normal; }
 .org-workspace { background: var(--paper-light); border: 1px solid var(--line); border-top: 4px solid var(--accent); }
 .org-identity { padding: 28px 32px; display: flex; align-items: center; gap: 18px; }
-.org-monogram { width: 52px; height: 52px; display: grid; place-items: center; color: white; background: var(--ink); font-family: 'Manrope', sans-serif; font-size: 20px; font-weight: 800; flex-shrink: 0; }
+.org-monogram { width: 52px; height: 52px; display: grid; place-items: center; color: white; background: var(--ink); font-family: var(--font-ui); font-size: 20px; font-weight: 800; flex-shrink: 0; }
 .org-identity h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.025em; }
 .org-identity p { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
 .org-counts { margin-left: auto; display: flex; gap: 24px; font-size: 12px; color: var(--muted); }
@@ -65,7 +65,7 @@
 .org-dialog { position: fixed; inset: 0; width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; margin: auto; padding: 28px; border: 1px solid var(--line); border-top: 4px solid var(--accent); background: var(--paper-light); color: var(--ink); animation: workspace-modal-in .2s ease both; }
 .org-dialog::backdrop { background: rgba(16,16,16,.6); backdrop-filter: blur(3px); }
 .org-dialog-heading { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
-.org-dialog-heading h2 { font-family: 'Manrope', sans-serif; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.04em; }
+.org-dialog-heading h2 { font-family: var(--font-ui); margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.04em; }
 .org-dialog-heading button { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); background: transparent; cursor: pointer; flex-shrink: 0; }
 .org-dialog-heading svg { width: 20px; height: 20px; }
 .org-dialog-form { display: grid; gap: 20px; padding-top: 20px; }
