@@ -72,21 +72,54 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) td small { font-size:var(--text-xs); color:var(--muted); }
 .app-content#workspace-content .administration :is(.administration-table,.equipment-table-scroll) { overflow-x:auto; }
 .administration td a { color:var(--accent); }
+.app-content#workspace-content .production-page .production-tabs,.app-content#workspace-content .administration .production-tabs { display:flex; gap:var(--space-6); flex-wrap:nowrap; overflow:auto; margin:var(--space-5) 0; border-bottom:1px solid var(--line); }
+.app-content#workspace-content :is(.production-page,.administration) .production-tabs button { border:0; border-radius:0; border-bottom:2px solid transparent; padding:var(--space-3) 0; color:var(--muted); background:transparent; white-space:nowrap; }
+.app-content#workspace-content :is(.production-page,.administration) .production-tabs button[aria-current=page] { color:var(--accent); border-bottom-color:var(--accent); background:transparent; }
+.app-content#workspace-content .production-info { border:0; border-radius:var(--radius-control); background:var(--surface-subtle); color:var(--muted); font-size:var(--text-xs); padding:var(--space-3) var(--space-4); }
+.production-toolbar { flex-wrap:wrap; gap:var(--space-4); }
+.production-filter-summary { display:flex; align-items:center; gap:var(--space-3); color:var(--muted); font-size:var(--text-xs); margin:0 0 var(--space-4); }
+.app-content#workspace-content .production-filter-summary button { min-height:var(--control-height); padding:var(--space-2); border:0; color:var(--accent); background:transparent; }
+.app-content#workspace-content .production-page .production-row-title { border:0; padding:0; text-align:left; font-size:var(--text-sm); color:var(--ink); background:transparent; }
+.production-table-wrap { border:1px solid var(--line); border-radius:var(--radius-panel); }
+.production-page .production-status { border:0; border-radius:var(--radius-control); font-size:var(--text-xs); background:var(--surface-subtle); color:var(--muted); }
+.production-page .status-submitted { background:var(--accent-soft); color:var(--accent); }
+.production-page .status-approved { background:var(--success-soft); color:var(--success); }
+.production-page .status-changes_requested { background:var(--warning-soft); color:var(--warning); }
+.production-page .status-denied { background:var(--danger-soft); color:var(--danger); }
+.production-page .status-withdrawn { background:var(--surface-subtle); color:var(--muted); }
+.production-page .production-detail-grid { grid-template-columns:minmax(0,1fr) 280px; gap:var(--space-8); }
+.production-section-nav { display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4); margin:var(--space-5) 0; padding:var(--space-3) 0; border-block:1px solid var(--line); }
+.production-section-nav a { color:var(--muted); font-size:var(--text-xs); min-height:var(--control-height); display:flex; align-items:center; }
+.production-section-nav a:hover { color:var(--accent); }
+.production-form fieldset { scroll-margin-top:var(--space-6); }
+.production-page .production-savebar { background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--radius-control); box-shadow:none; bottom:var(--space-3); padding:var(--space-3) var(--space-4); }
+.production-page .production-inspector { border-color:var(--line); padding-left:var(--space-6); }
+.production-page .production-history article { font-size:var(--text-sm); }
+.production-page .production-history :is(small,p),.production-page .production-muted { color:var(--muted); font-size:var(--text-xs); }
+.production-page .production-snapshot { background:var(--surface-subtle); border-color:var(--line); border-radius:var(--radius-panel); }
 .app-content#workspace-content .equipment-overdue { color:var(--danger)!important; }
 .app-content#workspace-content .equipment-empty { color:var(--muted); font-size:var(--text-sm); }
 .app-content#workspace-content .section-inline-error { border:0; border-radius:var(--radius-control); background:var(--danger-soft); }
 .app-content#workspace-content .section-inline-error p { color:var(--danger); }
 .administration-actions { flex-wrap:wrap; }
 @media(max-width:1199px) {
+  .production-page .production-detail-grid { grid-template-columns:1fr; }
+  .production-page .production-inspector { border-left:0; border-top:1px solid var(--line); padding:var(--space-6) 0 0; }
 }
 @media(max-width:767px) {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page),.app-content#workspace-content .live-dashboard.administration { padding:var(--space-6) var(--space-4); }
   .ws-page-header,.administration header,.production-heading { flex-direction:column; }
   .ws-queue-columns { grid-template-columns:1fr; gap:var(--space-4); }
+  .production-fields { grid-template-columns:1fr; }
+  .production-context { min-width:0; width:100%; }
+  .production-toolbar > label,.production-toolbar .production-search { flex:1 1 100%; max-width:none; }
+  .production-toolbar>.production-primary { margin-left:0; }
+  .production-tabs { max-width:100%; }
   .live-dashboard .equipment-summary { display:grid; grid-template-columns:1fr 1fr; }
   .live-dashboard .equipment-summary div { min-width:0; }
   .ws-actions { width:100%; }
   .ws-actions .ws-button { flex:1; }
+  .production-section-nav { gap:var(--space-2) var(--space-3); }
   .app-content#workspace-content :is(.administration,.production-page) :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { font-size:var(--text-base); }
   .ws-record-list li { align-items:flex-start; }
   .ws-record-list li .ws-status { margin-top:var(--space-2); }
@@ -94,6 +127,8 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .ws-button { transition:none; } }
 @media print {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page) { min-height:0; padding:0; max-width:none; }
+  .production-section-nav,.ws-page-header .ws-actions,.production-page .production-inspector { display:none!important; }
+  .production-page .production-detail-grid { display:block; }
 }
 .app-content#workspace-content :is(.production-table-wrap,.administration-table,.org-table-scroll) { position:relative; }
 .app-content#workspace-content .administration form :is(button:not([type]),button[type=submit]) { background:var(--accent); border-color:var(--accent); color:var(--on-frame); }
