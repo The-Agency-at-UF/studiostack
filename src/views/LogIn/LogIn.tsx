@@ -26,6 +26,8 @@ export interface LoginProps {
   authenticated?: boolean
   label?: string
   organizations?: ApiOrganization[]
+  selectedOrganizationId?: string
+  onSelectOrganization?: (id:string)=>void
   accountActions?:ReactNode
   accountSignIn?:ReactNode
   hideUnavailableProviders?:boolean
@@ -33,7 +35,7 @@ export interface LoginProps {
   accessHeading?:string
   accessDescription?:string
 }
-export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
+export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
   return <main className="login-page">
     <section className="login-brand" aria-label="About StudioStack">
       <div className="login-brand-top"><span className="login-kicker">The equipment workspace</span><span className="login-edition">01 / ACCESS</span></div>
@@ -53,9 +55,9 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
         {authenticated ? <>
           <div className="login-connected"><HiOutlineCheckCircle aria-hidden="true" /><span>Account connected securely</span></div>
           <div className="login-memberships">
-            <h2>{organizations.length ? 'Your organizations' : 'Workspace access pending'}</h2>
-            {organizations.length ? <ul>{organizations.map(org => <li key={org.id}><span>{org.name}</span><small>{org.role}</small></li>)}</ul>
-              : <p>Your account is ready. Ask an organization administrator to add your membership before accessing cloud data.</p>}
+            <h2>{organizations.length ? 'Your workspaces' : 'Join your team'}</h2>
+            {organizations.length ? <label className="login-workspace-picker">Your workspace<select value={organizations.some(org=>org.id===selectedOrganizationId)?selectedOrganizationId:organizations[0].id} onChange={event=>onSelectOrganization?.(event.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name} · {org.role}</option>)}</select></label>
+              : <p>Choose an invited workspace below to join your team. Workspace access is managed by its administrators.</p>}
           </div>
           {accountActions}
           {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}
@@ -78,6 +80,7 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
           <p id="login-saml-note" className="login-sr-only">Sign in through your configured institution’s SAML provider. UF access requires UFIT approval.</p>
           <div className="login-divider"><span>or use your StudioStack account</span></div>
           </>}
+          {accountSignIn&&error&&<p className="login-error" role="alert">{error}</p>}
           {accountSignIn??<><button type="button" className="login-primary" onClick={() => void onSignIn()} disabled={busy || !configured}>
             {busy ? <><span className="login-spinner" aria-hidden="true" />Connecting securely…</> : <>Continue to sign in <HiOutlineArrowRight aria-hidden="true" /></>}
           </button>
