@@ -6,18 +6,41 @@ import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './li
 import {equipmentConditions,type EquipmentRecord,type EquipmentReservation,type EquipmentEvent,type ItemCondition} from '../../types/equipment'
 import {reservationLabel} from './Reservations'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
+import {getCached,setCached,invalidateCache} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
+type CachedFulfillment = { rows: EquipmentReservation[]; items: EquipmentRecord[] }
 export default function LiveFulfillment(){const context=useLiveOrganization();return context?<FulfillmentWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id}/>:<main className="administration"><h1>Pickup & return</h1><p>Select an active organization in your account.</p></main>}
 function FulfillmentWorkspace({api,organizationId}:{api:DatabaseApi;organizationId:string}){
-  const [rows,setRows]=useState<EquipmentReservation[]>([]),[items,setItems]=useState<EquipmentRecord[]>([]),[selected,setSelected]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[history,setHistory]=useState<EquipmentEvent[]>([]),[historyError,setHistoryError]=useState('')
+  const cacheKey = `fulfillment:${organizationId}`
+  const cached = getCached<CachedFulfillment>(cacheKey)
+  const cachedReservations = getCached<{ bookings: EquipmentReservation[]; items: EquipmentRecord[] }>(`reservations:${organizationId}`)
+  const cachedInventory = getCached<EquipmentRecord[]>(`inventory:${organizationId}`)
+
+  const initialRows = cached?.rows ?? cachedReservations?.bookings ?? []
+  const initialItems = cached?.items ?? cachedReservations?.items ?? cachedInventory ?? []
+
+  const [rows,setRows]=useState<EquipmentReservation[]>(initialRows),[items,setItems]=useState<EquipmentRecord[]>(initialItems),[selected,setSelected]=useState(''),[loading,setLoading]=useState(!cached && !cachedReservations),[error,setError]=useState(''),[notice,setNotice]=useState(''),[history,setHistory]=useState<EquipmentEvent[]>([]),[historyError,setHistoryError]=useState('')
   const lifecycle=useMemo(()=>api.equipment(organizationId),[api,organizationId])
-  const load=useCallback(async()=>({rows:await allPages(after=>api.reservations(organizationId,{limit:100,after})),items:await allPages(after=>api.inventory(organizationId,{limit:100,after}))}),[api,organizationId])
-  useEffect(()=>{let active=true;load().then(value=>{if(!active)return;setRows(value.rows);setItems(value.items);const id=new URLSearchParams(window.location.search).get('reservation');if(id&&value.rows.some(r=>r.id===id))setSelected(id)}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load])
+  const load=useCallback(async()=>{
+    const [rows,items]=await Promise.all([
+      allPages(after=>api.reservations(organizationId,{limit:100,after})),
+      allPages(after=>api.inventory(organizationId,{limit:100,after}))
+    ])
+    return {rows,items}
+  },[api,organizationId])
+  useEffect(()=>{let active=true;load().then(value=>{if(!active)return;setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items});const id=new URLSearchParams(window.location.search).get('reservation');if(id&&value.rows.some(r=>r.id===id))setSelected(id)}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,cacheKey])
   const current=rows.find(r=>r.id===selected)
   useEffect(()=>{let active=true;setHistory([]);setHistoryError('');if(selected)allPages(after=>lifecycle.activity(selected,after)).then(value=>{if(active)setHistory(value)}).catch(()=>{if(active)setHistoryError('Equipment activity could not be loaded. Refresh to try again.')});return()=>{active=false}},[lifecycle,selected,current?.version])
-  async function refresh(){setLoading(true);setError('');try{const value=await load();setRows(value.rows);setItems(value.items)}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
-  async function saved(row:EquipmentReservation,damaged:boolean){setRows(value=>value.map(r=>r.id===row.id?row:r));setNotice(row.fulfillmentStatus==='returned'?(damaged?'Equipment returned. A damage report was created and damaged items were placed in maintenance.':'Equipment returned.'):'Equipment checked out.');try{const value=await load();setRows(value.rows);setItems(value.items)}catch(e){setError(equipmentError(e))}}
+  async function refresh(){setLoading(true);setError('');try{const value=await load();setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items})}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
+  async function saved(row:EquipmentReservation,damaged:boolean){
+    invalidateCache(`fulfillment:${organizationId}`)
+    invalidateCache(`reservations:${organizationId}`)
+    invalidateCache(`inventory:${organizationId}`)
+    invalidateCache(`dashboard:${organizationId}`)
+    if (damaged) invalidateCache(`reports:${organizationId}`)
+    setRows(value=>value.map(r=>r.id===row.id?row:r));setNotice(row.fulfillmentStatus==='returned'?(damaged?'Equipment returned. A damage report was created and damaged items were placed in maintenance.':'Equipment returned.'):'Equipment checked out.');try{const value=await load();setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items})}catch(e){setError(equipmentError(e))}
+  }
   return <main className="administration"><header><div><p className="administration-eyebrow">Equipment handoff</p><h1>Pickup & return</h1><p>Record the condition of every item at pickup and return.</p></div><button disabled={loading} onClick={()=>void refresh()}>Refresh</button></header>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<p role="status">Loading equipment handoffs…</p>}
     <label className="equipment-booking-select">Reservation<select value={selected} onChange={e=>{setSelected(e.target.value);setNotice('')}}><option value="">Choose a reservation</option>{[...rows].sort((a,b)=>Date.parse(b.startsAt)-Date.parse(a.startsAt)).map(r=><option key={r.id} value={r.id}>{r.name} · {reservationLabel(r)}</option>)}</select></label>
