@@ -1,4 +1,5 @@
 import { productionRoutes } from '../../backend/production/routes'
+import {accountRoutes} from '../../backend/accounts/routes'
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
@@ -270,18 +271,20 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + productionRoutes.length + accountRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(serialized).toContain(`${config.apiId}/*/GET/me`)
     expect(serialized).not.toMatch(/AWS::IAM::Role|AWS::Lambda::Url|ixzikwz8n5|rds!cluster|photos\/uploads/)
   })
-  it('adds scoped schema policies and grants without runtime membership edits or DDL', async () => {
+  it('limits administration grants to reviewed columns and team links without DDL', async () => {
     const migration = (await loadMigrations()).find(value => value.name.startsWith('002_'))!
     expect(migration.sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(5)
     expect(migration.sql).toContain('FOREIGN KEY (organization_id, equipment_id)')
     const grants = databaseApiGrants('dev')
     expect(grants).toContain('GRANT UPDATE (status) ON app.reservations')
-    expect(grants).not.toMatch(/GRANT ALL|DELETE|schema_migrations|TO "studiostack_prod_app"|CREATE|UPDATE.*organization_memberships/)
+    expect(grants).not.toMatch(/GRANT ALL|schema_migrations|TO "studiostack_prod_app"|CREATE/)
+    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"'])
+    expect(grants).toContain('GRANT UPDATE (role, status, version) ON app.organization_memberships')
   })
 })

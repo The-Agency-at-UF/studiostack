@@ -1,4 +1,6 @@
 import { dispatchProduction, type ProductionRequest } from '../production/repository'
+import {dispatchAccounts} from '../accounts/repository'
+import type {AccountRequest} from '../accounts/routes'
 import type { BriefStorage } from '../production/storage'
 import { createHash, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
@@ -10,6 +12,7 @@ import type { PendingPhoto, PhotoStorage } from './photo-storage'
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
 export type ApiRequest =
+  | AccountRequest
   | ProductionRequest
   | { operation: 'me' }
   | { operation: 'register'; displayName: string | null }
@@ -73,6 +76,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     await client.query("SELECT set_config('app.organization_id', $1, true)", [organizationId])
 
     if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage)
+    if (request.operation === 'accounts') return dispatchAccounts(client, request, { organizationId, user, membership })
     switch (request.operation) {
       case 'members': {
         admin(membership)
@@ -82,7 +86,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         return page(result.rows, request.page.limit)
       }
       case 'groups': {
-        const result = await client.query<QueryResultRow & { id: string }>('SELECT id, name FROM app.user_groups WHERE organization_id = $1 AND ($2::uuid IS NULL OR id > $2::uuid) ORDER BY id LIMIT $3', [organizationId, request.page.after, request.page.limit + 1])
+        const result = await client.query<QueryResultRow & { id: string }>('SELECT id, name FROM app.user_groups WHERE organization_id = $1 AND archived_at IS NULL AND ($2::uuid IS NULL OR id > $2::uuid) ORDER BY id LIMIT $3', [organizationId, request.page.after, request.page.limit + 1])
         return page(result.rows, request.page.limit)
       }
       case 'createGroup': {

@@ -9,6 +9,11 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT SELECT, INSERT ON app.users TO ${role};
     GRANT UPDATE (email, display_name) ON app.users TO ${role};
     GRANT SELECT ON app.organizations, app.organization_memberships, app.user_group_memberships TO ${role};
+    GRANT UPDATE (name, reservation_days, version) ON app.organizations TO ${role};
+    GRANT UPDATE (role, status, version) ON app.organization_memberships TO ${role};
+    GRANT UPDATE (name, archived_at, version) ON app.user_groups TO ${role};
+    GRANT INSERT, DELETE ON app.user_group_memberships TO ${role};
+    GRANT SELECT, INSERT ON app.organization_audit_events TO ${role};
     GRANT SELECT, INSERT ON app.user_groups, app.inventory, app.reservations, app.reservation_items TO ${role};
     GRANT UPDATE (name, category, status, photo_id) ON app.inventory TO ${role};
     GRANT UPDATE (status) ON app.reservations TO ${role};

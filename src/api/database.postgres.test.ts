@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
+import type {AccountRequest} from '../../backend/accounts/routes'
+import type {ManagedMember,ManagedTeam,OrganizationSettings} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -153,11 +155,11 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await connection.query('ROLLBACK')
     } finally { await connection.end() }
   })
-  it('does not grant schema migration, hard-delete or membership-management permissions to runtime', async () => {
+  it('does not grant schema migration, hard-deletion or identity-rewrite permissions to runtime', async () => {
     const connection = new pg.Client({ connectionString })
     try {
       await connection.connect(); await connection.query('SET ROLE "studiostack_dev_app"')
-      for (const sql of ['CREATE TABLE app.forbidden (id int)', 'UPDATE app.organization_memberships SET role = \'owner\'', 'DELETE FROM app.inventory']) {
+      for (const sql of ['CREATE TABLE app.forbidden (id int)', 'UPDATE app.organization_memberships SET user_id = user_id', 'DELETE FROM app.inventory']) {
         await expect(connection.query(sql)).rejects.toMatchObject({ code: '42501' })
       }
     } finally { await connection.end() }
@@ -277,4 +279,66 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     }finally{await c.end()}
   })
 
+  function account<T>(identity:Identity,input:Omit<AccountRequest,'operation'|'organizationId'|'page'>&Partial<Pick<AccountRequest,'organizationId'>>) {
+    return repository.execute(identity,{operation:'accounts',organizationId,page:listPage,...input}) as Promise<T>
+  }
+  async function accountMember(identity:Identity) {
+    return (await account<ApiPage<ManagedMember>>(owner,{resource:'members',method:'GET'})).items.find(m=>m.id===profiles[identity.subject].id)!
+  }
+  it('accounts: members cannot administer people, teams or settings and foreign targets remain isolated',async()=>{
+    await expect(account(member,{resource:'members',method:'GET'})).rejects.toMatchObject({status:403})
+    await expect(account(member,{resource:'members',method:'PATCH',memberId:profiles.member.id,body:{role:'owner',status:'active',version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    await expect(account(owner,{resource:'members',method:'PATCH',organizationId:otherOrganizationId,memberId:profiles.outsider.id,body:{role:'owner',status:'active',version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    await expect(account(owner,{resource:'members',method:'PATCH',memberId:profiles.outsider.id,body:{role:'owner',status:'active',version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
+    expect(await account<OrganizationSettings>(member,{resource:'settings',method:'GET'})).toMatchObject({name:'Test Org',role:'member'})
+  })
+  it('accounts: the final active owner cannot be demoted or suspended',async()=>{
+    const m=await accountMember(owner)
+    for(const changes of [{role:'member',status:'active'},{role:'owner',status:'suspended'}])await expect(account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{...changes,version:m.version,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    expect(await accountMember(owner)).toMatchObject({role:'owner',status:'active',version:m.version})
+  })
+  it('accounts: role changes are versioned, idempotent and cannot be escalated by administrators',async()=>{
+    const target=await accountMember(secondMember),requestId=randomUUID(),body={role:'admin',status:'active',version:target.version,requestId}
+    const updated=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:target.id,body})
+    expect(updated.role).toBe('admin');expect(updated.version).toBe(target.version+1)
+    expect(await account(owner,{resource:'members',method:'PATCH',memberId:target.id,body})).toMatchObject({version:updated.version})
+    await expect(account(owner,{resource:'members',method:'PATCH',memberId:target.id,body:{...body,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    const m=await accountMember(member)
+    await expect(account(secondMember,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'owner',status:'active',version:m.version,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    const suspendedMember=await account<ManagedMember>(secondMember,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'suspended',version:m.version,requestId:randomUUID()}})
+    await expect(account(member,{resource:'settings',method:'GET'})).rejects.toMatchObject({status:403})
+    await account(secondMember,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:suspendedMember.version,requestId:randomUUID()}})
+    await account(owner,{resource:'members',method:'PATCH',memberId:target.id,body:{role:'member',status:'active',version:updated.version,requestId:randomUUID()}})
+    expect((await operator.query('SELECT id FROM app.organization_audit_events WHERE request_id=$1',[requestId])).rows).toHaveLength(1)
+  })
+  it('accounts: team membership updates reject foreign users and archival preserves team history',async()=>{
+    const requestId=randomUUID(),team=await account<ManagedTeam>(owner,{resource:'teams',method:'POST',body:{name:'Production team',requestId}})
+    expect(await account(owner,{resource:'teams',method:'POST',body:{name:'Production team',requestId}})).toMatchObject({id:team.id})
+    const body={name:team.name,archived:false,memberIds:[profiles.member.id],version:team.version,requestId:randomUUID()}
+    await expect(account(owner,{resource:'teams',method:'PATCH',teamId:team.id,body:{...body,memberIds:[profiles.outsider.id]}})).rejects.toMatchObject({status:400})
+    const updated=await account<ManagedTeam>(owner,{resource:'teams',method:'PATCH',teamId:team.id,body})
+    expect(updated.memberIds).toEqual([profiles.member.id])
+    const archived=await account<ManagedTeam>(owner,{resource:'teams',method:'PATCH',teamId:team.id,body:{...body,archived:true,version:updated.version,requestId:randomUUID()}})
+    expect(archived.archivedAt).toBeTruthy()
+    expect((await repository.execute(member,{operation:'groups',organizationId,page:listPage}) as ApiPage<ManagedTeam>).items.some(t=>t.id===team.id)).toBe(false)
+    expect((await account<ApiPage<ManagedTeam>>(owner,{resource:'teams',method:'GET'})).items.find(t=>t.id===team.id)?.memberIds).toEqual([profiles.member.id])
+  })
+  it('accounts: organization policies use optimistic versions and retain an append-only audit',async()=>{
+    const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'}),body={name:'Renamed studio',reservationDays:14,version:current.version,requestId:randomUUID()}
+    expect(await account(owner,{resource:'settings',method:'PATCH',body})).toMatchObject({name:body.name,reservationDays:14,version:current.version+1})
+    await expect(account(owner,{resource:'settings',method:'PATCH',body:{...body,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    const activity=await account<ApiPage<{id:string}>>(owner,{resource:'activity',method:'GET'});expect(activity.items.length).toBeGreaterThan(0)
+    await expect(account(member,{resource:'activity',method:'GET'})).rejects.toMatchObject({status:403})
+    const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');for(const sql of ['UPDATE app.organization_audit_events SET details=\'{}\'','DELETE FROM app.organization_audit_events'])await expect(c.query(sql)).rejects.toMatchObject({code:'42501'})}finally{await c.end()}
+  })
+  it('accounts: concurrent owner demotions leave an active owner',async()=>{
+    const a=await accountMember(owner),b=await accountMember(secondMember)
+    const promoted=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:b.id,body:{role:'owner',status:'active',version:b.version,requestId:randomUUID()}})
+    const result=await Promise.allSettled([account(owner,{resource:'members',method:'PATCH',memberId:a.id,body:{role:'member',status:'active',version:a.version,requestId:randomUUID()}}),account(secondMember,{resource:'members',method:'PATCH',memberId:b.id,body:{role:'member',status:'active',version:promoted.version,requestId:randomUUID()}})])
+    expect(result.filter(r=>r.status==='fulfilled')).toHaveLength(1)
+    const owners=(await operator.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'",[organizationId])).rows;expect(owners).toHaveLength(1)
+    const actor=owners[0].user_id===a.id?owner:secondMember
+    if(actor!==owner){const m=(await account<ApiPage<ManagedMember>>(actor,{resource:'members',method:'GET'})).items.find(m=>m.id===a.id)!;await account(actor,{resource:'members',method:'PATCH',memberId:a.id,body:{role:'owner',status:'active',version:m.version,requestId:randomUUID()}})}
+    const last=await accountMember(secondMember);if(last.role==='owner')await account(owner,{resource:'members',method:'PATCH',memberId:last.id,body:{role:'member',status:'active',version:last.version,requestId:randomUUID()}})
+  })
 })
