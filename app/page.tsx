@@ -1,3 +1,4 @@
 'use client'
 import LiveDashboard from '../src/views/Equipment/Dashboard'
-export default function HomePage(){return <LiveDashboard/>}
+import ProductionQueues from '../src/components/workspace/ProductionQueues'
+export default function HomePage(){return <LiveDashboard production={<ProductionQueues/>}/>}
