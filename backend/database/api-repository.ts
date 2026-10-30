@@ -1,3 +1,4 @@
+import { dispatchProduction, type ProductionRequest } from '../production/repository'
 import { createHash, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
@@ -8,6 +9,7 @@ import type { PendingPhoto, PhotoStorage } from './photo-storage'
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
 export type ApiRequest =
+  | ProductionRequest
   | { operation: 'me' }
   | { operation: 'register'; displayName: string | null }
   | { operation: 'organizations'; page: Page }
@@ -69,6 +71,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     if (!membership) throw new ApiError(403, 'Active organization membership required')
     await client.query("SELECT set_config('app.organization_id', $1, true)", [organizationId])
 
+    if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership })
     switch (request.operation) {
       case 'members': {
         admin(membership)
