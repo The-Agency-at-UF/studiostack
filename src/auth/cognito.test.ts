@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { webcrypto } from 'node:crypto'
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { accessToken, authConfiguration, clearSignIn, enterPreview, finishSignIn, isPreview, logoutUrl, signInUrl } from './cognito'
+import { accessToken, acceptPasswordTokens, authConfiguration, clearSignIn, enterPreview, finishSignIn, isPreview, logoutUrl, signInUrl } from './cognito'
 import { loginProviders, providerName } from './providers'
 
 const config = authConfiguration('http://localhost:5174')
@@ -18,7 +18,7 @@ async function jwt(claims: object) {
 async function mockResponse(overrides: { id?: object; access?: object; tamper?: boolean } = {}) {
   const pending = JSON.parse(values.get('studiostack.oauth.pending')!) as { state: string; nonce: string }
   const common = { iss: config.issuer, sub: 'test-member', exp: Math.floor(Date.now() / 1000) + 900, iat: Math.floor(Date.now() / 1000) }
-  let access = await jwt({ ...common, token_use: 'access', client_id: config.clientId, scope: 'openid studiostack-api/access', ...overrides.access })
+  let access = await jwt({ ...common, token_use: 'access', client_id: config.clientId, scope: 'openid aws.cognito.signin.user.admin studiostack-api/access', ...overrides.access })
   if (overrides.tamper) access = `${access.slice(0, -12)}AAAAAAAAAAAA`
   const id = await jwt({ ...common, token_use: 'id', aud: config.clientId, nonce: pending.nonce, email: 'member@example.test', email_verified: true, ...overrides.id })
   const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access, id_token: id, refresh_token: 'never-store-this' })))
@@ -132,4 +132,13 @@ describe('Cognito browser sign-in', () => {
     await expect(accessToken()).rejects.toThrow('session expired')
     expect([...values.entries()]).toEqual([['studiostack.preview', 'yes']])
   })
+  it('verifies SDK tokens without an OAuth callback and still rejects ID tokens as API access',async()=>{
+    const common={iss:config.issuer,sub:'sdk-user',exp:Math.floor(Date.now()/1000)+900,iat:Math.floor(Date.now()/1000)}
+    const access=await jwt({...common,token_use:'access',client_id:config.clientId,scope:'aws.cognito.signin.user.admin'}),id=await jwt({...common,token_use:'id',aud:config.clientId,email:'member@example.test',email_verified:true})
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({keys:[publicKey]}))))
+    expect(await acceptPasswordTokens(access,id,config)).toMatchObject({subject:'sdk-user',label:'member@example.test'});expect(await accessToken()).toBe(access);expect(values.size).toBe(0)
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({keys:[publicKey]}))))
+    await expect(acceptPasswordTokens(id,id,config)).rejects.toThrow('verify sign-in');await expect(accessToken()).rejects.toThrow('expired')
+  })
+
 })
