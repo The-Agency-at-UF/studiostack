@@ -17,9 +17,9 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const admin = ['owner', 'admin'].includes(membership.role)
   const settingsRow = (await client.query('SELECT version, reviewer_ids AS "reviewerIds", executive_ids AS "executiveIds", approval_confirms_dates AS "approvalConfirmsDates" FROM app.production_settings WHERE organization_id = $1', [organizationId])).rows[0]
   const settings = (settingsRow ?? defaultSettings()) as ProductionSettings
-  const reviewer = settings.reviewerIds.includes(user.id), executive = settings.executiveIds.includes(user.id)
+  const reviewer = admin || settings.reviewerIds.includes(user.id), executive = settings.executiveIds.includes(user.id)
   const editable = (brief: ProductionBrief) => brief.ownerId === user.id && ['draft', 'changes_requested'].includes(brief.status)
-  const readable = (brief: ProductionBrief) => admin || brief.ownerId === user.id || ((reviewer || executive) && brief.status !== 'draft')
+  const readable = (brief: ProductionBrief) => admin || brief.ownerId === user.id || brief.status !== 'draft'
   async function getBrief(lock = false): Promise<ProductionBrief> {
     const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.id = $2 ${lock ? 'FOR UPDATE OF b' : ''}`, [organizationId, request.briefId])
     const brief = result.rows[0] as ProductionBrief | undefined
@@ -48,6 +48,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (result.rows[0].actor_id !== user.id || result.rows[0].request_hash !== fingerprint) conflict('Request ID already used for different content')
     return true
   }
+  if(request.resource==='people'){if(!reviewer)deny();const result=await client.query("SELECT u.id,u.display_name AS \"displayName\",NULL AS email,m.role,m.status FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.status='active' AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3",[organizationId,request.page.after,request.page.limit+1]),items=result.rows.slice(0,request.page.limit);return {items,nextCursor:result.rows.length>request.page.limit?items.at(-1)!.id:null}}
   if (request.resource === 'access') return { userId: user.id, canReview: reviewer, canAdminister: admin, isExecutive: executive, notificationsConfigured: settings.executiveIds.length > 0 && process.env.PRODUCTION_EMAIL_ENABLED === 'yes' }
   if (request.resource === 'settings') {
     if (!admin) deny('An organization administrator manages production access')
@@ -65,7 +66,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   }
   if (request.resource === 'briefs' && request.method === 'GET' && !request.briefId) {
     const { page } = request
-    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND ($2::uuid IS NULL OR b.id > $2) AND ($4::boolean OR b.owner_id = $5 OR ($6::boolean AND b.status <> 'draft')) ORDER BY b.id LIMIT $3`, [organizationId, page.after, page.limit + 1, admin, user.id, reviewer || executive])
+    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND ($2::uuid IS NULL OR b.id > $2) AND ($4::boolean OR b.owner_id = $5 OR ($6::boolean AND b.status <> 'draft')) ORDER BY b.id LIMIT $3`, [organizationId, page.after, page.limit + 1, admin, user.id, true])
     const items = result.rows.slice(0, page.limit).map(b => ({ ...b, events: [], attachments: [] }))
     return { items, nextCursor: result.rows.length > page.limit ? items[items.length - 1].id : null }
   }

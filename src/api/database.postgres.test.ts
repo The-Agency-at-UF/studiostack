@@ -203,7 +203,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await production(owner,{resource:'settings',method:'PATCH',body:settings})).toMatchObject({version:1})
     await expect(production(owner,{resource:'settings',method:'PATCH',body:settings})).rejects.toMatchObject({status:409})
     expect(await production(secondMember,{resource:'access',method:'GET'})).toMatchObject({canReview:true,canAdminister:false})
-    expect(await production(owner,{resource:'access',method:'GET'})).toMatchObject({canReview:false,canAdminister:true})
+    expect(await production(owner,{resource:'access',method:'GET'})).toMatchObject({canReview:true,canAdminister:true})
   })
   it('production: persists drafts, hides them from reviewers, and enforces tenant membership',async()=>{
     const b=await draft()

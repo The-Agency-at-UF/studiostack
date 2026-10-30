@@ -83,6 +83,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     const membership = memberships.rows[0]
     if (!membership) throw new ApiError(403, 'Active organization membership required')
     await client.query("SELECT set_config('app.organization_id', $1, true)", [organizationId])
+    const canReadOrganizationBookings = async () => membership.role !== 'member' ||
+      (await client.query('SELECT 1 FROM app.production_settings WHERE organization_id=$1 AND $2::uuid=ANY(reviewer_ids)',[organizationId,user.id])).rows.length > 0
 
     if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage)
     if(request.operation==='alerts')return dispatchAlerts(client,request,{organizationId,user})
@@ -133,17 +135,20 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
           WHERE organization_id = $1 AND id = $2 RETURNING ${equipmentColumns}`, [organizationId, request.itemId, request.input.name ?? null, request.input.category ?? null, request.input.status ?? null, request.input.photoId !== undefined, request.input.photoId ?? null])).rows[0]
       }
       case 'reservations': {
+        const readOrganization = await canReadOrganizationBookings()
         const result = await client.query<QueryResultRow & { id: string }>(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id = $1
           AND ($2::uuid IS NULL OR r.id > $2::uuid) AND ($4::boolean OR r.user_id = $5) ORDER BY r.id LIMIT $3`,
-        [organizationId, request.page.after, request.page.limit + 1, membership.role !== 'member', user.id])
-        return page(result.rows, request.page.limit)
+        [organizationId, request.page.after, request.page.limit + 1, readOrganization, user.id])
+        return page(result.rows.map(row=>({...row,readOnly:membership.role==='member'&&row.userId!==user.id})), request.page.limit)
       }
       case 'reservation':
       case 'cancelReservation': {
         const result = await client.query<ReservationRow>(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id = $1 AND r.id = $2 FOR UPDATE OF r`, [organizationId, request.reservationId])
         const reservation = result.rows[0]
-        if (!reservation || (membership.role === 'member' && reservation.userId !== user.id)) throw new ApiError(404, 'Reservation not found')
-        if (request.operation === 'reservation') return reservation
+        if (!reservation) throw new ApiError(404, 'Reservation not found')
+        const readOnly=membership.role==='member'&&reservation.userId!==user.id
+        if(readOnly&&(request.operation!=='reservation'||!await canReadOrganizationBookings()))throw new ApiError(404,'Reservation not found')
+        if (request.operation === 'reservation') return {...reservation,readOnly}
         if(reservation.fulfillmentStatus&&reservation.fulfillmentStatus!=='reserved')throw new ApiError(409,'Return checked-out equipment before closing a reservation')
         if(reservation.status==='cancelled')return reservation
         // Idempotent cancellation preserves the record/history; no hard deletion.

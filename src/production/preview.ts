@@ -12,11 +12,12 @@ function initial(): State {
 function load(): State { try { const raw = localStorage.getItem(key); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed.briefs) && parsed.settings) return parsed } } catch { /* Start a clean preview if browser storage is unavailable. */ } return initial() }
 export function createPreviewProductionClient(person: string): ProductionClient {
   const access = (state: State): ProductionAccess => ({ userId: person, canReview: state.settings.reviewerIds.includes(person), canAdminister: person === 'preview-admin', isExecutive: state.settings.executiveIds.includes(person), notificationsConfigured: false })
-  const readable = (b: ProductionBrief, state: State) => person === b.ownerId || access(state).canAdminister || ((access(state).canReview || access(state).isExecutive) && b.status !== 'draft')
+  const readable = (b: ProductionBrief, state: State) => person === b.ownerId || access(state).canAdminister || b.status !== 'draft'
   function find(state: State, id: string) { const brief = state.briefs.find(b => b.id === id); if (!brief || !readable(brief, state)) throw new Error('Brief not found'); return brief }
   const persist = (state: State) => { localStorage.setItem(key, JSON.stringify(state)) }
   const append = (brief: ProductionBrief, kind: string, comment = '', section = '', snapshot: BriefData | null = null) => { brief.updatedAt = new Date().toISOString(); brief.events.push({ id: crypto.randomUUID(), actorId: person, actorName: previewPeople.find(p => p.id === person)!.displayName, kind, comment, section, snapshot, shootStartsAt: brief.shootStartsAt, shootEndsAt: brief.shootEndsAt, version: brief.version, createdAt: brief.updatedAt }) }
   return {
+    people:async()=>({items:previewPeople.map(p=>({...p,email:null,role:'member' as const,status:'active' as const})),nextCursor:null}),
     access: async () => access(load()), settings: async () => { const s = load(); if (!access(s).canAdminister) throw new Error('Administrator required'); return structuredClone(s.settings) },
     saveSettings: async input => { const state = load(); if (!access(state).canAdminister) throw new Error('Administrator required'); if (input.version !== state.settings.version) throw new Error('Settings changed. Reload first.'); state.settings = { ...input, version: input.version + 1 }; persist(state); return structuredClone(state.settings) },
     list: async () => { const s = load(); return { items: structuredClone(s.briefs.filter(b => readable(b, s))), nextCursor: null } },
