@@ -1,4 +1,5 @@
 import { outboxTask, parseOutboxRequest } from '../production/outbox'
+import {directoryRequest,directoryTask} from '../accounts/directory'
 import { createBriefStorage } from '../production/storage'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
 import { createDatabase } from './client'
@@ -13,6 +14,10 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | R
   try {
     const config = databaseConfig()
     const database = createDatabase(config)
+    if ('task' in event && event.task==='account-directory' && !('requestContext' in event) && !('version' in event)) {
+      const input={...event};delete input.task
+      return database.withClient(client=>directoryTask(client,directoryRequest(input,process.env.COGNITO_USER_POOL_ID??'')))
+    }
     if ('task' in event && event.task === 'production-outbox' && !('requestContext' in event) && !('version' in event)) {
       const request = { ...event }; delete request.task
       return database.withClient(client => outboxTask(client, parseOutboxRequest(request)))
