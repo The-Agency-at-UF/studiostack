@@ -1,3 +1,4 @@
+import {dispatchClients} from './clients'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseClient } from '../database/client'
 import { ApiError, object, uuid } from '../database/api-validation'
@@ -5,7 +6,7 @@ import type { Page } from '../database/api-repository'
 import { briefData, briefCommand, productionSettings, version } from './validation'
 import { submissionErrors, type BriefCommand, type BriefData, type ProductionBrief, type ProductionSettings } from '../../src/types/production'
 import type { BriefStorage } from './storage'
-export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
+export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; clientId?:string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
 export type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
 const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
 const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex')
@@ -42,6 +43,12 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       for (const recipient of activeRecipients.rows) await client.query('INSERT INTO app.production_outbox (organization_id, brief_id, event_id, recipient_id, payload) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (event_id, recipient_id) DO NOTHING', [organizationId, brief.id, result.rows[0].id, recipient.user_id, payload])
     }
   }
+  async function resolveClient(data:BriefData,previous?:BriefData){
+    if(!data.clientAccountId)return
+    const account=(await client.query('SELECT name,archived_at FROM app.client_accounts WHERE organization_id=$1 AND id=$2 FOR SHARE',[organizationId,data.clientAccountId])).rows[0]
+    if(!account||account.archived_at&&previous?.clientAccountId!==data.clientAccountId)throw new ApiError(400,'Choose an active client account in this organization')
+    data.client=account.name
+  }
   async function previousEvent(requestId: string, fingerprint: string) {
     const result = await client.query('SELECT actor_id, request_hash FROM app.production_brief_events WHERE organization_id = $1 AND brief_id = $2 AND request_id = $3', [organizationId, request.briefId, requestId])
     if (!result.rows.length) return false
@@ -49,6 +56,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     return true
   }
   if(request.resource==='people'){if(!reviewer)deny();const result=await client.query("SELECT u.id,u.display_name AS \"displayName\",NULL AS email,m.role,m.status FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.status='active' AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3",[organizationId,request.page.after,request.page.limit+1]),items=result.rows.slice(0,request.page.limit);return {items,nextCursor:result.rows.length>request.page.limit?items.at(-1)!.id:null}}
+  if(request.resource==='clients')return dispatchClients(client,request,reviewer)
   if (request.resource === 'access') return { userId: user.id, canReview: reviewer, canAdminister: admin, isExecutive: executive, notificationsConfigured: settings.executiveIds.length > 0 && process.env.PRODUCTION_EMAIL_ENABLED === 'yes' }
   if (request.resource === 'settings') {
     if (!admin) deny('An organization administrator manages production access')
@@ -75,7 +83,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`brief:${organizationId}:${user.id}:${requestId}`])
     const previous = (await client.query('SELECT id, request_hash FROM app.production_briefs WHERE organization_id = $1 AND owner_id = $2 AND request_id = $3', [organizationId, user.id, requestId])).rows[0]
     if (previous) { if (previous.request_hash !== fingerprint) conflict('Request ID already used for different content'); request.briefId = previous.id; return detail(await getBrief()) }
-    const inserted = await client.query('INSERT INTO app.production_briefs (organization_id, owner_id, data, request_id, request_hash) VALUES ($1,$2,$3,$4,$5) RETURNING id', [organizationId, user.id, data, requestId, fingerprint])
+    await resolveClient(data)
+    const inserted = await client.query('INSERT INTO app.production_briefs (organization_id, owner_id, data, request_id, request_hash,client_account_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [organizationId, user.id, data, requestId, fingerprint,data.clientAccountId??null])
     request.briefId = inserted.rows[0].id
     const brief = await getBrief()
     await event(brief, 'created', requestId, fingerprint)
@@ -101,8 +110,9 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (await previousEvent(requestId, fingerprint)) return detail(brief)
     if (!editable(brief)) deny('Only the author can edit a draft or a brief with requested changes')
     if (expected !== brief.version) conflict()
+    await resolveClient(data,brief.data)
     brief.data = data; brief.version++
-    await client.query('UPDATE app.production_briefs SET data = $3, version = $4, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, data, brief.version])
+    await client.query('UPDATE app.production_briefs SET data = $3, version = $4,client_account_id=$5, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, data, brief.version,data.clientAccountId??null])
     await event(brief, 'saved', requestId, fingerprint)
     return detail(await getBrief())
   }

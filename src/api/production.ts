@@ -1,10 +1,13 @@
 import type { ApiMember,ApiPage } from '../types/database-api'
-import type { ProductionBrief, BriefData, BriefCommand, ProductionSettings, ProductionAccess, Delivery } from '../types/production'
+import type { ClientAccount,ProductionBrief, BriefData, BriefCommand, ProductionSettings, ProductionAccess, Delivery } from '../types/production'
 type Send = <T>(resource: string, method?: string, body?: unknown) => Promise<T>
 export function productionClient(send: Send) {
   const page = (resource: string, after?: string) => `${resource}?limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`
   return {
     people:(after?:string)=>send<ApiPage<ApiMember>>(page('people',after)),
+    clients:(after?:string)=>send<ApiPage<ClientAccount>>(page('clients',after)),
+    createClient:(name:string)=>send<ClientAccount>('clients','POST',{name}),
+    updateClient:(id:string,input:{name:string;archived:boolean;version:number})=>send<ClientAccount>(`clients/${encodeURIComponent(id)}`,'PATCH',input),
     access: () => send<ProductionAccess>('access'), settings: () => send<ProductionSettings>('settings'),
     saveSettings: (input: ProductionSettings) => send<ProductionSettings>('settings', 'PATCH', input),
     list: (after?: string) => send<ApiPage<ProductionBrief>>(page('briefs', after)),
