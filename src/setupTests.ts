@@ -1,5 +1,9 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { invalidateCache } from './api/cache';
+
+// Exercise the same cache path as production; isolate data between tests.
+beforeEach(() => invalidateCache());
 
 const localStorageValues = new Map<string, string>();
 const localStorageMock: Storage = {
