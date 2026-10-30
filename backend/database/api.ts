@@ -1,3 +1,4 @@
+import {alertRoutes,alertRequest} from '../alerts/routes'
 import {reportRoutes,reportRequest} from '../equipment/report-routes'
 import {equipmentRoutes,equipmentRequest} from '../equipment/routes'
 import { productionRoutes, productionRequest } from '../production/routes'
@@ -47,7 +48,8 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...productionRoutes, ...accountRoutes, ...equipmentRoutes, ...reportRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...productionRoutes, ...accountRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if(alertRoutes.includes(event.routeKey))return alertRequest(event,()=>json(event))
   if(reportRoutes.includes(event.routeKey))return reportRequest(event,()=>json(event))
   if(equipmentRoutes.includes(event.routeKey))return equipmentRequest(event,()=>json(event))
   if (accountRoutes.includes(event.routeKey)) return accountRequest(event, () => json(event))
@@ -97,6 +99,7 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
       const identity = trustedIdentity(event, config, now())
       const parsed = request(event)
       const value = await repository.execute(identity, parsed)
+      if(parsed.operation==='reports'&&parsed.method!=='GET'||parsed.operation==='equipment'&&parsed.method!=='GET'||parsed.operation==='updateEquipment'||parsed.operation==='alerts'&&parsed.resource==='list')console.log(JSON.stringify({type:'app-alert-queued'}))
       if(parsed.operation==='accounts'&&parsed.resource==='invitations'&&parsed.method==='POST'&&(!parsed.invitationId||parsed.action==='retry'))console.log(JSON.stringify({type:'account-invitation-queued'}))
       if (parsed.operation === 'production' && (
         (parsed.resource === 'actions' && ['approve','request_changes','deny','withdraw','schedule'].includes(String((parsed.body as {action?:string})?.action))) ||

@@ -6,6 +6,9 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
   const role = `"studiostack_${environment}_app"`
   return `
     GRANT USAGE ON SCHEMA app TO ${role};
+    GRANT SELECT,INSERT ON app.alert_preferences,app.user_alerts TO ${role};
+    GRANT UPDATE(equipment_email,version) ON app.alert_preferences TO ${role};
+    GRANT UPDATE(read_at,email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at) ON app.user_alerts TO ${role};
     GRANT SELECT, INSERT ON app.users TO ${role};
     GRANT UPDATE (email, display_name) ON app.users TO ${role};
     GRANT SELECT ON app.organizations, app.organization_memberships, app.user_group_memberships TO ${role};

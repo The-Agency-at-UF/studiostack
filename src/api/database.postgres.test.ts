@@ -1,3 +1,5 @@
+import type {AlertRequest} from '../../backend/alerts/routes'
+import type {AppAlert,AlertPreferences} from '../types/alerts'
 import type {ReportRequest} from '../../backend/equipment/report-routes'
 import type {EquipmentRequest} from '../../backend/equipment/routes'
 import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '../types/equipment'
@@ -520,6 +522,38 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(operator.query("UPDATE app.user_alerts SET email_status='sending' WHERE id=$1",[row.id])).rejects.toMatchObject({code:'23514'})
     await expect(operator.query(sql,[...args.slice(0,5),'https://external.invalid','bad-target'])).rejects.toMatchObject({code:'23514'})
     await operator.query('DELETE FROM app.user_alerts WHERE id=$1',[row.id]);await operator.query('DELETE FROM app.alert_preferences WHERE organization_id=$1 AND user_id=$2',[organizationId,profiles.owner.id])
+  })
+
+  function alerts<T=unknown>(identity:Identity,value:Partial<AlertRequest>={}){return repository.execute(identity,{operation:'alerts',organizationId,method:'GET',resource:'list',page:listPage,...value} as AlertRequest) as Promise<T>}
+  it('alerts: report updates are private to recipients and read commands cannot target another member',async()=>{
+    const item=await equipment(),r=await issue(item,'low')
+    const own=await alerts<ApiPage<AppAlert>>(owner),notice=own.items.find(a=>a.targetPath.endsWith(r.id))!;expect(notice).toMatchObject({kind:'report_update',emailStatus:'skipped',readAt:null})
+    expect((await alerts<ApiPage<AppAlert>>(secondMember)).items.some(a=>a.id===notice.id)).toBe(false)
+    await expect(alerts(secondMember,{resource:'read',method:'POST',alertId:notice.id,body:{}})).rejects.toMatchObject({status:404})
+    const read=await alerts<AppAlert>(owner,{resource:'read',method:'POST',alertId:notice.id,body:{}});expect(read.readAt).not.toBeNull();expect(await alerts(owner,{resource:'read',method:'POST',alertId:notice.id,body:{}})).toMatchObject({readAt:read.readAt})
+    await expect(alerts(outsider)).rejects.toMatchObject({status:403})
+  })
+  it('alerts: optional email has versioned opt-in and turning it off cancels pending messages',async()=>{
+    expect(await alerts(member,{resource:'preferences'})).toEqual({equipmentEmail:false,version:0})
+    const pref=await alerts<AlertPreferences>(member,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:0}});expect(pref).toEqual({equipmentEmail:true,version:1})
+    await expect(alerts(member,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:0}})).rejects.toMatchObject({status:409})
+    const item=await equipment(),r=await issue(item,'low');await report(secondMember,{method:'POST',reportId:r.id,activity:true,body:{message:'Repair update',requestId:randomUUID()}})
+    expect((await alerts<ApiPage<AppAlert>>(member)).items.find(a=>a.targetPath.endsWith(r.id))).toMatchObject({emailStatus:'pending'})
+    await alerts(member,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:1}})
+    expect((await alerts<ApiPage<AppAlert>>(member)).items.find(a=>a.targetPath.endsWith(r.id))).toMatchObject({emailStatus:'skipped'})
+  })
+  it('alerts: overdue checkouts and maintenance conflicts notify borrower and admins once',async()=>{
+    const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as EquipmentReservation
+    const older=await equipment(),old=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(older)}) as EquipmentReservation
+    await operator.query("UPDATE app.reservations SET starts_at=now()-interval '3 hours',ends_at=now()-interval '1 hour',fulfillment_status='checked_out',checked_out_at=now()-interval '2 hours' WHERE id=$1",[old.id])
+    await issue(item,'high')
+    const first=await alerts<ApiPage<AppAlert>>(member),second=await alerts<ApiPage<AppAlert>>(member)
+    for(const id of [r.id,old.id])expect(first.items.filter(a=>a.targetPath.endsWith(id))).toHaveLength(1)
+    expect(second.items.filter(a=>a.targetPath.endsWith(old.id))).toHaveLength(1)
+    expect(first.items.find(a=>a.targetPath.endsWith(r.id))?.kind).toBe('reservation_conflict')
+    expect(first.items.find(a=>a.targetPath.endsWith(old.id))?.kind).toBe('overdue_equipment')
+    expect((await alerts<ApiPage<AppAlert>>(owner)).items.some(a=>a.targetPath.endsWith(old.id))).toBe(true)
+    expect((await alerts<ApiPage<AppAlert>>(secondMember)).items.some(a=>a.targetPath.endsWith(old.id))).toBe(false)
   })
 
 })

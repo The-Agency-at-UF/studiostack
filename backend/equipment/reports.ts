@@ -1,3 +1,4 @@
+import {reportAlerts} from '../alerts/records'
 import {createHash} from 'node:crypto'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object,uuid} from '../database/api-validation'
@@ -41,5 +42,6 @@ export async function dispatchReports(client:DatabaseClient,request:ReportReques
     kind='report_updated';details={fromStatus:current.status,status:v.status,resolution:v.resolution,restoreService:v.restoreService,...(v.condition?{condition:v.condition}:{})}
   }
   const added=(await client.query('INSERT INTO app.equipment_events(organization_id,actor_id,reservation_id,equipment_id,report_id,kind,details,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[org,user.id,reservationId,equipmentId,reportId,kind,details,input.requestId,hash])).rows[0]
+  await reportAlerts(client,org,reportId!,added.id,user.id)
   return request.activity?event(added.id):get(reportId!)
 }
