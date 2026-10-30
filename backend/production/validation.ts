@@ -5,9 +5,10 @@ function string(value: unknown, max = 4000): string { if (typeof value !== 'stri
 export function version(value: unknown): number { if (!Number.isSafeInteger(value) || Number(value) < 0) return bad('A valid record version is required'); return Number(value) }
 function date(value: string) { if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value)) bad('Invalid calendar date'); return value }
 export function briefData(input: unknown): BriefData {
-  const v = object(input, ['projectName', 'client', 'managers', 'supervisor', 'deliveryDate', 'productionTypes', 'fields'])
+  const v = object(input, ['clientAccountId','projectName', 'client', 'managers', 'supervisor', 'deliveryDate', 'productionTypes', 'fields'])
   const fields = object(v.fields, briefSections.flatMap(s => s.fields.map(f => f.key)))
   const result: BriefData = { projectName: string(v.projectName, 160), client: string(v.client, 160), managers: string(v.managers, 500), supervisor: string(v.supervisor, 160), deliveryDate: date(string(v.deliveryDate, 10)), productionTypes: [], fields: {} }
+  if(v.clientAccountId!==undefined)result.clientAccountId=v.clientAccountId===null?null:uuid(v.clientAccountId)
   if (!Array.isArray(v.productionTypes) || v.productionTypes.length > 4 || new Set(v.productionTypes).size !== v.productionTypes.length || v.productionTypes.some(t => !productionTypes.includes(t))) bad('Invalid production types')
   result.productionTypes = v.productionTypes as BriefData['productionTypes']
   for (const field of briefSections.flatMap(s => s.fields)) if (fields[field.key] !== undefined) {
