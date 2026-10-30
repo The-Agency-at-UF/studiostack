@@ -8,7 +8,7 @@ This slice supports profiles, organization/member reads, group creation, invento
 
 ## Routes
 
-All routes require a Cognito **access token**, sent as `Authorization: Bearer …`, and the custom OAuth scope `studiostack-api/access`. API Gateway validates JWT signatures, issuer, audience and expiration. The handler additionally checks its expected API ID, issuer, client ID, token type, expiry and scope. It never treats the preview session, request-body roles or email as authorization.
+All routes require a Cognito **access token**, sent as `Authorization: Bearer …`, and the Cognito user access scope `aws.cognito.signin.user.admin` (available to both SRP and OAuth sign-in). API Gateway validates JWT signatures, issuer, audience and expiration. The handler additionally checks its expected API ID, issuer, client ID, token type, expiry and scope. It never treats the preview session, request-body roles or email as authorization.
 
 Use `/organizations/{organizationId}` as the organization prefix below. UUIDs are required for organization, database equipment, reservation and request IDs; `equipmentCode` is a separate QR/manual equipment identifier.
 

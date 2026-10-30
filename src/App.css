@@ -933,3 +933,22 @@
 .account-invitations button { color:#6331a3;padding:8px 0;text-align:left; }
 .account-invitations button:disabled { opacity:.55;cursor:wait; }
 .account-invitations [role=alert] { color:#9c2932; }
+
+.login-password-form fieldset { display:grid;gap:18px; }
+.login-password-form label { display:grid;gap:8px;color:var(--ink);font-size:12px;font-weight:600; }
+.login-password-form input { width:100%;height:50px;padding:12px 14px;background:rgba(255,255,255,.65);border:1px solid var(--line);border-radius:0;color:var(--ink);font-size:15px;outline:none;transition:border-color .15s,box-shadow .15s; }
+.login-password-form input:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(113,56,184,.1); }
+.login-password-form input:read-only { background:transparent;color:var(--muted); }
+.login-password-input { position:relative;display:block; }
+.login-password-input input { padding-right:46px; }
+.login-password-toggle { position:absolute;right:10px;top:0;height:50px;padding:0 4px;color:var(--muted); }
+.login-password-toggle svg { width:19px;height:19px; }
+.login-forgot-action { justify-self:end;margin-top:-7px;color:var(--accent);font-size:12px; }
+.login-step-heading h2 { font-size:18px;font-weight:650; }
+.login-step-heading p,.login-field-hint { margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.6; }
+.login-password-form .login-field-hint { margin-top:-10px; }
+.login-auth-notice { color:#3c6451;font-size:13px;line-height:1.6; }
+.login-password-form .login-error,.login-password-form .login-password-note { margin:0; }
+.login-password-form { animation:rise-in .2s ease both; }
+@media(prefers-reduced-motion:reduce){.login-password-form{animation:none}.login-password-form input{transition:none}}
+.login-password-field { display:grid;gap:8px; }

@@ -10,10 +10,17 @@ import { AppSessionProvider } from '../context/AppSessionContext'
 import { accessToken, authConfiguration, clearSignIn, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
 import type { ApiOrganization } from '../types/database-api'
+import type {SignedInUser} from '../auth/cognito'
 import type { LoginProvider } from '../auth/providers'
 
 type Mode = 'signed-out' | 'authenticated' | 'preview'
 type Boot = { mode: Mode; label: string; admin: boolean; organizations: ApiOrganization[]; expiresAt?: number }
+async function loadAccount(user:SignedInUser):Promise<Boot>{
+  const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken})
+  try{await api.me()}catch(error){if(!(error instanceof DatabaseApiClientError)||error.status!==404)throw error}
+  await api.register(user.label.slice(0,120));const result=await api.organizations({limit:100})
+  return {mode:'authenticated',label:user.label,admin:['owner','admin'].includes(result.items[0]?.role),organizations:result.items,expiresAt:user.expiresAt}
+}
 const BugReportPopup = dynamic(() => import('./BugReportPopup'), { ssr: false })
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -41,12 +48,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         // Legacy local flags never establish an authenticated role.
         localStorage.removeItem('email'); localStorage.removeItem('isAdmin')
         if (hasCallback(url)) {
-          const config = authConfiguration(), user = await finishSignIn(config, url)
-          const api = createDatabaseApiClient({ baseUrl: config.apiUrl, getAccessToken: accessToken })
-          try{await api.me()}catch(error){if(!(error instanceof DatabaseApiClientError)||error.status!==404)throw error}
-          await api.register(user.label.slice(0, 120))
-          const result = await api.organizations({ limit: 100 })
-          return { mode: 'authenticated', label: user.label, admin: ['owner', 'admin'].includes(result.items[0]?.role), organizations: result.items, expiresAt: user.expiresAt }
+          return loadAccount(await finishSignIn(authConfiguration(),url))
         }
         return { mode: isPreview() ? 'preview' : 'signed-out', label: isPreview() ? 'demo@studiostack.com' : '', admin: isPreview(), organizations: [] }
       })()
@@ -107,17 +109,23 @@ export default function AppShell({ children }: { children: ReactNode }) {
     if (real) { try { window.location.assign(logoutUrl()); return } catch { /* Preview never receives credentials. */ } }
     router.push('/')
   }, [mode, router])
+  const completeSignIn=useCallback(async(user:SignedInUser)=>{
+    setBusy(true);setAuthError('')
+    try{const result=await loadAccount(user);setMode(result.mode);setEmail(result.label);setIsAdmin(result.admin);setOrganizations(result.organizations);setExpiresAt(result.expiresAt)
+      const destination=sessionStorage.getItem('studiostack-production-return');sessionStorage.removeItem('studiostack-production-return');if(destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination))router.replace(destination)
+    }catch{clearSignIn();setMode('signed-out');setAuthError('Your account could not be loaded. Try signing in again.');throw new Error('Account unavailable')}finally{setBusy(false)}
+  },[router])
   const refreshOrganizations=useCallback(async()=>{const result=await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken}).organizations({limit:100});setOrganizations(result.items)},[])
   const selectedOrganization=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0]
   const currentAdmin=mode==='authenticated'?['owner','admin'].includes(selectedOrganization?.role):isAdmin
-  const session = useMemo(() => ({ email, isAdmin:currentAdmin, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId,refreshOrganizations,
-    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, isAdmin, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations])
+  const session = useMemo(() => ({ email, isAdmin:currentAdmin, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,completeSignIn,setAuthenticating:setBusy,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId,refreshOrganizations,
+    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, isAdmin, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn])
 
   return <AppSessionProvider value={session}>
     {!ready || (mode === 'signed-out' && !loginPage) ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />{busy ? 'Completing secure sign-in…' : 'Opening StudioStack…'}</main>
       : loginPage ? children : <>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} />
-        <aside className="session-banner"><span>{mode === 'authenticated' ? 'Signed in. Production uses your organization’s cloud data. Other workspace pages remain in preview.' : 'Preview mode — no real account or cloud data.'}</span>
+        <aside className="session-banner"><span>{mode === 'authenticated' ? 'Signed in. Production, inventory and administration use live organization records. Gear bookings and reports are still in preview.' : 'Preview mode — no real account or cloud data.'}</span>
           <Link href="/login/">{mode === 'authenticated' ? 'Your account' : 'Sign in'}</Link></aside>
         {mode==='authenticated'&&organizations.length>0&&pathname.replace(/\/$/,'')!=='/production'&&<label className="workspace-selector">Organization<select value={selectedOrganization?.id??''} onChange={e=>setSelectedOrganizationId(e.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label>}
         <div className="app-content">{children}</div>

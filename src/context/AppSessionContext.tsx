@@ -3,6 +3,7 @@
 import { createContext, useContext } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { ApiOrganization } from '../types/database-api'
+import type {SignedInUser} from '../auth/cognito'
 import type { LoginProvider } from '../auth/providers'
 
 export interface AppSession {
@@ -23,6 +24,8 @@ export interface AppSession {
   selectedOrganizationId?: string
   setSelectedOrganizationId?: (id:string)=>void
   refreshOrganizations?: ()=>Promise<void>
+  completeSignIn?: (user:SignedInUser)=>Promise<void>
+  setAuthenticating?: (busy:boolean)=>void
 }
 const AppSessionContext = createContext<AppSession | null>(null)
 
