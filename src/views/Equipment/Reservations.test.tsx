@@ -2,11 +2,11 @@ import {cleanup,render,screen,waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import LiveReservations from './Reservations'
-const m=vi.hoisted(()=>({inventory:vi.fn(),reservations:vi.fn(),settings:vi.fn(),availability:vi.fn(),create:vi.fn(),edit:vi.fn(),cancel:vi.fn(),api:{} as Record<string,unknown>}))
-m.api={inventory:m.inventory,reservations:m.reservations,accounts:()=>({settings:m.settings}),equipment:()=>({availability:m.availability,edit:m.edit}),createReservation:m.create,cancelReservation:m.cancel}
+const m=vi.hoisted(()=>({clients:vi.fn(),inventory:vi.fn(),reservations:vi.fn(),settings:vi.fn(),availability:vi.fn(),create:vi.fn(),edit:vi.fn(),cancel:vi.fn(),api:{} as Record<string,unknown>}))
+m.api={production:()=>({clients:m.clients}),inventory:m.inventory,reservations:m.reservations,accounts:()=>({settings:m.settings}),equipment:()=>({availability:m.availability,edit:m.edit}),createReservation:m.create,cancelReservation:m.cancel}
 vi.mock('./live',async()=>({...await vi.importActual('./live'),useLiveOrganization:()=>({api:m.api,organization:{id:'org'},admin:false})}))
 const start=new Date(Date.now()+86400000).toISOString(),end=new Date(Date.now()+90000000).toISOString(),item={id:'camera',name:'Live camera',equipmentCode:'CAM-1',category:'Camera & Accessories',status:'available',condition:'good',version:1,checkedOut:false,photoId:null},reservation={id:'booking',userId:'user',name:'Booked shoot',startsAt:start,endsAt:end,status:'confirmed',fulfillmentStatus:'reserved',version:1,equipmentIds:['camera'],checkedOutAt:null,returnedAt:null}
-beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue({reservationDays:7});m.inventory.mockResolvedValue({items:[item],nextCursor:null});m.reservations.mockResolvedValue({items:[reservation],nextCursor:null});m.availability.mockResolvedValue({items:[],nextCursor:null});m.create.mockResolvedValue({...reservation,id:'created'});m.edit.mockResolvedValue({...reservation,name:'Updated shoot',version:2})})
+beforeEach(()=>{vi.clearAllMocks();m.clients.mockResolvedValue({items:[],nextCursor:null});m.settings.mockResolvedValue({reservationDays:7});m.inventory.mockResolvedValue({items:[item],nextCursor:null});m.reservations.mockResolvedValue({items:[reservation],nextCursor:null});m.availability.mockResolvedValue({items:[],nextCursor:null});m.create.mockResolvedValue({...reservation,id:'created'});m.edit.mockResolvedValue({...reservation,name:'Updated shoot',version:2})})
 afterEach(cleanup)
 describe('Authenticated equipment reservations',()=>{
  it('shows a leadership-visible booking without editing or cancellation controls',async()=>{

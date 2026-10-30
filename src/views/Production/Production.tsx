@@ -9,6 +9,8 @@ import { createPreviewProductionClient, previewPeople } from '../../production/p
 import { briefSections, emptyBrief, productionTypes, statusLabels, submissionErrors, visibleSections, type BriefCommand, type BriefData, type BriefEvent, type Delivery, type ProductionAccess, type ProductionBrief, type ProductionSettings } from '../../types/production'
 import type { ApiMember } from '../../types/database-api'
 import type { ProductionClient } from '../../api/production'
+import ClientAccounts from './ClientAccounts'
+import type {ClientAccount} from '../../types/production'
 import EmailVerification from './EmailVerification'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import './Production.css'
@@ -34,7 +36,7 @@ function useProductionClient(organizationId: string, person: string) {
     catch { return { api: null, database: null, error: 'The authenticated production service is not configured at this address.' } }
   }, [session.mode, session.getAccessToken, organizationId, person])
 }
-type CachedProduction = { briefs: ProductionBrief[]; access: ProductionAccess | null; deliveries: Delivery[] }
+type CachedProduction = { briefs: ProductionBrief[]; access: ProductionAccess | null; clients: ClientAccount[]; deliveries: Delivery[] }
 export default function Production() {
   const session = useAppSession(), preview = session.mode === 'preview'
   const {organizations,selectedOrganizationId,setSelectedOrganizationId} = session
@@ -49,7 +51,8 @@ export default function Production() {
   const cached = useMemo(() => getCached<CachedProduction>(cacheKey), [cacheKey])
   const [briefs, setBriefs] = useState<ProductionBrief[]>(cached?.briefs ?? []), [access, setAccess] = useState<ProductionAccess | null>(cached?.access ?? null)
   const [selected, setSelected] = useState<ProductionBrief | null>(null), [form, setForm] = useState<BriefData>(emptyBrief)
-  const [tab, setTab] = useState<'briefs' | 'calendar' | 'decisions' | 'settings'>('briefs')
+  const [tab, setTab] = useState<'briefs' | 'calendar' | 'decisions' | 'settings' | 'clients'>('briefs')
+  const [clients,setClients]=useState<ClientAccount[]>(cached?.clients ?? []),[clientFilter,setClientFilter]=useState('')
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(!cached), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
@@ -63,7 +66,7 @@ export default function Production() {
     if (current !== generation.current) return
     setAccess(a)
 
-    const [briefsRes, deliveriesRes] = await Promise.allSettled([
+    const [briefsRes, deliveriesRes, clientsRes] = await Promise.allSettled([
       (async () => {
         const all: ProductionBrief[] = []
         let after: string | undefined
@@ -76,6 +79,12 @@ export default function Production() {
         let after: string | undefined
         do { const p = await api.deliveries(after); outbox.push(...p.items); after = p.nextCursor ?? undefined } while (after)
         return outbox
+      })(),
+      (async () => {
+        const accounts: ClientAccount[] = []
+        let after: string | undefined
+        do { const p = await api.clients(after); accounts.push(...p.items); after = p.nextCursor ?? undefined } while (after)
+        return accounts
       })()
     ])
 
@@ -83,17 +92,19 @@ export default function Production() {
     if (briefsRes.status === 'fulfilled') setBriefs(briefsRes.value)
     else setError(errorText(briefsRes.reason))
     if (deliveriesRes.status === 'fulfilled') setDeliveries(deliveriesRes.value)
+    if (clientsRes.status === 'fulfilled') setClients(clientsRes.value)
     if (briefsRes.status === 'fulfilled') {
       setCached(cacheKey, {
         briefs: briefsRes.value,
         access: a,
+        clients: clientsRes.status === 'fulfilled' ? clientsRes.value : (cached?.clients ?? []),
         deliveries: deliveriesRes.status === 'fulfilled' ? deliveriesRes.value : (cached?.deliveries ?? [])
       })
     }
   }, [api, cacheKey, cached])
   useEffect(() => {
     const effectGeneration = ++generation.current; selection.current++; setSelected(null); setError(''); setNotice(''); setDirty(false)
-    setBriefs(cached?.briefs ?? []); setAccess(cached?.access ?? null); setDeliveries(cached?.deliveries ?? [])
+    setBriefs(cached?.briefs ?? []); setAccess(cached?.access ?? null); setClients(cached?.clients ?? []); setDeliveries(cached?.deliveries ?? [])
     setLoading(!cached)
     let active = true
     refresh().then(async () => { const id = new URLSearchParams(window.location.search).get('brief'); if (id && api) { const b = await api.get(id); if (active) accept(b) } }).catch(e => { if (active) setError(errorText(e)) }).finally(() => { if (active) setLoading(false) })
@@ -134,7 +145,8 @@ export default function Production() {
   const updateField = (key: string, value: string) => { setForm(f => ({ ...f, fields: { ...f.fields, [key]: value } })); setDirty(true) }
   const editable = selected?.ownerId === access?.userId && ['draft','changes_requested'].includes(selected?.status ?? '')
   const missing = submissionErrors(form)
-  const filtered = briefs.filter(b => (filter === 'all' || b.status === filter) && `${b.data.projectName} ${b.data.client} ${b.ownerName}`.toLowerCase().includes(query.toLowerCase())).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
+  const byClient=briefs.filter(b=>!clientFilter||(b.data.clientAccountId??b.data.client)===clientFilter)
+  const filtered = byClient.filter(b => (filter === 'all' || b.status === filter) && `${b.data.projectName} ${b.data.client} ${b.ownerName}`.toLowerCase().includes(query.toLowerCase())).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
   const loadMembers = useCallback(async (): Promise<ApiMember[]> => {
     if (preview) return previewPeople.map(p => ({ ...p, email: null, role: p.id === 'preview-admin' ? 'admin' : 'member', status: 'active' })) as ApiMember[]
     const people: ApiMember[] = []; let after: string | undefined
@@ -150,7 +162,7 @@ export default function Production() {
     {preview && <p className="production-info">Local preview. Changes stay in this browser; attachments and email delivery require sign-in.</p>}
     {!preview && session.getAccessToken && <EmailVerification getAccessToken={session.getAccessToken} />}
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
-    <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','calendar', ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ briefs:'Briefs',calendar:'Production calendar',decisions:'Decisions & delivery',settings:'Access & notifications' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>
+    <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','calendar','clients', ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ clients:'Client accounts',briefs:'Briefs',calendar:'Production calendar',decisions:'Decisions & delivery',settings:'Access & notifications' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>
     <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={() => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() })) }}>Reload</button></p>}{notice && <p role="status">{notice}</p>}</div>
     {loading ? <p role="status">Loading production workspace…</p> : !api ? null : !access ? (
       <div className="production-empty">
@@ -158,10 +170,11 @@ export default function Production() {
         <p>The production workspace could not be loaded. Check your connection or try again.</p>
         <button className="production-primary" disabled={busy} onClick={() => void refresh()}>Retry loading workspace</button>
       </div>
-    ) : tab === 'settings' ? <ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} /> : tab === 'decisions' ? <DecisionFeed api={api} briefs={briefs} deliveries={deliveries} access={access} preview={preview} onOpen={id => { setTab('briefs'); void open(id) }} onRefresh={refresh} /> : <>
-      {!selected && (tab === 'calendar' ? <ProductionCalendar briefs={briefs} onOpen={id => void open(id)} /> : <>
-        <div className="production-toolbar"><Field className="production-search" label="Search briefs"><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Project, client, or author" /></Field><label>Status<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
-        <div className="production-filter-summary" aria-live="polite"><span>{filtered.length} {filtered.length===1?'brief':'briefs'}{query||filter!=='all'?' · Filters applied':''}</span>{(query||filter!=='all')&&<button onClick={()=>{setQuery('');setFilter('all')}}>Clear filters</button>}</div>
+    ) : tab === 'clients' ? <ClientAccounts key={organizationId+person} clients={clients} api={api} canManage={access.canReview&&!preview} onRefresh={refresh}/> : tab === 'settings' ? <ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} /> : tab === 'decisions' ? <DecisionFeed api={api} briefs={briefs} deliveries={deliveries} access={access} preview={preview} onOpen={id => { setTab('briefs'); void open(id) }} onRefresh={refresh} /> : <>
+      {!selected&&tab==='calendar'&&<Field className="production-client-filter" label="Client account"><select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All client accounts</option>{[...new Map(briefs.filter(b=>b.data.client).map(b=>[b.data.clientAccountId??b.data.client,b.data.client])).entries()].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></Field>}
+      {!selected && (tab === 'calendar' ? <ProductionCalendar briefs={byClient} onOpen={id => void open(id)} /> : <>
+        <div className="production-toolbar"><Field className="production-client-filter" label="Client account"><select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All client accounts</option>{[...new Map(briefs.filter(b=>b.data.client).map(b=>[b.data.clientAccountId??b.data.client,b.data.client])).entries()].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></Field><Field className="production-search" label="Search briefs"><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Project, client, or author" /></Field><label>Status<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+        <div className="production-filter-summary" aria-live="polite"><span>{filtered.length} {filtered.length===1?'brief':'briefs'}{query||filter!=='all'||clientFilter?' · Filters applied':''}</span>{(query||filter!=='all'||clientFilter)&&<button onClick={()=>{setQuery('');setFilter('all');setClientFilter('')}}>Clear filters</button>}</div>
         <TableRegion className="production-table-wrap" label="Production briefs"><table className="production-table"><thead><tr><th>Project / client</th><th>Status</th><th>Requested by</th><th>Shoot</th><th>Delivery</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{filtered.map(b => <tr key={b.id}><td><button className="production-row-title" disabled={busy} onClick={() => void open(b.id)}>{b.data.projectName || 'Untitled brief'}</button><span>{b.data.client || 'Client not added'}</span></td><td><span className={`production-status status-${b.status}`}>{statusLabels[b.status]}</span></td><td>{b.ownerName}</td><td>{b.shootStartsAt ? dateLabel(b.shootStartsAt) : b.data.fields.proposedStart ? `${dateLabel(b.data.fields.proposedStart)} · tentative` : b.data.fields.shootEstimate || 'Not proposed'}</td><td>{b.data.deliveryDate ? dateLabel(b.data.deliveryDate) : 'Not set'}</td><td><button disabled={busy} aria-label={`Open ${b.data.projectName || 'untitled brief'}`} onClick={() => void open(b.id)}>↗</button></td></tr>)}</tbody></table>{!filtered.length && <div className="production-empty"><h2>{briefs.length ? 'No matching briefs' : 'Start with a brief'}</h2><p>{briefs.length ? 'Try another search or status.' : 'Create a production request to share the scope, dates, and deliverables with Production leadership.'}</p></div>}</TableRegion>
       </>)}
       {selected && <div className="production-detail"><div className="production-detail-header"><button disabled={busy} onClick={() => { if (mayLeave()) { setSelected(null); setDirty(false) } }}>← Back to {tab === 'calendar' ? 'calendar' : 'briefs'}</button><span className={`production-status status-${selected.status}`}>{statusLabels[selected.status]}</span><span>Revision {selected.version} · Submission {selected.submission}</span><button disabled={busy} onClick={() => window.print()}>Print / save PDF</button></div>
@@ -170,7 +183,8 @@ export default function Production() {
           <form className="production-form" onSubmit={e => { e.preventDefault(); void save() }}>
             <h2>{selected.data.projectName || 'New production brief'}</h2><p className="production-muted">Created by {selected.ownerName} · {new Date(selected.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</p>
             <fieldset id="brief-request" disabled={!editable || busy}><legend>Request details</legend><div className="production-fields">
-              {(['projectName','client','managers','supervisor','deliveryDate'] as const).map(key => <label key={key}>{({ projectName: 'Project name *', client: 'Client *', managers: 'Account / project managers *', supervisor: 'Production supervisor', deliveryDate: 'Target delivery date *' })[key]}<input maxLength={key === 'managers' ? 500 : 160} type={key === 'deliveryDate' ? 'date' : 'text'} value={form[key]} onChange={e => update(key,e.target.value)} /></label>)}
+              <label>Client account<select value={form.clientAccountId??''} onChange={e=>{const c=clients.find(c=>c.id===e.target.value);setForm(f=>({...f,clientAccountId:c?.id??null,client:c?.name??f.client}));setDirty(true)}}><option value="">Choose an account or enter a client below</option>{clients.filter(c=>!c.archivedAt||c.id===form.clientAccountId).map(c=><option key={c.id} value={c.id}>{c.name}{c.archivedAt?' · Archived':''}</option>)}</select></label>
+              {(['projectName','client','managers','supervisor','deliveryDate'] as const).map(key => <label key={key}>{({ projectName: 'Project name *', client: 'Client *', managers: 'Account / project managers *', supervisor: 'Production supervisor', deliveryDate: 'Target delivery date *' })[key]}<input maxLength={key === 'managers' ? 500 : 160} type={key === 'deliveryDate' ? 'date' : 'text'} readOnly={key==='client'&&Boolean(form.clientAccountId)} value={form[key]} onChange={e => update(key,e.target.value)} /></label>)}
             </div><div className="production-type-options"><span>Production type *</span>{productionTypes.map(t => <label key={t}><input type="checkbox" checked={form.productionTypes.includes(t)} onChange={e => update('productionTypes', e.target.checked ? [...form.productionTypes,t] : form.productionTypes.filter(v => v !== t))} />{t}</label>)}</div></fieldset>
             {visibleSections(form).map(s => <fieldset id={`brief-${s.title.toLowerCase().replaceAll(' ','-')}`} key={s.title} disabled={!editable || busy}><legend>{s.title}</legend><div className="production-fields">{s.fields.map(f => <label className={f.type === 'textarea' ? 'production-wide' : undefined} key={f.key}>{f.label}{f.required ? ' *' : ''}{f.type === 'textarea' ? <textarea rows={3} maxLength={6000} value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)} /> : f.type === 'select' ? <select value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)}><option value="">Choose…</option>{f.options?.map(v => <option key={v}>{v}</option>)}</select> : <input type={f.type ?? 'text'} maxLength={1000} value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)} />}</label>)}</div></fieldset>)}
             {editable && <div className="production-savebar"><span>{dirty ? 'Unsaved changes' : 'All changes saved'}</span><button className="production-primary" disabled={busy || !dirty} type="submit">{busy ? 'Saving…' : 'Save draft'}</button></div>}
