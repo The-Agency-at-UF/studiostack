@@ -7,7 +7,7 @@ export interface ApiOrganization { id: string; slug: string; name: string; role:
 export interface ApiMember extends ApiUser { role: ApiOrganization['role']; status: 'invited' | 'active' | 'suspended' }
 export interface ApiGroup { id: string; name: string }
 export interface ApiEquipment { id: string; equipmentCode: string; name: string; category: EquipmentCategory; status: EquipmentStatus; createdAt: string; photoId: string | null }
-export interface ApiReservation { id: string; userId: string; name: string; startsAt: string; endsAt: string; status: 'confirmed' | 'cancelled'; equipmentIds: string[]; createdAt: string }
+export interface ApiReservation { readOnly?: boolean; id: string; userId: string; name: string; startsAt: string; endsAt: string; status: 'confirmed' | 'cancelled'; equipmentIds: string[]; createdAt: string }
 export interface ApiPage<T> { items: T[]; nextCursor: string | null }
 export interface CreateEquipment { equipmentCode: string; name: string; category: EquipmentCategory; photoId?: string }
 export interface UpdateEquipment { name?: string; category?: EquipmentCategory; status?: EquipmentStatus; photoId?: string | null }
