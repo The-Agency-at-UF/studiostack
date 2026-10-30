@@ -9,6 +9,7 @@ import {guardProductionApply,productionMetadata,prodDirectory,approvedProduction
 import {accountInfrastructure} from '../infra/production/accounts'
 import {productionNotificationInfrastructure} from '../infra/production/notifications'
 import {productionAuthInfrastructure} from '../infra/production/auth'
+import {verifyStaticRoutes} from './verify-static-routes'
 const execute=promisify(execFile)
 async function main(){
  await guardProductionApply();const metadata=await productionMetadata(),routes=metadata.routes;if(!routes)throw new Error('Production API must be verified first')
@@ -18,6 +19,7 @@ async function main(){
  const zip=resolve(prodDirectory+`/web-${Date.now()}.zip`);await execute('zip',['-q','-r',zip,'.'],{cwd:resolve('out')});const deployment=await aws<{jobId:string;zipUploadUrl:string}>('amplify','create-deployment',['--app-id',metadata.app.appId,'--branch-name',metadata.app.branch]);const upload=await fetch(deployment.zipUploadUrl,{method:'PUT',body:await readFile(zip),headers:{'Content-Type':'application/zip'}});if(!upload.ok)throw new Error('Production web upload failed');await aws('amplify','start-deployment',['--app-id',metadata.app.appId,'--branch-name',metadata.app.branch,'--job-id',deployment.jobId])
  let published=false;for(let attempt=0;attempt<60;attempt++){const {job}=await aws<{job:{summary:{status:string}}}>('amplify','get-job',['--app-id',metadata.app.appId,'--branch-name',metadata.app.branch,'--job-id',deployment.jobId]);if(job.summary.status==='SUCCEED'){published=true;break}if(['FAILED','CANCELLED'].includes(job.summary.status))throw new Error('Production web publication failed');await pause(5000)}if(!published)throw new Error('Production publication pending; inspect Amplify job '+deployment.jobId)
  const response=await fetch(metadata.app.origin+'/login/',{signal:AbortSignal.timeout(30000)});if(!response.ok||!(await response.text()).includes('StudioStack'))throw new Error('Production website verification failed')
+ await verifyStaticRoutes(metadata.app.origin)
  await writeFile(prodDirectory+'/web-deployment.json',JSON.stringify({...metadata.app,jobId:deployment.jobId,deployedAt:new Date().toISOString()},null,2))
  const updated=await applyStack('studiostack-prod-auth',productionAuthInfrastructure(metadata.app.origin));if(updated.UserPoolId!==metadata.auth.UserPoolId||updated.AppClientId!==metadata.auth.AppClientId)throw new Error('Production authentication identity changed')
  await sendProductionOwnerInvitation(metadata)
