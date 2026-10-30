@@ -1,9 +1,3 @@
 'use client'
-
-import Calendar from '../../src/views/Calendar/Calendar'
-import { useAppSession } from '../../src/context/AppSessionContext'
-
-export default function CalendarPage() {
-  const { isAdmin } = useAppSession()
-  return <Calendar isAdmin={isAdmin} />
-}
+import LiveEquipmentCalendar from '../../src/views/Equipment/Calendar'
+export default function CalendarPage(){return <LiveEquipmentCalendar/>}
