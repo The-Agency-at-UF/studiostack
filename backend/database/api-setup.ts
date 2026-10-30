@@ -1,3 +1,4 @@
+import { bootstrapProductionAdmin } from '../production/bootstrap'
 import { createDatabase } from './client'
 import { databaseConfig } from './config'
 import { applyMigrations } from './migrations'
@@ -7,13 +8,17 @@ import { fixtures } from './dev-fixtures'
 /** Package only. Deploy/invoke temporarily with reviewed maintenance access.
  * Never attach this entry point to HTTP API Gateway or leave it deployed.
  */
-export async function handler(event: Parameters<typeof fixtures>[0] | Record<string, never> = {}) {
+export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | Record<string, never> = {}) {
   let stage = 'configuration'
   try {
     const config = databaseConfig()
     if (process.env.APPLY_DATABASE_API_SCHEMA !== 'yes' ||
         (config.environment === 'prod' && process.env.ALLOW_PRODUCTION_SCHEMA !== 'yes')) throw new Error('Maintenance approval required')
     const database = createDatabase(config)
+    if ('action' in event && event.action === 'bootstrap-production-admin') {
+      stage = 'bootstrap'
+      return await bootstrapProductionAdmin(database,config,event)
+    }
     stage = 'fixtures'
     if ('action' in event) return await fixtures(event as Parameters<typeof fixtures>[0])
     stage = 'migrations'

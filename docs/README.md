@@ -15,6 +15,8 @@ This folder is the starting point for product, design, and historical StudioStac
 | [Product requirements](product-requirements.md) | You need to understand a page, user role, workflow, or notification requirement. |
 | [Brand guidelines](brand-guidelines.md) | You are designing or reviewing StudioStack interface work. |
 | [Historical documentation](historical/README.md) | You need context from earlier StudioStack teams. |
+| [Production workflow](production-workflow.md) | You need brief intake, review roles, calendar, attachments, decision notifications and dev deployment. |
+| [Production release](production-release.md) | You are preparing a separately approved production rollout. |
 
 ## Documentation rules
 
