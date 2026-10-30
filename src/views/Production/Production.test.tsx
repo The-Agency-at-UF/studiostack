@@ -72,3 +72,13 @@ describe('production workspace',()=>{
     expect(screen.queryByText(/Local preview/)).not.toBeInTheDocument()
   })
 })
+
+it('protects unsaved brief edits during app navigation while permitting section links',async()=>{
+  const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'});
+  await user.click(screen.getByRole('button',{name:'New brief'}));await screen.findByRole('heading',{name:'New production brief'});
+  await user.type(screen.getByLabelText('Project name *'),'Unfinished production');
+  const confirm=vi.fn(()=>false);vi.stubGlobal('confirm',confirm);
+  await user.click(screen.getByRole('link',{name:'Request details'}));expect(confirm).not.toHaveBeenCalled();
+  const destination=document.createElement('a');destination.href='/inventory/';document.body.append(destination);
+  try{const event=new MouseEvent('click',{bubbles:true,cancelable:true,button:0});expect(destination.dispatchEvent(event)).toBe(false);expect(confirm).toHaveBeenCalledOnce();expect(screen.getByLabelText('Project name *')).toHaveValue('Unfinished production')}finally{destination.remove()}
+})
