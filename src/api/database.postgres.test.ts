@@ -8,9 +8,10 @@ import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '.
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
+import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
 import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
-import type {ManagedMember,ManagedTeam,OrganizationInvitation,OrganizationSettings} from '../types/accounts'
+import type {ManagedMember,ManagedTeam,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -689,5 +690,66 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await asApp(null,c=>c.query('INSERT INTO app.join_code_attempts(user_id) VALUES($1)',[profiles.outsider.id]))
     expect(Number((await asApp(null,c=>c.query("SELECT count(*) FROM app.join_code_attempts WHERE user_id=$1 AND attempted_at>now()-interval '1 hour'",[profiles.outsider.id]))).rows[0].count)).toBeGreaterThan(0)
     await expect(asApp(null,c=>c.query('DELETE FROM app.join_code_attempts'))).rejects.toMatchObject({code:'42501'})
+  })
+
+  const freshDomain=()=>`${randomUUID().slice(0,8)}.example.edu`
+  const freshCode=()=>Array.from({length:10},()=>joinCodeAlphabet[Math.floor(Math.random()*joinCodeAlphabet.length)]).join('')
+  async function newcomer(email:string){const identity={issuer,subject:randomUUID(),email};await repository.execute(identity,{operation:'register',displayName:'Newcomer'});return identity}
+  it('onboarding: a verified domain joins once as a member and parent domains match',async()=>{
+    const domain=freshDomain();await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id])
+    const identity=await newcomer(`person@media.${domain}`)
+    expect(await directory({action:'overview',identity})).toMatchObject({email:identity.email,displayName:'Newcomer',invitations:[],requests:[],domainMatches:[{organizationId,organizationName:expect.any(String),autoJoin:true}]})
+    expect(await directory({action:'join-domain',identity,organizationId})).toEqual({organizationId})
+    expect(await directory({action:'join-domain',identity,organizationId})).toEqual({organizationId})
+    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:organizationId,role:'member'})]})
+    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_domain'",[identity.subject])).rows).toHaveLength(1)
+    expect((await directory({action:'overview',identity}) as OnboardingOverview).domainMatches).toEqual([])
+    const stranger=await newcomer(`person@${freshDomain()}`)
+    expect(await directory({action:'join-domain',identity:stranger,organizationId})).toMatchObject({statusCode:404})
+    expect(await directory({action:'join-domain',identity:{...stranger,email:`person@${domain}`},organizationId:otherOrganizationId})).toMatchObject({statusCode:404})
+  })
+  it('onboarding: domains without auto-join take one pending request that only the requester can withdraw',async()=>{
+    const domain=freshDomain();await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by,auto_join) VALUES($1,$2,$3,false)',[domain,organizationId,profiles.owner.id])
+    const identity=await newcomer(`person@${domain}`)
+    expect(await directory({action:'join-domain',identity,organizationId})).toMatchObject({statusCode:404})
+    const first=await directory({action:'request-access',identity,organizationId,message:'Fall shoot crew'}) as OwnAccessRequest
+    expect(first).toMatchObject({organizationId,organizationName:expect.any(String),status:'pending'})
+    expect(await directory({action:'request-access',identity,organizationId})).toMatchObject({id:first.id})
+    expect((await directory({action:'overview',identity}) as OnboardingOverview).requests).toEqual([expect.objectContaining({id:first.id,status:'pending'})])
+    const other=await newcomer(`other@${domain}`)
+    expect(await directory({action:'withdraw-request',identity:other,organizationId,requestId:first.id})).toMatchObject({statusCode:404})
+    expect(await directory({action:'withdraw-request',identity,organizationId,requestId:first.id})).toEqual({id:first.id,status:'withdrawn'})
+    expect((await directory({action:'overview',identity}) as OnboardingOverview).requests).toEqual([])
+    expect(await directory({action:'request-access',identity:await newcomer(`person@${freshDomain()}`),organizationId})).toMatchObject({statusCode:404})
+    expect(await directory({action:'request-access',identity:{issuer,subject:'member',email:`member@${domain}`},organizationId})).toMatchObject({statusCode:409})
+  })
+  it('onboarding: join codes respect revocation, expiry and use limits and answer every failure alike',async()=>{
+    const [limited,revoked,expired]=[freshCode(),freshCode(),freshCode()]
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,max_uses,created_by) VALUES($1,$2,'Limited',1,$3)",[organizationId,joinCodeHash(limited),profiles.owner.id])
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,revoked_at,created_by) VALUES($1,$2,'Revoked',now(),$3)",[organizationId,joinCodeHash(revoked),profiles.owner.id])
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_at,expires_at,created_by) VALUES($1,$2,'Expired',now()-interval '2 days',now()-interval '1 day',$3)",[organizationId,joinCodeHash(expired),profiles.owner.id])
+    const first=await newcomer(`first@${freshDomain()}`),second=await newcomer(`second@${freshDomain()}`)
+    expect(await directory({action:'join-code',identity:first,code:`${limited.slice(0,4).toLowerCase()}-${limited.slice(4)}`})).toEqual({organizationId})
+    expect(await directory({action:'join-code',identity:first,code:limited})).toEqual({organizationId})
+    expect((await operator.query('SELECT uses FROM app.organization_join_codes WHERE code_hash=$1',[joinCodeHash(limited)])).rows[0].uses).toBe(1)
+    const failures=[]
+    for(const code of [limited,revoked,expired,freshCode(),'not a code'])failures.push(await directory({action:'join-code',identity:second,code}))
+    expect(new Set(failures.map(f=>JSON.stringify(f))).size).toBe(1);expect(failures[0]).toMatchObject({statusCode:404})
+    expect(await repository.execute(second,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_code'",[first.subject])).rows).toHaveLength(1)
+  })
+  it('onboarding: failed join codes are rate limited per account',async()=>{
+    const identity=await newcomer(`guesser@${freshDomain()}`),code=freshCode()
+    for(let i=0;i<10;i++)expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:404})
+    expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:429})
+    expect(await directory({action:'join-code',identity:await newcomer(`other@${freshDomain()}`),code})).toMatchObject({statusCode:404})
+  })
+  it('onboarding: a suspended member is never restored by domain or code',async()=>{
+    const domain=freshDomain(),code=freshCode(),identity={issuer,subject:'suspended',email:`suspended@${domain}`}
+    await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id])
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,$2,'Open',$3)",[organizationId,joinCodeHash(code),profiles.owner.id])
+    expect(await directory({action:'join-domain',identity,organizationId})).toMatchObject({statusCode:409})
+    expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:409})
+    expect((await operator.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,profiles.suspended.id])).rows[0].status).toBe('suspended')
   })
 })

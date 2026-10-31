@@ -10,6 +10,12 @@ export const accountRoutes=[
   `GET ${prefix}/activity`,
   `GET ${prefix}/invitations`,`POST ${prefix}/invitations`,`POST ${prefix}/invitations/{invitationId}/revoke`,`POST ${prefix}/invitations/{invitationId}/retry`,
 ]
+/** Routes for the signed-in account itself, answered by the verified directory worker. */
+export const directoryRoutes=[
+  'GET /account/invitations','POST /account/invitations/{invitationId}/accept',
+  'GET /account/onboarding','POST /account/onboarding/domain-joins','POST /account/onboarding/code-joins',
+  'POST /account/onboarding/access-requests','POST /account/onboarding/access-requests/{requestId}/withdraw',
+]
 export function accountRequest(event:APIGatewayProxyEventV2WithJWTAuthorizer,body:()=>unknown):AccountRequest {
   const method=event.requestContext.http.method,resource=event.routeKey.split(' ')[1].slice(prefix.length).split('/')[1]
   if(method!=='GET')object(event.queryStringParameters??{},[])
