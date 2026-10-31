@@ -654,4 +654,40 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     }
   })
 
+
+  async function asApp<T>(org:string|null,operation:(c:pg.Client)=>Promise<T>){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');await c.query('BEGIN');if(org)await c.query("SELECT set_config('app.organization_id',$1,true)",[org]);const value=await operation(c);await c.query('COMMIT');return value}catch(error){await c.query('ROLLBACK').catch(()=>undefined);throw error}finally{await c.end()}}
+  it('onboarding: one organization owns a lowercase domain and others cannot read it',async()=>{
+    const domain=`${randomUUID().slice(0,8)}.example.edu`
+    await asApp(organizationId,c=>c.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id]))
+    await expect(asApp(otherOrganizationId,c=>c.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,otherOrganizationId,profiles.outsider.id]))).rejects.toMatchObject({code:'23505'})
+    for(const bad of ['Upper.example.edu','no-dot','-bad.example.edu'])await expect(operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[bad,organizationId,profiles.owner.id])).rejects.toMatchObject({code:'23514'})
+    await expect(operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[`${randomUUID().slice(0,8)}.example.edu`,organizationId,profiles.outsider.id])).rejects.toMatchObject({code:'23503'})
+    expect((await asApp(null,c=>c.query('SELECT domain FROM app.organization_domains'))).rows).toEqual([])
+    expect((await asApp(otherOrganizationId,c=>c.query('SELECT domain FROM app.organization_domains WHERE domain=$1',[domain]))).rows).toEqual([])
+    expect((await asApp(organizationId,c=>c.query('SELECT domain FROM app.organization_domains WHERE domain=$1',[domain]))).rows).toEqual([{domain}])
+  })
+  it('onboarding: join codes cap their uses and runtime cannot rewrite the stored hash',async()=>{
+    const hash=randomUUID().replace(/-/g,'').padEnd(64,'0')
+    const id=(await asApp(organizationId,c=>c.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,max_uses,created_by) VALUES($1,$2,'Fall crew',1,$3) RETURNING id",[organizationId,hash,profiles.owner.id]))).rows[0].id
+    await asApp(organizationId,c=>c.query('UPDATE app.organization_join_codes SET uses=uses+1,version=version+1 WHERE id=$1',[id]))
+    await expect(asApp(organizationId,c=>c.query('UPDATE app.organization_join_codes SET uses=uses+1 WHERE id=$1',[id]))).rejects.toMatchObject({code:'23514'})
+    await expect(asApp(organizationId,c=>c.query("UPDATE app.organization_join_codes SET code_hash=$2 WHERE id=$1",[id,'f'.repeat(64)]))).rejects.toMatchObject({code:'42501'})
+    await expect(operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,$2,'Duplicate',$3)",[organizationId,hash,profiles.owner.id])).rejects.toMatchObject({code:'23505'})
+    await expect(operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,'not-a-hash','Plain',$2)",[organizationId,profiles.owner.id])).rejects.toMatchObject({code:'23514'})
+  })
+  it('onboarding: one pending access request per account and decisions need an organization member',async()=>{
+    const request=(await asApp(organizationId,c=>c.query('INSERT INTO app.organization_access_requests(organization_id,user_id,message) VALUES($1,$2,$3) RETURNING id',[organizationId,profiles.outsider.id,'Joining the fall shoot']))).rows[0].id
+    await expect(asApp(organizationId,c=>c.query('INSERT INTO app.organization_access_requests(organization_id,user_id) VALUES($1,$2)',[organizationId,profiles.outsider.id]))).rejects.toMatchObject({code:'23505'})
+    await expect(asApp(organizationId,c=>c.query("UPDATE app.organization_access_requests SET status='approved' WHERE id=$1",[request]))).rejects.toMatchObject({code:'23514'})
+    await expect(asApp(organizationId,c=>c.query("UPDATE app.organization_access_requests SET status='denied',decided_by=$2,decided_at=now() WHERE id=$1",[request,profiles.outsider.id]))).rejects.toMatchObject({code:'23503'})
+    await asApp(organizationId,c=>c.query("UPDATE app.organization_access_requests SET status='denied',decided_by=$2,decided_at=now(),version=version+1 WHERE id=$1",[request,profiles.owner.id]))
+    await asApp(organizationId,c=>c.query('INSERT INTO app.organization_access_requests(organization_id,user_id) VALUES($1,$2)',[organizationId,profiles.outsider.id]))
+    expect((await asApp(otherOrganizationId,c=>c.query('SELECT id FROM app.organization_access_requests'))).rows).toEqual([])
+    await expect(asApp(organizationId,c=>c.query('DELETE FROM app.organization_access_requests WHERE id=$1',[request]))).rejects.toMatchObject({code:'42501'})
+  })
+  it('onboarding: runtime records failed join code attempts but cannot erase them',async()=>{
+    await asApp(null,c=>c.query('INSERT INTO app.join_code_attempts(user_id) VALUES($1)',[profiles.outsider.id]))
+    expect(Number((await asApp(null,c=>c.query("SELECT count(*) FROM app.join_code_attempts WHERE user_id=$1 AND attempted_at>now()-interval '1 hour'",[profiles.outsider.id]))).rows[0].count)).toBeGreaterThan(0)
+    await expect(asApp(null,c=>c.query('DELETE FROM app.join_code_attempts'))).rejects.toMatchObject({code:'42501'})
+  })
 })
