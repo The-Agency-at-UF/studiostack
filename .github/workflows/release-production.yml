@@ -1,0 +1,72 @@
+name: Release Production
+
+# Manual, gated release of main to the production website. The run refuses to
+# start unless the production environment requires reviewers, then waits for an
+# approver before any AWS credentials are issued.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "release" to publish main to production
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Check release gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Require main and confirmation
+        if: github.ref != 'refs/heads/main' || inputs.confirm != 'release'
+        run: |
+          echo "::error::Release only from main, with the confirmation input set to release."
+          exit 1
+      - name: Require approval on the production environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rules=$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" --jq '[.protection_rules[]?.type] | join(",")' 2>/dev/null || true)
+          case ",$rules," in
+            *,required_reviewers,*) echo "Production requires reviewer approval.";;
+            *) echo "::error::The production environment has no required reviewers. A repository admin must add them before releasing."; exit 1;;
+          esac
+
+  suite:
+    name: Full test suite
+    needs: gate
+    uses: ./.github/workflows/test-suite.yml
+
+  publish:
+    name: Publish production website
+    needs: suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://main.dxs0q7vrz4oko.amplifyapp.com
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::423563856930:role/studiostack-ci-prod-web
+          aws-region: us-east-2
+      - name: Build, publish and verify every route
+        run: node --import=tsx scripts/publish-web.ts --apply-prod
