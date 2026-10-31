@@ -13,22 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  integration-tests:
-    name: Integration tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Integration tests
-        run: npm run test:integration
+  suite:
+    name: Full test suite
+    uses: ./.github/workflows/test-suite.yml
