@@ -57,9 +57,11 @@ describe('StudioStack sign-in', () => {
   })
   it('explains missing organization access without granting admin rights', () => {
     const onSignOut = vi.fn()
-    render(<LogIn onSignIn={vi.fn()} onPreview={vi.fn()} onSignOut={onSignOut} authenticated label="Invited user" />)
+    render(<LogIn onSignIn={vi.fn()} onPreview={vi.fn()} onSignOut={onSignOut} authenticated label="Invited user" accountActions={<p>Onboarding steps</p>} />)
     expect(screen.getByRole('heading', { name: 'You’re signed in.' })).toBeInTheDocument()
-    expect(screen.getByText('Join your team')).toBeInTheDocument()
+    expect(screen.getByText('Onboarding steps')).toBeInTheDocument()
+    expect(screen.queryByText('Your workspaces')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Open Production/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /create organization|make admin/i })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Sign out of this account' }))
     expect(onSignOut).toHaveBeenCalledOnce()

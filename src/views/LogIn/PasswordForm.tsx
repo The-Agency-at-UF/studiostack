@@ -51,7 +51,7 @@ export default function PasswordForm({onAuthenticated,onBusyChange,onStepChange,
       {choosingPassword&&<><label htmlFor="studio-confirm">{step==='sign-up'?'Confirm password':'Confirm new password'}<input id="studio-confirm" name="confirmation" type={visible?'text':'password'} autoComplete="new-password" value={confirmation} onChange={e=>setConfirmation(e.target.value)} required/></label><p id="studio-password-rules" className="login-field-hint">At least 8 characters, one uppercase letter and one special character.</p></>}
     </>}
     {step==='sign-in'&&<button type="button" className="login-forgot-action" onClick={()=>changeStep('forgot')}>Forgot password?</button>}
-    {step==='sign-up'&&<p className="login-field-hint">Create your account, verify your email, then accept your team’s invitation. Your organization manages workspace access.</p>}
+    {step==='sign-up'&&<p className="login-field-hint">Create your account and verify your email. Then join your workspace with an invitation, your school or work email, or a join code from your administrator.</p>}
     {error&&<p className="login-error" role="alert">{error}</p>}{notice&&<p className="login-auth-notice" role="status">{notice}</p>}
     <button className="login-primary" disabled={busy||!configured}>{busy?<><span className="login-spinner" aria-hidden="true"/>Please wait…</>:<>{actions[step]}<HiOutlineArrowRight aria-hidden="true"/></>}</button>
     {step==='sign-in'&&<p className="login-account-switch">New to StudioStack? <button type="button" className="login-text-action" onClick={()=>changeStep('sign-up')}>Sign up</button></p>}
