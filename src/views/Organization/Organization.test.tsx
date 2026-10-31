@@ -86,14 +86,22 @@ describe('Organization preview', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('at least one active administrator')
   })
 
-  it('changes roles and suspends or restores membership', async () => {
+  it('groups administrators above members', () => {
+    render(<Organization isAdmin />)
+    expect(within(screen.getByRole('region', { name: 'Admin' })).getByText('Morgan Lee')).toBeInTheDocument()
+    const members = within(screen.getByRole('region', { name: 'Members' }))
+    expect(members.getByText('Alex Rivera')).toBeInTheDocument()
+    expect(members.queryByText('Morgan Lee')).not.toBeInTheDocument()
+  })
+
+  it('moves a promoted member into the Admin section, then suspends or restores them', async () => {
     const user = userEvent.setup()
     render(<Organization isAdmin />)
     await user.click(screen.getByRole('button', { name: 'Change role for Alex Rivera' }))
     await user.selectOptions(screen.getByLabelText('Organization role'), 'Administrator')
     await user.click(screen.getByRole('button', { name: 'Save role' }))
-    const row = screen.getByText('Alex Rivera').closest('tr')!
-    expect(within(row).getByText('Administrator')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Members' })).queryByText('Alex Rivera')).not.toBeInTheDocument()
+    const row = within(screen.getByRole('region', { name: 'Admin' })).getByText('Alex Rivera').closest('li')!
     await user.click(screen.getByRole('button', { name: 'Suspend Alex Rivera' }))
     await user.click(screen.getByRole('button', { name: 'Confirm preview change' }))
     expect(within(row).getByText('Suspended')).toBeInTheDocument()

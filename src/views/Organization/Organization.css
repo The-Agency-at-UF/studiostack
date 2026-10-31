@@ -47,6 +47,11 @@
 .org-row-actions { display: flex; gap: 16px; white-space: nowrap; }
 .org-row-actions button { min-height: 32px; padding: 4px 0; border: 0; background: transparent; color: var(--ink); font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
 .org-row-actions button:hover { color: var(--accent); }
+.org-group h4 { margin: 0; padding: 20px 32px 12px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.org-admin-cards { list-style: none; margin: 0; padding: 0 32px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.org-admin-cards li { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); background: white; }
+.org-admin-cards .org-member { min-width: 0; }
+.org-admin-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .org-scope-note { padding: 16px 32px; margin: 0; font-size: 12px; color: var(--muted); }
 .org-section { padding: 28px 32px; }
 .org-empty { padding: 40px 32px !important; color: var(--muted); font-size: 13px; }
@@ -83,7 +88,9 @@
   .org-section-heading, .org-section { padding: 24px 20px; }
   .org-section-heading { align-items: flex-start; flex-direction: column; }
   .org-filters { padding: 0 20px 20px; flex-direction: column; }
-  .org-table { min-width: 720px; }
+  .org-table { min-width: 560px; }
+  .org-group h4 { padding: 20px 20px 12px; }
+  .org-admin-cards { padding: 0 20px 20px; }
   .org-preview { flex-direction: column; gap: 5px; }
   .org-notice { margin: 20px 20px 0; }
   .org-dialog { padding: 22px; }
