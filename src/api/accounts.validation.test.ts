@@ -3,6 +3,7 @@ import {describe,expect,it} from 'vitest'
 import {changeMember,changeOrganization,changeTeam,inviteMember} from '../../backend/accounts/validation'
 import {directoryRequest} from '../../backend/accounts/directory'
 import {emailDomains,joinCodeHash,normalizeJoinCode} from '../../backend/accounts/join-codes'
+import {addDomain,createJoinCode,publicEmailDomains} from '../../backend/accounts/join-methods'
 const requestId='11111111-1111-4111-8111-111111111111',version=1
 describe('account administration inputs',()=>{
   it('bounds IAM directory attestations to the configured pool and invitation organization',()=>{
@@ -29,6 +30,14 @@ describe('account administration inputs',()=>{
     expect(joinCodeHash('ABCDEFGHJK')).toMatch(/^[a-f0-9]{64}$/);expect(joinCodeHash('ABCDEFGHJK')).not.toBe(joinCodeHash('ABCDEFGHJM'))
     expect(emailDomains('a@cise.UFL.edu')).toEqual(['cise.ufl.edu','ufl.edu'])
     expect(emailDomains('a@example.org')).toEqual(['example.org'])
+  })
+  it('validates join-method administration inputs',()=>{
+    expect(addDomain({domain:' @Studio.Example.EDU ',autoJoin:false,requestId})).toEqual({domain:'studio.example.edu',autoJoin:false,requestId})
+    for(const domain of ['localhost','studio..edu','https://studio.example.edu'])expect(()=>addDomain({domain,autoJoin:true,requestId})).toThrow()
+    expect(()=>addDomain({domain:'studio.example.edu',requestId})).toThrow()
+    expect(createJoinCode({label:'Fall crew',requestId})).toEqual({label:'Fall crew',maxUses:null,expiresInDays:null,requestId})
+    for(const extra of [{maxUses:0},{maxUses:1.5},{expiresInDays:366},{role:'admin'}])expect(()=>createJoinCode({label:'Crew',requestId,...extra})).toThrow()
+    expect(publicEmailDomains.has('gmail.com')).toBe(true);expect(publicEmailDomains.has('ufl.edu')).toBe(false)
   })
   it('normalizes invitation email and excludes owner invitations',()=>{
     expect(inviteMember({email:' PERSON@Example.org ',displayName:'Person',role:'member',requestId}).email).toBe('person@example.org')
