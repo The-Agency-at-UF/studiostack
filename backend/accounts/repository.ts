@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto'
 import {dispatchInvitations} from './invitations'
+import {dispatchJoinMethods} from './join-methods'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object,text,uuid} from '../database/api-validation'
 import {changeMember,changeOrganization,changeTeam} from './validation'
@@ -24,6 +25,7 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
   if(resource==='settings'&&method==='GET')return {...await settings(),role}
   if(!['owner','admin'].includes(role))forbidden()
   if(resource==='invitations')return dispatchInvitations(client,request,{id:user.id,role})
+  if(['domains','join-codes','access-requests'].includes(resource))return dispatchJoinMethods(client,request,{id:user.id,role})
   if(method==='GET') {
     const queries:Record<string,string>={
       members:`SELECT ${memberColumns} FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3`,

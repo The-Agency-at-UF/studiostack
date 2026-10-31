@@ -11,7 +11,7 @@ import {directoryTask,type DirectoryRequest} from '../../backend/accounts/direct
 import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
 import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
-import type {ManagedMember,ManagedTeam,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest} from '../types/accounts'
+import type {JoinCode,ManagedMember,ManagedTeam,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -751,5 +751,53 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await directory({action:'join-domain',identity,organizationId})).toMatchObject({statusCode:409})
     expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:409})
     expect((await operator.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,profiles.suspended.id])).rows[0].status).toBe('suspended')
+  })
+
+  it('onboarding admin: only owners on a domain can claim it, once, and free-mail is refused',async()=>{
+    const domain=freshDomain();await operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[profiles.owner.id,`owner@studio.${domain}`])
+    const add=(identity:Identity,body:Record<string,unknown>,org=organizationId)=>account<WorkspaceDomain>(identity,{resource:'domains',method:'POST',organizationId:org,body:{autoJoin:true,requestId:randomUUID(),...body}})
+    await expect(add(member,{domain})).rejects.toMatchObject({status:403})
+    await expect(add(owner,{domain:'gmail.com'})).rejects.toMatchObject({status:400})
+    await expect(add(owner,{domain:freshDomain()})).rejects.toMatchObject({status:403})
+    const requestId=randomUUID(),created=await add(owner,{domain:`@${domain.toUpperCase()}`,requestId})
+    expect(created).toMatchObject({domain,autoJoin:true,version:1})
+    expect(await add(owner,{domain,requestId})).toMatchObject({domain,version:1})
+    await operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[profiles.outsider.id,`outsider@${domain}`])
+    await expect(add(outsider,{domain},otherOrganizationId)).rejects.toMatchObject({status:409})
+    const updated=await account<WorkspaceDomain>(owner,{resource:'domains',method:'PATCH',domain,action:'update',body:{autoJoin:false,version:1,requestId:randomUUID()}})
+    expect(updated).toMatchObject({autoJoin:false,version:2})
+    await expect(account(owner,{resource:'domains',method:'PATCH',domain,action:'update',body:{autoJoin:true,version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    expect((await account<ApiPage<WorkspaceDomain>>(owner,{resource:'domains',method:'GET'})).items).toContainEqual(expect.objectContaining({domain}))
+    expect(await account(owner,{resource:'domains',method:'POST',domain,action:'remove',body:{version:2,requestId:randomUUID()}})).toEqual({domain,removed:true})
+    expect((await operator.query("SELECT kind FROM app.organization_audit_events WHERE details->>'domain'=$1 ORDER BY created_at",[domain])).rows.map(r=>r.kind)).toEqual(['domain_added','domain_updated','domain_removed'])
+  })
+  it('onboarding admin: join codes are shown once, never listed, and stop working when revoked',async()=>{
+    await expect(account(member,{resource:'join-codes',method:'POST',body:{label:'Crew',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    await expect(account(owner,{resource:'join-codes',method:'POST',body:{label:'Crew',maxUses:0,requestId:randomUUID()}})).rejects.toMatchObject({status:400})
+    const created=await account<JoinCode>(owner,{resource:'join-codes',method:'POST',body:{label:'Spring crew',maxUses:5,expiresInDays:14,requestId:randomUUID()}})
+    expect(created.code).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/);expect(created).toMatchObject({label:'Spring crew',maxUses:5,uses:0,revokedAt:null})
+    const listed=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.find(c=>c.id===created.id)!
+    expect(listed).toBeDefined();expect(listed).not.toHaveProperty('code')
+    const joiner=await newcomer(`joiner@${freshDomain()}`)
+    expect(await directory({action:'join-code',identity:joiner,code:created.code!})).toEqual({organizationId})
+    const revoked=await account<JoinCode>(owner,{resource:'join-codes',method:'POST',codeId:created.id,action:'revoke',body:{version:listed.version+1,requestId:randomUUID()}})
+    expect(revoked.revokedAt).toBeTruthy()
+    expect(await directory({action:'join-code',identity:await newcomer(`late@${freshDomain()}`),code:created.code!})).toMatchObject({statusCode:404})
+  })
+  it('onboarding admin: access requests are approved or denied once by administrators',async()=>{
+    const domain=freshDomain();await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by,auto_join) VALUES($1,$2,$3,false)',[domain,organizationId,profiles.owner.id])
+    const asker=await newcomer(`asker@${domain}`),first=await directory({action:'request-access',identity:asker,organizationId}) as OwnAccessRequest
+    await expect(account(member,{resource:'access-requests',method:'GET'})).rejects.toMatchObject({status:403})
+    const pending=(await account<ApiPage<PendingAccessRequest>>(owner,{resource:'access-requests',method:'GET'})).items.find(r=>r.id===first.id)!
+    expect(pending).toMatchObject({email:asker.email,status:'pending',version:1})
+    expect(await account(owner,{resource:'access-requests',method:'POST',accessRequestId:first.id,action:'deny',body:{version:1,requestId:randomUUID()}})).toMatchObject({status:'denied'})
+    expect((await directory({action:'overview',identity:asker}) as OnboardingOverview).requests).toEqual([expect.objectContaining({id:first.id,status:'denied'})])
+    const second=await directory({action:'request-access',identity:asker,organizationId}) as OwnAccessRequest
+    expect(second.id).not.toBe(first.id)
+    const decide=(action:string,version=1)=>account<PendingAccessRequest>(owner,{resource:'access-requests',method:'POST',accessRequestId:second.id,action,body:{version,requestId:randomUUID()}})
+    expect(await decide('approve')).toMatchObject({status:'approved',version:2})
+    await expect(decide('approve',2)).rejects.toMatchObject({status:409})
+    expect(await repository.execute(asker,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:organizationId,role:'member'})]})
+    await expect(account(outsider,{resource:'access-requests',method:'POST',organizationId:otherOrganizationId,accessRequestId:second.id,action:'deny',body:{version:2,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
   })
 })

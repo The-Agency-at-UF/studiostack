@@ -2,7 +2,7 @@ import {alertRoutes} from '../../backend/alerts/routes'
 import {reportRoutes} from '../../backend/equipment/report-routes'
 import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes } from '../../backend/production/routes'
-import {accountRoutes} from '../../backend/accounts/routes'
+import {accountRequest,accountRoutes,joinMethodRoutes} from '../../backend/accounts/routes'
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
@@ -275,7 +275,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
@@ -291,6 +291,15 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     expect(execute).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({operation:'bugReport',organizationId:org,pagePath:'/inventory/'}))
     expect((await handler(event(route,{title:'x',description:'x',pagePath:'//evil.example',requestId}))).statusCode).toBe(400)
     expect((await handler(event(route,{title:'x',description:'x',pagePath:'/inventory/',requestId,userEmail:'other@example.test'}))).statusCode).toBe(400)
+  })
+  it('parses join-method administration routes with their own path parameters', () => {
+    const base='/organizations/{organizationId}/administration'
+    const parse=(route:string,parameters:Record<string,string>,body?:unknown)=>{const value=event(route,body);Object.assign(value.pathParameters!,parameters);return accountRequest(value,()=>body)}
+    expect(parse(`PATCH ${base}/domains/{domain}`,{domain:'Studio.Example.edu'},{autoJoin:false})).toMatchObject({resource:'domains',domain:'studio.example.edu',action:'update'})
+    expect(parse(`POST ${base}/domains/{domain}/remove`,{domain:'studio.example.edu'},{})).toMatchObject({resource:'domains',action:'remove'})
+    expect(parse(`POST ${base}/join-codes/{codeId}/revoke`,{codeId:requestId},{})).toMatchObject({resource:'join-codes',codeId:requestId,action:'revoke'})
+    expect(parse(`POST ${base}/access-requests/{accessRequestId}/approve`,{accessRequestId:requestId},{})).toMatchObject({resource:'access-requests',accessRequestId:requestId,action:'approve'})
+    expect(()=>parse(`POST ${base}/join-codes/{codeId}/revoke`,{codeId:'not-a-uuid'},{})).toThrow()
   })
   it('limits administration grants to reviewed columns and team links without DDL', async () => {
     const migration = (await loadMigrations()).find(value => value.name.startsWith('002_'))!
