@@ -11,7 +11,9 @@ export async function aws<T = unknown>(service: string, operation: string, args:
   // Never expose CLI input/output on an error: it may contain test passwords,
   // signed forms or credentials. Callers report only their named stage.
   try {
-    const result = await execute(process.env.AWS_CLI_PATH ?? 'aws', [service, operation, ...args, '--profile', 'studiostack-dev', '--region', region, '--output', 'json', '--no-cli-pager'], { maxBuffer: 8 * 1024 * 1024 })
+    // GitHub Actions authenticates with short-lived OIDC credentials in the environment.
+    const profile = process.env.GITHUB_ACTIONS === 'true' ? [] : ['--profile', 'studiostack-dev']
+    const result = await execute(process.env.AWS_CLI_PATH ?? 'aws', [service, operation, ...args, ...profile, '--region', region, '--output', 'json', '--no-cli-pager'], { maxBuffer: 8 * 1024 * 1024 })
     return (result.stdout.trim() ? JSON.parse(result.stdout) : undefined) as T
   } catch (error) {
     if ((error as { stderr?: string }).stderr?.includes('No updates are to be performed')) return undefined as T
