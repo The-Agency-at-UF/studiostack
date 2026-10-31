@@ -345,6 +345,16 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(account(owner,{resource:'members',method:'PATCH',memberId:profiles.outsider.id,body:{role:'owner',status:'active',version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
     expect(await account<OrganizationSettings>(member,{resource:'settings',method:'GET'})).toMatchObject({name:'Test Org',role:'member'})
   })
+  it('accounts: active members see a names-only directory of active members in their organization',async()=>{
+    const directory=await account<ApiPage<Record<string,unknown>>>(member,{resource:'directory',method:'GET'})
+    expect(directory.items.map(m=>m.id)).toEqual(expect.arrayContaining([owner,member,secondMember].map(i=>profiles[i.subject].id)))
+    expect(directory.items.map(m=>m.id)).not.toContain(profiles.suspended.id)
+    for(const item of directory.items)expect(Object.keys(item).sort()).toEqual(['displayName','id','role'])
+    expect(directory.items.find(m=>m.id===profiles.owner.id)).toMatchObject({role:'owner'})
+    await expect(account(suspended,{resource:'directory',method:'GET'})).rejects.toMatchObject({status:403})
+    await expect(account(outsider,{resource:'directory',method:'GET'})).rejects.toMatchObject({status:403})
+    expect((await account<ApiPage<{id:string}>>(outsider,{resource:'directory',method:'GET',organizationId:otherOrganizationId})).items.map(m=>m.id)).toEqual([profiles.outsider.id])
+  })
   it('accounts: the final active owner cannot be demoted or suspended',async()=>{
     const m=await accountMember(owner)
     for(const changes of [{role:'member',status:'active'},{role:'owner',status:'suspended'}])await expect(account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{...changes,version:m.version,requestId:randomUUID()}})).rejects.toMatchObject({status:409})

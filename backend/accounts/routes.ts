@@ -3,12 +3,15 @@ import {object,pagination,uuid} from '../database/api-validation'
 import type {Page} from '../database/api-repository'
 export interface AccountRequest {operation:'accounts'; organizationId:string; resource:string; method:string; memberId?:string; teamId?:string; invitationId?:string; action?:string; body?:unknown; page:Page}
 const prefix='/organizations/{organizationId}/administration'
+// Deployed route IDs follow list order, so the infrastructure appends this newer route last.
+export const organizationDirectoryRoute=`GET ${prefix}/directory`
 export const accountRoutes=[
   `GET ${prefix}/settings`,`PATCH ${prefix}/settings`,
   `GET ${prefix}/members`,`PATCH ${prefix}/members/{memberId}`,
   `GET ${prefix}/teams`,`POST ${prefix}/teams`,`PATCH ${prefix}/teams/{teamId}`,
   `GET ${prefix}/activity`,
   `GET ${prefix}/invitations`,`POST ${prefix}/invitations`,`POST ${prefix}/invitations/{invitationId}/revoke`,`POST ${prefix}/invitations/{invitationId}/retry`,
+  organizationDirectoryRoute,
 ]
 export function accountRequest(event:APIGatewayProxyEventV2WithJWTAuthorizer,body:()=>unknown):AccountRequest {
   const method=event.requestContext.http.method,resource=event.routeKey.split(' ')[1].slice(prefix.length).split('/')[1]
