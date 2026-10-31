@@ -45,12 +45,12 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: 'Organization' })).toHaveAttribute('href', '/organization');
   });
 
-  it('does not show Admin-only links when isAdmin is false', () => {
+  it('does not show Admin-only links when isAdmin is false, but keeps the organization directory', () => {
     render(<Header isAdmin={false} logOut={() => {}} />);
     // These should NOT be visible for students
     expect(screen.queryByText('Statistics')).not.toBeInTheDocument();
     expect(screen.queryByText('Users')).not.toBeInTheDocument();
-    expect(screen.queryByText('Organization')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Organization' })).toHaveAttribute('href', '/organization');
   });
 
   it('shows common links for both roles', () => {

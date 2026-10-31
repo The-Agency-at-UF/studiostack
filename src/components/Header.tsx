@@ -44,11 +44,10 @@ export default function Header({ isAdmin, logOut, email }: Props) {
       { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'] },
       { to: '/reports', label: 'Reports', Icon: HiOutlineExclamationCircle, related: ['/create-report', '/report-summary'] },
     ] },
-    { name: 'Workspace', links: [{ to: '/teams', label: 'Teams', Icon: HiOutlineUsers }] },
+    { name: 'Workspace', links: [{ to: '/teams', label: 'Teams', Icon: HiOutlineUsers }, { to: '/organization', label: 'Organization', Icon: HiOutlineBuildingOffice2 }] },
     ...(isAdmin ? [{ name: 'Administration', links: [
       { to: '/statistics', label: 'Statistics', Icon: HiOutlineChartBar },
       { to: '/users', label: 'Users', Icon: HiOutlineUsers },
-      { to: '/organization', label: 'Organization', Icon: HiOutlineBuildingOffice2 },
     ] }] : []),
   ]
   const currentPath = pathname?.replace(/\/$/, '') || '/'
