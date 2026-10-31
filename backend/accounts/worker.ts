@@ -4,15 +4,16 @@ import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
 import {apiConfiguration,trustedIdentity,type ApiConfiguration} from '../database/api'
-import {ApiError,object,uuid} from '../database/api-validation'
+import {ApiError,object,text,uuid} from '../database/api-validation'
 import type {DirectoryRequest} from './directory'
 import type {InvitationJob,InvitationQueueRequest} from './queue'
+import {directoryRoutes} from './routes'
 type Attributes={Name?:string;Value?:string}[]
 const response=(statusCode:number,body:unknown)=>({statusCode,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'},body:JSON.stringify(body)})
 export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>}) {
   try {
     const identity=trustedIdentity(event,config,Date.now())
-    if(!['GET /account/invitations','POST /account/invitations/{invitationId}/accept'].includes(event.routeKey)||event.requestContext.http.method!==event.routeKey.split(' ')[0])throw new ApiError(404,'Account operation not found')
+    if(!directoryRoutes.includes(event.routeKey)||event.requestContext.http.method!==event.routeKey.split(' ')[0])throw new ApiError(404,'Account operation not found')
     object(event.queryStringParameters??{},[])
     const token=(event.headers.authorization??event.headers.Authorization??'').match(/^Bearer ([^\s]+)$/)?.[1]
     if(!token)throw new ApiError(401,'Sign in again')
@@ -22,8 +23,13 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
     if(event.requestContext.http.method==='POST') {
       if(!event.body||event.body.length>2048)throw new ApiError(400,'An organization ID is required')
       let body:unknown;try{body=JSON.parse(event.isBase64Encoded?Buffer.from(event.body,'base64').toString():event.body)}catch{throw new ApiError(400,'Invalid account request')}
-      const value=object(body,['organizationId']);input.action='accept';input.invitationId=uuid(event.pathParameters?.invitationId);input.organizationId=uuid(value.organizationId)
-    }
+      const route=event.routeKey.split(' ')[1]
+      if(route==='/account/invitations/{invitationId}/accept'){const value=object(body,['organizationId']);Object.assign(input,{action:'accept',invitationId:uuid(event.pathParameters?.invitationId),organizationId:uuid(value.organizationId)})}
+      else if(route==='/account/onboarding/domain-joins'){const value=object(body,['organizationId']);Object.assign(input,{action:'join-domain',organizationId:uuid(value.organizationId)})}
+      else if(route==='/account/onboarding/code-joins'){const value=object(body,['code']);Object.assign(input,{action:'join-code',code:text(value.code,32)})}
+      else if(route==='/account/onboarding/access-requests'){const value=object(body,['organizationId','message']);Object.assign(input,{action:'request-access',organizationId:uuid(value.organizationId),...(value.message===undefined||value.message===''?{}:{message:text(value.message,500)})})}
+      else {const value=object(body,['organizationId']);Object.assign(input,{action:'withdraw-request',requestId:uuid(event.pathParameters?.requestId),organizationId:uuid(value.organizationId)})}
+    } else if(event.routeKey==='GET /account/onboarding')input.action='overview'
     const result=await deps.store(input) as {statusCode?:number;error?:string}
     return result.statusCode?response(result.statusCode,{error:result.error}):response(200,result)
   } catch(error){return error instanceof ApiError?response(error.status,{error:error.message}):response(503,{error:'Account services are temporarily unavailable'})}

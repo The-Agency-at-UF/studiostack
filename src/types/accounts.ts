@@ -3,7 +3,10 @@ export interface OrganizationSettings { id:string; name:string; slug:string; res
 export interface ManagedMember extends ApiMember { version:number }
 export interface ManagedTeam extends ApiGroup { version:number; archivedAt:string|null; memberIds:string[] }
 export interface OrganizationInvitation { id:string; email:string; displayName:string; role:'admin'|'member'; status:'pending'|'accepted'|'revoked'|'expired'; deliveryStatus:'queued'|'sending'|'sent'|'failed'|'uncertain'; attempts:number; expiresAt:string; version:number; createdAt:string }
-export interface PendingInvitation { id:string; organizationId:string; organizationName:string; role:'admin'|'member'; expiresAt:string }
+export interface PendingInvitation { id:string; organizationId:string; organizationName:string; role:'admin'|'member'; displayName?:string; expiresAt:string }
+export interface DomainMatch { organizationId:string; organizationName:string; autoJoin:boolean }
+export interface OwnAccessRequest { id:string; organizationId:string; organizationName:string; status:'pending'|'denied'|'withdrawn'; createdAt:string; decidedAt:string|null }
+export interface OnboardingOverview { email:string; displayName:string|null; invitations:PendingInvitation[]; domainMatches:DomainMatch[]; requests:OwnAccessRequest[] }
 export interface OrganizationActivity { id:string; actorName:string; kind:string; targetId:string|null; details:Record<string,unknown>; createdAt:string }
 export interface VersionedRequest { version:number; requestId:string }
 export interface InviteMember { email:string; displayName:string; role:'admin'|'member'; requestId:string }
