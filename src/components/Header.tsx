@@ -46,7 +46,6 @@ export default function Header({ isAdmin, logOut, email }: Props) {
     ] },
     ...(isAdmin ? [{ name: 'Administration', links: [
       { to: '/statistics', label: 'Statistics', Icon: HiOutlineChartBar },
-      { to: '/users', label: 'Users', Icon: HiOutlineUsers },
       { to: '/organization', label: 'Organization', Icon: HiOutlineBuildingOffice2 },
     ] }] : []),
   ]

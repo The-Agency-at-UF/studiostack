@@ -98,8 +98,8 @@ function AdminDash() {
             <div className="subsection-heading"><h3>Quick actions</h3><span>04</span></div>
             {[
               ['/reports', 'Review reports', 'Issues & resolutions'],
-              ['/statistics', 'View statistics', 'Usage & trends'],
-              ['/users', 'Manage users', 'Roles & access'],
+              ['/organization', 'Manage organization', 'Members, roles & settings'],
+              ['/statistics', 'View statistics', 'Usage & activity'],
               ['/inventory', 'Update inventory', 'Gear & availability'],
             ].map(([path, label, detail], index) => (
               <button key={path} onClick={() => router.push(path)} className="quick-action">
