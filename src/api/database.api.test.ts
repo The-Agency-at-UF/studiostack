@@ -299,7 +299,17 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     const grants = databaseApiGrants('dev')
     expect(grants).toContain('GRANT UPDATE (client_account_id,name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations')
     expect(grants).not.toMatch(/GRANT ALL|schema_migrations|TO "studiostack_prod_app"|CREATE/)
-    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT DELETE ON app.production_assignments TO "studiostack_dev_app"','GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"'])
+    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT DELETE ON app.production_assignments TO "studiostack_dev_app"','GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT SELECT, INSERT, DELETE ON app.organization_domains TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"'])
     expect(grants).toContain('GRANT UPDATE (role, status, version) ON app.organization_memberships')
+  })
+  it('keeps onboarding join methods tenant scoped and stores only join code hashes', async () => {
+    const migration = (await loadMigrations()).find(value => value.name.startsWith('011_'))!
+    expect(migration.sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(3)
+    expect(migration.sql).toContain('code_hash text NOT NULL UNIQUE')
+    expect(migration.sql).not.toMatch(/\bcode text\b/)
+    const grants = databaseApiGrants('dev')
+    expect(grants).toContain('GRANT UPDATE (uses, revoked_at, version) ON app.organization_join_codes')
+    expect(grants).toContain('GRANT UPDATE (status, decided_by, decided_at, version) ON app.organization_access_requests')
+    expect(grants).not.toMatch(/UPDATE \([^)]*code_hash[^)]*\) ON app.organization_join_codes|UPDATE \([^)]*organization_id[^)]*\) ON app.organization_(domains|access_requests)/)
   })
 })
