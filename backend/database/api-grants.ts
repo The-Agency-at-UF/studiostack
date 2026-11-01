@@ -25,6 +25,13 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT SELECT, INSERT ON app.organization_invitations TO ${role};
     GRANT UPDATE (status, accepted_by, accepted_at, version, delivery_status, attempts, next_attempt_at, lease_token, lease_until, delivered_at) ON app.organization_invitations TO ${role};
     GRANT INSERT ON app.organization_memberships TO ${role};
+    GRANT SELECT, INSERT, DELETE ON app.organization_domains TO ${role};
+    GRANT UPDATE (auto_join, version) ON app.organization_domains TO ${role};
+    GRANT SELECT, INSERT ON app.organization_join_codes TO ${role};
+    GRANT UPDATE (uses, revoked_at, version) ON app.organization_join_codes TO ${role};
+    GRANT SELECT, INSERT ON app.join_code_attempts TO ${role};
+    GRANT SELECT, INSERT ON app.organization_access_requests TO ${role};
+    GRANT UPDATE (status, decided_by, decided_at, version) ON app.organization_access_requests TO ${role};
     GRANT SELECT, INSERT ON app.user_groups, app.inventory, app.reservations, app.reservation_items TO ${role};
     GRANT UPDATE (name, category, status, photo_id,condition,version) ON app.inventory TO ${role};
     GRANT UPDATE (client_account_id,name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations TO ${role};

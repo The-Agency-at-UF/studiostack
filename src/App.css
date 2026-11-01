@@ -930,6 +930,13 @@
 .account-invitations h2 { font-size:16px;font-weight:650; }
 .account-invitations li { display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid #e4deeb; }
 .account-invitations small { display:block;font-size:12px;margin-top:4px; }
+.onboarding { display:grid;gap:14px; }
+.onboarding-step { font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted); }
+.onboarding-options { list-style:none;margin:0;padding:0; }
+.onboarding-options li { flex-direction:column;align-items:stretch; }
+.onboarding-options form,.onboarding form { display:grid;gap:12px; }
+.onboarding textarea { width:100%;border:1px solid var(--line);border-radius:6px;padding:10px 12px;font:inherit;resize:vertical; }
+.onboarding-code { padding-top:6px; }
 .account-invitations button { color:#6331a3;padding:8px 0;text-align:left; }
 .account-invitations button:disabled { opacity:.55;cursor:wait; }
 .account-invitations [role=alert] { color:#9c2932; }

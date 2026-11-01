@@ -2,7 +2,7 @@ import {alertRoutes,alertRequest} from '../alerts/routes'
 import {reportRoutes,reportRequest} from '../equipment/report-routes'
 import {equipmentRoutes,equipmentRequest} from '../equipment/routes'
 import { productionRoutes, productionRequest } from '../production/routes'
-import {accountRoutes,accountRequest} from '../accounts/routes'
+import {accountRoutes,accountRequest,joinMethodRoutes} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
 import { ApiError, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
@@ -50,11 +50,11 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
   if(alertRoutes.includes(event.routeKey))return alertRequest(event,()=>json(event))
   if(reportRoutes.includes(event.routeKey))return reportRequest(event,()=>json(event))
   if(equipmentRoutes.includes(event.routeKey))return equipmentRequest(event,()=>json(event))
-  if (accountRoutes.includes(event.routeKey)) return accountRequest(event, () => json(event))
+  if (accountRoutes.includes(event.routeKey)||joinMethodRoutes.includes(event.routeKey)) return accountRequest(event, () => json(event))
   if (productionRoutes.includes(event.routeKey)) return productionRequest(event, () => json(event))
   const params = event.queryStringParameters ?? {}
   if (event.routeKey === 'POST /photos/uploads') {

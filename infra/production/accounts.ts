@@ -1,5 +1,6 @@
 import {account,region,functionArn,trust} from '../database/resources'
 import {apiConfiguration,databaseApiScope} from '../../backend/database/api'
+import {directoryRoutes} from '../../backend/accounts/routes'
 export function accountInfrastructure(input:{environment:'dev'|'prod';artifactBucket:string;artifactKey:string;pool:string;client:string;apiId:string;authorizerId:string;sender:string;webUrl:string;configurationSet?:string}) {
   const {environment:env,pool,client,apiId,authorizerId,sender,webUrl}=input
   apiConfiguration({STUDIOSTACK_ENV:env,DATABASE_API_ID:apiId,COGNITO_USER_POOL_ID:pool,COGNITO_APP_CLIENT_ID:client})
@@ -22,9 +23,9 @@ export function accountInfrastructure(input:{environment:'dev'|'prod';artifactBu
     RecoveryPermission:{Type:'AWS::Lambda::Permission',Properties:{FunctionName:{Ref:'Worker'},Action:'lambda:InvokeFunction',Principal:'events.amazonaws.com',SourceAccount:account,SourceArn:{'Fn::GetAtt':['Recovery','Arn']}}},
     ErrorAlarm:{Type:'AWS::CloudWatch::Alarm',Properties:{AlarmName:`${name}-errors`,Namespace:'AWS/Lambda',MetricName:'Errors',Dimensions:[{Name:'FunctionName',Value:name}],Statistic:'Sum',Period:300,EvaluationPeriods:1,Threshold:1,ComparisonOperator:'GreaterThanOrEqualToThreshold',TreatMissingData:'notBreaching'}},
   }
-  for(const [i,route] of ['GET /account/invitations','POST /account/invitations/{invitationId}/accept'].entries()) {
+  for(const [i,route] of directoryRoutes.entries()) {
     resources[`Route${i}`]={Type:'AWS::ApiGatewayV2::Route',Properties:{ApiId:apiId,RouteKey:route,AuthorizationType:'JWT',AuthorizerId:authorizerId,AuthorizationScopes:[databaseApiScope],Target:{'Fn::Join':['',['integrations/',{Ref:'Integration'}]]}}}
     const [method,path]=route.split(' ');resources[`Permission${i}`]={Type:'AWS::Lambda::Permission',Properties:{FunctionName:{Ref:'Worker'},Action:'lambda:InvokeFunction',Principal:'apigateway.amazonaws.com',SourceAccount:account,SourceArn:`arn:aws:execute-api:${region}:${account}:${apiId}/*/${method}${path.replace(/\{[^}]+\}/g,'*')}`}}
   }
-  return {AWSTemplateFormatVersion:'2010-09-09',Description:'Scoped StudioStack account invitation delivery and verified recipient acceptance',Resources:resources,Outputs:{Worker:{Value:{Ref:'Worker'}}}}
+  return {AWSTemplateFormatVersion:'2010-09-09',Description:'Scoped StudioStack account invitation delivery, verified recipient acceptance and self-service onboarding',Resources:resources,Outputs:{Worker:{Value:{Ref:'Worker'}}}}
 }
