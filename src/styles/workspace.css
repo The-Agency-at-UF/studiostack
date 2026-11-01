@@ -12,8 +12,8 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page,.organization-page) h1 { font-size:var(--text-title); margin:0; }
 .app-content#workspace-content :is(.administration,.production-page,.organization-page) h2 { font-size:var(--text-lg); }
 .app-content#workspace-content :is(.administration,.production-page,.organization-page) h3 { font-size:var(--text-base); }
-.app-content#workspace-content :is(.administration,.production-page) :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { min-height:var(--control-height); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); padding:var(--space-2) var(--space-3); color:var(--ink); font-size:var(--text-sm); line-height:var(--line-body); max-width:100%; }
-.app-content#workspace-content :is(.administration,.production-page) :is(input,textarea,select):disabled { color:var(--muted); background:var(--surface-subtle); border-color:var(--line); }
+.app-content#workspace-content :is(.administration,.production-page) :is(input:not([type=checkbox]):not([type=radio]),select:not(.ws-select),textarea) { min-height:var(--control-height); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); padding:var(--space-2) var(--space-3); color:var(--ink); font-size:var(--text-sm); line-height:var(--line-body); max-width:100%; }
+.app-content#workspace-content :is(.administration,.production-page) :is(input,textarea,select:not(.ws-select)):disabled { color:var(--muted); background:var(--surface-subtle); border-color:var(--line); }
 .app-content#workspace-content :is(.administration,.production-page) label { font-size:var(--text-sm); font-weight:var(--weight-medium); gap:var(--space-2); }
 .app-content#workspace-content :is(.administration,.production-page) input[type=checkbox] { width:18px; height:18px; accent-color:var(--accent); }
 .app-content#workspace-content :is(.administration,.production-page) button { min-height:var(--control-height); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); padding:var(--space-2) var(--space-4); font-weight:var(--weight-medium); cursor:pointer; transition:background var(--motion-fast),border-color var(--motion-fast); }
@@ -156,7 +156,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .ws-actions { width:100%; }
   .ws-actions .ws-button { flex:1; }
   .production-section-nav { gap:var(--space-2) var(--space-3); }
-  .app-content#workspace-content :is(.administration,.production-page) :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { font-size:var(--text-base); }
+  .app-content#workspace-content :is(.administration,.production-page) :is(input:not([type=checkbox]):not([type=radio]),select:not(.ws-select),textarea) { font-size:var(--text-base); }
   .production-calendar .fc .fc-toolbar { flex-wrap:wrap; }
   .ws-record-list li { align-items:flex-start; }
   .ws-record-list li .ws-status { margin-top:var(--space-2); }
@@ -197,7 +197,8 @@ body { min-width:0; }
 .app-content#workspace-content :is(.administration-eyebrow,.production-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
 
 /* Themed select. Chromium also themes the open menu (customizable select); other browsers keep their system menu. */
-.ws-select { --ws-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23625d6d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E"); appearance:none; min-height:var(--control-height); max-width:100%; padding:var(--space-2) var(--space-10) var(--space-2) var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface) var(--ws-chevron) no-repeat right var(--space-3) center / 12px; color:var(--ink); font-size:var(--text-sm); line-height:var(--line-body); cursor:pointer; transition:border-color var(--motion-fast) ease; }
+.ws-select { --ws-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23625d6d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E"); appearance:none; min-height:var(--control-height); max-width:100%; padding:var(--space-2) var(--space-10) var(--space-2) var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface) var(--ws-chevron) no-repeat right var(--space-3) center / 12px; color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-regular); line-height:var(--line-body); cursor:pointer; transition:border-color var(--motion-fast) ease; }
+:is(.production-page,.org-dialog-form) .ws-select { width:100%; }
 .ws-select:hover:not(:disabled) { border-color:var(--accent); }
 .ws-select:focus-visible { outline:var(--focus-width) solid var(--accent); outline-offset:var(--focus-offset); }
 .ws-select:disabled { color:var(--muted); background-color:var(--surface-subtle); border-color:var(--line); cursor:not-allowed; }
@@ -209,7 +210,7 @@ body { min-width:0; }
   .ws-select::picker(select) { margin-block:var(--space-1); padding:var(--space-1); border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); box-shadow:0 12px 32px rgba(25,23,30,.12),0 2px 6px rgba(25,23,30,.06); opacity:0; translate:0 -4px; transition:opacity .16s ease,translate .22s cubic-bezier(.22,1,.36,1),overlay .22s allow-discrete,display .22s allow-discrete; }
   .ws-select:open::picker(select) { opacity:1; translate:0 0; }
   @starting-style { .ws-select:open::picker(select) { opacity:0; translate:0 -4px; } }
-  .ws-select option { gap:var(--space-2); padding:var(--space-2) var(--space-3); border-radius:calc(var(--radius-control) - 2px); color:var(--ink); font-size:var(--text-sm); }
+  .ws-select option { font-weight:var(--weight-regular); gap:var(--space-2); padding:var(--space-2) var(--space-3); border-radius:calc(var(--radius-control) - 2px); color:var(--ink); font-size:var(--text-sm); }
   .ws-select option:is(:hover,:focus-visible) { background:var(--accent-soft); outline:none; }
   .ws-select option:checked { color:var(--accent); font-weight:var(--weight-medium); }
   .ws-select option::checkmark { color:var(--accent); }
