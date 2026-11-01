@@ -8,6 +8,7 @@ import { SiApple } from 'react-icons/si'
 import logo from '../../assets/StudioStack.png'
 import type { ApiOrganization } from '../../types/database-api'
 import type { LoginProvider, LoginProviderOption } from '../../auth/providers'
+import { Select } from '../../components/workspace/WorkspaceUI'
 
 const providerButtons = [
   { id: 'google', label: 'Continue with Google', Icon: FcGoogle },
@@ -56,7 +57,7 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
           <div className="login-connected"><HiOutlineCheckCircle aria-hidden="true" /><span>Account connected securely</span></div>
           {organizations.length>0&&<div className="login-memberships">
             <h2>Your workspaces</h2>
-            <label className="login-workspace-picker">Your workspace<select value={organizations.some(org=>org.id===selectedOrganizationId)?selectedOrganizationId:organizations[0].id} onChange={event=>onSelectOrganization?.(event.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name} · {org.role}</option>)}</select></label>
+            <label className="login-workspace-picker">Your workspace<Select value={organizations.some(org=>org.id===selectedOrganizationId)?selectedOrganizationId:organizations[0].id} onChange={event=>onSelectOrganization?.(event.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name} · {org.role}</option>)}</Select></label>
           </div>}
           {accountActions}
           {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}

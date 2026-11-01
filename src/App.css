@@ -602,7 +602,6 @@
 }
 
 .form-workspace input:not([type="checkbox"]):not(.workspace-select__input),
-.form-workspace select,
 .workspace-modal-control {
   min-height: 52px;
   padding: 13px 0 !important;
@@ -614,7 +613,6 @@
 }
 
 .form-workspace input:not(.workspace-select__input):focus,
-.form-workspace select:focus,
 .workspace-modal-control:focus { border-color: var(--accent) !important; }
 
 .issue-form textarea {
@@ -717,8 +715,8 @@
 .item-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .item-basic-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .item-form label:not(.item-secondary) { display: grid; gap: 8px; font-size: 12px; font-weight: 600; }
-.item-form input:not([type=file]), .item-form select { min-width: 0; width: 100%; min-height: 44px; padding: 12px; border: 1px solid var(--line); border-radius: 0; background: white; color: var(--ink); font-size: 13px; font-weight: 400; }
-.item-form input:focus-visible, .item-form select:focus-visible, .item-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.item-form input:not([type=file]) { min-width: 0; width: 100%; min-height: 44px; padding: 12px; border: 1px solid var(--line); border-radius: 0; background: white; color: var(--ink); font-size: 13px; font-weight: 400; }
+.item-form input:focus-visible, .item-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .item-form-section { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
 .item-section-title { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
 .item-section-title > svg { width: 23px; height: 23px; flex-shrink: 0; }
@@ -963,7 +961,6 @@
 .login-account-switch .login-text-action { margin:0 0 0 4px; }
 
 .login-workspace-picker { display:grid; gap:9px; margin:16px 0; font-size:13px; font-weight:600; }
-.login-workspace-picker select { width:100%; min-width:0; min-height:48px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--surface,#fff); color:var(--ink,#151515); font:inherit; }
-.login-workspace-picker select:focus-visible { outline:2px solid #6900ff; outline-offset:3px; }
+.login-workspace-picker .ws-select { width:100%; }
 .account-invitations .login-primary { justify-content:center; padding:14px 18px; color:white; text-align:center; margin:12px 0; }
 .account-invitations button:disabled { cursor:not-allowed; }
