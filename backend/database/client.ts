@@ -75,6 +75,18 @@ function connectionOptions(config: DatabaseConfig, auth: DatabaseCredentials, ca
   }
 }
 
+/** Runs operation in one transaction on an existing connection, rolling back on any error. */
+export async function inTransaction<T>(client: DatabaseClient, operation: (client: DatabaseClient) => Promise<T>): Promise<T> {
+  await client.query('BEGIN')
+  try {
+    const result = await operation(client)
+    await client.query('COMMIT')
+    return result
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  }
+}
 export function createDatabase(config: DatabaseConfig, deps: DatabaseDependencies = defaultDependencies) {
   if (typeof window !== 'undefined') throw new Error('Database access is backend-only')
   async function withClient<T>(operation: (client: DatabaseClient) => Promise<T>, purpose: CredentialPurpose = 'runtime'): Promise<T> {
@@ -130,17 +142,7 @@ export function createDatabase(config: DatabaseConfig, deps: DatabaseDependencie
     return withClient(client => client.query<T>(text, values))
   }
   async function transaction<T>(operation: (client: DatabaseClient) => Promise<T>, purpose: CredentialPurpose = 'runtime'): Promise<T> {
-    return withClient(async client => {
-      await client.query('BEGIN')
-      try {
-        const result = await operation(client)
-        await client.query('COMMIT')
-        return result
-      } catch (error) {
-        await client.query('ROLLBACK').catch(() => undefined)
-        throw error
-      }
-    }, purpose)
+    return withClient(client => inTransaction(client, operation), purpose)
   }
   return { withClient, query, transaction }
 }
