@@ -8,9 +8,10 @@ import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '.
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
+import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
 import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
-import type {ManagedMember,ManagedTeam,OrganizationInvitation,OrganizationSettings} from '../types/accounts'
+import type {JoinCode,ManagedMember,ManagedTeam,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -664,4 +665,149 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     }
   })
 
+
+  async function asApp<T>(org:string|null,operation:(c:pg.Client)=>Promise<T>){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');await c.query('BEGIN');if(org)await c.query("SELECT set_config('app.organization_id',$1,true)",[org]);const value=await operation(c);await c.query('COMMIT');return value}catch(error){await c.query('ROLLBACK').catch(()=>undefined);throw error}finally{await c.end()}}
+  it('onboarding: one organization owns a lowercase domain and others cannot read it',async()=>{
+    const domain=`${randomUUID().slice(0,8)}.example.edu`
+    await asApp(organizationId,c=>c.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id]))
+    await expect(asApp(otherOrganizationId,c=>c.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,otherOrganizationId,profiles.outsider.id]))).rejects.toMatchObject({code:'23505'})
+    for(const bad of ['Upper.example.edu','no-dot','-bad.example.edu'])await expect(operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[bad,organizationId,profiles.owner.id])).rejects.toMatchObject({code:'23514'})
+    await expect(operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[`${randomUUID().slice(0,8)}.example.edu`,organizationId,profiles.outsider.id])).rejects.toMatchObject({code:'23503'})
+    expect((await asApp(null,c=>c.query('SELECT domain FROM app.organization_domains'))).rows).toEqual([])
+    expect((await asApp(otherOrganizationId,c=>c.query('SELECT domain FROM app.organization_domains WHERE domain=$1',[domain]))).rows).toEqual([])
+    expect((await asApp(organizationId,c=>c.query('SELECT domain FROM app.organization_domains WHERE domain=$1',[domain]))).rows).toEqual([{domain}])
+  })
+  it('onboarding: join codes cap their uses and runtime cannot rewrite the stored hash',async()=>{
+    const hash=randomUUID().replace(/-/g,'').padEnd(64,'0')
+    const id=(await asApp(organizationId,c=>c.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,max_uses,created_by) VALUES($1,$2,'Fall crew',1,$3) RETURNING id",[organizationId,hash,profiles.owner.id]))).rows[0].id
+    await asApp(organizationId,c=>c.query('UPDATE app.organization_join_codes SET uses=uses+1,version=version+1 WHERE id=$1',[id]))
+    await expect(asApp(organizationId,c=>c.query('UPDATE app.organization_join_codes SET uses=uses+1 WHERE id=$1',[id]))).rejects.toMatchObject({code:'23514'})
+    await expect(asApp(organizationId,c=>c.query("UPDATE app.organization_join_codes SET code_hash=$2 WHERE id=$1",[id,'f'.repeat(64)]))).rejects.toMatchObject({code:'42501'})
+    await expect(operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,$2,'Duplicate',$3)",[organizationId,hash,profiles.owner.id])).rejects.toMatchObject({code:'23505'})
+    await expect(operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,'not-a-hash','Plain',$2)",[organizationId,profiles.owner.id])).rejects.toMatchObject({code:'23514'})
+  })
+  it('onboarding: one pending access request per account and decisions need an organization member',async()=>{
+    const request=(await asApp(organizationId,c=>c.query('INSERT INTO app.organization_access_requests(organization_id,user_id,message) VALUES($1,$2,$3) RETURNING id',[organizationId,profiles.outsider.id,'Joining the fall shoot']))).rows[0].id
+    await expect(asApp(organizationId,c=>c.query('INSERT INTO app.organization_access_requests(organization_id,user_id) VALUES($1,$2)',[organizationId,profiles.outsider.id]))).rejects.toMatchObject({code:'23505'})
+    await expect(asApp(organizationId,c=>c.query("UPDATE app.organization_access_requests SET status='approved' WHERE id=$1",[request]))).rejects.toMatchObject({code:'23514'})
+    await expect(asApp(organizationId,c=>c.query("UPDATE app.organization_access_requests SET status='denied',decided_by=$2,decided_at=now() WHERE id=$1",[request,profiles.outsider.id]))).rejects.toMatchObject({code:'23503'})
+    await asApp(organizationId,c=>c.query("UPDATE app.organization_access_requests SET status='denied',decided_by=$2,decided_at=now(),version=version+1 WHERE id=$1",[request,profiles.owner.id]))
+    await asApp(organizationId,c=>c.query('INSERT INTO app.organization_access_requests(organization_id,user_id) VALUES($1,$2)',[organizationId,profiles.outsider.id]))
+    expect((await asApp(otherOrganizationId,c=>c.query('SELECT id FROM app.organization_access_requests'))).rows).toEqual([])
+    await expect(asApp(organizationId,c=>c.query('DELETE FROM app.organization_access_requests WHERE id=$1',[request]))).rejects.toMatchObject({code:'42501'})
+  })
+  it('onboarding: runtime records failed join code attempts but cannot erase them',async()=>{
+    await asApp(null,c=>c.query('INSERT INTO app.join_code_attempts(user_id) VALUES($1)',[profiles.outsider.id]))
+    expect(Number((await asApp(null,c=>c.query("SELECT count(*) FROM app.join_code_attempts WHERE user_id=$1 AND attempted_at>now()-interval '1 hour'",[profiles.outsider.id]))).rows[0].count)).toBeGreaterThan(0)
+    await expect(asApp(null,c=>c.query('DELETE FROM app.join_code_attempts'))).rejects.toMatchObject({code:'42501'})
+  })
+
+  const freshDomain=()=>`${randomUUID().slice(0,8)}.example.edu`
+  const freshCode=()=>Array.from({length:10},()=>joinCodeAlphabet[Math.floor(Math.random()*joinCodeAlphabet.length)]).join('')
+  async function newcomer(email:string){const identity={issuer,subject:randomUUID(),email};await repository.execute(identity,{operation:'register',displayName:'Newcomer'});return identity}
+  it('onboarding: a verified domain joins once as a member and parent domains match',async()=>{
+    const domain=freshDomain();await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id])
+    const identity=await newcomer(`person@media.${domain}`)
+    expect(await directory({action:'overview',identity})).toMatchObject({email:identity.email,displayName:'Newcomer',invitations:[],requests:[],domainMatches:[{organizationId,organizationName:expect.any(String),autoJoin:true}]})
+    expect(await directory({action:'join-domain',identity,organizationId})).toEqual({organizationId})
+    expect(await directory({action:'join-domain',identity,organizationId})).toEqual({organizationId})
+    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:organizationId,role:'member'})]})
+    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_domain'",[identity.subject])).rows).toHaveLength(1)
+    expect((await directory({action:'overview',identity}) as OnboardingOverview).domainMatches).toEqual([])
+    const stranger=await newcomer(`person@${freshDomain()}`)
+    expect(await directory({action:'join-domain',identity:stranger,organizationId})).toMatchObject({statusCode:404})
+    expect(await directory({action:'join-domain',identity:{...stranger,email:`person@${domain}`},organizationId:otherOrganizationId})).toMatchObject({statusCode:404})
+  })
+  it('onboarding: domains without auto-join take one pending request that only the requester can withdraw',async()=>{
+    const domain=freshDomain();await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by,auto_join) VALUES($1,$2,$3,false)',[domain,organizationId,profiles.owner.id])
+    const identity=await newcomer(`person@${domain}`)
+    expect(await directory({action:'join-domain',identity,organizationId})).toMatchObject({statusCode:404})
+    const first=await directory({action:'request-access',identity,organizationId,message:'Fall shoot crew'}) as OwnAccessRequest
+    expect(first).toMatchObject({organizationId,organizationName:expect.any(String),status:'pending'})
+    expect(await directory({action:'request-access',identity,organizationId})).toMatchObject({id:first.id})
+    expect((await directory({action:'overview',identity}) as OnboardingOverview).requests).toEqual([expect.objectContaining({id:first.id,status:'pending'})])
+    const other=await newcomer(`other@${domain}`)
+    expect(await directory({action:'withdraw-request',identity:other,organizationId,requestId:first.id})).toMatchObject({statusCode:404})
+    expect(await directory({action:'withdraw-request',identity,organizationId,requestId:first.id})).toEqual({id:first.id,status:'withdrawn'})
+    expect((await directory({action:'overview',identity}) as OnboardingOverview).requests).toEqual([])
+    expect(await directory({action:'request-access',identity:await newcomer(`person@${freshDomain()}`),organizationId})).toMatchObject({statusCode:404})
+    expect(await directory({action:'request-access',identity:{issuer,subject:'member',email:`member@${domain}`},organizationId})).toMatchObject({statusCode:409})
+  })
+  it('onboarding: join codes respect revocation, expiry and use limits and answer every failure alike',async()=>{
+    const [limited,revoked,expired]=[freshCode(),freshCode(),freshCode()]
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,max_uses,created_by) VALUES($1,$2,'Limited',1,$3)",[organizationId,joinCodeHash(limited),profiles.owner.id])
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,revoked_at,created_by) VALUES($1,$2,'Revoked',now(),$3)",[organizationId,joinCodeHash(revoked),profiles.owner.id])
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_at,expires_at,created_by) VALUES($1,$2,'Expired',now()-interval '2 days',now()-interval '1 day',$3)",[organizationId,joinCodeHash(expired),profiles.owner.id])
+    const first=await newcomer(`first@${freshDomain()}`),second=await newcomer(`second@${freshDomain()}`)
+    expect(await directory({action:'join-code',identity:first,code:`${limited.slice(0,4).toLowerCase()}-${limited.slice(4)}`})).toEqual({organizationId})
+    expect(await directory({action:'join-code',identity:first,code:limited})).toEqual({organizationId})
+    expect((await operator.query('SELECT uses FROM app.organization_join_codes WHERE code_hash=$1',[joinCodeHash(limited)])).rows[0].uses).toBe(1)
+    const failures=[]
+    for(const code of [limited,revoked,expired,freshCode(),'not a code'])failures.push(await directory({action:'join-code',identity:second,code}))
+    expect(new Set(failures.map(f=>JSON.stringify(f))).size).toBe(1);expect(failures[0]).toMatchObject({statusCode:404})
+    expect(await repository.execute(second,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_code'",[first.subject])).rows).toHaveLength(1)
+  })
+  it('onboarding: failed join codes are rate limited per account',async()=>{
+    const identity=await newcomer(`guesser@${freshDomain()}`),code=freshCode()
+    for(let i=0;i<10;i++)expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:404})
+    expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:429})
+    expect(await directory({action:'join-code',identity:await newcomer(`other@${freshDomain()}`),code})).toMatchObject({statusCode:404})
+  })
+  it('onboarding: a suspended member is never restored by domain or code',async()=>{
+    const domain=freshDomain(),code=freshCode(),identity={issuer,subject:'suspended',email:`suspended@${domain}`}
+    await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id])
+    await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,$2,'Open',$3)",[organizationId,joinCodeHash(code),profiles.owner.id])
+    expect(await directory({action:'join-domain',identity,organizationId})).toMatchObject({statusCode:409})
+    expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:409})
+    expect((await operator.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,profiles.suspended.id])).rows[0].status).toBe('suspended')
+  })
+
+  it('onboarding admin: only owners on a domain can claim it, once, and free-mail is refused',async()=>{
+    const domain=freshDomain();await operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[profiles.owner.id,`owner@studio.${domain}`])
+    const add=(identity:Identity,body:Record<string,unknown>,org=organizationId)=>account<WorkspaceDomain>(identity,{resource:'domains',method:'POST',organizationId:org,body:{autoJoin:true,requestId:randomUUID(),...body}})
+    await expect(add(member,{domain})).rejects.toMatchObject({status:403})
+    await expect(add(owner,{domain:'gmail.com'})).rejects.toMatchObject({status:400})
+    await expect(add(owner,{domain:freshDomain()})).rejects.toMatchObject({status:403})
+    const requestId=randomUUID(),created=await add(owner,{domain:`@${domain.toUpperCase()}`,requestId})
+    expect(created).toMatchObject({domain,autoJoin:true,version:1})
+    expect(await add(owner,{domain,requestId})).toMatchObject({domain,version:1})
+    await operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[profiles.outsider.id,`outsider@${domain}`])
+    await expect(add(outsider,{domain},otherOrganizationId)).rejects.toMatchObject({status:409})
+    const updated=await account<WorkspaceDomain>(owner,{resource:'domains',method:'PATCH',domain,action:'update',body:{autoJoin:false,version:1,requestId:randomUUID()}})
+    expect(updated).toMatchObject({autoJoin:false,version:2})
+    await expect(account(owner,{resource:'domains',method:'PATCH',domain,action:'update',body:{autoJoin:true,version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    expect((await account<ApiPage<WorkspaceDomain>>(owner,{resource:'domains',method:'GET'})).items).toContainEqual(expect.objectContaining({domain}))
+    expect(await account(owner,{resource:'domains',method:'POST',domain,action:'remove',body:{version:2,requestId:randomUUID()}})).toEqual({domain,removed:true})
+    expect((await operator.query("SELECT kind FROM app.organization_audit_events WHERE details->>'domain'=$1 ORDER BY created_at",[domain])).rows.map(r=>r.kind)).toEqual(['domain_added','domain_updated','domain_removed'])
+  })
+  it('onboarding admin: join codes are shown once, never listed, and stop working when revoked',async()=>{
+    await expect(account(member,{resource:'join-codes',method:'POST',body:{label:'Crew',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    await expect(account(owner,{resource:'join-codes',method:'POST',body:{label:'Crew',maxUses:0,requestId:randomUUID()}})).rejects.toMatchObject({status:400})
+    const created=await account<JoinCode>(owner,{resource:'join-codes',method:'POST',body:{label:'Spring crew',maxUses:5,expiresInDays:14,requestId:randomUUID()}})
+    expect(created.code).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/);expect(created).toMatchObject({label:'Spring crew',maxUses:5,uses:0,revokedAt:null})
+    const listed=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.find(c=>c.id===created.id)!
+    expect(listed).toBeDefined();expect(listed).not.toHaveProperty('code')
+    const joiner=await newcomer(`joiner@${freshDomain()}`)
+    expect(await directory({action:'join-code',identity:joiner,code:created.code!})).toEqual({organizationId})
+    const revoked=await account<JoinCode>(owner,{resource:'join-codes',method:'POST',codeId:created.id,action:'revoke',body:{version:listed.version+1,requestId:randomUUID()}})
+    expect(revoked.revokedAt).toBeTruthy()
+    expect(await directory({action:'join-code',identity:await newcomer(`late@${freshDomain()}`),code:created.code!})).toMatchObject({statusCode:404})
+  })
+  it('onboarding admin: access requests are approved or denied once by administrators',async()=>{
+    const domain=freshDomain();await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by,auto_join) VALUES($1,$2,$3,false)',[domain,organizationId,profiles.owner.id])
+    const asker=await newcomer(`asker@${domain}`),first=await directory({action:'request-access',identity:asker,organizationId}) as OwnAccessRequest
+    await expect(account(member,{resource:'access-requests',method:'GET'})).rejects.toMatchObject({status:403})
+    const pending=(await account<ApiPage<PendingAccessRequest>>(owner,{resource:'access-requests',method:'GET'})).items.find(r=>r.id===first.id)!
+    expect(pending).toMatchObject({email:asker.email,status:'pending',version:1})
+    expect(await account(owner,{resource:'access-requests',method:'POST',accessRequestId:first.id,action:'deny',body:{version:1,requestId:randomUUID()}})).toMatchObject({status:'denied'})
+    expect((await directory({action:'overview',identity:asker}) as OnboardingOverview).requests).toEqual([expect.objectContaining({id:first.id,status:'denied'})])
+    const second=await directory({action:'request-access',identity:asker,organizationId}) as OwnAccessRequest
+    expect(second.id).not.toBe(first.id)
+    const decide=(action:string,version=1)=>account<PendingAccessRequest>(owner,{resource:'access-requests',method:'POST',accessRequestId:second.id,action,body:{version,requestId:randomUUID()}})
+    expect(await decide('approve')).toMatchObject({status:'approved',version:2})
+    await expect(decide('approve',2)).rejects.toMatchObject({status:409})
+    expect(await repository.execute(asker,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:organizationId,role:'member'})]})
+    await expect(account(outsider,{resource:'access-requests',method:'POST',organizationId:otherOrganizationId,accessRequestId:second.id,action:'deny',body:{version:2,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
+  })
 })

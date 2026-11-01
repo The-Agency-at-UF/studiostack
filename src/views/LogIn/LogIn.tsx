@@ -54,11 +54,10 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
         <p className="login-description">{authenticated ? label : accessDescription??'Sign in to access your organization’s workspace.'}</p>
         {authenticated ? <>
           <div className="login-connected"><HiOutlineCheckCircle aria-hidden="true" /><span>Account connected securely</span></div>
-          <div className="login-memberships">
-            <h2>{organizations.length ? 'Your workspaces' : 'Join your team'}</h2>
-            {organizations.length ? <label className="login-workspace-picker">Your workspace<select value={organizations.some(org=>org.id===selectedOrganizationId)?selectedOrganizationId:organizations[0].id} onChange={event=>onSelectOrganization?.(event.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name} · {org.role}</option>)}</select></label>
-              : <p>Choose an invited workspace below to join your team. Workspace access is managed by its administrators.</p>}
-          </div>
+          {organizations.length>0&&<div className="login-memberships">
+            <h2>Your workspaces</h2>
+            <label className="login-workspace-picker">Your workspace<select value={organizations.some(org=>org.id===selectedOrganizationId)?selectedOrganizationId:organizations[0].id} onChange={event=>onSelectOrganization?.(event.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name} · {org.role}</option>)}</select></label>
+          </div>}
           {accountActions}
           {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}
           <p className="login-security-note">Your organization’s account, production and inventory records are live.</p>

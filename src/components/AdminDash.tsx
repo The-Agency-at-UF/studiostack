@@ -98,7 +98,7 @@ function AdminDash() {
             <div className="subsection-heading"><h3>Quick actions</h3><span>04</span></div>
             {[
               ['/reports', 'Review reports', 'Issues & resolutions'],
-              ['/teams', 'Manage teams', 'Assignments & clients'],
+              ['/statistics', 'View statistics', 'Usage & trends'],
               ['/users', 'Manage users', 'Roles & access'],
               ['/inventory', 'Update inventory', 'Gear & availability'],
             ].map(([path, label, detail], index) => (
