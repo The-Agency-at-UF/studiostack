@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
-import type {DatabaseClient} from '../database/client'
+import {inTransaction,type DatabaseClient} from '../database/client'
 import {object,uuid} from '../database/api-validation'
 import {requestHash} from '../database/repository-utils'
 export function emailHash(email:string){return createHash('sha256').update(email.trim().toLowerCase()).digest('hex')}
@@ -9,15 +9,15 @@ function hash(input:unknown){if(typeof input!=='string'||!/^[a-f0-9]{64}$/.test(
 export function feedbackRequest(input:unknown):FeedbackRequest{const v=object(input,['action','emailHash','id','kind','hashes','deliveryId','invitationId']);if(v.action==='check'){object(input,['action','emailHash']);return {action:'check',emailHash:hash(v.emailHash)}}if(v.action!=='record'||!['bounce','complaint'].includes(String(v.kind))||!Array.isArray(v.hashes)||v.hashes.length<1||v.hashes.length>50)throw new Error('Invalid delivery feedback');object(input,['action','id','kind','hashes','deliveryId','invitationId']);return {action:'record',id:uuid(v.id),kind:v.kind as 'bounce'|'complaint',hashes:[...new Set(v.hashes.map(hash))].sort(),...(v.deliveryId?{deliveryId:uuid(v.deliveryId)}:{}),...(v.invitationId?{invitationId:uuid(v.invitationId)}:{})}}
 export async function feedbackTask(client:DatabaseClient,r:FeedbackRequest){
  if(r.action==='check')return {allowed:!(await client.query('SELECT 1 FROM app.email_suppressions WHERE email_hash=$1',[r.emailHash])).rows.length}
- const receipt=requestHash(r);await client.query('BEGIN')
- try{
+ const receipt=requestHash(r)
+ return inTransaction(client,async()=>{
   for(const job of [r.deliveryId,r.invitationId].filter((id):id is string=>Boolean(id)).sort())await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['mail-feedback:'+job])
   const value=await client.query('INSERT INTO app.email_feedback_events(id,kind,receipt_hash,delivery_id,invitation_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING RETURNING id',[r.id,r.kind,receipt,r.deliveryId??null,r.invitationId??null])
-  if(!value.rows.length){const previous=await client.query('SELECT receipt_hash FROM app.email_feedback_events WHERE id=$1',[r.id]);if(previous.rows[0]?.receipt_hash!==receipt)throw new Error('Feedback receipt changed');await client.query('COMMIT');return {recorded:false,suppressed:0}}
+  if(!value.rows.length){const previous=await client.query('SELECT receipt_hash FROM app.email_feedback_events WHERE id=$1',[r.id]);if(previous.rows[0]?.receipt_hash!==receipt)throw new Error('Feedback receipt changed');return {recorded:false,suppressed:0}}
   const suppressed=await client.query('INSERT INTO app.email_suppressions(email_hash,reason,event_id) SELECT unnest($1::text[]),$2,$3 ON CONFLICT(email_hash) DO NOTHING RETURNING email_hash',[r.hashes,r.kind,r.id])
   for(const org of (await client.query('SELECT id FROM app.organizations ORDER BY id')).rows){await client.query("SELECT set_config('app.organization_id',$1,true)",[org.id]);await client.query("UPDATE app.user_alerts SET email_status='suppressed',lease_token=NULL,lease_until=NULL WHERE organization_id=$1 AND id=$2 AND email_status<>'sending'",[org.id,r.deliveryId??null]);await client.query("UPDATE app.production_outbox SET status='failed',lease_token=NULL,lease_until=NULL WHERE organization_id=$1 AND id=$2 AND status<>'sending'",[org.id,r.deliveryId??null]);await client.query("UPDATE app.organization_invitations SET delivery_status='failed',lease_token=NULL,lease_until=NULL WHERE organization_id=$1 AND id=$2 AND delivery_status<>'sending'",[org.id,r.invitationId??null])}
-  await client.query('COMMIT');return {recorded:true,suppressed:suppressed.rows.length}
- }catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e}
+  return {recorded:true,suppressed:suppressed.rows.length}
+ })
 }
 export async function assertRecipientAllowed(email:string,store:(r:FeedbackRequest)=>Promise<{allowed?:boolean}>){if(!(await store({action:'check',emailHash:emailHash(email)})).allowed)throw Object.assign(new Error('Recipient is suppressed'),{name:'UnverifiedRecipient'})}
 /** Converts trusted SNS/SES feedback into minimal hashes and job references. */

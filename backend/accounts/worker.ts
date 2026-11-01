@@ -1,4 +1,5 @@
 import {assertRecipientAllowed} from '../email/feedback'
+import {deliverLeased} from '../email/delivery'
 import {AdminCreateUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
@@ -35,13 +36,11 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
   } catch(error){return error instanceof ApiError?response(error.status,{error:error.message}):response(503,{error:'Account services are temporarily unavailable'})}
 }
 export async function deliverInvitations(deps:{store(request:InvitationQueueRequest):Promise<{jobs?:InvitationJob[];updated?:boolean}>;send(job:InvitationJob):Promise<void>}) {
-  const {jobs=[]}=await deps.store({action:'claim'});let sent=0,failed=0
-  for(const job of jobs) {
-    let outcome:'sent'|'retry'|'failed'|'uncertain'='sent'
-    try{await deps.send(job);sent++}catch(error){const name=(error as {name?:string}).name;outcome=['TooManyRequestsException','ThrottlingException','LimitExceededException'].includes(name??'')?'retry':['MessageRejected','InvalidParameterException','CodeDeliveryFailureException','UnverifiedRecipient'].includes(name??'')?'failed':'uncertain';failed++}
-    const ack=await deps.store({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome});if(!ack.updated)throw new Error('Invitation acknowledgement failed')
-  }
-  return {claimed:jobs.length,sent,failed}
+  const {jobs=[]}=await deps.store({action:'claim'})
+  const {claimed,sent,failed}=await deliverLeased({jobs,rejected:['MessageRejected','InvalidParameterException','CodeDeliveryFailureException','UnverifiedRecipient'],ackError:'Invitation acknowledgement failed',
+    deliver:async job=>{await deps.send(job);return 'sent' as const},
+    ack:(job,outcome)=>deps.store({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome})})
+  return {claimed,sent,failed}
 }
 export async function handler(event:Record<string,unknown>={}) {
   const env=process.env.STUDIOSTACK_ENV,pool=process.env.COGNITO_USER_POOL_ID,storeName=process.env.PRODUCTION_OUTBOX_FUNCTION,from=process.env.PRODUCTION_EMAIL_FROM,web=process.env.PRODUCTION_WEB_URL

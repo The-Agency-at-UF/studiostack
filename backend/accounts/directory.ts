@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import type {DatabaseClient} from '../database/client'
+import {inTransaction,type DatabaseClient} from '../database/client'
 import {ApiError,object,text,uuid} from '../database/api-validation'
 import {onboardingTask} from './onboarding'
 import {emailPattern} from '../../src/types/patterns'
@@ -39,14 +39,15 @@ async function invitationTask(client:DatabaseClient,request:DirectoryRequest,use
 }
 /** IAM-only verified directory input. Never use an email supplied by HTTP bodies. */
 export async function directoryTask(client:DatabaseClient,request:DirectoryRequest) {
-  await client.query('BEGIN')
   try {
+    return await inTransaction(client,async()=>{
     const {identity}=request
     const user=(await client.query('SELECT id,display_name AS "displayName" FROM app.users WHERE cognito_issuer=$1 AND cognito_subject=$2',[identity.issuer,identity.subject])).rows[0]
     if(!user)throw new ApiError(404,'Sign in and register the account before accepting invitations')
     await client.query('UPDATE app.users SET email=$2 WHERE id=$1',[user.id,identity.email])
     const result=['list','accept'].includes(request.action)?await invitationTask(client,request,user)
       :await onboardingTask(client,request,user,async()=>((await invitationTask(client,{...request,action:'list'},user)) as {items:unknown[]}).items)
-    await client.query('COMMIT');return result
-  } catch(error){await client.query('ROLLBACK').catch(()=>undefined);if(error instanceof ApiError)return {statusCode:error.status,error:error.message};throw error}
+    return result
+    })
+  } catch(error){if(error instanceof ApiError)return {statusCode:error.status,error:error.message};throw error}
 }

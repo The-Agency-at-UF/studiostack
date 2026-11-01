@@ -5,7 +5,7 @@ import {directoryRequest,directoryTask} from '../accounts/directory'
 import {invitationQueueRequest,invitationQueueTask} from '../accounts/queue'
 import { createBriefStorage } from '../production/storage'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
-import { createDatabase } from './client'
+import { createDatabase, type DatabaseClient } from './client'
 import { databaseConfig } from './config'
 import { createDatabaseHandler } from './handler'
 import { apiConfiguration, createDatabaseApiHandler } from './api'
@@ -31,26 +31,23 @@ function getRuntime() {
   return cachedRuntime
 }
 
+/** IAM-only maintenance tasks, invoked with a `task` name and never through API Gateway. */
+const tasks = new Map<string, (client: DatabaseClient, input: unknown) => Promise<unknown>>([
+  ['email-feedback', (client, input) => feedbackTask(client, feedbackRequest(input))],
+  ['app-alert-outbox', (client, input) => alertOutboxTask(client, alertOutboxRequest(input))],
+  ['account-invitation-queue', (client, input) => invitationQueueTask(client, invitationQueueRequest(input))],
+  ['account-directory', (client, input) => directoryTask(client, directoryRequest(input, process.env.COGNITO_USER_POOL_ID ?? ''))],
+  ['production-outbox', (client, input) => outboxTask(client, parseOutboxRequest(input))],
+])
+
 /** Reuses the private database Lambda with environment-scoped service permissions. */
 export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer | Record<string, never> = {}) {
   try {
     const { database, apiHandler, databaseHandler } = getRuntime()
-    if ('task' in event && event.task==='email-feedback' && !('requestContext' in event) && !('version' in event)) {const input={...event};delete input.task;return database.withClient(client=>feedbackTask(client,feedbackRequest(input)))}
-    if ('task' in event && event.task==='app-alert-outbox' && !('requestContext' in event) && !('version' in event)) {
-      const input={...event};delete input.task
-      return database.withClient(client=>alertOutboxTask(client,alertOutboxRequest(input)))
-    }
-    if ('task' in event && event.task==='account-invitation-queue' && !('requestContext' in event) && !('version' in event)) {
-      const input={...event};delete input.task
-      return database.withClient(client=>invitationQueueTask(client,invitationQueueRequest(input)))
-    }
-    if ('task' in event && event.task==='account-directory' && !('requestContext' in event) && !('version' in event)) {
-      const input={...event};delete input.task
-      return database.withClient(client=>directoryTask(client,directoryRequest(input,process.env.COGNITO_USER_POOL_ID??'')))
-    }
-    if ('task' in event && event.task === 'production-outbox' && !('requestContext' in event) && !('version' in event)) {
-      const request = { ...event }; delete request.task
-      return database.withClient(client => outboxTask(client, parseOutboxRequest(request)))
+    const task = 'task' in event && !('requestContext' in event) && !('version' in event) ? tasks.get(String(event.task)) : undefined
+    if (task) {
+      const input: Record<string, unknown> = { ...event }; delete input.task
+      return database.withClient(client => task(client, input))
     }
     // Preserve the existing IAM-only empty-payload connection diagnostic. Public
     // API Gateway calls always contain requestContext/version, regardless of body.
