@@ -1,8 +1,4 @@
 .production-page { max-width: 1440px; margin: 0 auto; padding: 42px 36px 80px; color: var(--ink); }
-.production-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
-.production-eyebrow { text-transform: uppercase; font-size: 11px; font-weight: 750; letter-spacing: .16em; color: var(--accent,var(--accent)); margin: 0 0 10px; }
-.production-heading h1 { font-size: clamp(28px,3.5vw,44px); font-weight: 750; letter-spacing: -.045em; line-height: 1.1; margin: 0 0 14px; }
-.production-heading p:last-child { color: var(--muted); margin: 0; font-size: 15px; }
 .production-page label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; }
 .production-page input:not([type=checkbox]),.production-page select,.production-page textarea { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 5px; padding: 10px 12px; width: 100%; min-height: 42px; color: var(--ink); font: inherit; font-weight: 400; line-height: 1.45; }
 .production-page textarea { resize: vertical; min-height: 90px; }
@@ -107,7 +103,6 @@
   .production-inspector { padding-left: 18px; }
 }
 @media (max-width:760px) {
-  .production-heading { flex-direction: column; }
   .production-context { width: 100%; }
   .production-detail-grid { grid-template-columns: 1fr; }
   .production-inspector { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 24px; }
@@ -129,7 +124,7 @@
   .production-page button { transition: none; }
 }
 @media print {
-  .site-header,.session-banner,.sticky-footer,.production-heading,.production-tabs,.production-feedback,.production-detail-header,.production-inspector,.production-savebar,.production-upload,.production-attachments button { display: none !important; }
+  .site-header,.sticky-footer,.production-tabs,.production-feedback,.production-detail-header,.production-inspector,.production-savebar,.production-upload,.production-attachments button { display: none !important; }
   .production-page { padding: 0; max-width: none; }
   .production-detail-grid { display: block; }
   .production-page fieldset { break-inside: avoid; }
