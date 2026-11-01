@@ -22,8 +22,7 @@ The original selected image may be up to 50 MiB under PR #43’s processing rule
 This API accepts only the processed JPEG/WebP, 1 byte–10 MiB. Stored display images
 are JPEG. Location/other original metadata is not preserved in display photos.
 
-`src/api/privatePhotos.ts` implements this newer completion/attachment contract.
-`src/api/photos.ts` remains the older basic uploader and is not interchangeable.
+`src/api/privatePhotos.ts` implements this completion/attachment contract.
 Unlinking a photo does not delete its S3 object; retention/deletion jobs are separate.
 
 ## Verification and packaging

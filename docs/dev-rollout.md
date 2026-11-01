@@ -61,7 +61,7 @@ For an actual incident: choose a verified restore point, restore to a **new priv
 
 - The stored app credential is read from Secrets Manager, but automatic rotation of that restricted login is not configured. The RDS-managed master secret's rotation is a different mechanism. Plan a coordinated app-login rotation/recovery procedure before production.
 - Staging objects expire after one day. Ready photos unlinked from inventory are retained; no background deletion job or production retention policy is included in this MVP.
-- Browser integration uses `src/api/privatePhotos.ts` with a real token-providing `createDatabaseApiClient`, then passes returned `photoId` to inventory create/update. The older `src/api/photos.ts` contract is not the new organization-scoped dev API contract.
+- Browser integration uses `src/api/privatePhotos.ts` with a real token-providing `createDatabaseApiClient`, then passes returned `photoId` to inventory create/update.
 - Unit/local tests, deployed resources, successful live HTTP tests and successful restore tests are distinct evidence. Do not claim 100% for production or the website based on the dev backend rollout.
 
 References: [AWS JWT authorizers](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html), [Aurora point-in-time restore](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-pitr.html), [S3 gateway endpoints](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html), [Sharp Lambda packaging](https://sharp.pixelplumbing.com/install/).
