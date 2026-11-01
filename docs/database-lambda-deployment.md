@@ -51,18 +51,15 @@ No NAT gateway, RDS Proxy, public database access, API integration, schedule or 
 
 ## Build package
 
-Sources: `backend/database/handler.ts` (runtime) and `backend/database/bootstrap.ts` (temporary setup). Bundle dependencies and include the public RDS regional CA certificate in each package. Never include `.env` files, AWS SSO caches, or credential values.
+Sources: `backend/database/handler.ts` (runtime) and the temporary restricted-login setup function, which was removed after use and remains in git history. Bundle dependencies and include the public RDS regional CA certificate in each package. Never include `.env` files, AWS SSO caches, or credential values.
 
 ```sh
 mkdir -p .aws/database-lambda/certs
-mkdir -p .aws/database-setup/certs
 curl --fail --location https://truststore.pki.rds.amazonaws.com/us-east-2/us-east-2-bundle.pem -o .aws/database-lambda/certs/us-east-2-bundle.pem
-cp .aws/database-lambda/certs/us-east-2-bundle.pem .aws/database-setup/certs/
 npx --no-install esbuild backend/database/handler.ts --bundle --platform=node --target=node24 --format=cjs --external:pg-native --outfile=.aws/database-lambda/index.js
-npx --no-install esbuild backend/database/bootstrap.ts --bundle --platform=node --target=node24 --format=cjs --external:pg-native --outfile=.aws/database-setup/index.js
 ```
 
-Each package directory needs `package.json` containing `{"type":"commonjs"}`. From `.aws/database-lambda`, zip `index.js`, `package.json` and `certs/` into `../database-lambda.zip`; repeat from `.aws/database-setup` into `../database-setup.zip`. The Lambda handler is `index.handler`, and `RDS_CA_BUNDLE_PATH` is `/var/task/certs/us-east-2-bundle.pem`. `pg-native` is optional and unused; the pure JavaScript PostgreSQL driver is bundled.
+The package directory needs `package.json` containing `{"type":"commonjs"}`. From `.aws/database-lambda`, zip `index.js`, `package.json` and `certs/` into `../database-lambda.zip`. The Lambda handler is `index.handler`, and `RDS_CA_BUNDLE_PATH` is `/var/task/certs/us-east-2-bundle.pem`. `pg-native` is optional and unused; the pure JavaScript PostgreSQL driver is bundled.
 
 Use explicit `STUDIOSTACK_ENV`, writer hostname, database name, account ID and application-secret ARN per environment. `AWS_REGION` is supplied by Lambda; do not try to set that reserved environment variable. The operator `.env.rds.*.local` files currently reference master secrets and must **not** be uploaded as runtime configuration.
 

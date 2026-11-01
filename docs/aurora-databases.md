@@ -15,7 +15,6 @@ On October 13, the approved [dev rollout](dev-rollout.md) applied migrations 001
 | `backend/database/config.ts` | Explicit environment selection and validation of writer endpoint, database, region and account. |
 | `backend/database/client.ts` | Secrets Manager credentials, verified TLS, parameterized queries and transactions. |
 | `backend/database/handler.ts` | Deployed, IAM-invoked read-only connection diagnostic. |
-| `backend/database/bootstrap.ts` | Temporary, fixed-purpose restricted-login setup; not normal runtime. |
 | `infra/database/resources.ts` | CloudFormation definitions for private connectivity, roles, app secrets and logs. |
 | `scripts/deploy-database.ts` | Approved dev/prod deployment, verification and temporary-access cleanup. |
 | `backend/database/migrations/001_identity_and_groups.sql` | Users, organizations, memberships and organization-local user groups. |
