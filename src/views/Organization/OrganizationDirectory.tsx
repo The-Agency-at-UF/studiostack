@@ -98,7 +98,7 @@ export default function OrganizationDirectory() {
       <section className="org-directory-section" aria-labelledby="org-members">
         <div className="org-directory-section-heading">
           <h2 id="org-members">Members</h2>
-          {manager && <Link className="org-directory-action" href="/users">Invite or manage people</Link>}
+          {manager && <Link className="org-directory-action" href="/organization/settings">Invite or manage people</Link>}
         </div>
         <div className="org-directory-filters">
           <label className="org-directory-search"><HiOutlineMagnifyingGlass aria-hidden="true" /><input aria-label="Search members" placeholder={manager ? 'Search by name or email' : 'Search by name'} value={search} onChange={event => setSearch(event.target.value)} /></label>
@@ -115,7 +115,7 @@ export default function OrganizationDirectory() {
       {manager && <section className="org-directory-section" aria-labelledby="org-invitations">
         <div className="org-directory-section-heading">
           <h2 id="org-invitations">Pending invitations</h2>
-          {invitations.length > 0 && <Link className="org-directory-action" href="/users">Manage invitations</Link>}
+          {invitations.length > 0 && <Link className="org-directory-action" href="/organization/settings">Manage invitations</Link>}
         </div>
         {invitations.length ? <ul className="org-directory-list">{invitations.map(invitation => <li key={invitation.id}>
           <span className="org-directory-avatar" aria-hidden="true">{initials(invitation.displayName)}</span>

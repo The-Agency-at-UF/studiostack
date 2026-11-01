@@ -1,0 +1,51 @@
+name: Test Suite
+
+# The full suite shared by PR checks, the development deploy and the
+# production release, so every path to AWS runs the same checks.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit and integration tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck application
+        run: npm run typecheck
+      - name: Typecheck AWS infrastructure and scripts
+        run: npm run typecheck:aws
+      - name: Unit and integration tests
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  postgres:
+    name: Database API on PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run test:database
+      - run: npx vitest run src/api/photo-storage.test.ts src/api/dev-auth.test.ts
+      - name: PostgreSQL integration tests (disposable container)
+        run: npm run test:database:postgres

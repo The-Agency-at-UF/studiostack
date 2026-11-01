@@ -2,7 +2,7 @@ import {alertRoutes} from '../../backend/alerts/routes'
 import {reportRoutes} from '../../backend/equipment/report-routes'
 import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes } from '../../backend/production/routes'
-import {accountRoutes} from '../../backend/accounts/routes'
+import {accountRequest,accountRoutes,joinMethodRoutes} from '../../backend/accounts/routes'
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
@@ -275,7 +275,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
@@ -292,6 +292,15 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     expect((await handler(event(route,{title:'x',description:'x',pagePath:'//evil.example',requestId}))).statusCode).toBe(400)
     expect((await handler(event(route,{title:'x',description:'x',pagePath:'/inventory/',requestId,userEmail:'other@example.test'}))).statusCode).toBe(400)
   })
+  it('parses join-method administration routes with their own path parameters', () => {
+    const base='/organizations/{organizationId}/administration'
+    const parse=(route:string,parameters:Record<string,string>,body?:unknown)=>{const value=event(route,body);Object.assign(value.pathParameters!,parameters);return accountRequest(value,()=>body)}
+    expect(parse(`PATCH ${base}/domains/{domain}`,{domain:'Studio.Example.edu'},{autoJoin:false})).toMatchObject({resource:'domains',domain:'studio.example.edu',action:'update'})
+    expect(parse(`POST ${base}/domains/{domain}/remove`,{domain:'studio.example.edu'},{})).toMatchObject({resource:'domains',action:'remove'})
+    expect(parse(`POST ${base}/join-codes/{codeId}/revoke`,{codeId:requestId},{})).toMatchObject({resource:'join-codes',codeId:requestId,action:'revoke'})
+    expect(parse(`POST ${base}/access-requests/{accessRequestId}/approve`,{accessRequestId:requestId},{})).toMatchObject({resource:'access-requests',accessRequestId:requestId,action:'approve'})
+    expect(()=>parse(`POST ${base}/join-codes/{codeId}/revoke`,{codeId:'not-a-uuid'},{})).toThrow()
+  })
   it('limits administration grants to reviewed columns and team links without DDL', async () => {
     const migration = (await loadMigrations()).find(value => value.name.startsWith('002_'))!
     expect(migration.sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(5)
@@ -299,7 +308,17 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     const grants = databaseApiGrants('dev')
     expect(grants).toContain('GRANT UPDATE (client_account_id,name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations')
     expect(grants).not.toMatch(/GRANT ALL|schema_migrations|TO "studiostack_prod_app"|CREATE/)
-    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT DELETE ON app.production_assignments TO "studiostack_dev_app"','GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"'])
+    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT DELETE ON app.production_assignments TO "studiostack_dev_app"','GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT SELECT, INSERT, DELETE ON app.organization_domains TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"'])
     expect(grants).toContain('GRANT UPDATE (role, status, version) ON app.organization_memberships')
+  })
+  it('keeps onboarding join methods tenant scoped and stores only join code hashes', async () => {
+    const migration = (await loadMigrations()).find(value => value.name.startsWith('011_'))!
+    expect(migration.sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(3)
+    expect(migration.sql).toContain('code_hash text NOT NULL UNIQUE')
+    expect(migration.sql).not.toMatch(/\bcode text\b/)
+    const grants = databaseApiGrants('dev')
+    expect(grants).toContain('GRANT UPDATE (uses, revoked_at, version) ON app.organization_join_codes')
+    expect(grants).toContain('GRANT UPDATE (status, decided_by, decided_at, version) ON app.organization_access_requests')
+    expect(grants).not.toMatch(/UPDATE \([^)]*code_hash[^)]*\) ON app.organization_join_codes|UPDATE \([^)]*organization_id[^)]*\) ON app.organization_(domains|access_requests)/)
   })
 })
