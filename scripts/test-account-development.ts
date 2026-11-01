@@ -3,7 +3,7 @@ import {writeFile} from 'node:fs/promises'
 import {readMetadata,withMaintenance,invokeMaintenance} from './deploy-dev-api'
 import {aws,guardDevApply,devDirectory,pause,invoke} from './dev-aws'
 import {syntheticSignIn,type TestIdentity} from './test-dev-auth'
-import type {ManagedMember,ManagedTeam,OrganizationInvitation,OrganizationSettings,PendingInvitation} from '../src/types/accounts'
+import type {ManagedMember,OrganizationInvitation,OrganizationSettings,PendingInvitation} from '../src/types/accounts'
 async function main(){
   await guardDevApply()
   const metadata=await readMetadata(),runId=`20261028-${randomBytes(4).toString('hex')}`,organizationId=randomUUID(),otherOrganizationId=randomUUID(),users:TestIdentity[]=[],checks:string[]=[]
@@ -28,10 +28,6 @@ async function main(){
     const suspended=await call<ManagedMember>(`${prefix}/members/${profile.id}`,'PATCH',owner,{role:'member',status:'suspended',version:person.version,requestId:randomUUID()})
     await call(`${prefix}/settings`,'GET',member,undefined,403)
     await call(`${prefix}/members/${profile.id}`,'PATCH',owner,{role:'member',status:'active',version:suspended.version,requestId:randomUUID()})
-    const team=await call<ManagedTeam>(`${prefix}/teams`,'POST',owner,{name:'Synthetic team',requestId:randomUUID()})
-    const populated=await call<ManagedTeam>(`${prefix}/teams/${team.id}`,'PATCH',owner,{name:team.name,archived:false,memberIds:[profile.id],version:team.version,requestId:randomUUID()})
-    if(!populated.memberIds.includes(profile.id))throw new Error('Team membership was not stored')
-    await call(`${prefix}/teams/${team.id}`,'PATCH',owner,{name:team.name,archived:true,memberIds:[],version:populated.version,requestId:randomUUID()})
     const invite=await call<OrganizationInvitation>(`${prefix}/invitations`,'POST',owner,{email:emails[2],displayName:'Synthetic invitee',role:'member',requestId:randomUUID()})
     // Mailbox simulator only: never send verification mail to a teammate.
     const delivery=await invoke<{failed:number}>('studiostack-dev-accounts',{});if(delivery.failed)throw new Error('Synthetic invitation delivery failed')

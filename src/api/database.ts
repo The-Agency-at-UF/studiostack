@@ -5,7 +5,7 @@ import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
 import { productionClient } from './production'
 import type {OnboardingOverview,OwnAccessRequest,PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
-import type { ApiBugReport, ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
+import type { ApiBugReport, ApiUser, ApiOrganization, ApiMember, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
 // Coalesce only identical, currently pending reads. Never retain responses or
 // share requests between identities, URLs, or fetch transports.
@@ -110,8 +110,6 @@ export function createDatabaseApiClient(options: ClientOptions) {
     register: (displayName?: string) => request<ApiUser>('/me', 'POST', displayName === undefined ? {} : { displayName }),
     organizations: (page?: PageOptions) => request<ApiPage<ApiOrganization>>(paged('/organizations', page)),
     members: (org: string, page?: PageOptions) => request<ApiPage<ApiMember>>(paged(path(org, 'members'), page)),
-    groups: (org: string, page?: PageOptions) => request<ApiPage<ApiGroup>>(paged(path(org, 'groups'), page)),
-    createGroup: (org: string, name: string) => request<ApiGroup>(path(org, 'groups'), 'POST', { name }),
     inventory: (org: string, page?: PageOptions) => request<ApiPage<EquipmentRecord>>(paged(path(org, 'inventory'), page)),
     createEquipment: (org: string, input: CreateEquipment) => request<EquipmentRecord>(path(org, 'inventory'), 'POST', input),
     updateEquipment: (org: string, itemId: string, input: UpdateEquipment) => request<EquipmentRecord>(path(org, `inventory/${encodeURIComponent(itemId)}`), 'PATCH', input),

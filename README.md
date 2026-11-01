@@ -19,7 +19,7 @@ Production operations, equipment reservations, and inventory management for The 
 
 ## What is StudioStack?
 
-StudioStack is the shared production desk for The Agency at UF. It gives students and administrators one place to reserve equipment, track checkouts and returns, report equipment problems, manage teams, and understand how production resources are being used.
+StudioStack is the shared production desk for The Agency at UF. It gives students and administrators one place to reserve equipment, track checkouts and returns, report equipment problems, and understand how production resources are being used.
 
 The active web application is built with Next.js and React.
 

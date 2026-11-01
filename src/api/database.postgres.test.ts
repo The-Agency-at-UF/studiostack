@@ -11,7 +11,7 @@ import {directoryTask,type DirectoryRequest} from '../../backend/accounts/direct
 import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
 import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
-import type {JoinCode,ManagedMember,ManagedTeam,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
+import type {JoinCode,ManagedMember,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
 import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
@@ -100,10 +100,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(list.items).toHaveLength(1)
     if (list.nextCursor) expect((await repository.execute(member, { operation: 'inventory', organizationId, page: { limit: 1, after: list.nextCursor } }) as ApiPage<ApiEquipment>).items[0].id).not.toBe(list.items[0].id)
   })
-  it('enforces admin-only member lists and group creation', async () => {
-    const group = await repository.execute(owner, { operation: 'createGroup', organizationId, name: 'Editors' })
-    expect(group).toMatchObject({ name: 'Editors' })
-    expect(await repository.execute(member, { operation: 'groups', organizationId, page: listPage })).toMatchObject({ items: [group] })
+  it('enforces admin-only member lists', async () => {
     await expect(repository.execute(member, { operation: 'members', organizationId, page: listPage })).rejects.toMatchObject({ status: 403 })
     expect((await repository.execute(owner, { operation: 'members', organizationId, page: listPage }) as ApiPage<ApiUser>).items).toHaveLength(4)
   })
@@ -374,18 +371,6 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await account(secondMember,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:suspendedMember.version,requestId:randomUUID()}})
     await account(owner,{resource:'members',method:'PATCH',memberId:target.id,body:{role:'member',status:'active',version:updated.version,requestId:randomUUID()}})
     expect((await operator.query('SELECT id FROM app.organization_audit_events WHERE request_id=$1',[requestId])).rows).toHaveLength(1)
-  })
-  it('accounts: team membership updates reject foreign users and archival preserves team history',async()=>{
-    const requestId=randomUUID(),team=await account<ManagedTeam>(owner,{resource:'teams',method:'POST',body:{name:'Production team',requestId}})
-    expect(await account(owner,{resource:'teams',method:'POST',body:{name:'Production team',requestId}})).toMatchObject({id:team.id})
-    const body={name:team.name,archived:false,memberIds:[profiles.member.id],version:team.version,requestId:randomUUID()}
-    await expect(account(owner,{resource:'teams',method:'PATCH',teamId:team.id,body:{...body,memberIds:[profiles.outsider.id]}})).rejects.toMatchObject({status:400})
-    const updated=await account<ManagedTeam>(owner,{resource:'teams',method:'PATCH',teamId:team.id,body})
-    expect(updated.memberIds).toEqual([profiles.member.id])
-    const archived=await account<ManagedTeam>(owner,{resource:'teams',method:'PATCH',teamId:team.id,body:{...body,archived:true,version:updated.version,requestId:randomUUID()}})
-    expect(archived.archivedAt).toBeTruthy()
-    expect((await repository.execute(member,{operation:'groups',organizationId,page:listPage}) as ApiPage<ManagedTeam>).items.some(t=>t.id===team.id)).toBe(false)
-    expect((await account<ApiPage<ManagedTeam>>(owner,{resource:'teams',method:'GET'})).items.find(t=>t.id===team.id)?.memberIds).toEqual([profiles.member.id])
   })
   it('accounts: organization policies use optimistic versions and retain an append-only audit',async()=>{
     const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'}),body={name:'Renamed studio',reservationDays:14,version:current.version,requestId:randomUUID()}

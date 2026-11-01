@@ -6,7 +6,7 @@ import {accountRequest,accountRoutes,joinMethodRoutes} from '../../backend/accou
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
-import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, databaseApiScope } from '../../backend/database/api'
+import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, retiredRoutes, databaseApiScope } from '../../backend/database/api'
 import { ApiError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
@@ -119,6 +119,7 @@ describe('trusted API identity and strict HTTP inputs', () => {
     request.isBase64Encoded = false; request.body = 'x'.repeat(25000)
     expect((await handler(request)).statusCode).toBe(400)
     expect((await handler(event('GET /sql'))).statusCode).toBe(404)
+    for (const route of retiredRoutes) expect((await handler(event(route, {}))).statusCode).toBe(404)
   })
   it('redacts driver and credential details', async () => {
     const response = await createDatabaseApiHandler({ execute: vi.fn().mockRejectedValue(new Error('password=SECRET; SELECT private')) }, config, () => now)(event())
@@ -171,10 +172,9 @@ describe('tenant authorization and atomic repository operations', () => {
     expect(select[1]).toEqual([org, null, 11])
     expect(query.mock.calls.at(-1)?.[0]).toBe('COMMIT')
   })
-  it.each(['members', 'createGroup', 'createEquipment', 'updateEquipment'] as const)('requires an admin for %s', async operation => {
+  it.each(['members', 'createEquipment', 'updateEquipment'] as const)('requires an admin for %s', async operation => {
     const { repository, query } = repoFixture()
     const request = operation === 'members' ? { operation, organizationId: org, page: { limit: 50, after: null } }
-      : operation === 'createGroup' ? { operation, organizationId: org, name: 'Editors' }
       : operation === 'createEquipment' ? { operation, organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' as const } }
       : { operation, organizationId: org, itemId, input: { name: 'Changed' } }
     await expect(repository.execute(identity, request)).rejects.toMatchObject({ status: 403 })
@@ -243,7 +243,7 @@ describe('tenant authorization and atomic repository operations', () => {
       if (sql.startsWith('INSERT')) throw { code: '23505', detail: 'PRIVATE' }
       return { rows: sql.includes('FROM app.users WHERE') ? [user] : sql.includes('SELECT m.role FROM') ? [{ role: 'admin' }] : [], rowCount: 0 }
     })
-    await expect(fixture.repository.execute(identity, { operation: 'createGroup', organizationId: org, name: 'Editors' })).rejects.toMatchObject({ status: 409, message: 'A record with these unique details already exists' })
+    await expect(fixture.repository.execute(identity, { operation: 'createEquipment', organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' } })).rejects.toMatchObject({ status: 409, message: 'A record with these unique details already exists' })
     expect(fixture.query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK')
   })
 })
@@ -275,7 +275,10 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length - retiredRoutes.size)
+    // Retired routes keep their slots, so later route resource IDs do not shift.
+    expect(routes.some(route => retiredRoutes.has(route.Properties.RouteKey))).toBe(false)
+    expect((template.Resources.Route6 as { Properties: { RouteKey: string } }).Properties.RouteKey).toBe('GET /organizations/{organizationId}/inventory')
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
