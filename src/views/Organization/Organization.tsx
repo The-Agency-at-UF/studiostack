@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineXMark } from 'react-icons/hi2'
+import { Select } from '../../components/workspace/WorkspaceUI'
 
 type Role = 'Administrator' | 'Member'
 type Status = 'Active' | 'Invited' | 'Suspended'
@@ -103,9 +104,9 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
     <div className="org-preview"><span>UI preview</span><p>Fictional organizations and users. Changes reset on refresh; no emails, AWS changes, or real permissions.</p></div>
     <header className="org-heading">
       <div><p className="eyebrow">Organization administration</p><h1>Your organization.</h1><p>People, access, and policies. One workspace, your team.</p></div>
-      <label className="org-switcher">Preview organization<select aria-label="Preview organization" value={organizationId} onChange={event => {
+      <label className="org-switcher">Preview organization<Select aria-label="Preview organization" value={organizationId} onChange={event => {
         setOrganizationId(event.target.value); setSearch(''); setStatusFilter('All statuses'); setNotice(''); setDialog(null)
-      }}>{Object.entries(organizations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select></label>
+      }}>{Object.entries(organizations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</Select></label>
     </header>
     <section className="org-workspace" aria-label={org.name}>
       <div className="org-identity"><span className="org-monogram" aria-hidden="true">{org.initials}</span>
@@ -119,7 +120,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
       {tab === 'members' && <>
         <div className="org-section-heading"><div><h3>Members & access</h3><p>Manage membership for {org.name} only.</p></div><button className="org-primary" onClick={() => openDialog({ type: 'invite' })}><HiOutlinePlus /> Invite member</button></div>
         <div className="org-filters"><label className="org-search"><HiOutlineMagnifyingGlass /><input aria-label="Search members" placeholder="Search by name or email" value={search} onChange={event => setSearch(event.target.value)} /></label>
-          <select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>{['All statuses', 'Active', 'Invited', 'Suspended'].map(status => <option key={status}>{status}</option>)}</select>
+          <Select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>{['All statuses', 'Active', 'Invited', 'Suspended'].map(status => <option key={status}>{status}</option>)}</Select>
         </div>
         <section className="org-group" aria-labelledby="org-admin-heading"><h4 id="org-admin-heading">Admin</h4>
           {visibleAdmins.length ? <ul className="org-admin-cards">{visibleAdmins.map(member => <li key={member.id}>
@@ -160,13 +161,13 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         <p>Add someone to {org.name}. This preview will not send an email.</p>
         <label>Full name<input name="name" data-autofocus maxLength={80} required /></label>
         <label>Email address<input name="email" type="email" maxLength={254} required /></label>
-        <label>Organization role<select name="role"><option>Member</option><option>Administrator</option></select></label>
+        <label>Organization role<Select name="role"><option>Member</option><option>Administrator</option></Select></label>
         <div className="org-dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" type="submit">Create preview invitation</button></div>
       </form> : dialog.type === 'role' ? <form className="org-dialog-form" onSubmit={event => {
         event.preventDefault(); const role: Role = new FormData(event.currentTarget).get('role') === 'Administrator' ? 'Administrator' : 'Member'
         changeMember(dialog.member, { role }, `${dialog.member.name}'s preview role changed to ${role.toLowerCase()}.`)
       }}><p>{dialog.member.name}&apos;s role in {org.name}. Other organizations are unaffected.</p>
-        <label>Organization role<select name="role" defaultValue={dialog.member.role} data-autofocus><option>Member</option><option>Administrator</option></select></label>
+        <label>Organization role<Select name="role" defaultValue={dialog.member.role} data-autofocus><option>Member</option><option>Administrator</option></Select></label>
         <div className="org-dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" type="submit">Save role</button></div>
       </form> : <div className="org-dialog-form"><p>{dialog.member.status === 'Invited' ? 'Remove this preview invitation' : dialog.member.status === 'Suspended' ? 'Restore this preview membership' : 'Suspend this preview membership'} for {dialog.member.name} in {org.name}? This does not delete their identity or affect another organization.</p>
         <div className="org-dialog-actions"><button data-autofocus onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" onClick={() => {

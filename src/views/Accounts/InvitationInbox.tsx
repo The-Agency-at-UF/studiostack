@@ -4,6 +4,7 @@ import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database
 import {authConfiguration} from '../../auth/cognito'
 import type {PendingInvitation} from '../../types/accounts'
 import EmailVerification from '../Production/EmailVerification'
+import {Select} from '../../components/workspace/WorkspaceUI'
 export default function InvitationInbox({getAccessToken,onAccepted}:{getAccessToken:()=>Promise<string>;onAccepted?:()=>Promise<void>}) {
   const api=useMemo(()=>createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken}),[getAccessToken])
   const [selectedId,setSelectedId]=useState('')
@@ -14,10 +15,10 @@ export default function InvitationInbox({getAccessToken,onAccepted}:{getAccessTo
   return <section className="account-invitations" aria-labelledby="invitation-title"><EmailVerification getAccessToken={getAccessToken}/><h2 id="invitation-title">Join a workspace</h2>
     {error&&<p role="alert">{error}</p>}{status&&<p role="status">{status}</p>}
     <label className="login-workspace-picker">Workspace to join
-      <select value={items.some(item=>item.id===selectedId)?selectedId:''} disabled={busy||!items.length} onChange={event=>setSelectedId(event.target.value)}>
+      <Select value={items.some(item=>item.id===selectedId)?selectedId:''} disabled={busy||!items.length} onChange={event=>setSelectedId(event.target.value)}>
         <option value="">{items.length?'Choose an invited workspace':'No workspace invitations yet'}</option>
         {items.map(item=><option key={item.id} value={item.id}>{item.organizationName} · {item.role}</option>)}
-      </select>
+      </Select>
     </label>
     {items.some(item=>item.id===selectedId)&&<p>Invitation expires {new Date(items.find(item=>item.id===selectedId)!.expiresAt).toLocaleDateString()}.</p>}
     <button type="button" className="login-primary" disabled={busy||!items.some(item=>item.id===selectedId)} onClick={()=>{const invitation=items.find(item=>item.id===selectedId);if(invitation)void accept(invitation)}}>Join workspace</button>
