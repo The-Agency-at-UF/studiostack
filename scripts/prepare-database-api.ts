@@ -1,12 +1,10 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { cp, mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { databaseApiInfrastructure } from '../infra/database/api-resources'
 import { databaseApiGrants } from '../backend/database/api-grants'
+import { execute } from './dev-aws'
 
 // Local build only: no AWS CLI, credentials, database connection or deployment.
-const execute = promisify(execFile)
 async function main() {
   const directory = resolve('.aws/database-api')
   await mkdir(directory, { recursive: true })

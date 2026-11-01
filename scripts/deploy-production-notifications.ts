@@ -1,12 +1,9 @@
 import {emailConfigurationSet} from './email-configuration'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { productionNotificationInfrastructure } from '../infra/production/notifications'
 import { readMetadata } from './deploy-dev-api'
-import { aws, applyStack, devDirectory, guardDevApply } from './dev-aws'
-const execute = promisify(execFile)
+import { aws, applyStack, devDirectory, guardDevApply, execute } from './dev-aws'
 async function main() {
   await guardDevApply()
   const metadata = await readMetadata()

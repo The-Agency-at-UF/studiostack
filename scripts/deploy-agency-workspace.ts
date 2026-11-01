@@ -1,13 +1,13 @@
 import {resolve} from 'node:path'
 import {writeFile} from 'node:fs/promises'
-import {aws,guardDevApply,devDirectory,waitFunction,invoke} from './dev-aws'
+import {aws,guardDevApply,devDirectory,waitFunction,invoke,applyEnvironment} from './dev-aws'
 import {guardProductionApply,productionMetadata,prodDirectory,approvedProductionEmail} from './prod-aws'
 import {readMetadata,withMaintenance,invokeMaintenance,deployDevRoutes} from './deploy-dev-api'
 import {withProductionMaintenance,invokeProductionMaintenance} from './production-database'
 import {deployProductionRoutes} from './deploy-production-api'
 import {roleArn} from '../infra/database/resources'
 async function main(){
- const env=process.argv.slice(2).join(' ')==='--apply-dev'?'dev':process.argv.slice(2).join(' ')==='--apply-prod'?'prod':undefined;if(!env)throw new Error('Explicit environment required')
+ const env=applyEnvironment();if(!env)throw new Error('Explicit environment required')
  if(env==='dev')await guardDevApply();else await guardProductionApply()
  const metadata=env==='dev'?await readMetadata():await productionMetadata(),shared=await readMetadata(),pool=metadata.auth.UserPoolId,name=`studiostack-${env}-database`
  const {Users}=await aws<{Users:{Attributes:{Name:string;Value:string}[]}[]}>('cognito-idp','list-users',['--user-pool-id',pool,'--filter',`email = "${approvedProductionEmail}"`]);if(Users.length!==1)throw new Error('Existing approved owner account required')
