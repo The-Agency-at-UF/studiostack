@@ -13,10 +13,6 @@ const defaults: CollectionData = {
     item: 'Camera', itemId: 'camera-1', subject: 'Other', user: 'test@ufl.edu',
     message: 'Test report', resolved: false, timestamp,
   },
-  notifications: { userEmail: 'test@ufl.edu', type: 'overdue', time: timestamp, userClosed: false, adminClosed: false },
-  users: { isAdmin: false },
-  teams: { type: 'Internal' },
-  mail: { to: 'test@ufl.edu', message: { subject: 'Test', html: '' } },
   bugReports: { title: 'Test', description: 'Test', userEmail: 'test@ufl.edu', url: '/', timestamp, status: 'Open' },
 }
 
