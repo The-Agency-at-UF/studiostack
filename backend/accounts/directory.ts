@@ -2,13 +2,14 @@ import {createHash} from 'node:crypto'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object,text,uuid} from '../database/api-validation'
 import {onboardingTask} from './onboarding'
+import {emailPattern} from '../../src/types/patterns'
 export const directoryActions=['list','accept','overview','join-domain','join-code','request-access','withdraw-request'] as const
 export interface DirectoryRequest {action:typeof directoryActions[number];identity:{issuer:string;subject:string;email:string};invitationId?:string;organizationId?:string;code?:string;message?:string;requestId?:string}
 const organizationActions=['accept','join-domain','request-access','withdraw-request']
 export function directoryRequest(input:unknown,pool:string):DirectoryRequest {
   const v=object(input,['action','identity','invitationId','organizationId','code','message','requestId']),identity=object(v.identity,['issuer','subject','email'])
   if(!directoryActions.includes(v.action as DirectoryRequest['action'])||identity.issuer!==`https://cognito-idp.us-east-2.amazonaws.com/${pool}`)throw new ApiError(400,'Invalid directory operation')
-  const action=v.action as DirectoryRequest['action'],email=text(identity.email,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new ApiError(400,'A verified email is required')
+  const action=v.action as DirectoryRequest['action'],email=text(identity.email,254).toLowerCase();if(!emailPattern.test(email))throw new ApiError(400,'A verified email is required')
   return {action,identity:{issuer:String(identity.issuer),subject:uuid(identity.subject),email},
     ...(organizationActions.includes(action)?{organizationId:uuid(v.organizationId)}:{}),...(action==='accept'?{invitationId:uuid(v.invitationId)}:{}),
     ...(action==='join-code'?{code:text(v.code,32)}:{}),...(action==='request-access'&&v.message!==undefined?{message:text(v.message,500)}:{}),...(action==='withdraw-request'?{requestId:uuid(v.requestId)}:{})}

@@ -5,8 +5,9 @@ import { productionRoutes, productionRequest } from '../production/routes'
 import {accountRoutes,accountRequest,joinMethodRoutes} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
-import { ApiError, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
+import { ApiError, jsonResponse, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
 import { DatabaseUnavailableError } from './client'
+import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 
 export const databaseApiRoutes = [
   'GET /me', 'POST /me', 'GET /organizations',
@@ -31,7 +32,7 @@ export function apiConfiguration(env: Record<string, string | undefined> = proce
   const environment = env.STUDIOSTACK_ENV
   const expectedApi = environment === 'dev' ? 'vugf6fpl4k' : environment === 'prod' ? 'ixzikwz8n5' : undefined
   if (!expectedApi || env.DATABASE_API_ID !== expectedApi) throw new Error('Database API environment mismatch')
-  if (!/^us-east-2_[a-zA-Z0-9]+$/.test(env.COGNITO_USER_POOL_ID ?? '') || !/^[a-z0-9]{1,128}$/.test(env.COGNITO_APP_CLIENT_ID ?? '')) {
+  if (!userPoolPattern.test(env.COGNITO_USER_POOL_ID ?? '') || !/^[a-z0-9]{1,128}$/.test(env.COGNITO_APP_CLIENT_ID ?? '')) {
     throw new Error('Cognito user pool and app client must be explicitly configured')
   }
   return { apiId: expectedApi, issuer: `https://cognito-idp.us-east-2.amazonaws.com/${env.COGNITO_USER_POOL_ID}`, clientId: env.COGNITO_APP_CLIENT_ID! }
@@ -45,7 +46,7 @@ export function trustedIdentity(event: APIGatewayProxyEventV2WithJWTAuthorizer, 
     throw new ApiError(401, 'A valid access token is required')
   }
   // Standard Cognito access tokens normally do not include email; keep it null.
-  const email = claims.email_verified === 'true' && typeof claims.email === 'string' && claims.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claims.email) ? claims.email : null
+  const email = claims.email_verified === 'true' && typeof claims.email === 'string' && claims.email.length <= 254 && emailPattern.test(claims.email) ? claims.email : null
   return { issuer: config.issuer, subject: claims.sub, email }
 }
 function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
@@ -101,7 +102,6 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
 }
 export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof createApiRepository>, 'execute'>, config: ApiConfiguration, now = Date.now) {
   return async (event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyStructuredResultV2> => {
-    const respond = (statusCode: number, value: unknown) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }, body: JSON.stringify(value) })
     try {
       const identity = trustedIdentity(event, config, now())
       const parsed = request(event)
@@ -116,23 +116,14 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
         // small wake-up signal to the outside-VPC sender; no customer data logged.
         console.log(JSON.stringify({type:'production-decision-queued'}))
       }
-      return respond(200, value)
+      return jsonResponse(200, value)
     } catch (error) {
-      if (error instanceof ApiError) return respond(error.status, { error: error.message })
+      if (error instanceof ApiError) return jsonResponse(error.status, { error: error.message })
       // Never return raw SQL, credentials, AWS details, or customer data in errors.
       if (error instanceof DatabaseUnavailableError && error.diagnosticStage === 'connection') {
-        return {
-          statusCode: 503,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-            'X-Content-Type-Options': 'nosniff',
-            'Retry-After': '2'
-          },
-          body: JSON.stringify({ error: 'Database connection is initializing; please retry shortly' })
-        }
+        return jsonResponse(503, { error: 'Database connection is initializing; please retry shortly' }, { 'Retry-After': '2' })
       }
-      return respond(503, { error: 'Database API temporarily unavailable' })
+      return jsonResponse(503, { error: 'Database API temporarily unavailable' })
     }
   }
 }

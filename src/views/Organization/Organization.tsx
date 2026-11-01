@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineXMark } from 'react-icons/hi2'
+import { emailPattern } from '../../types/patterns'
 
 type Role = 'Administrator' | 'Member'
 type Status = 'Active' | 'Invited' | 'Suspended'
@@ -82,7 +83,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
     const email = String(form.get('email') ?? '').trim().toLowerCase()
     const name = String(form.get('name') ?? '').trim()
     const role = form.get('role') === 'Administrator' ? 'Administrator' : 'Member'
-    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Enter a name and valid email address.'); return }
+    if (!name || !emailPattern.test(email)) { setError('Enter a name and valid email address.'); return }
     if (org.members.some(member => member.email.toLowerCase() === email)) { setError('This email is already in this organization.'); return }
     update({ ...org, members: [...org.members, { id: crypto.randomUUID(), name, email, role, status: 'Invited' }] }, `Preview invitation created for ${name}. No email was sent.`)
     setDialog(null)

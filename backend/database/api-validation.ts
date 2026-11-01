@@ -4,6 +4,10 @@ import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUp
 export class ApiError extends Error {
   constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 503, message: string) { super(message) }
 }
+/** JSON Lambda proxy response that is never cached or content-sniffed. */
+export function jsonResponse(statusCode: number, body: unknown, headers: Record<string, string> = {}) {
+  return { statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers }, body: JSON.stringify(body) }
+}
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function uuid(value: unknown): string {
   if (typeof value !== 'string' || !uuidPattern.test(value)) throw new ApiError(400, 'A valid UUID is required')

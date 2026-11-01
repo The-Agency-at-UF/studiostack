@@ -1,8 +1,9 @@
 import { account, region, functionArn, trust } from '../database/resources'
+import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 export interface NotificationStackOptions { environment: 'dev' | 'prod'; artifactBucket: string; artifactKey: string; sender: string; identity: string; webUrl: string; userPoolId: string; enabled?: boolean; configurationSet?:string }
 export function productionNotificationInfrastructure(input: NotificationStackOptions) {
   const { environment: env, artifactBucket, artifactKey, sender, identity, webUrl, userPoolId } = input
-  if (!['dev','prod'].includes(env) || artifactBucket !== `studio-stack-photos-${env}` || !artifactKey.startsWith('deployments/production/') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender) || !/^[a-zA-Z0-9@._-]+$/.test(identity) || new URL(webUrl).protocol !== 'https:' || !/^us-east-2_[a-zA-Z0-9]+$/.test(userPoolId)) throw new Error('Explicit environment, private artifact, verified sender and HTTPS website required')
+  if (!['dev','prod'].includes(env) || artifactBucket !== `studio-stack-photos-${env}` || !artifactKey.startsWith('deployments/production/') || !emailPattern.test(sender) || !/^[a-zA-Z0-9@._-]+$/.test(identity) || new URL(webUrl).protocol !== 'https:' || !userPoolPattern.test(userPoolId)) throw new Error('Explicit environment, private artifact, verified sender and HTTPS website required')
   if(input.configurationSet&&input.configurationSet!==`studiostack-${env}-delivery`)throw new Error('Unexpected SES configuration set')
   if (identity !== sender && !sender.endsWith(`@${identity}`)) throw new Error('SES identity must match the sender address or domain')
   const name = `studiostack-${env}-production-notifications`, fn = functionArn(name)

@@ -1,9 +1,10 @@
-import {createHash,randomInt} from 'node:crypto'
+import { randomInt} from 'node:crypto'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object,text,uuid} from '../database/api-validation'
 import {versioned} from './validation'
 import {emailDomains,joinCodeAlphabet,joinCodeHash,joinCodeLength} from './join-codes'
 import type {AccountRequest} from './routes'
+import {pageOf,requestHash} from '../database/repository-utils'
 /** Free-mail providers can never identify an organization. */
 export const publicEmailDomains=new Set(['gmail.com','googlemail.com','outlook.com','hotmail.com','live.com','msn.com','icloud.com','me.com','mac.com','yahoo.com','ymail.com','aol.com','proton.me','protonmail.com','pm.me','gmx.com','gmx.net','mail.com','zoho.com','yandex.com','hey.com','fastmail.com','tutanota.com','qq.com','163.com','edu.com'])
 const domainColumns='domain,auto_join AS "autoJoin",version,created_at AS "createdAt"'
@@ -34,11 +35,11 @@ export async function dispatchJoinMethods(client:DatabaseClient,request:AccountR
       'join-codes':`SELECT ${codeColumns} FROM app.organization_join_codes WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3`,
       'access-requests':`SELECT ${requestColumns} FROM app.organization_access_requests r JOIN app.users u ON u.id=r.user_id WHERE r.organization_id=$1 AND r.status='pending' AND ($2::uuid IS NULL OR r.id>$2) ORDER BY r.id LIMIT $3`,
     }
-    const {rows}=await client.query(queries[resource],[org,page.after,page.limit+1]),items=rows.slice(0,page.limit)
-    return {items,nextCursor:rows.length>page.limit?items.at(-1)!.id:null}
+    const {rows}=await client.query(queries[resource],[org,page.after,page.limit+1])
+    return pageOf(rows,page.limit)
   }
   const input=resource==='domains'&&!request.domain?addDomain(request.body):resource==='join-codes'&&!request.codeId?createJoinCode(request.body):resource==='domains'&&request.action==='update'?(v=>({...versioned(v),autoJoin:v.autoJoin}))(object(request.body,['autoJoin','version','requestId'])):versioned(object(request.body,['version','requestId']))
-  const hash=createHash('sha256').update(JSON.stringify({resource,input,domain:request.domain,codeId:request.codeId,accessRequestId:request.accessRequestId,action:request.action})).digest('hex')
+  const hash=requestHash({resource,input,domain:request.domain,codeId:request.codeId,accessRequestId:request.accessRequestId,action:request.action})
   const previous=(await client.query('SELECT target_id,details,request_hash FROM app.organization_audit_events WHERE organization_id=$1 AND actor_id=$2 AND request_id=$3',[org,actor.id,input.requestId])).rows[0]
   if(previous) {
     if(previous.request_hash!==hash)throw new ApiError(409,'Request ID already used for another action')

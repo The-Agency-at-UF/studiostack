@@ -1,21 +1,21 @@
 import {dispatchClients} from './clients'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { DatabaseClient } from '../database/client'
 import { ApiError, object, uuid } from '../database/api-validation'
 import type { Page } from '../database/api-repository'
 import { briefData, briefCommand, productionSettings, version } from './validation'
 import { submissionErrors, type BriefCommand, type BriefData, type ProductionBrief, type ProductionSettings } from '../../src/types/production'
 import type { BriefStorage } from './storage'
+import { isAdmin, pageOf, requestHash } from '../database/repository-utils'
 export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; clientId?:string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
 export type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
 const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
-const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex')
 const deny = (message = 'You do not have permission for this action'): never => { throw new ApiError(403, message) }
 const conflict = (message = 'This brief changed. Reload it before saving.'): never => { throw new ApiError(409, message) }
 const defaultSettings = (): ProductionSettings => ({ version: 0, reviewerIds: [], executiveIds: [], approvalConfirmsDates: true })
 export async function dispatchProduction(client: DatabaseClient, request: ProductionRequest, context: ProductionContext, storage?: BriefStorage): Promise<unknown> {
   const { organizationId, user, membership } = context
-  const admin = ['owner', 'admin'].includes(membership.role)
+  const admin = isAdmin(membership.role)
   const settingsRow = (await client.query('SELECT version, reviewer_ids AS "reviewerIds", executive_ids AS "executiveIds", approval_confirms_dates AS "approvalConfirmsDates" FROM app.production_settings WHERE organization_id = $1', [organizationId])).rows[0]
   const settings = (settingsRow ?? defaultSettings()) as ProductionSettings
   const reviewer = admin || settings.reviewerIds.includes(user.id), executive = settings.executiveIds.includes(user.id)
@@ -67,7 +67,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (result.rows[0].actor_id !== user.id || result.rows[0].request_hash !== fingerprint) conflict('Request ID already used for different content')
     return true
   }
-  if(request.resource==='people'){if(!reviewer)deny();const result=await client.query("SELECT u.id,u.display_name AS \"displayName\",NULL AS email,m.role,m.status FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.status='active' AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3",[organizationId,request.page.after,request.page.limit+1]),items=result.rows.slice(0,request.page.limit);return {items,nextCursor:result.rows.length>request.page.limit?items.at(-1)!.id:null}}
+  if(request.resource==='people'){if(!reviewer)deny();const result=await client.query("SELECT u.id,u.display_name AS \"displayName\",NULL AS email,m.role,m.status FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.status='active' AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3",[organizationId,request.page.after,request.page.limit+1]);return pageOf(result.rows,request.page.limit)}
   if(request.resource==='clients')return dispatchClients(client,request,reviewer)
   if (request.resource === 'access') return { userId: user.id, canReview: reviewer, canAdminister: admin, isExecutive: executive, notificationsConfigured: settings.executiveIds.length > 0 && process.env.PRODUCTION_EMAIL_ENABLED === 'yes' }
   if (request.resource === 'settings') {
@@ -92,7 +92,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     return { items, nextCursor: result.rows.length > page.limit ? items[items.length - 1].id : null }
   }
   if (request.resource === 'briefs' && request.method === 'POST' && !request.briefId) {
-    const body = object(request.body, ['data', 'requestId']), data = briefData(body.data), requestId = uuid(body.requestId), fingerprint = hash(data)
+    const body = object(request.body, ['data', 'requestId']), data = briefData(body.data), requestId = uuid(body.requestId), fingerprint = requestHash(data)
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`brief:${organizationId}:${user.id}:${requestId}`])
     const previous = (await client.query('SELECT id, request_hash FROM app.production_briefs WHERE organization_id = $1 AND owner_id = $2 AND request_id = $3', [organizationId, user.id, requestId])).rows[0]
     if (previous) { if (previous.request_hash !== fingerprint) conflict('Request ID already used for different content'); request.briefId = previous.id; return detail(await getBrief()) }
@@ -107,8 +107,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (!admin && !reviewer && !executive) deny()
     if (request.method === 'GET') {
       const result = await client.query(`SELECT id, brief_id AS "briefId", event_id AS "eventId", status, attempts, created_at AS "createdAt", sent_at AS "sentAt" FROM app.production_outbox WHERE organization_id = $1 AND ($2::uuid IS NULL OR id > $2) ORDER BY id LIMIT $3`, [organizationId, request.page.after, request.page.limit + 1])
-      const items = result.rows.slice(0, request.page.limit)
-      return { items, nextCursor: result.rows.length > request.page.limit ? items[items.length - 1].id : null }
+      return pageOf(result.rows, request.page.limit)
     }
     if (!admin) deny('Only an administrator can retry delivery')
     object(request.body, [])
@@ -119,7 +118,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const brief = await getBrief(request.method !== 'GET')
   if (request.resource === 'briefs' && request.method === 'GET') return detail(brief)
   if (request.resource === 'briefs' && request.method === 'PATCH') {
-    const body = object(request.body, ['data', 'version', 'requestId']), data = briefData(body.data), expected = version(body.version), requestId = uuid(body.requestId), fingerprint = hash({ data, version: expected })
+    const body = object(request.body, ['data', 'version', 'requestId']), data = briefData(body.data), expected = version(body.version), requestId = uuid(body.requestId), fingerprint = requestHash({ data, version: expected })
     if (await previousEvent(requestId, fingerprint)) return detail(brief)
     if (!editable(brief)) deny('Only the author can edit a draft or a brief with requested changes')
     if (expected !== brief.version) conflict()
@@ -135,7 +134,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if(!Array.isArray(body.assignments)||body.assignments.length>50)throw new ApiError(400,'Choose up to 50 crew members')
     const assignments=body.assignments.map(value=>{const v=object(value,['userId','role']);if(typeof v.role!=='string'||!v.role.trim()||v.role.length>80||Array.from(v.role).some(c=>c.charCodeAt(0)<32))throw new ApiError(400,'A crew role is required');return {userId:uuid(v.userId),role:v.role.trim()}}).sort((a,b)=>a.userId.localeCompare(b.userId))
     if(new Set(assignments.map(a=>a.userId)).size!==assignments.length)throw new ApiError(400,'Select each crew member once')
-    const fingerprint=hash({assignments,version:expected})
+    const fingerprint=requestHash({assignments,version:expected})
     if(await previousEvent(requestId,fingerprint))return detail(brief)
     if(expected!==brief.version)conflict()
     if(brief.status!=='approved'||!brief.shootStartsAt)conflict('Approve and confirm shoot dates before assigning crew')
@@ -154,7 +153,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     return detail(await getBrief())
   }
   if (request.resource === 'actions') {
-    const command = briefCommand(request.body), fingerprint = hash(command)
+    const command = briefCommand(request.body), fingerprint = requestHash(command)
     if (await previousEvent(command.requestId, fingerprint)) return detail(brief)
     if (command.version !== brief.version) conflict()
     const { action, comment = '', section = '' } = command
@@ -223,7 +222,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       await client.query("UPDATE app.production_attachments SET status = 'discarded' WHERE organization_id = $1 AND id = $2", [organizationId, attachment.id])
       brief.version++
       await client.query('UPDATE app.production_briefs SET version = $3, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, brief.version])
-      await event(brief, 'attachment_removed', randomUUID(), hash({attachment:attachment.id, action:'remove'}), attachment.name)
+      await event(brief, 'attachment_removed', randomUUID(), requestHash({attachment:attachment.id, action:'remove'}), attachment.name)
       return { id: attachment.id }
     }
     if (attachment.status === 'discarded') conflict('Attachment was removed')
@@ -235,7 +234,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     }
     brief.version++
     await client.query('UPDATE app.production_briefs SET version = $3, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, brief.version])
-    await event(brief, 'attachment_added', randomUUID(), hash({attachment:attachment.id, action:'complete'}), attachment.name)
+    await event(brief, 'attachment_added', randomUUID(), requestHash({attachment:attachment.id, action:'complete'}), attachment.name)
     return detail(await getBrief())
   }
   throw new ApiError(404, 'Route not found')
