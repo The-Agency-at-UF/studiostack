@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { account, region } from '../infra/database/resources'
 
-const execute = promisify(execFile)
+export const execute = promisify(execFile)
 export const devDirectory = resolve('.aws/dev-rollout')
 export const pause = (ms = 5000) => new Promise(done => setTimeout(done, ms))
 export async function aws<T = unknown>(service: string, operation: string, args: string[] = []): Promise<T> {
@@ -20,6 +20,11 @@ export async function aws<T = unknown>(service: string, operation: string, args:
     const code = (error as { stderr?: string }).stderr?.match(/An error occurred \(([A-Za-z0-9]+)\)/)?.[1]
     throw Object.assign(new Error(`AWS operation failed: ${service} ${operation}${code ? ` (${code})` : ''}`), { code })
   }
+}
+/** The environment named by an explicit --apply-dev or --apply-prod flag, if any. */
+export function applyEnvironment(): 'dev' | 'prod' | undefined {
+  const flag = process.argv.slice(2).join(' ')
+  return flag === '--apply-dev' ? 'dev' : flag === '--apply-prod' ? 'prod' : undefined
 }
 export async function guardDevApply() {
   if (process.argv.slice(2).join(' ') !== '--apply-dev') throw new Error('Explicit approved --apply-dev required')

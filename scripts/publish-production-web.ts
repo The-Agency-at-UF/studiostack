@@ -1,11 +1,8 @@
-import {execFile} from 'node:child_process'
-import {promisify} from 'node:util'
 import {readFile,writeFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
-import {aws,pause} from './dev-aws'
+import {aws,pause,execute} from './dev-aws'
 import {guardProductionApply,productionMetadata,prodDirectory} from './prod-aws'
 import {verifyStaticRoutes} from './verify-static-routes'
-const execute=promisify(execFile)
 
 async function main() {
   await guardProductionApply()
