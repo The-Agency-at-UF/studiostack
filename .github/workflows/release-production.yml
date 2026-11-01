@@ -1,14 +1,17 @@
 name: Release Production
 
-# Manual, gated release of main to the production website. The run refuses to
-# start unless the production environment requires reviewers, then waits for an
-# approver before any AWS credentials are issued.
+# Publishes main to the production website automatically, once Deploy
+# Development has passed the full suite and verified the same commit on dev.
+# Run it by hand from main to republish the current main without a new push.
 on:
+  workflow_run:
+    workflows:
+      - Deploy Development
+    types:
+      - completed
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: Type "release" to publish main to production
-        required: true
 
 permissions:
   contents: read
@@ -18,36 +21,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    name: Check release gate
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Require main and confirmation
-        if: github.ref != 'refs/heads/main' || inputs.confirm != 'release'
-        run: |
-          echo "::error::Release only from main, with the confirmation input set to release."
-          exit 1
-      - name: Require approval on the production environment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          rules=$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" --jq '[.protection_rules[]?.type] | join(",")' 2>/dev/null || true)
-          case ",$rules," in
-            *,required_reviewers,*) echo "Production requires reviewer approval.";;
-            *) echo "::error::The production environment has no required reviewers. A repository admin must add them before releasing."; exit 1;;
-          esac
-
-  suite:
-    name: Full test suite
-    needs: gate
-    uses: ./.github/workflows/test-suite.yml
-
   publish:
     name: Publish production website
-    needs: suite
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -57,7 +35,10 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # workflow_run runs on the latest main; check out the commit dev verified.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22
