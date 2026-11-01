@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 
 export function PageHeader({ title, context, description, actions }: { title: string; context?: string; description?: string; actions?: ReactNode }) {
   return <header className="ws-page-header"><div>{context && <p className="ws-context">{context}</p>}<h1>{title}</h1>{description && <p className="ws-description">{description}</p>}</div>{actions && <div className="ws-actions">{actions}</div>}</header>
@@ -21,6 +21,9 @@ export function QueueSection({ title, action, children }: { title: string; actio
 
 export function Field({ label, className = '', children }: { label: string; className?: string; children: ReactNode }) {
   return <label className={`ws-field ${className}`}>{label}{children}</label>
+}
+export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`ws-select ${className}`} {...props} />
 }
 export function WorkspaceTabs({ label, items, active, disabled, onChange }: { label: string; items: { value: string; label: string }[]; active: string; disabled?: boolean; onChange: (value: string) => void }) {
   return <nav className="production-tabs" aria-label={label}>{items.map(item => <button key={item.value} disabled={disabled} aria-current={active === item.value ? 'page' : undefined} onClick={() => onChange(item.value)}>{item.label}</button>)}</nav>
