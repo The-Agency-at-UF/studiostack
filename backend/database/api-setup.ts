@@ -1,4 +1,5 @@
 import { bootstrapProductionAdmin } from '../production/bootstrap'
+import { handOverAgencyOwnership } from '../production/owner-handover'
 import { createDatabase } from './client'
 import { databaseConfig } from './config'
 import { applyMigrations } from './migrations'
@@ -8,7 +9,7 @@ import { fixtures } from './dev-fixtures'
 /** Package only. Deploy/invoke temporarily with reviewed maintenance access.
  * Never attach this entry point to HTTP API Gateway or leave it deployed.
  */
-export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | Record<string, never> = {}) {
+export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | {action:'hand-over-agency-ownership';owner:unknown;formerOwner?:unknown} | Record<string, never> = {}) {
   let stage = 'configuration'
   try {
     const config = databaseConfig()
@@ -18,6 +19,10 @@ export async function handler(event: Parameters<typeof fixtures>[0] | {action:'b
     if ('action' in event && event.action === 'bootstrap-production-admin') {
       stage = 'bootstrap'
       return await bootstrapProductionAdmin(database,config,event)
+    }
+    if ('action' in event && event.action === 'hand-over-agency-ownership') {
+      stage = 'ownership'
+      return await handOverAgencyOwnership(database,config,event)
     }
     stage = 'fixtures'
     if ('action' in event) return await fixtures(event as Parameters<typeof fixtures>[0])
