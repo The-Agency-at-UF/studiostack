@@ -19,7 +19,7 @@ organization-scoped private-photo contract is a separate helper and must be wire
 to real inventory persistence before enabling live uploads on these screens.
 
 ```sh
-npm test -- src/components/AddItemPopup.test.tsx src/components/EquipmentQrScanner.test.tsx src/views/Inventory/Inventory.test.tsx
+npm test -- src/components/EquipmentQrScanner.test.tsx src/views/Equipment/Inventory.test.tsx
 npm run typecheck
 npm run build
 ```
