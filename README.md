@@ -21,7 +21,7 @@ Production operations, equipment reservations, and inventory management for The 
 
 StudioStack is the shared production desk for The Agency at UF. It gives students and administrators one place to reserve equipment, track checkouts and returns, report equipment problems, manage teams, and understand how production resources are being used.
 
-The active web application is built with Next.js and React. The repository also contains an archived `legacy/` application for reference while the current product is developed.
+The active web application is built with Next.js and React.
 
 ## Project outline
 
@@ -102,12 +102,11 @@ studiostack/
 │   ├── context/         # Shared React context
 │   ├── integration/     # Integration tests
 │   └── views/           # Page-level feature views
-├── legacy/              # Archived earlier implementation
 ├── package.json         # Scripts and dependencies
 └── next.config.mjs      # Next.js configuration
 ```
 
-New application work belongs in the root `app/` and `src/` directories. Do not add new product work to `legacy/`.
+New application work belongs in the root `app/` and `src/` directories.
 
 ## Prerequisites
 
