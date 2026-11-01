@@ -3,12 +3,15 @@ import {object,pagination,text,uuid} from '../database/api-validation'
 import type {Page} from '../database/api-repository'
 export interface AccountRequest {operation:'accounts'; organizationId:string; resource:string; method:string; memberId?:string; teamId?:string; invitationId?:string; domain?:string; codeId?:string; accessRequestId?:string; action?:string; body?:unknown; page:Page}
 const prefix='/organizations/{organizationId}/administration'
+// Deployed route IDs follow list order, so the infrastructure appends this newer route last.
+export const organizationDirectoryRoute=`GET ${prefix}/directory`
 export const accountRoutes=[
   `GET ${prefix}/settings`,`PATCH ${prefix}/settings`,
   `GET ${prefix}/members`,`PATCH ${prefix}/members/{memberId}`,
   `GET ${prefix}/teams`,`POST ${prefix}/teams`,`PATCH ${prefix}/teams/{teamId}`,
   `GET ${prefix}/activity`,
   `GET ${prefix}/invitations`,`POST ${prefix}/invitations`,`POST ${prefix}/invitations/{invitationId}/revoke`,`POST ${prefix}/invitations/{invitationId}/retry`,
+  organizationDirectoryRoute,
 ]
 /** Deployed after every earlier route so existing API Gateway route IDs stay stable. */
 export const joinMethodRoutes=[

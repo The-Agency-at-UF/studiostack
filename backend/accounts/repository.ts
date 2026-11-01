@@ -23,6 +23,11 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
     if(!actor)forbidden();role=actor.role
   }
   if(resource==='settings'&&method==='GET')return {...await settings(),role}
+  if(resource==='directory'&&method==='GET'){
+    // Any active member may see who else is active, by name and role only. Emails and statuses stay admin-only.
+    const {rows}=await client.query(`SELECT u.id,COALESCE(u.display_name,'Team member') AS "displayName",m.role FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.status='active' AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3`,[organizationId,page.after,page.limit+1]),items=rows.slice(0,page.limit)
+    return {items,nextCursor:rows.length>page.limit?items.at(-1)!.id:null}
+  }
   if(!['owner','admin'].includes(role))forbidden()
   if(resource==='invitations')return dispatchInvitations(client,request,{id:user.id,role})
   if(['domains','join-codes','access-requests'].includes(resource))return dispatchJoinMethods(client,request,{id:user.id,role})

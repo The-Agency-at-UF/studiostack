@@ -1,5 +1,6 @@
 import type { ApiMember, ApiOrganization, ApiGroup } from './database-api'
 export interface OrganizationSettings { id:string; name:string; slug:string; reservationDays:number; version:number; role:ApiOrganization['role'] }
+export interface DirectoryMember { id:string; displayName:string; role:ApiOrganization['role'] }
 export interface ManagedMember extends ApiMember { version:number }
 export interface ManagedTeam extends ApiGroup { version:number; archivedAt:string|null; memberIds:string[] }
 export interface OrganizationInvitation { id:string; email:string; displayName:string; role:'admin'|'member'; status:'pending'|'accepted'|'revoked'|'expired'; deliveryStatus:'queued'|'sending'|'sent'|'failed'|'uncertain'; attempts:number; expiresAt:string; version:number; createdAt:string }
