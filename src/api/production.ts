@@ -1,8 +1,8 @@
 import type { ApiMember,ApiPage } from '../types/database-api'
 import type { ClientAccount,ProductionAssignment,ProductionBrief, BriefData, BriefCommand, ProductionSettings, ProductionAccess, Delivery } from '../types/production'
-type Send = <T>(resource: string, method?: string, body?: unknown) => Promise<T>
+import { pageQuery, type Send } from './scoped'
 export function productionClient(send: Send) {
-  const page = (resource: string, after?: string) => `${resource}?limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`
+  const page = (resource: string, after?: string) => resource + pageQuery(after)
   return {
     people:(after?:string)=>send<ApiPage<ApiMember>>(page('people',after)),
     clients:(after?:string)=>send<ApiPage<ClientAccount>>(page('clients',after)),
