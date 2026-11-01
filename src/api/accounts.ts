@@ -1,5 +1,5 @@
 import type {ApiPage} from '../types/database-api'
-import type {ChangeMember,ChangeOrganization,ChangeTeam,DirectoryMember,InviteMember,ManagedMember,ManagedTeam,OrganizationActivity,OrganizationInvitation,OrganizationSettings,VersionedRequest} from '../types/accounts'
+import type {ChangeMember,ChangeOrganization,ChangeTeam,CreateJoinCode,DirectoryMember,InviteMember,JoinCode,ManagedMember,ManagedTeam,OrganizationActivity,OrganizationInvitation,OrganizationSettings,PendingAccessRequest,VersionedRequest,WorkspaceDomain} from '../types/accounts'
 type Send=<T>(path:string,method?:string,body?:unknown)=>Promise<T>
 export function accountClient(send:Send) {
   const page=(path:string,after?:string)=>`${path}?limit=100${after?`&after=${encodeURIComponent(after)}`:''}`
@@ -17,6 +17,15 @@ export function accountClient(send:Send) {
     invite:(body:InviteMember)=>send<OrganizationInvitation>('invitations','POST',body),
     revokeInvitation:(id:string,body:VersionedRequest)=>send<OrganizationInvitation>(`invitations/${encodeURIComponent(id)}/revoke`,'POST',body),
     retryInvitation:(id:string,body:VersionedRequest)=>send<OrganizationInvitation>(`invitations/${encodeURIComponent(id)}/retry`,'POST',body),
+    domains:()=>send<ApiPage<WorkspaceDomain>>('domains'),
+    addDomain:(body:{domain:string;autoJoin:boolean;requestId:string})=>send<WorkspaceDomain>('domains','POST',body),
+    updateDomain:(domain:string,body:VersionedRequest&{autoJoin:boolean})=>send<WorkspaceDomain>(`domains/${encodeURIComponent(domain)}`,'PATCH',body),
+    removeDomain:(domain:string,body:VersionedRequest)=>send<{domain:string;removed:true}>(`domains/${encodeURIComponent(domain)}/remove`,'POST',body),
+    joinCodes:(after?:string)=>send<ApiPage<JoinCode>>(page('join-codes',after)),
+    createJoinCode:(body:CreateJoinCode)=>send<JoinCode>('join-codes','POST',body),
+    revokeJoinCode:(id:string,body:VersionedRequest)=>send<JoinCode>(`join-codes/${encodeURIComponent(id)}/revoke`,'POST',body),
+    accessRequests:(after?:string)=>send<ApiPage<PendingAccessRequest>>(page('access-requests',after)),
+    decideAccessRequest:(id:string,decision:'approve'|'deny',body:VersionedRequest)=>send<PendingAccessRequest>(`access-requests/${encodeURIComponent(id)}/${decision}`,'POST',body),
   }
 }
 export type AccountClient=ReturnType<typeof accountClient>

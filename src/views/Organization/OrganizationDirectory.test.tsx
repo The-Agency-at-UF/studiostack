@@ -31,7 +31,7 @@ describe('Organization directory',()=>{
     expect(within(within(members).getByRole('list')).getByText('Suspended')).toBeInTheDocument()
     expect(within(members).queryByText('Taylor Chen')).not.toBeInTheDocument()
     expect(within(screen.getByRole('region',{name:'Pending invitations'})).getByText('Taylor Chen')).toBeInTheDocument()
-    expect(screen.getByRole('link',{name:'Invite or manage people'})).toHaveAttribute('href','/users')
+    expect(screen.getByRole('link',{name:'Invite or manage people'})).toHaveAttribute('href','/organization/settings')
     expect(m.directory).not.toHaveBeenCalled()
   })
   it('filters members by search and status',async()=>{

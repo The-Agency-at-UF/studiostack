@@ -3,7 +3,7 @@ import {reportClient} from './reports'
 import {equipmentClient} from './equipment'
 import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
 import { productionClient } from './production'
-import type {PendingInvitation} from '../types/accounts'
+import type {OnboardingOverview,OwnAccessRequest,PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
 import type { ApiBugReport, ApiUser, ApiOrganization, ApiMember, ApiGroup, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 
@@ -94,6 +94,11 @@ export function createDatabaseApiClient(options: ClientOptions) {
   return {
     pendingInvitations:()=>request<{items:PendingInvitation[]}>('/account/invitations'),
     acceptInvitation:(id:string,organizationId:string)=>request<{organizationId:string}>(`/account/invitations/${encodeURIComponent(id)}/accept`,'POST',{organizationId}),
+    onboarding:()=>request<OnboardingOverview>('/account/onboarding'),
+    joinByDomain:(organizationId:string)=>request<{organizationId:string}>('/account/onboarding/domain-joins','POST',{organizationId}),
+    joinByCode:(code:string)=>request<{organizationId:string}>('/account/onboarding/code-joins','POST',{code}),
+    requestAccess:(organizationId:string,message?:string)=>request<OwnAccessRequest>('/account/onboarding/access-requests','POST',message?{organizationId,message}:{organizationId}),
+    withdrawAccessRequest:(id:string,organizationId:string)=>request<{id:string;status:'withdrawn'}>(`/account/onboarding/access-requests/${encodeURIComponent(id)}/withdraw`,'POST',{organizationId}),
     alerts:(org:string)=>alertClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,'alerts'+resource),method,body)),
     reports:(org:string)=>reportClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,'equipment/reports'+(resource.startsWith('?')||!resource?resource:'/'+resource)),method,body)),
     equipment:(org:string)=>equipmentClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`equipment/${resource}`),method,body)),

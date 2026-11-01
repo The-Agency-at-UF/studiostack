@@ -43,7 +43,7 @@ describe('Session boundary', () => {
     const view=render(<AppShell><Controls/></AppShell>)
     await screen.findByText('authenticated/member@example.test/false/token')
     const nav=screen.getByRole('navigation')
-    for(const route of ['/reports/','/production/','/inventory/','/reservations/','/teams/','/alerts/','/calendar/','/create-reservation/','/']) {
+    for(const route of ['/reports/','/production/','/inventory/','/reservations/','/statistics/','/alerts/','/calendar/','/create-reservation/','/']) {
       mocks.pathname=route;view.rerender(<AppShell><Controls/></AppShell>)
       expect(screen.getByRole('navigation')).toBe(nav)
       expect(screen.queryByText('Opening StudioStack…')).not.toBeInTheDocument()

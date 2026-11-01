@@ -8,7 +8,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('Header', () => {
-  it.each(['Home','Production','Gear calendar','Reservations','Reports','Teams','Alerts','Inventory','Statistics','Users','Organization'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
+  it.each(['Home','Production','Gear calendar','Reservations','Reports','Alerts','Inventory','Statistics','Organization'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
     const user = userEvent.setup(); const logOut = vi.fn(); const view = render(<Header isAdmin logOut={logOut} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
     const link = screen.getByRole('link', { name }); const clicked = vi.fn(); link.addEventListener('click', clicked);
@@ -41,16 +41,17 @@ describe('Header', () => {
     render(<Header isAdmin={true} logOut={() => {}} />);
     // These should only be visible for admins
     expect(screen.getAllByText('Statistics')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Users')[0]).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Teams' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Organization' })).toHaveAttribute('href', '/organization');
   });
 
-  it('does not show Admin-only links when isAdmin is false, but keeps the organization directory', () => {
+  it('does not show Admin-only links when isAdmin is false', () => {
     render(<Header isAdmin={false} logOut={() => {}} />);
     // These should NOT be visible for students
     expect(screen.queryByText('Statistics')).not.toBeInTheDocument();
     expect(screen.queryByText('Users')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Organization' })).toHaveAttribute('href', '/organization');
+    expect(screen.queryByText('Organization')).not.toBeInTheDocument();
   });
 
   it('shows common links for both roles', () => {
