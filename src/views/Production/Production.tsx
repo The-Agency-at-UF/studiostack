@@ -1,5 +1,5 @@
 'use client'
-import { PageHeader, WorkspaceTabs, Field, TableRegion, DetailPanel } from '../../components/workspace/WorkspaceUI'
+import { PageHeader, WorkspaceTabs, Field, TableRegion, DetailPanel, Skeleton } from '../../components/workspace/WorkspaceUI'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppSession } from '../../context/AppSessionContext'
@@ -165,7 +165,7 @@ export default function Production() {
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
     <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','calendar','clients', ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ clients:'Client accounts',briefs:'Briefs',calendar:'Production calendar',decisions:'Decisions & delivery',settings:'Access & notifications' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>
     <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={() => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() })) }}>Reload</button></p>}{notice && <p role="status">{notice}</p>}</div>
-    {loading ? <p className="ws-loading-delayed" role="status">Loading production workspace…</p> : !api ? null : !access ? (
+    {loading ? <Skeleton label="Loading production workspace…" variant="row" count={5} /> : !api ? null : !access ? (
       <div className="production-empty">
         <h2>Production workspace unavailable</h2>
         <p>The production workspace could not be loaded. Check your connection or try again.</p>

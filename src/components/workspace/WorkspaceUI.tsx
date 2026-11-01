@@ -12,6 +12,10 @@ export function Notice({ children, kind = 'info', ...props }: HTMLAttributes<HTM
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return <div className="ws-empty"><p>{title}</p>{children && <div>{children}</div>}</div>
 }
+/** Placeholder shaped like the content it stands in for; the label is announced to screen readers. */
+export function Skeleton({ label, variant = 'text', count = 3 }: { label: string; variant?: 'text' | 'row' | 'tile'; count?: number }) {
+  return <div className={`ws-skeleton ws-skeleton-${variant} ws-loading-delayed`} role="status"><span className="ws-sr-only">{label}</span>{Array.from({ length: count }, (_, i) => <span key={i} className="ws-skeleton-block" aria-hidden="true" />)}</div>
+}
 export function StatusLabel({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'warning' | 'danger' }) {
   return <span className={`ws-status ws-status-${tone}`}>{children}</span>
 }
