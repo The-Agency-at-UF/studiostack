@@ -64,12 +64,18 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   const visibleMembers = org.members.filter(member =>
     `${member.name} ${member.email}`.toLowerCase().includes(search.toLowerCase()) &&
     (statusFilter === 'All statuses' || member.status === statusFilter))
+  const visibleAdmins = visibleMembers.filter(member => member.role === 'Administrator')
+  const visibleRegular = visibleMembers.filter(member => member.role === 'Member')
 
   function update(next: OrganizationData, activity: string) {
     setOrganizations(previous => ({ ...previous, [organizationId]: { ...next, activity: [activity, ...org.activity] } }))
     setNotice(activity)
   }
   function openDialog(next: DialogState) { setError(''); setDialog(next) }
+  const avatar = (member: Member) => <span className="org-avatar" aria-hidden="true">{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span>
+  const actions = (member: Member) => <div className="org-row-actions"><button aria-label={`Change role for ${member.name}`} onClick={() => openDialog({ type: 'role', member })}>Change role</button>
+    <button aria-label={`${member.status === 'Invited' ? 'Revoke invitation for' : member.status === 'Suspended' ? 'Restore' : 'Suspend'} ${member.name}`} onClick={() => openDialog({ type: 'status', member })}>{member.status === 'Invited' ? 'Revoke' : member.status === 'Suspended' ? 'Restore' : 'Suspend'}</button></div>
+  const status = (member: Member) => <span className={`org-status org-status-${member.status.toLowerCase()}`}>{member.status}</span>
   function submitInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -115,15 +121,21 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         <div className="org-filters"><label className="org-search"><HiOutlineMagnifyingGlass /><input aria-label="Search members" placeholder="Search by name or email" value={search} onChange={event => setSearch(event.target.value)} /></label>
           <select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>{['All statuses', 'Active', 'Invited', 'Suspended'].map(status => <option key={status}>{status}</option>)}</select>
         </div>
-        <div className="org-table-scroll"><table className="org-table"><thead><tr><th>Member</th><th>Role</th><th>Status</th><th>Manage</th></tr></thead><tbody>
-          {visibleMembers.map(member => <tr key={member.id}>
-            <td><div className="org-member"><span className="org-avatar" aria-hidden="true">{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span><div><strong>{member.name}</strong><span>{member.email}</span></div></div></td>
-            <td>{member.role}</td><td><span className={`org-status org-status-${member.status.toLowerCase()}`}>{member.status}</span></td>
-            <td><div className="org-row-actions"><button aria-label={`Change role for ${member.name}`} onClick={() => openDialog({ type: 'role', member })}>Change role</button>
-              <button aria-label={`${member.status === 'Invited' ? 'Revoke invitation for' : member.status === 'Suspended' ? 'Restore' : 'Suspend'} ${member.name}`} onClick={() => openDialog({ type: 'status', member })}>{member.status === 'Invited' ? 'Revoke' : member.status === 'Suspended' ? 'Restore' : 'Suspend'}</button></div></td>
+        <section className="org-group" aria-labelledby="org-admin-heading"><h4 id="org-admin-heading">Admin</h4>
+          {visibleAdmins.length ? <ul className="org-admin-cards">{visibleAdmins.map(member => <li key={member.id}>
+            <div className="org-member">{avatar(member)}<div><strong>{member.name}</strong><span>{member.email}</span></div></div>
+            <div className="org-admin-meta">{status(member)}{actions(member)}</div>
+          </li>)}</ul> : <p className="org-empty">No admins match your search.</p>}
+        </section>
+        <section className="org-group" aria-labelledby="org-members-heading"><h4 id="org-members-heading">Members</h4>
+        <div className="org-table-scroll"><table className="org-table"><thead><tr><th>Member</th><th>Status</th><th>Manage</th></tr></thead><tbody>
+          {visibleRegular.map(member => <tr key={member.id}>
+            <td><div className="org-member">{avatar(member)}<div><strong>{member.name}</strong><span>{member.email}</span></div></div></td>
+            <td>{status(member)}</td><td>{actions(member)}</td>
           </tr>)}
-          {!visibleMembers.length && <tr><td colSpan={4} className="org-empty">No members match your search. Try another name or status.</td></tr>}
+          {!visibleRegular.length && <tr><td colSpan={3} className="org-empty">No members match your search. Try another name or status.</td></tr>}
         </tbody></table></div>
+        </section>
         <p className="org-scope-note">Organization roles apply here only. Platform administration is separate.</p>
       </>}
       {tab === 'activity' && <div className="org-section"><h3>Organization activity</h3><p>Local preview actions for {org.name}; not a production audit log.</p>
