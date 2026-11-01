@@ -18,6 +18,11 @@ export const databaseApiRoutes = [
   'GET /organizations/{organizationId}/reservations/{reservationId}',
   'POST /organizations/{organizationId}/reservations/{reservationId}/cancel',
 ] as const
+/** Routes removed with Teams. They keep their place in the route lists only so infra reserves their slots and later route resource IDs stay stable. */
+export const retiredRoutes = new Set<string>([
+  'GET /organizations/{organizationId}/groups', 'POST /organizations/{organizationId}/groups',
+  'GET /organizations/{organizationId}/administration/teams', 'POST /organizations/{organizationId}/administration/teams', 'PATCH /organizations/{organizationId}/administration/teams/{teamId}',
+])
 export const bugReportRoutes = ['POST /organizations/{organizationId}/bug-reports','GET /organizations/{organizationId}/bug-reports'] as const
 export const privatePhotoRoutes = ['POST /photos/uploads', 'POST /organizations/{organizationId}/photos/{photoId}/complete', 'GET /organizations/{organizationId}/inventory/{itemId}/photo'] as const
 export const databaseApiScope = 'aws.cognito.signin.user.admin'
@@ -50,7 +55,7 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || retiredRoutes.has(event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
   if(alertRoutes.includes(event.routeKey))return alertRequest(event,()=>json(event))
   if(reportRoutes.includes(event.routeKey))return reportRequest(event,()=>json(event))
   if(equipmentRoutes.includes(event.routeKey))return equipmentRequest(event,()=>json(event))
@@ -75,13 +80,11 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
   const organizationId = uuid(event.pathParameters?.organizationId)
   if (event.routeKey === 'GET /organizations/{organizationId}/bug-reports') return {operation:'bugReports',organizationId,page:pagination(params)}
   if (event.routeKey === 'GET /organizations/{organizationId}/members') return { operation: 'members', organizationId, page: pagination(params) }
-  if (event.routeKey === 'GET /organizations/{organizationId}/groups') return { operation: 'groups', organizationId, page: pagination(params) }
   if (event.routeKey === 'GET /organizations/{organizationId}/inventory') return { operation: 'inventory', organizationId, page: pagination(params) }
   if (event.routeKey === 'GET /organizations/{organizationId}/reservations') return { operation: 'reservations', organizationId, page: pagination(params) }
   object(params, [])
   switch (event.routeKey) {
     case 'POST /organizations/{organizationId}/bug-reports': { const body=object(json(event),['title','description','pagePath','requestId']); if(typeof body.description!=='string'||!body.description.trim()||body.description.trim().length>4000||[...body.description].some(c=>{const n=c.charCodeAt(0);return n===127||n<32&&![9,10,13].includes(n)}))throw new ApiError(400,'Invalid report description');const pagePath=text(body.pagePath,255);if(!/^\/[A-Za-z0-9/_-]*$/.test(pagePath))throw new ApiError(400,'Invalid page path');return {operation:'bugReport',organizationId,title:text(body.title,160),description:body.description.trim(),pagePath,requestId:uuid(body.requestId)} }
-    case 'POST /organizations/{organizationId}/groups': return { operation: 'createGroup', organizationId, name: text(object(json(event), ['name']).name, 120) }
     case 'POST /organizations/{organizationId}/inventory': return { operation: 'createEquipment', organizationId, input: createEquipment(json(event)) }
     case 'PATCH /organizations/{organizationId}/inventory/{itemId}': return { operation: 'updateEquipment', organizationId, itemId: uuid(event.pathParameters?.itemId), input: updateEquipment(json(event)) }
     case 'POST /organizations/{organizationId}/reservations': return { operation: 'createReservation', organizationId, input: createReservation(json(event)) }

@@ -1,5 +1,5 @@
 import { ApiError,object,text,uuid } from '../database/api-validation'
-import type { ChangeMember,ChangeOrganization,ChangeTeam,InviteMember,VersionedRequest } from '../../src/types/accounts'
+import type { ChangeMember,ChangeOrganization,InviteMember,VersionedRequest } from '../../src/types/accounts'
 export function versioned(value:Record<string,unknown>):VersionedRequest {
   if(!Number.isSafeInteger(value.version)||Number(value.version)<1)throw new ApiError(400,'A positive record version is required')
   return {version:Number(value.version),requestId:uuid(value.requestId)}
@@ -13,11 +13,6 @@ export function changeMember(input:unknown):ChangeMember {
   const v=object(input,['role','status','version','requestId'])
   if(!['owner','admin','member'].includes(String(v.role))||!['active','suspended'].includes(String(v.status)))throw new ApiError(400,'Invalid member role or status')
   return {...versioned(v),role:v.role as ChangeMember['role'],status:v.status as ChangeMember['status']}
-}
-export function changeTeam(input:unknown):ChangeTeam {
-  const v=object(input,['name','archived','memberIds','version','requestId'])
-  if(typeof v.archived!=='boolean'||!Array.isArray(v.memberIds)||v.memberIds.length>200)throw new ApiError(400,'Select up to 200 active team members')
-  return {...versioned(v),name:text(v.name,120),archived:v.archived,memberIds:[...new Set(v.memberIds.map(uuid))]}
 }
 export function changeOrganization(input:unknown):ChangeOrganization {
   const v=object(input,['name','reservationDays','version','requestId'])

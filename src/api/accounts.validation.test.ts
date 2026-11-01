@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {describe,expect,it} from 'vitest'
-import {changeMember,changeOrganization,changeTeam,inviteMember} from '../../backend/accounts/validation'
+import {changeMember,changeOrganization,inviteMember} from '../../backend/accounts/validation'
 import {directoryRequest} from '../../backend/accounts/directory'
 import {emailDomains,joinCodeHash,normalizeJoinCode} from '../../backend/accounts/join-codes'
 import {addDomain,createJoinCode,publicEmailDomains} from '../../backend/accounts/join-methods'
@@ -48,9 +48,7 @@ describe('account administration inputs',()=>{
     expect(()=>changeMember({role:'admin',status:'active',version:0,requestId})).toThrow()
     expect(()=>changeMember({role:'member',status:'invited',version,requestId})).toThrow()
   })
-  it('deduplicates valid team members and bounds policies',()=>{
-    expect(changeTeam({name:'Production',archived:false,memberIds:[requestId,requestId],version,requestId}).memberIds).toEqual([requestId])
-    expect(()=>changeTeam({name:'Production',archived:false,memberIds:['bad'],version,requestId})).toThrow()
+  it('bounds organization policies',()=>{
     expect(()=>changeOrganization({name:'Studio',reservationDays:91,version,requestId})).toThrow()
   })
 })

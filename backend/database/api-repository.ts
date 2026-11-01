@@ -27,10 +27,9 @@ export type ApiRequest =
   | { operation: 'me' }
   | { operation: 'register'; displayName: string | null }
   | { operation: 'organizations'; page: Page }
-  | { operation: 'members' | 'groups' | 'inventory' | 'reservations'; organizationId: string; page: Page }
+  | { operation: 'members' | 'inventory' | 'reservations'; organizationId: string; page: Page }
   | { operation:'bugReports';organizationId:string;page:Page }
   | { operation:'bugReport';organizationId:string;title:string;description:string;pagePath:string;requestId:string }
-  | { operation: 'createGroup'; organizationId: string; name: string }
   | { operation: 'createEquipment'; organizationId: string; input: CreateEquipment }
   | { operation: 'updateEquipment'; organizationId: string; itemId: string; input: UpdateEquipment }
   | { operation: 'createReservation'; organizationId: string; input: CreateReservation }
@@ -111,14 +110,6 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
           FROM app.organization_memberships m JOIN app.users u ON u.id = m.user_id WHERE m.organization_id = $1
           AND ($2::uuid IS NULL OR u.id > $2::uuid) ORDER BY u.id LIMIT $3`, [organizationId, request.page.after, request.page.limit + 1])
         return page(result.rows, request.page.limit)
-      }
-      case 'groups': {
-        const result = await client.query<QueryResultRow & { id: string }>('SELECT id, name FROM app.user_groups WHERE organization_id = $1 AND archived_at IS NULL AND ($2::uuid IS NULL OR id > $2::uuid) ORDER BY id LIMIT $3', [organizationId, request.page.after, request.page.limit + 1])
-        return page(result.rows, request.page.limit)
-      }
-      case 'createGroup': {
-        admin(membership)
-        return (await client.query('INSERT INTO app.user_groups (organization_id, name) VALUES ($1, $2) RETURNING id, name', [organizationId, request.name])).rows[0]
       }
       case 'inventory': {
         const result = await client.query<QueryResultRow & { id: string }>(`SELECT ${equipmentColumns} FROM app.inventory WHERE organization_id = $1 AND ($2::uuid IS NULL OR id > $2::uuid) ORDER BY id LIMIT $3`, [organizationId, request.page.after, request.page.limit + 1])

@@ -4,7 +4,7 @@ import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes,agencyProductionRoutes } from '../../backend/production/routes'
 import {accountRoutes,joinMethodRoutes,organizationDirectoryRoute} from '../../backend/accounts/routes'
 import { account, region } from './resources'
-import { databaseApiRoutes, privatePhotoRoutes, bugReportRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
+import { databaseApiRoutes, privatePhotoRoutes, bugReportRoutes, retiredRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
 
 /** Additive API stack: no new database, secret, VPC endpoint or execution role. */
 export function databaseApiInfrastructure(env: Record<string, string | undefined>, includePhotos = false) {
@@ -23,7 +23,8 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
   for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes.filter(route=>!agencyProductionRoutes.includes(route)), ...accountRoutes.filter(route=>route!==organizationDirectoryRoute), ...equipmentRoutes, ...reportRoutes, ...alertRoutes,...agencyProductionRoutes,...bugReportRoutes,...joinMethodRoutes,organizationDirectoryRoute].entries()) {
     // The upload route predates this stack. Deployment updates it in place,
     // avoiding duplicate routes or deleting the existing AWS resource.
-    if (route !== 'POST /photos/uploads') {
+    // A retired route keeps its index, so removing it deletes only its own resource.
+    if (route !== 'POST /photos/uploads' && !retiredRoutes.has(route)) {
     Resources[`Route${index}`] = { Type: 'AWS::ApiGatewayV2::Route', Properties: {
       ApiId: config.apiId, RouteKey: route, AuthorizationType: 'JWT', AuthorizerId: { Ref: 'Authorizer' }, AuthorizationScopes: [databaseApiScope],
       Target: { 'Fn::Join': ['/', ['integrations', { Ref: 'Integration' }]] },
