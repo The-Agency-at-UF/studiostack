@@ -4,6 +4,7 @@ import { AdminGetUserCommand, CognitoIdentityProviderClient, ListUsersCommand } 
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import type { NotificationJob, OutboxRequest } from './outbox'
+import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 export function decisionEmail(job: NotificationJob, webUrl: string) {
   const url = new URL('/production/',webUrl)
   url.searchParams.set('organization',job.organizationId); url.searchParams.set('brief',job.briefId)
@@ -28,7 +29,7 @@ export async function verifiedRecipient(job: Pick<NotificationJob,'recipientSubj
   if (matches.length !== 1 || !matches[0].Username) throw reject()
   const user = await directory.get(matches[0].Username)
   const attributes = Object.fromEntries((user.UserAttributes ?? []).map(a => [a.Name, a.Value])), email = attributes.email
-  if (!user.Enabled || attributes.sub !== job.recipientSubject || attributes.email_verified !== 'true' || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw reject()
+  if (!user.Enabled || attributes.sub !== job.recipientSubject || attributes.email_verified !== 'true' || !email || !emailPattern.test(email)) throw reject()
   return email
 }
 export async function deliverNotifications(deps: NotificationDependencies) {
@@ -52,9 +53,9 @@ export async function deliverNotifications(deps: NotificationDependencies) {
 /** Outside-VPC sender invokes a private IAM-only outbox store, then SES. */
 export async function handler() {
   const env = process.env.STUDIOSTACK_ENV, storeName = process.env.PRODUCTION_OUTBOX_FUNCTION, sender = process.env.PRODUCTION_EMAIL_FROM, webUrl = process.env.PRODUCTION_WEB_URL
-  if (!['dev','prod'].includes(env ?? '') || storeName !== `studiostack-${env}-database` || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender) || !webUrl || new URL(webUrl).protocol !== 'https:') throw new Error('Notification configuration is incomplete')
+  if (!['dev','prod'].includes(env ?? '') || storeName !== `studiostack-${env}-database` || !sender || !emailPattern.test(sender) || !webUrl || new URL(webUrl).protocol !== 'https:') throw new Error('Notification configuration is incomplete')
   const pool = process.env.COGNITO_USER_POOL_ID
-  if (!pool || !/^us-east-2_[a-zA-Z0-9]+$/.test(pool)) throw new Error('Recipient directory is not configured')
+  if (!pool || !userPoolPattern.test(pool)) throw new Error('Recipient directory is not configured')
   const cognito = new CognitoIdentityProviderClient({ region:'us-east-2', maxAttempts:1 })
   const lambda = new LambdaClient({ region: 'us-east-2', maxAttempts: 1 }), ses = new SESv2Client({ region: 'us-east-2', maxAttempts: 1 })
   const recipientAllowed=(email:string)=>assertRecipientAllowed(email,async request=>{const result=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'email-feedback',...request}))}));if(result.FunctionError||!result.Payload)throw new Error('Recipient suppression lookup failed');const value=JSON.parse(Buffer.from(result.Payload).toString());if(typeof value.allowed!=='boolean')throw new Error('Recipient suppression unavailable');return value})

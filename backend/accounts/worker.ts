@@ -4,12 +4,12 @@ import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
 import {apiConfiguration,trustedIdentity,type ApiConfiguration} from '../database/api'
-import {ApiError,object,text,uuid} from '../database/api-validation'
+import {ApiError,jsonResponse as response,object,text,uuid} from '../database/api-validation'
 import type {DirectoryRequest} from './directory'
 import type {InvitationJob,InvitationQueueRequest} from './queue'
 import {directoryRoutes} from './routes'
+import {emailPattern,userPoolPattern} from '../../src/types/patterns'
 type Attributes={Name?:string;Value?:string}[]
-const response=(statusCode:number,body:unknown)=>({statusCode,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'},body:JSON.stringify(body)})
 export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>}) {
   try {
     const identity=trustedIdentity(event,config,Date.now())
@@ -18,7 +18,7 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
     const token=(event.headers.authorization??event.headers.Authorization??'').match(/^Bearer ([^\s]+)$/)?.[1]
     if(!token)throw new ApiError(401,'Sign in again')
     const user=await deps.getUser(token),attrs=Object.fromEntries((user.UserAttributes??[]).map(a=>[a.Name,a.Value]))
-    if(attrs.sub!==identity.subject||attrs.email_verified!=='true'||!attrs.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attrs.email))throw new ApiError(403,'Verify your sign-in email before accepting invitations')
+    if(attrs.sub!==identity.subject||attrs.email_verified!=='true'||!attrs.email||!emailPattern.test(attrs.email))throw new ApiError(403,'Verify your sign-in email before accepting invitations')
     const input:DirectoryRequest={action:'list',identity:{...identity,email:attrs.email.toLowerCase()}}
     if(event.requestContext.http.method==='POST') {
       if(!event.body||event.body.length>2048)throw new ApiError(400,'An organization ID is required')
@@ -45,7 +45,7 @@ export async function deliverInvitations(deps:{store(request:InvitationQueueRequ
 }
 export async function handler(event:Record<string,unknown>={}) {
   const env=process.env.STUDIOSTACK_ENV,pool=process.env.COGNITO_USER_POOL_ID,storeName=process.env.PRODUCTION_OUTBOX_FUNCTION,from=process.env.PRODUCTION_EMAIL_FROM,web=process.env.PRODUCTION_WEB_URL
-  if(!['dev','prod'].includes(env??'')||storeName!==`studiostack-${env}-database`||!pool||!/^us-east-2_[a-zA-Z0-9]+$/.test(pool)||!from||!web||new URL(web).protocol!=='https:')throw new Error('Account worker configuration is incomplete')
+  if(!['dev','prod'].includes(env??'')||storeName!==`studiostack-${env}-database`||!pool||!userPoolPattern.test(pool)||!from||!web||new URL(web).protocol!=='https:')throw new Error('Account worker configuration is incomplete')
   const lambda=new LambdaClient({region:'us-east-2',maxAttempts:1}),cognito=new CognitoIdentityProviderClient({region:'us-east-2',maxAttempts:1}),ses=new SESv2Client({region:'us-east-2',maxAttempts:1})
   async function invoke<T>(task:string,body:unknown):Promise<T>{const result=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task,...body as object}))}));if(result.FunctionError||!result.Payload)throw new Error('Private account operation failed');const value=JSON.parse(Buffer.from(result.Payload).toString());if(task==='account-invitation-queue'&&(!value||value.statusCode))throw new Error('Private invitation queue failed');return value as T}
   try {

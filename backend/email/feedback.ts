@@ -2,13 +2,14 @@ import {createHash} from 'node:crypto'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import type {DatabaseClient} from '../database/client'
 import {object,uuid} from '../database/api-validation'
+import {requestHash} from '../database/repository-utils'
 export function emailHash(email:string){return createHash('sha256').update(email.trim().toLowerCase()).digest('hex')}
 export type FeedbackRequest={action:'check';emailHash:string}|{action:'record';id:string;kind:'bounce'|'complaint';hashes:string[];deliveryId?:string;invitationId?:string}
 function hash(input:unknown){if(typeof input!=='string'||!/^[a-f0-9]{64}$/.test(input))throw new Error('Invalid recipient hash');return input}
 export function feedbackRequest(input:unknown):FeedbackRequest{const v=object(input,['action','emailHash','id','kind','hashes','deliveryId','invitationId']);if(v.action==='check'){object(input,['action','emailHash']);return {action:'check',emailHash:hash(v.emailHash)}}if(v.action!=='record'||!['bounce','complaint'].includes(String(v.kind))||!Array.isArray(v.hashes)||v.hashes.length<1||v.hashes.length>50)throw new Error('Invalid delivery feedback');object(input,['action','id','kind','hashes','deliveryId','invitationId']);return {action:'record',id:uuid(v.id),kind:v.kind as 'bounce'|'complaint',hashes:[...new Set(v.hashes.map(hash))].sort(),...(v.deliveryId?{deliveryId:uuid(v.deliveryId)}:{}),...(v.invitationId?{invitationId:uuid(v.invitationId)}:{})}}
 export async function feedbackTask(client:DatabaseClient,r:FeedbackRequest){
  if(r.action==='check')return {allowed:!(await client.query('SELECT 1 FROM app.email_suppressions WHERE email_hash=$1',[r.emailHash])).rows.length}
- const receipt=createHash('sha256').update(JSON.stringify(r)).digest('hex');await client.query('BEGIN')
+ const receipt=requestHash(r);await client.query('BEGIN')
  try{
   for(const job of [r.deliveryId,r.invitationId].filter((id):id is string=>Boolean(id)).sort())await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['mail-feedback:'+job])
   const value=await client.query('INSERT INTO app.email_feedback_events(id,kind,receipt_hash,delivery_id,invitation_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING RETURNING id',[r.id,r.kind,receipt,r.deliveryId??null,r.invitationId??null])

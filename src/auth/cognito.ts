@@ -1,6 +1,7 @@
 import {clearVolatileAuthState} from './volatileStorage'
 import { providerName } from './providers'
 import type { LoginProvider } from './providers'
+import { userPoolPattern } from '../types/patterns'
 /** Public browser configuration only. No AWS keys, client secret or DB credentials. */
 export interface AuthConfig { domain: string; issuer: string; clientId: string; redirectUri: string; apiUrl: string }
 export interface SignedInUser { subject: string; label: string; expiresAt: number }
@@ -38,7 +39,7 @@ export function authConfiguration(origin = window.location.origin): AuthConfig {
     redirectUri: process.env.NEXT_PUBLIC_COGNITO_REDIRECT_URI ?? `${origin}/login/`,
     apiUrl: process.env.NEXT_PUBLIC_DATABASE_API_URL ?? (local ? 'https://vugf6fpl4k.execute-api.us-east-2.amazonaws.com' : ''),
   }
-  if (!/^us-east-2_[a-zA-Z0-9]+$/.test(pool) || !/^[a-z0-9]{1,128}$/.test(config.clientId)) throw new Error('Sign-in is not configured for this website yet.')
+  if (!userPoolPattern.test(pool) || !/^[a-z0-9]{1,128}$/.test(config.clientId)) throw new Error('Sign-in is not configured for this website yet.')
   const domain = new URL(config.domain), callback = new URL(config.redirectUri), api = new URL(config.apiUrl)
   if (domain.protocol !== 'https:' || !/^[a-z0-9-]+\.auth\.us-east-2\.amazoncognito\.com$/.test(domain.hostname) || domain.pathname !== '/' || domain.search || domain.hash || domain.username || domain.password || domain.port ||
       callback.origin !== origin || callback.pathname !== '/login/' || callback.search || callback.hash || callback.username || callback.password ||
