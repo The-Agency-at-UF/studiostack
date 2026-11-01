@@ -195,3 +195,25 @@ body { min-width:0; }
 .app-content#workspace-content .administration .equipment-item-link { border:0; background:transparent; color:var(--accent); padding:0; text-align:left; }
 .app-content#workspace-content .administration .equipment-item-link:hover { background:transparent; text-decoration:underline; }
 .app-content#workspace-content :is(.administration-eyebrow,.production-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
+
+/* Themed select. Chromium also themes the open menu (customizable select); other browsers keep their system menu. */
+.ws-select { --ws-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23625d6d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E"); appearance:none; min-height:var(--control-height); max-width:100%; padding:var(--space-2) var(--space-10) var(--space-2) var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface) var(--ws-chevron) no-repeat right var(--space-3) center / 12px; color:var(--ink); font-size:var(--text-sm); line-height:var(--line-body); cursor:pointer; transition:border-color var(--motion-fast) ease; }
+.ws-select:hover:not(:disabled) { border-color:var(--accent); }
+.ws-select:focus-visible { outline:var(--focus-width) solid var(--accent); outline-offset:var(--focus-offset); }
+.ws-select:disabled { color:var(--muted); background-color:var(--surface-subtle); border-color:var(--line); cursor:not-allowed; }
+@supports (appearance: base-select) {
+  .ws-select,.ws-select::picker(select) { appearance:base-select; }
+  .ws-select { display:inline-flex; align-items:center; gap:var(--space-2); padding-right:var(--space-3); background-image:none; }
+  .ws-select::picker-icon { content:""; margin-left:auto; width:12px; height:12px; background:var(--ws-chevron) center / 12px no-repeat; transition:rotate .2s cubic-bezier(.22,1,.36,1); }
+  .ws-select:open::picker-icon { rotate:180deg; }
+  .ws-select::picker(select) { margin-block:var(--space-1); padding:var(--space-1); border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); box-shadow:0 12px 32px rgba(25,23,30,.12),0 2px 6px rgba(25,23,30,.06); opacity:0; translate:0 -4px; transition:opacity .16s ease,translate .22s cubic-bezier(.22,1,.36,1),overlay .22s allow-discrete,display .22s allow-discrete; }
+  .ws-select:open::picker(select) { opacity:1; translate:0 0; }
+  @starting-style { .ws-select:open::picker(select) { opacity:0; translate:0 -4px; } }
+  .ws-select option { gap:var(--space-2); padding:var(--space-2) var(--space-3); border-radius:calc(var(--radius-control) - 2px); color:var(--ink); font-size:var(--text-sm); }
+  .ws-select option:is(:hover,:focus-visible) { background:var(--accent-soft); outline:none; }
+  .ws-select option:checked { color:var(--accent); font-weight:var(--weight-medium); }
+  .ws-select option::checkmark { color:var(--accent); }
+  .ws-select option:disabled { color:var(--muted); }
+}
+@media(max-width:767px) { .ws-select,.ws-select option { font-size:var(--text-base); } }
+@media(prefers-reduced-motion:reduce) { .ws-select::picker(select),.ws-select::picker-icon { transition:none; } }
