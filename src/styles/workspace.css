@@ -207,3 +207,17 @@ body { min-width:0; }
 .ws-stagger > :nth-child(n+6) { animation-delay:250ms; }
 .ws-loading-delayed { animation:ws-fade .25s ease .2s both; }
 @media(prefers-reduced-motion:reduce) { .ws-enter,.ws-stagger > *,.ws-loading-delayed { animation:none; } }
+
+/* Skeletons hold the shape of loading content with a slow shimmer. */
+.ws-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+@keyframes ws-shimmer { from { background-position:100% 0; } to { background-position:-100% 0; } }
+.ws-skeleton { display:grid; gap:var(--space-3); padding:var(--space-4) 0; }
+.ws-skeleton-block { display:block; border-radius:var(--radius-control); background:linear-gradient(90deg,var(--surface-subtle) 25%,var(--line) 50%,var(--surface-subtle) 75%) 0 0 / 200% 100%; animation:ws-shimmer 1.6s ease-in-out infinite; }
+.ws-skeleton-text .ws-skeleton-block { height:14px; }
+.ws-skeleton-text .ws-skeleton-block:nth-of-type(3n) { width:72%; }
+.ws-skeleton-text .ws-skeleton-block:nth-of-type(3n+1) { width:48%; }
+.ws-skeleton-row { gap:var(--space-2); }
+.ws-skeleton-row .ws-skeleton-block { height:var(--control-height); }
+.ws-skeleton-tile { grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+.ws-skeleton-tile .ws-skeleton-block { height:88px; }
+@media(prefers-reduced-motion:reduce) { .ws-skeleton-block { animation:none; } }

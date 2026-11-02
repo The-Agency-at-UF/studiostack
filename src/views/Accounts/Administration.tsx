@@ -6,6 +6,7 @@ import {useAppSession} from '../../context/AppSessionContext'
 import type {AccountClient} from '../../api/accounts'
 import type {ApiPage} from '../../types/database-api'
 import type {JoinCode,ManagedMember,OrganizationInvitation,OrganizationSettings,OrganizationActivity,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
+import {Skeleton} from '../../components/workspace/WorkspaceUI'
 import JoinMethods from './JoinMethods'
 import './Administration.css'
 async function all<T>(read:(after?:string)=>Promise<ApiPage<T>>){const items:T[]=[];let after:string|undefined;do{const page=await read(after);items.push(...page.items);after=page.nextCursor??undefined}while(after);return items}
@@ -27,7 +28,7 @@ export default function Administration() {
   async function run(key:string,task:(client:AccountClient,id:string)=>Promise<unknown>):Promise<unknown>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`;if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};setBusy(true);setError('');setNotice('');try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.');await session.refreshOrganizations?.();if(g===generation.current)await load();return result}catch(e){if(g===generation.current)setError(message(e))}finally{if(g===generation.current)setBusy(false)}}
   const owner=settings?.role==='owner',admin=owner||settings?.role==='admin'
   return <main className="administration workspace-surface"><header><div><p className="administration-eyebrow">Organization administration</p><h1>Organization</h1><p>{settings?.name??'Select an organization to continue.'}{settings&&` · ${settings.role}`}</p></div><button disabled={busy||loading||!api} onClick={()=>{setLoading(true);setError('');load().then(()=>session.refreshOrganizations?.()).catch(e=>setError(message(e))).finally(()=>setLoading(false))}}>Refresh</button></header>
-    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<p className="ws-loading-delayed" role="status">Loading organization…</p>}
+    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
     {!loading&&settings&&!admin&&<p>Only organization owners and administrators can manage the organization.</p>}
     {!loading&&admin&&settings&&<>
         <section className="ws-enter"><h2>Invite a teammate</h2><form className="administration-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),input={displayName:String(f.get('name')),email:String(f.get('email')),role:String(f.get('role')) as 'member'|'admin'};void run(JSON.stringify({invite:input}),(c,requestId)=>c.invite({...input,requestId}))}}><label>Name<input name="name" maxLength={120} required/></label><label>Email<input name="email" type="email" maxLength={254} required/></label><label>Role<select name="role"><option value="member">Member</option>{owner&&<option value="admin">Administrator</option>}</select></label><button disabled={busy}>Send invitation</button></form><p className="administration-hint">Invitations expire after seven days. Teammates verify their sign-in email before joining.</p></section>
