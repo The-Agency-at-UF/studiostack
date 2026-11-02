@@ -83,7 +83,7 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
   return (
     <Popup
       trigger={
-        <button className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
+        <button data-tour="bug-report" className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
           <IoIosBug className="w-5 h-5" />
           <span>Report a Bug</span>
         </button>

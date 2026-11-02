@@ -1,7 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Header from './Header';
-import { describe, it, expect, vi } from 'vitest';
+import { TourProvider } from './tour/TourContext';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
@@ -140,5 +141,35 @@ describe('Workspace drawer accessibility', () => {
     await user.keyboard('{Escape}');expect(trigger).toHaveFocus();
     expect(trigger).toHaveAttribute('aria-expanded','false');
     expect(document.body.style.overflow).not.toBe('hidden');
+  });
+});
+
+describe('Header tour', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const titles = async (isAdmin: boolean) => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 10, 100, 40));
+    const user = userEvent.setup();
+    render(<TourProvider owner="member" isAdmin={isAdmin} autoStart={false}><Header isAdmin={isAdmin} logOut={() => {}} /></TourProvider>);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(screen.getByRole('button', { name: 'Take the tour' }));
+    expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'false');
+    const seen: string[] = [];
+    while (screen.queryByRole('dialog')) { seen.push(screen.getByRole('heading', { level: 2 }).textContent!); await user.click(screen.getByRole('button', { name: /Next|Finish/ })); }
+    return seen;
+  };
+
+  it('replays the workspace tour from the account menu and highlights each sidebar area', async () => {
+    expect(await titles(true)).toEqual(['Welcome to StudioStack', 'Open the menu', 'Start at Home', 'Plan productions', 'Find and track gear', 'Run your workspace', 'Book gear from anywhere', 'Your account', 'You’re all set']);
+  });
+
+  it('leaves the administration step out for members', async () => {
+    expect(await titles(false)).not.toContain('Run your workspace');
+  });
+
+  it('offers no tour outside the workspace shell', async () => {
+    const user = userEvent.setup();
+    render(<Header isAdmin={false} logOut={() => {}} />);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    expect(screen.queryByRole('button', { name: 'Take the tour' })).not.toBeInTheDocument();
   });
 });
