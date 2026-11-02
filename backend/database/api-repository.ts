@@ -12,7 +12,7 @@ import type { BriefStorage } from '../production/storage'
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
-import { ApiError } from './api-validation'
+import { ApiError, constraintError } from './api-validation'
 import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
 import type { PendingPhoto, PhotoStorage } from './photo-storage'
 import { isAdmin, pageOf as page, requestHash } from './repository-utils'
@@ -232,7 +232,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         } catch (error) {
           await client.query('ROLLBACK').catch(() => undefined)
           if (error instanceof ApiError) return { value: null, error }
-          if ((error as { code?: string })?.code === '23505') return { value: null, error: new ApiError(409, 'A record with these unique details already exists') }
+          const constraint = constraintError(error)
+          if (constraint) return { value: null, error: constraint }
           throw error // The shared driver converts this to a generic unavailable error.
         }
       })

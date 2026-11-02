@@ -7,7 +7,7 @@ import {accountRequest,accountRoutes,joinMethodRoutes} from '../../backend/accou
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
 import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, retiredRoutes, databaseApiScope } from '../../backend/database/api'
-import { ApiError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
+import { ApiError, constraintError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
 import type { createDatabase } from '../../backend/database/client'
@@ -245,6 +245,18 @@ describe('tenant authorization and atomic repository operations', () => {
     })
     await expect(fixture.repository.execute(identity, { operation: 'createEquipment', organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' } })).rejects.toMatchObject({ status: 409, message: 'A record with these unique details already exists' })
     expect(fixture.query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK')
+  })
+  it.each([['23503', 409, 'A related record changed or no longer exists'], ['23514', 400, 'Invalid request values'], ['22P02', 400, 'Invalid request values']])('maps constraint error %s to a generic %i and rolls back', async (code, status, message) => {
+    const fixture = repoFixture('admin')
+    fixture.query.mockImplementation(async sql => {
+      if (sql.startsWith('INSERT')) throw { code, detail: 'PRIVATE' }
+      return { rows: sql.includes('FROM app.users WHERE') ? [user] : sql.includes('SELECT m.role FROM') ? [{ role: 'admin' }] : [], rowCount: 0 }
+    })
+    await expect(fixture.repository.execute(identity, { operation: 'createEquipment', organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' } })).rejects.toEqual(new ApiError(status as 400 | 409, message))
+    expect(fixture.query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK')
+  })
+  it('leaves permission and unknown driver errors to the redacted unavailable path', () => {
+    for (const error of [{ code: '42501' }, { code: '40001' }, new Error('PRIVATE'), null]) expect(constraintError(error)).toBeUndefined()
   })
 })
 
