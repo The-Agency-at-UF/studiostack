@@ -9,12 +9,13 @@ import { dispatchProduction, type ProductionRequest } from '../production/reposi
 import {dispatchAccounts} from '../accounts/repository'
 import type {AccountRequest} from '../accounts/routes'
 import type { BriefStorage } from '../production/storage'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
-import { ApiError } from './api-validation'
-import type { ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
+import { ApiError, constraintError } from './api-validation'
+import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
 import type { PendingPhoto, PhotoStorage } from './photo-storage'
+import { isAdmin, pageOf as page, requestHash } from './repository-utils'
 
 export interface Identity { issuer: string; subject: string; email: string | null }
 export type Page = { limit: number; after: string | null }
@@ -44,12 +45,8 @@ const userColumns = 'id, email, display_name AS "displayName"'
 const equipmentColumns = 'id, equipment_code AS "equipmentCode", name, category, status, created_at AS "createdAt", photo_id AS "photoId", condition, version, EXISTS(SELECT 1 FROM app.equipment_checkouts ec WHERE ec.organization_id=inventory.organization_id AND ec.equipment_id=inventory.id AND ec.returned_at IS NULL) AS "checkedOut"'
 
 
-function page<T extends { id: string }>(rows: T[], size: number): ApiPage<T> {
-  const items = rows.slice(0, size)
-  return { items, nextCursor: rows.length > size ? items[items.length - 1].id : null }
-}
 function admin(membership: Membership) {
-  if (!['owner', 'admin'].includes(membership.role)) throw new ApiError(403, 'Organization administrator required')
+  if (!isAdmin(membership.role)) throw new ApiError(403, 'Organization administrator required')
 }
 
 export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now, storage?: PhotoStorage, briefStorage?: BriefStorage) {
@@ -60,10 +57,11 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
   }
   async function dispatch(client: DatabaseClient, identity: Identity, request: ApiRequest): Promise<unknown> {
     if (request.operation === 'register') {
-      const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, email, display_name) VALUES ($1, $2, $3, $4)
-        ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET email = COALESCE(EXCLUDED.email, app.users.email),
+      // Email is attached only by the verified directory claim, which keeps it unique per account.
+      const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, display_name) VALUES ($1, $2, $3)
+        ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET
         display_name = COALESCE(EXCLUDED.display_name, app.users.display_name) RETURNING ${userColumns}`,
-      [identity.issuer, identity.subject, identity.email, request.displayName])
+      [identity.issuer, identity.subject, request.displayName])
       return result.rows[0]
     }
     const users = await client.query<User>(`SELECT ${userColumns} FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])
@@ -98,7 +96,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         return page(result.rows,request.page.limit)
       }
       case 'bugReport': {
-        const fingerprint=createHash('sha256').update(JSON.stringify({title:request.title,description:request.description,pagePath:request.pagePath})).digest('hex')
+        const fingerprint=requestHash({title:request.title,description:request.description,pagePath:request.pagePath})
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`bug-report:${organizationId}:${user.id}:${request.requestId}`])
         const previous=(await client.query('SELECT id,request_hash FROM app.bug_reports WHERE organization_id=$1 AND reported_by=$2 AND request_id=$3',[organizationId,user.id,request.requestId])).rows[0]
         if(previous){if(previous.request_hash!==fingerprint)throw new ApiError(409,'Request ID already used');return {id:previous.id}}
@@ -160,7 +158,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       }
       case 'createReservation': {
         const input = request.input
-        const fingerprint = createHash('sha256').update(JSON.stringify({clientAccountId:input.clientAccountId, name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, equipmentIds: input.equipmentIds })).digest('hex')
+        const fingerprint = requestHash({clientAccountId:input.clientAccountId, name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, equipmentIds: input.equipmentIds })
         // Serialize retries by caller+org+request ID, then lock equipment in ID order.
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${organizationId}:${user.id}:${input.requestId}`])
         const previous = await client.query<ReservationRow>(`SELECT ${reservationColumns}, r.request_hash AS "requestHash" FROM app.reservations r WHERE r.organization_id = $1 AND r.user_id = $2 AND r.request_id = $3`, [organizationId, user.id, input.requestId])
@@ -235,7 +233,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         } catch (error) {
           await client.query('ROLLBACK').catch(() => undefined)
           if (error instanceof ApiError) return { value: null, error }
-          if ((error as { code?: string })?.code === '23505') return { value: null, error: new ApiError(409, 'A record with these unique details already exists') }
+          const constraint = constraintError(error)
+          if (constraint) return { value: null, error: constraint }
           throw error // The shared driver converts this to a generic unavailable error.
         }
       })

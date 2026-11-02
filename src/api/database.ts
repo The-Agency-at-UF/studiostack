@@ -6,6 +6,7 @@ import { productionClient } from './production'
 import type {OnboardingOverview,OwnAccessRequest,PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
 import type { ApiBugReport, ApiUser, ApiOrganization, ApiMember, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
+import type { Send } from './scoped'
 
 // Coalesce only identical, currently pending reads. Never retain responses or
 // share requests between identities, URLs, or fetch transports.
@@ -91,6 +92,8 @@ export function createDatabaseApiClient(options: ClientOptions) {
     }
     return response.json() as Promise<T>
   }
+  /** Organization-scoped sender for one feature's API prefix. */
+  const scoped = (org: string, prefix: (resource: string) => string): Send => (resource, method, body) => request(path(org, prefix(resource)), method, body)
   return {
     pendingInvitations:()=>request<{items:PendingInvitation[]}>('/account/invitations'),
     acceptInvitation:(id:string,organizationId:string)=>request<{organizationId:string}>(`/account/invitations/${encodeURIComponent(id)}/accept`,'POST',{organizationId}),
@@ -99,11 +102,11 @@ export function createDatabaseApiClient(options: ClientOptions) {
     joinByCode:(code:string)=>request<{organizationId:string}>('/account/onboarding/code-joins','POST',{code}),
     requestAccess:(organizationId:string,message?:string)=>request<OwnAccessRequest>('/account/onboarding/access-requests','POST',message?{organizationId,message}:{organizationId}),
     withdrawAccessRequest:(id:string,organizationId:string)=>request<{id:string;status:'withdrawn'}>(`/account/onboarding/access-requests/${encodeURIComponent(id)}/withdraw`,'POST',{organizationId}),
-    alerts:(org:string)=>alertClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,'alerts'+resource),method,body)),
-    reports:(org:string)=>reportClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,'equipment/reports'+(resource.startsWith('?')||!resource?resource:'/'+resource)),method,body)),
-    equipment:(org:string)=>equipmentClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`equipment/${resource}`),method,body)),
-    accounts: (org:string) => accountClient(<T>(resource:string,method?:string,body?:unknown)=>request<T>(path(org,`administration/${resource}`),method,body)),
-    production: (org: string) => productionClient(<T>(resource: string, method?: string, body?: unknown) => request<T>(path(org, `production/${resource}`), method, body)),
+    alerts:(org:string)=>alertClient(scoped(org,resource=>'alerts'+resource)),
+    reports:(org:string)=>reportClient(scoped(org,resource=>'equipment/reports'+(resource.startsWith('?')||!resource?resource:'/'+resource))),
+    equipment:(org:string)=>equipmentClient(scoped(org,resource=>`equipment/${resource}`)),
+    accounts: (org:string) => accountClient(scoped(org,resource=>`administration/${resource}`)),
+    production: (org: string) => productionClient(scoped(org, resource => `production/${resource}`)),
     bugReports:(org:string,page?:PageOptions)=>request<ApiPage<ApiBugReport>>(paged(path(org,'bug-reports'),page)),
     submitBugReport:(org:string,input:{title:string;description:string;pagePath:string;requestId:string})=>request<{id:string}>(path(org,'bug-reports'),'POST',input),
     me: () => request<ApiUser>('/me'),

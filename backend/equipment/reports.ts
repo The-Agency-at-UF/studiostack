@@ -1,25 +1,25 @@
 import {reportAlerts} from '../alerts/records'
-import {createHash} from 'node:crypto'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object,uuid} from '../database/api-validation'
 import {createReport,updateReport,notes} from './validation'
 import {eventColumns} from './columns'
 import type {ReportRequest} from './report-routes'
+import {isAdmin,pageOf,requestHash} from '../database/repository-utils'
 const columns='id,equipment_id AS "equipmentId",reservation_id AS "reservationId",reported_by AS "reportedBy",title,description,severity,status,resolution,resolved_by AS "resolvedBy",resolved_at AS "resolvedAt",version,created_at AS "createdAt",updated_at AS "updatedAt"'
 type Context={organizationId:string;user:{id:string};membership:{role:string}}
 export async function dispatchReports(client:DatabaseClient,request:ReportRequest,{organizationId:org,user,membership}:Context){
-  const admin=['owner','admin'].includes(membership.role),get=async(id:string,lock=false)=>{const row=(await client.query('SELECT '+columns+' FROM app.equipment_reports WHERE organization_id=$1 AND id=$2'+(lock?' FOR UPDATE':''),[org,id])).rows[0];if(!row)throw new ApiError(404,'Report not found');return row}
+  const admin=isAdmin(membership.role),get=async(id:string,lock=false)=>{const row=(await client.query('SELECT '+columns+' FROM app.equipment_reports WHERE organization_id=$1 AND id=$2'+(lock?' FOR UPDATE':''),[org,id])).rows[0];if(!row)throw new ApiError(404,'Report not found');return row}
   const event=async(id:string)=>(await client.query('SELECT '+eventColumns+' FROM app.equipment_events e JOIN app.users u ON u.id=e.actor_id WHERE e.organization_id=$1 AND e.id=$2',[org,id])).rows[0]
   if(request.method==='GET'){
     const page=request.page
     if(request.reportId)await get(request.reportId)
     if(request.reportId&&!request.activity)return get(request.reportId)
-    const {rows}=request.activity?await client.query('SELECT '+eventColumns+' FROM app.equipment_events e JOIN app.users u ON u.id=e.actor_id WHERE e.organization_id=$1 AND e.report_id=$2 AND ($3::uuid IS NULL OR e.id>$3) ORDER BY e.id LIMIT $4',[org,request.reportId,page.after,page.limit+1]):await client.query('SELECT '+columns+' FROM app.equipment_reports WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3',[org,page.after,page.limit+1]),items=rows.slice(0,page.limit)
-    return {items,nextCursor:rows.length>page.limit?items.at(-1)!.id:null}
+    const {rows}=request.activity?await client.query('SELECT '+eventColumns+' FROM app.equipment_events e JOIN app.users u ON u.id=e.actor_id WHERE e.organization_id=$1 AND e.report_id=$2 AND ($3::uuid IS NULL OR e.id>$3) ORDER BY e.id LIMIT $4',[org,request.reportId,page.after,page.limit+1]):await client.query('SELECT '+columns+' FROM app.equipment_reports WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3',[org,page.after,page.limit+1])
+    return pageOf(rows,page.limit)
   }
   if(request.method==='PATCH'&&!admin)throw new ApiError(403,'Only production administrators can resolve reports')
   const input=request.activity?(()=>{const v=object(request.body,['message','requestId']);return {message:notes(v.message,4000,true),requestId:uuid(v.requestId)}})():request.method==='PATCH'?updateReport(request.body):createReport(request.body)
-  const hash=createHash('sha256').update(JSON.stringify({reportId:request.reportId,method:request.method,activity:request.activity,input})).digest('hex')
+  const hash=requestHash({reportId:request.reportId,method:request.method,activity:request.activity,input})
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['equipment:'+org+':'+user.id+':'+input.requestId])
   const previous=(await client.query('SELECT id,request_hash,report_id FROM app.equipment_events WHERE organization_id=$1 AND actor_id=$2 AND request_id=$3',[org,user.id,input.requestId])).rows[0]
   if(previous){if(previous.request_hash!==hash)throw new ApiError(409,'Request ID was used for another equipment action');return request.activity?event(previous.id):get(previous.report_id)}

@@ -1,10 +1,11 @@
 import {account,region,functionArn,trust} from '../database/resources'
 import {apiConfiguration,databaseApiScope} from '../../backend/database/api'
 import {directoryRoutes} from '../../backend/accounts/routes'
+import {emailPattern} from '../../src/types/patterns'
 export function accountInfrastructure(input:{environment:'dev'|'prod';artifactBucket:string;artifactKey:string;pool:string;client:string;apiId:string;authorizerId:string;sender:string;webUrl:string;configurationSet?:string}) {
   const {environment:env,pool,client,apiId,authorizerId,sender,webUrl}=input
   apiConfiguration({STUDIOSTACK_ENV:env,DATABASE_API_ID:apiId,COGNITO_USER_POOL_ID:pool,COGNITO_APP_CLIENT_ID:client})
-  if(input.artifactBucket!==`studio-stack-photos-${env}`||!input.artifactKey.startsWith('deployments/accounts/')||!/^\w+$/.test(authorizerId)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)||new URL(webUrl).protocol!=='https:')throw new Error('Explicit account delivery configuration required')
+  if(input.artifactBucket!==`studio-stack-photos-${env}`||!input.artifactKey.startsWith('deployments/accounts/')||!/^\w+$/.test(authorizerId)||!emailPattern.test(sender)||new URL(webUrl).protocol!=='https:')throw new Error('Explicit account delivery configuration required')
   if(input.configurationSet&&input.configurationSet!==`studiostack-${env}-delivery`)throw new Error('Unexpected SES configuration set')
   const name=`studiostack-${env}-accounts`,arn=functionArn(name),backend=`studiostack-${env}-database`,log=`/aws/lambda/${name}`
   const resources:Record<string,unknown>={
