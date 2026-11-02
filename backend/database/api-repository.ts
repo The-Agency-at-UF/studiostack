@@ -12,7 +12,7 @@ import type { BriefStorage } from '../production/storage'
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
-import { ApiError } from './api-validation'
+import { ApiError, constraintError } from './api-validation'
 import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
 import type { PendingPhoto, PhotoStorage } from './photo-storage'
 import { isAdmin, pageOf as page, requestHash } from './repository-utils'
@@ -57,10 +57,11 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
   }
   async function dispatch(client: DatabaseClient, identity: Identity, request: ApiRequest): Promise<unknown> {
     if (request.operation === 'register') {
-      const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, email, display_name) VALUES ($1, $2, $3, $4)
-        ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET email = COALESCE(EXCLUDED.email, app.users.email),
+      // Email is attached only by the verified directory claim, which keeps it unique per account.
+      const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, display_name) VALUES ($1, $2, $3)
+        ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET
         display_name = COALESCE(EXCLUDED.display_name, app.users.display_name) RETURNING ${userColumns}`,
-      [identity.issuer, identity.subject, identity.email, request.displayName])
+      [identity.issuer, identity.subject, request.displayName])
       return result.rows[0]
     }
     const users = await client.query<User>(`SELECT ${userColumns} FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])
@@ -232,7 +233,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         } catch (error) {
           await client.query('ROLLBACK').catch(() => undefined)
           if (error instanceof ApiError) return { value: null, error }
-          if ((error as { code?: string })?.code === '23505') return { value: null, error: new ApiError(409, 'A record with these unique details already exists') }
+          const constraint = constraintError(error)
+          if (constraint) return { value: null, error: constraint }
           throw error // The shared driver converts this to a generic unavailable error.
         }
       })
