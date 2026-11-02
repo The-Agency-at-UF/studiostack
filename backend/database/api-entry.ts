@@ -11,6 +11,7 @@ import { createDatabaseHandler } from './handler'
 import { apiConfiguration, createDatabaseApiHandler } from './api'
 import { createApiRepository } from './api-repository'
 import { createPhotoStorage } from './photo-storage'
+import { retentionTask } from './retention'
 
 let cachedRuntime: {
   config: ReturnType<typeof databaseConfig>
@@ -38,6 +39,7 @@ const tasks = new Map<string, (client: DatabaseClient, input: unknown) => Promis
   ['account-invitation-queue', (client, input) => invitationQueueTask(client, invitationQueueRequest(input))],
   ['account-directory', (client, input) => directoryTask(client, directoryRequest(input, process.env.COGNITO_USER_POOL_ID ?? ''))],
   ['production-outbox', (client, input) => outboxTask(client, parseOutboxRequest(input))],
+  ['database-retention', retentionTask],
 ])
 
 /** Reuses the private database Lambda with environment-scoped service permissions. */

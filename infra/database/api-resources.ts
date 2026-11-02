@@ -35,6 +35,10 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
   // resource-policy limit. Every route still uses JWT/scopes; the handler also
   // checks issuer, client, token use, API identity and the exact route allowlist.
   Resources.ApiInvokePermission={Type:'AWS::Lambda::Permission',Properties:{FunctionName:functionName,Action:'lambda:InvokeFunction',Principal:'apigateway.amazonaws.com',SourceAccount:account,SourceArn:`arn:aws:execute-api:${region}:${account}:${config.apiId}/*/*/*`}}
+  // Daily IAM-only maintenance call, never an API route. The database function
+  // fixes what is purged, so the scheduled input carries only the task name.
+  Resources.RetentionSchedule={Type:'AWS::Events::Rule',Properties:{Name:`studiostack-${env.STUDIOSTACK_ENV}-database-retention`,ScheduleExpression:'rate(1 day)',State:'ENABLED',Targets:[{Id:'DatabaseRetention',Arn:functionArn,Input:JSON.stringify({task:'database-retention'}),RetryPolicy:{MaximumRetryAttempts:2,MaximumEventAgeInSeconds:3600}}]}}
+  Resources.RetentionPermission={Type:'AWS::Lambda::Permission',Properties:{FunctionName:functionName,Action:'lambda:InvokeFunction',Principal:'events.amazonaws.com',SourceAccount:account,SourceArn:{'Fn::GetAtt':['RetentionSchedule','Arn']}}}
 
   return { AWSTemplateFormatVersion: '2010-09-09', Description: 'StudioStack JWT-protected database API routes', Resources,
     Outputs: { AuthorizerId: { Value: { Ref: 'Authorizer' } }, IntegrationId: { Value: { Ref: 'Integration' } } } }
