@@ -195,3 +195,15 @@ body { min-width:0; }
 .app-content#workspace-content .administration .equipment-item-link { border:0; background:transparent; color:var(--accent); padding:0; text-align:left; }
 .app-content#workspace-content .administration .equipment-item-link:hover { background:transparent; text-decoration:underline; }
 .app-content#workspace-content :is(.administration-eyebrow,.production-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
+
+/* Loaded content settles into place; loading text waits briefly so fast loads never flash it. */
+@keyframes ws-enter { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@keyframes ws-fade { from { opacity:0; } to { opacity:1; } }
+.ws-enter,.ws-stagger > * { animation:ws-enter .42s cubic-bezier(.22,1,.36,1) both; }
+.ws-stagger > :nth-child(2) { animation-delay:50ms; }
+.ws-stagger > :nth-child(3) { animation-delay:100ms; }
+.ws-stagger > :nth-child(4) { animation-delay:150ms; }
+.ws-stagger > :nth-child(5) { animation-delay:200ms; }
+.ws-stagger > :nth-child(n+6) { animation-delay:250ms; }
+.ws-loading-delayed { animation:ws-fade .25s ease .2s both; }
+@media(prefers-reduced-motion:reduce) { .ws-enter,.ws-stagger > *,.ws-loading-delayed { animation:none; } }
