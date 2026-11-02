@@ -6,7 +6,7 @@ import { HiOutlineMagnifyingGlass } from 'react-icons/hi2'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
-import { EmptyState, Notice, Select, StatusLabel } from '../../components/workspace/WorkspaceUI'
+import { EmptyState, Notice, Select, Skeleton, StatusLabel } from '../../components/workspace/WorkspaceUI'
 import type { ApiPage } from '../../types/database-api'
 import type { OrganizationInvitation, OrganizationSettings } from '../../types/accounts'
 import './OrganizationDirectory.css'
@@ -78,7 +78,7 @@ export default function OrganizationDirectory() {
       </dl>}
     </header>
     {error && <Notice kind="error">{error}</Notice>}
-    {loading && <p role="status">Loading organization…</p>}
+    {loading && <Skeleton label="Loading organization…" variant="row" count={4} />}
     {!org && !loading && <EmptyState title="Select an organization to continue." />}
     {settings && <>
       <section className="org-directory-section" aria-labelledby="org-admins">
@@ -86,7 +86,7 @@ export default function OrganizationDirectory() {
           <h2 id="org-admins">Admin</h2>
           <p>Owners and admins manage people and settings.</p>
         </div>
-        {admins.length ? <ul className="org-directory-cards">{admins.map(person => <li key={person.id}>
+        {admins.length ? <ul className="org-directory-cards ws-stagger">{admins.map(person => <li key={person.id}>
           <span className="org-directory-avatar" aria-hidden="true">{initials(person.name)}</span>
           <div>
             <strong>{person.name}</strong>

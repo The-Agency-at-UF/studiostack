@@ -15,7 +15,7 @@ import type {ClientAccount} from '../../types/production'
 import EmailVerification from './EmailVerification'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import './Production.css'
-const ProductionCalendar = dynamic(() => import('./ProductionCalendar'), { ssr: false, loading: () => <p role="status">Loading calendar…</p> })
+const ProductionCalendar = dynamic(() => import('./ProductionCalendar'), { ssr: false, loading: () => <Skeleton label="Loading calendar…" variant="tile" count={6} /> })
 const errorText = (error: unknown) => error instanceof DatabaseApiClientError ? ({
   400: 'Check the required fields, dates and review reason.',
   401: 'Your session expired. Sign in again.',
