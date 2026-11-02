@@ -1,9 +1,9 @@
 import {randomUUID,createHash} from 'node:crypto'
 import {mkdir,readFile,writeFile} from 'node:fs/promises'
-import {aws,devDirectory,guardDevApply} from './dev-aws'
+import {aws,devDirectory,guardDevApply,applyEnvironment} from './dev-aws'
 import {guardProductionApply,prodDirectory} from './prod-aws'
 async function main(){
- const env=process.argv.slice(2).join(' ')==='--apply-dev'?'dev':process.argv.slice(2).join(' ')==='--apply-prod'?'prod':undefined;if(!env)throw new Error('Explicit environment required');if(env==='dev')await guardDevApply();else await guardProductionApply()
+ const env=applyEnvironment();if(!env)throw new Error('Explicit environment required');if(env==='dev')await guardDevApply();else await guardProductionApply()
  const bucket=`studio-stack-photos-${env}`,run=randomUUID(),key=`recovery-drills/${run}/restore.txt`,directory=(env==='dev'?devDirectory:prodDirectory)+'/file-recovery-'+run;await mkdir(directory,{recursive:true})
  const versioning=await aws<{Status?:string}>('s3api','get-bucket-versioning',['--bucket',bucket]);if(versioning?.Status!=='Enabled')throw new Error('Enable and verify object versioning before this recovery drill')
  const access=await aws<{PublicAccessBlockConfiguration:Record<string,boolean>}>('s3api','get-public-access-block',['--bucket',bucket]);if(!Object.values(access.PublicAccessBlockConfiguration).every(Boolean))throw new Error('Storage public-access protections differ')

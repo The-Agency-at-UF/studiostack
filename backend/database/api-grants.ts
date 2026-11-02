@@ -1,10 +1,18 @@
 import type { DatabaseEnvironment } from './config'
 
-/** Maintenance-only SQL; neither HTTP requests nor runtime ever grant privileges. */
+/** Maintenance-only SQL; neither HTTP requests nor runtime ever grant privileges.
+ * Starts from no privileges, so a grant removed here is also removed from the role.
+ * Revoking a table privilege drops its column privileges too. Runs in one
+ * transaction, so the role is never seen without its grants.
+ */
 export function databaseApiGrants(environment: DatabaseEnvironment) {
   if (!['dev', 'prod'].includes(environment)) throw new Error('Explicit database environment required')
   const role = `"studiostack_${environment}_app"`
   return `
+    REVOKE ALL ON ALL TABLES IN SCHEMA app FROM ${role};
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA app FROM ${role};
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM ${role};
+    REVOKE ALL ON SCHEMA app FROM ${role};
     GRANT SELECT,INSERT ON app.client_accounts,app.production_assignments TO ${role};
     GRANT UPDATE(name,archived_at,version) ON app.client_accounts TO ${role};
     GRANT DELETE ON app.production_assignments TO ${role};
@@ -46,5 +54,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE (status, attempts, next_attempt_at, lease_token, lease_until, sent_at) ON app.production_outbox TO ${role};
     GRANT SELECT, INSERT ON app.photo_uploads TO ${role};
     GRANT UPDATE (status, object_key, width, height, stored_size, sha256) ON app.photo_uploads TO ${role};
+    GRANT EXECUTE ON FUNCTION app.purge_expired_rows() TO ${role};
+    GRANT EXECUTE ON FUNCTION app.claim_account_email(text, text, text, text, text) TO ${role};
   `
 }

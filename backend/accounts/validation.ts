@@ -1,12 +1,13 @@
 import { ApiError,object,text,uuid } from '../database/api-validation'
 import type { ChangeMember,ChangeOrganization,InviteMember,VersionedRequest } from '../../src/types/accounts'
+import { emailPattern } from '../../src/types/patterns'
 export function versioned(value:Record<string,unknown>):VersionedRequest {
   if(!Number.isSafeInteger(value.version)||Number(value.version)<1)throw new ApiError(400,'A positive record version is required')
   return {version:Number(value.version),requestId:uuid(value.requestId)}
 }
 export function inviteMember(input:unknown):InviteMember {
   const v=object(input,['email','displayName','role','requestId']),email=text(v.email,254).toLowerCase()
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!['member','admin'].includes(String(v.role)))throw new ApiError(400,'A valid email and member/admin role are required')
+  if(!emailPattern.test(email)||!['member','admin'].includes(String(v.role)))throw new ApiError(400,'A valid email and member/admin role are required')
   return {email,displayName:text(v.displayName,120),role:v.role as InviteMember['role'],requestId:uuid(v.requestId)}
 }
 export function changeMember(input:unknown):ChangeMember {
