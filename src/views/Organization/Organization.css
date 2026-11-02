@@ -6,8 +6,6 @@
 .org-heading h1 { margin: 0; font-family: var(--font-ui); font-size: clamp(36px, 4.6vw, 66px); letter-spacing: -.055em; line-height: 1.08; font-weight: 800; }
 .org-heading p:not(.eyebrow) { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
 .org-switcher { display: grid; gap: 8px; min-width: 240px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.organization-page select, .org-dialog select { cursor: pointer; }
-.org-switcher select:not(.ws-select), .org-filters select:not(.ws-select) { border: 1px solid var(--line); padding: 12px; background: var(--paper-light); color: var(--ink); font-size: 13px; letter-spacing: normal; }
 .org-workspace { background: var(--paper-light); border: 1px solid var(--line); border-top: 4px solid var(--accent); }
 .org-identity { padding: 28px 32px; display: flex; align-items: center; gap: 18px; }
 .org-monogram { width: 52px; height: 52px; display: grid; place-items: center; color: white; background: var(--ink); font-family: var(--font-ui); font-size: 20px; font-weight: 800; flex-shrink: 0; }
@@ -62,7 +60,7 @@
 .org-activity li span { color: var(--accent); font-size: 11px; }
 .org-settings { max-width: 620px; margin-top: 28px; display: grid; gap: 24px; }
 .org-settings label, .org-dialog-form label { display: grid; gap: 10px; font-size: 12px; font-weight: 600; }
-.org-settings input, .org-dialog-form input, .org-dialog-form select:not(.ws-select) { width: 100%; min-height: 44px; padding: 12px; border: 1px solid var(--line); border-radius: 0; background: white; font-size: 14px; font-weight: 400; }
+.org-settings input, .org-dialog-form input { width: 100%; min-height: 44px; padding: 12px; border: 1px solid var(--line); border-radius: 0; background: white; font-size: 14px; font-weight: 400; }
 .org-settings > button { justify-self: start; }
 .org-sso { padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; }
 .org-sso strong { float: right; font-weight: 500; color: var(--muted); }
