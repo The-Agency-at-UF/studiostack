@@ -799,4 +799,12 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const {rows}=await operator.query("SELECT indexname FROM pg_indexes WHERE schemaname='app'")
     expect(rows.map(r=>r.indexname)).toEqual(expect.arrayContaining(['equipment_events_reservation','equipment_events_report','equipment_reports_equipment','production_attachments_brief','organization_audit_page','reservation_owner_page','reservation_client_account','production_briefs_client_account']))
   })
+  it('production tables reject unknown event kinds, malformed hashes, excess attempts and stray leases',async()=>{
+    expect(Number((await operator.query('SELECT count(*) FROM app.production_brief_events')).rows[0].count)).toBeGreaterThan(0)
+    expect(Number((await operator.query('SELECT count(*) FROM app.production_outbox')).rows[0].count)).toBeGreaterThan(0)
+    for(const sql of ["UPDATE app.production_brief_events SET kind='tampered'","UPDATE app.production_brief_events SET request_hash='not-a-hash'","UPDATE app.production_briefs SET request_hash='not-a-hash'","UPDATE app.production_outbox SET attempts=6","UPDATE app.production_outbox SET lease_token=gen_random_uuid(),lease_until=now() WHERE status<>'sending'"]){
+      await operator.query('BEGIN')
+      try{await expect(operator.query(sql)).rejects.toMatchObject({code:'23514'})}finally{await operator.query('ROLLBACK')}
+    }
+  })
 })
