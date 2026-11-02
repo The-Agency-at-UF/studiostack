@@ -185,8 +185,16 @@ describe('tenant authorization and atomic repository operations', () => {
     await repository.execute(identity, { operation: 'register', displayName })
     const insert = query.mock.calls.find(call => call[0].startsWith('INSERT'))!
     expect(insert[0]).not.toContain(displayName)
-    expect(insert[1]).toEqual([identity.issuer, identity.subject, null, displayName])
+    expect(insert[1]).toEqual([identity.issuer, identity.subject, displayName])
     expect(query.mock.calls.some(call => /INSERT INTO app.organization/.test(call[0]))).toBe(false)
+  })
+  it('never attaches a token email at registration; only the verified directory claim does', async () => {
+    const { repository, query } = repoFixture()
+    await repository.execute({ ...identity, email: 'someone@example.org' }, { operation: 'register', displayName: null })
+    const insert = query.mock.calls.find(call => call[0].startsWith('INSERT'))!
+    expect(insert[0]).toContain('INSERT INTO app.users (cognito_issuer, cognito_subject, display_name)')
+    expect(insert[0]).not.toMatch(/SET[^]*email\s*=/)
+    expect(insert[1]).not.toContain('someone@example.org')
   })
   it('restricts regular reservation lists to the caller', async () => {
     const { repository, query } = repoFixture()

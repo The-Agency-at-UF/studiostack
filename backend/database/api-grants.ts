@@ -55,5 +55,6 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT SELECT, INSERT ON app.photo_uploads TO ${role};
     GRANT UPDATE (status, object_key, width, height, stored_size, sha256) ON app.photo_uploads TO ${role};
     GRANT EXECUTE ON FUNCTION app.purge_expired_rows() TO ${role};
+    GRANT EXECUTE ON FUNCTION app.claim_account_email(text, text, text, text, text) TO ${role};
   `
 }
