@@ -27,7 +27,7 @@ This folder is the starting point for product, design, and historical StudioStac
 - Update the relevant document in the same pull request when behavior, access, or design rules change.
 - Never place credentials, private keys, access tokens, or local environment files in this folder.
 
-The active application lives in the repository root. The `legacy/` directory is archived reference code and should not receive new product work.
+The active application lives in the repository root.
 
 ## Database foundation
 

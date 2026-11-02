@@ -2,11 +2,12 @@ import type {DatabaseClient} from '../database/client'
 import {ApiError,object,uuid,text} from '../database/api-validation'
 import {version} from './validation'
 import type {ProductionRequest} from './repository'
+import {pageOf} from '../database/repository-utils'
 export async function dispatchClients(client:DatabaseClient,r:ProductionRequest,canManage:boolean){
  const columns='id,name,version,archived_at AS "archivedAt"',org=r.organizationId
  if(r.method==='GET'){
-  const rows=(await client.query('SELECT '+columns+' FROM app.client_accounts WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3',[org,r.page.after,r.page.limit+1])).rows,items=rows.slice(0,r.page.limit)
-  return {items,nextCursor:rows.length>r.page.limit?items.at(-1)!.id:null}
+  const rows=(await client.query('SELECT '+columns+' FROM app.client_accounts WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3',[org,r.page.after,r.page.limit+1])).rows
+  return pageOf(rows,r.page.limit)
  }
  if(!canManage)throw new ApiError(403,'Production leadership or an administrator manages client accounts')
  if(r.method==='POST'){

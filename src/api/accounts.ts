@@ -1,17 +1,14 @@
 import type {ApiPage} from '../types/database-api'
-import type {ChangeMember,ChangeOrganization,ChangeTeam,CreateJoinCode,DirectoryMember,InviteMember,JoinCode,ManagedMember,ManagedTeam,OrganizationActivity,OrganizationInvitation,OrganizationSettings,PendingAccessRequest,VersionedRequest,WorkspaceDomain} from '../types/accounts'
-type Send=<T>(path:string,method?:string,body?:unknown)=>Promise<T>
+import type {ChangeMember,ChangeOrganization,CreateJoinCode,DirectoryMember,InviteMember,JoinCode,ManagedMember,OrganizationActivity,OrganizationInvitation,OrganizationSettings,PendingAccessRequest,VersionedRequest,WorkspaceDomain} from '../types/accounts'
+import {pageQuery,type Send} from './scoped'
 export function accountClient(send:Send) {
-  const page=(path:string,after?:string)=>`${path}?limit=100${after?`&after=${encodeURIComponent(after)}`:''}`
+  const page=(path:string,after?:string)=>path+pageQuery(after)
   return {
     settings:()=>send<OrganizationSettings>('settings'),
     saveSettings:(body:ChangeOrganization)=>send<OrganizationSettings>('settings','PATCH',body),
     directory:(after?:string)=>send<ApiPage<DirectoryMember>>(page('directory',after)),
     members:(after?:string)=>send<ApiPage<ManagedMember>>(page('members',after)),
     updateMember:(id:string,body:ChangeMember)=>send<ManagedMember>(`members/${encodeURIComponent(id)}`,'PATCH',body),
-    teams:(after?:string)=>send<ApiPage<ManagedTeam>>(page('teams',after)),
-    createTeam:(name:string,requestId:string)=>send<ManagedTeam>('teams','POST',{name,requestId}),
-    updateTeam:(id:string,body:ChangeTeam)=>send<ManagedTeam>(`teams/${encodeURIComponent(id)}`,'PATCH',body),
     activity:(after?:string)=>send<ApiPage<OrganizationActivity>>(page('activity',after)),
     invitations:(after?:string)=>send<ApiPage<OrganizationInvitation>>(page('invitations',after)),
     invite:(body:InviteMember)=>send<OrganizationInvitation>('invitations','POST',body),

@@ -21,11 +21,6 @@
 .administration td small,.administration-list span,.administration-list small { display:block;color:var(--muted);margin-top:4px; }
 .administration-list li { display:flex;justify-content:space-between;align-items:center;gap:24px;padding:15px 0;border-bottom:1px solid var(--line);font-size:13px; }
 .administration-actions { display:flex;gap:10px; }
-.administration-team { border-bottom:1px solid var(--line);padding:16px 0; }
-.administration-team summary { cursor:pointer;font-weight:550; }
-.administration-team form { display:grid;gap:18px;max-width:600px;margin-top:20px; }
-.administration-team fieldset { display:flex;flex-wrap:wrap;gap:16px; }
-.administration-team legend { font-size:13px;margin-bottom:10px; }
 .administration .administration-checkbox { flex-direction:row;align-items:center; }
 .administration-checkbox input { width:16px;height:16px;accent-color:var(--accent); }
 @media(max-width:700px){.administration{margin:16px;padding:20px}.administration h1{font-size:25px}.administration-list li{align-items:flex-start;flex-direction:column}.administration-form label{width:100%}.administration-actions{flex-wrap:wrap}}
