@@ -2,6 +2,7 @@
 import {useState} from 'react'
 import type {AccountClient} from '../../api/accounts'
 import type {JoinCode,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
+import {Select} from '../../components/workspace/WorkspaceUI'
 type Run=(key:string,task:(client:AccountClient,requestId:string)=>Promise<unknown>)=>Promise<unknown>
 /** Self-service ways into the workspace: pending requests, member join codes and verified email domains. */
 export default function JoinMethods({owner,busy,run,requests,codes,domains}:{owner:boolean;busy:boolean;run:Run;requests:PendingAccessRequest[];codes:JoinCode[];domains:WorkspaceDomain[]}) {
@@ -27,7 +28,7 @@ export default function JoinMethods({owner,busy,run,requests,codes,domains}:{own
       <p className="administration-hint">Anyone with a code and a verified email joins as a member. Share codes privately.</p>
     </section>
     {owner&&<section><h2>Workspace domains</h2>
-      <form className="administration-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),input={domain:String(f.get('domain')),autoJoin:f.get('mode')==='auto'};void run(JSON.stringify({domain:input}),(c,requestId)=>c.addDomain({...input,requestId}))}}><label>Email domain<input name="domain" maxLength={253} placeholder="studio.example.edu" required/></label><label>People with this email<select name="mode"><option value="auto">Join directly</option><option value="request">Request access</option></select></label><button disabled={busy}>Add domain</button></form>
+      <form className="administration-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),input={domain:String(f.get('domain')),autoJoin:f.get('mode')==='auto'};void run(JSON.stringify({domain:input}),(c,requestId)=>c.addDomain({...input,requestId}))}}><label>Email domain<input name="domain" maxLength={253} placeholder="studio.example.edu" required/></label><label>People with this email<Select name="mode"><option value="auto">Join directly</option><option value="request">Request access</option></Select></label><button disabled={busy}>Add domain</button></form>
       <ul className="administration-list">{domains.map(d=><li key={d.domain}><div><strong>{d.domain}</strong><span>{d.autoJoin?'Verified accounts join directly as members':'Verified accounts request access'}</span></div><div className="administration-actions"><button className="administration-secondary" disabled={busy} onClick={()=>void run(`domain:${d.domain}:${d.version}`,(c,requestId)=>c.updateDomain(d.domain,{autoJoin:!d.autoJoin,version:d.version,requestId}))}>{d.autoJoin?'Require requests':'Allow direct join'}</button><button className="administration-secondary" disabled={busy} onClick={()=>void run(`remove-domain:${d.domain}:${d.version}`,(c,requestId)=>c.removeDomain(d.domain,{version:d.version,requestId}))}>Remove {d.domain}</button></div></li>)}</ul>
       {!domains.length&&<p>No domains yet.</p>}
       <p className="administration-hint">You can add a domain your own verified email uses, such as your school or company. Public email providers can’t be added.</p>

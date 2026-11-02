@@ -24,7 +24,7 @@
 .org-directory-search { flex:1; display:flex; align-items:center; gap:var(--space-2); padding:0 var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); min-height:var(--control-height); }
 .org-directory-search svg { width:18px; height:18px; color:var(--muted); flex-shrink:0; }
 .org-directory-search input { flex:1; min-width:0; border:0; background:transparent; font-size:var(--text-sm); color:var(--ink); }
-.org-directory-filters select { min-height:var(--control-height); padding:0 var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); }
+.org-directory-filters select:not(.ws-select) { min-height:var(--control-height); padding:0 var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); }
 .org-directory-list { list-style:none; margin:0; padding:0; }
 .org-directory-list li { display:flex; align-items:center; gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--line); }
 .org-directory-list li:last-child { border-bottom:0; }

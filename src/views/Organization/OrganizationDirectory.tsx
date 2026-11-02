@@ -6,7 +6,7 @@ import { HiOutlineMagnifyingGlass } from 'react-icons/hi2'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
-import { EmptyState, Notice, StatusLabel } from '../../components/workspace/WorkspaceUI'
+import { EmptyState, Notice, Select, StatusLabel } from '../../components/workspace/WorkspaceUI'
 import type { ApiPage } from '../../types/database-api'
 import type { OrganizationInvitation, OrganizationSettings } from '../../types/accounts'
 import './OrganizationDirectory.css'
@@ -102,9 +102,9 @@ export default function OrganizationDirectory() {
         </div>
         <div className="org-directory-filters">
           <label className="org-directory-search"><HiOutlineMagnifyingGlass aria-hidden="true" /><input aria-label="Search members" placeholder={manager ? 'Search by name or email' : 'Search by name'} value={search} onChange={event => setSearch(event.target.value)} /></label>
-          {manager && <select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}>
+          {manager && <Select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}>
             <option value="all">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option>
-          </select>}
+          </Select>}
         </div>
         {visibleMembers.length ? <ul className="org-directory-list">{visibleMembers.map(person => <li key={person.id}>
           <span className="org-directory-avatar" aria-hidden="true">{initials(person.name)}</span>

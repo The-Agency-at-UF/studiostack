@@ -4,10 +4,10 @@
 .production-heading h1 { font-size: clamp(28px,3.5vw,44px); font-weight: 750; letter-spacing: -.045em; line-height: 1.1; margin: 0 0 14px; }
 .production-heading p:last-child { color: var(--muted); margin: 0; font-size: 15px; }
 .production-page label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; }
-.production-page input:not([type=checkbox]),.production-page select,.production-page textarea { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 5px; padding: 10px 12px; width: 100%; min-height: 42px; color: var(--ink); font: inherit; font-weight: 400; line-height: 1.45; }
+.production-page input:not([type=checkbox]),.production-page select:not(.ws-select),.production-page textarea { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 5px; padding: 10px 12px; width: 100%; min-height: 42px; color: var(--ink); font: inherit; font-weight: 400; line-height: 1.45; }
 .production-page textarea { resize: vertical; min-height: 90px; }
-.production-page input:focus-visible,.production-page select:focus-visible,.production-page textarea:focus-visible,.production-page button:focus-visible { outline: 3px solid var(--accent-light); outline-offset: 3px; }
-.production-page input:disabled,.production-page textarea:disabled,.production-page select:disabled { color: #393340; opacity: 1; background: var(--surface-subtle); border-color: transparent; }
+.production-page input:focus-visible,.production-page select:not(.ws-select):focus-visible,.production-page textarea:focus-visible,.production-page button:focus-visible { outline: 3px solid var(--accent-light); outline-offset: 3px; }
+.production-page input:disabled,.production-page textarea:disabled,.production-page select:not(.ws-select):disabled { color: #393340; opacity: 1; background: var(--surface-subtle); border-color: transparent; }
 .production-page button { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 9px 13px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--ink); transition: background .15s,border-color .15s,transform .15s; min-height: 40px; }
 .production-page button:hover:not(:disabled) { background: #eee7fc; border-color: var(--accent-light); }
 .production-page button:active:not(:disabled) { transform: translateY(1px); }
