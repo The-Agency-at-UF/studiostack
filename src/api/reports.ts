@@ -1,7 +1,7 @@
 import type {ApiPage} from '../types/database-api'
 import type {CreateEquipmentReport,EquipmentEvent,EquipmentReport,UpdateEquipmentReport} from '../types/equipment'
-type Send=<T>(path:string,method?:string,body?:unknown)=>Promise<T>
-export function reportClient(send:Send){const page=(path:string,after?:string)=>path+'?'+new URLSearchParams({limit:'100',...(after?{after}:{})});return {
+import {pageQuery,type Send} from './scoped'
+export function reportClient(send:Send){const page=(path:string,after?:string)=>path+pageQuery(after);return {
  list:(after?:string)=>send<ApiPage<EquipmentReport>>(page('',after)),
  get:(id:string)=>send<EquipmentReport>(encodeURIComponent(id)),
  create:(input:CreateEquipmentReport)=>send<EquipmentReport>('','POST',input),
