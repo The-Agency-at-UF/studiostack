@@ -162,3 +162,31 @@ describe('Preview document hydration',()=>{
     expect(mocks.me).not.toHaveBeenCalled();expect(mocks.replace).not.toHaveBeenCalledWith('/login/');
   });
 });
+
+describe('Workspace tour',()=>{
+  it('welcomes a new member once their workspace is ready and remembers a skip',async()=>{
+    mocks.pathname='/';mocks.organizations.mockResolvedValue({items:[{id:'org-1',name:'Studio',role:'member'}]})
+    mocks.storedSession={token:'saved-token',user:{label:'member@example.test',subject:'member',expiresAt:Date.now()+900000}}
+    const view=render(<AppShell><Controls/></AppShell>)
+    fireEvent.click(await screen.findByRole('button',{name:'Skip tour'}))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('studiostack.tour.member')!)).toEqual({workspace:'skipped'})
+    view.unmount();render(<AppShell><Controls/></AppShell>)
+    await screen.findByText('authenticated/member@example.test/false/token')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('waits while an account has no workspace to join yet',async()=>{
+    mocks.pathname='/'
+    mocks.storedSession={token:'saved-token',user:{label:'member@example.test',subject:'member',expiresAt:Date.now()+900000}}
+    render(<AppShell><Controls/></AppShell>)
+    await screen.findByText('authenticated/member@example.test/false/token')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('shows the tour in preview but never on the sign-in page',async()=>{
+    render(<AppShell><Controls/></AppShell>)
+    fireEvent.click(await screen.findByRole('button',{name:'Preview'}))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    mocks.pathname='/';render(<AppShell><Controls/></AppShell>)
+    expect(await screen.findByRole('dialog',{name:'Welcome to StudioStack'})).toBeInTheDocument()
+  })
+})

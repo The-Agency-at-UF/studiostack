@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 
 export function PageHeader({ title, context, description, actions }: { title: string; context?: string; description?: string; actions?: ReactNode }) {
   return <header className="ws-page-header"><div>{context && <p className="ws-context">{context}</p>}<h1>{title}</h1>{description && <p className="ws-description">{description}</p>}</div>{actions && <div className="ws-actions">{actions}</div>}</header>
@@ -12,6 +12,10 @@ export function Notice({ children, kind = 'info', ...props }: HTMLAttributes<HTM
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return <div className="ws-empty"><p>{title}</p>{children && <div>{children}</div>}</div>
 }
+/** Placeholder shaped like the content it stands in for; the label is announced to screen readers. */
+export function Skeleton({ label, variant = 'text', count = 3 }: { label: string; variant?: 'text' | 'row' | 'tile'; count?: number }) {
+  return <div className={`ws-skeleton ws-skeleton-${variant} ws-loading-delayed`} role="status"><span className="ws-sr-only">{label}</span>{Array.from({ length: count }, (_, i) => <span key={i} className="ws-skeleton-block" aria-hidden="true" />)}</div>
+}
 export function StatusLabel({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'warning' | 'danger' }) {
   return <span className={`ws-status ws-status-${tone}`}>{children}</span>
 }
@@ -21,6 +25,9 @@ export function QueueSection({ title, action, children }: { title: string; actio
 
 export function Field({ label, className = '', children }: { label: string; className?: string; children: ReactNode }) {
   return <label className={`ws-field ${className}`}>{label}{children}</label>
+}
+export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`ws-select ${className}`} {...props} />
 }
 export function WorkspaceTabs({ label, items, active, disabled, onChange }: { label: string; items: { value: string; label: string }[]; active: string; disabled?: boolean; onChange: (value: string) => void }) {
   return <nav className="production-tabs" aria-label={label}>{items.map(item => <button key={item.value} disabled={disabled} aria-current={active === item.value ? 'page' : undefined} onClick={() => onChange(item.value)}>{item.label}</button>)}</nav>
