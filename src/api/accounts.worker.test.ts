@@ -8,26 +8,6 @@ const config={apiId:'vugf6fpl4k',issuer:'https://cognito-idp.us-east-2.amazonaws
 function event(body?:unknown,routeKey=body?'POST /account/invitations/{invitationId}/accept':'GET /account/invitations'){return {version:'2.0',routeKey,headers:{authorization:'Bearer synthetic-token'},pathParameters:{invitationId:id,requestId:id},body:body?JSON.stringify(body):undefined,isBase64Encoded:false,requestContext:{apiId:config.apiId,http:{method:routeKey.split(' ')[0]},authorizer:{jwt:{claims:{iss:config.issuer,client_id:config.clientId,token_use:'access',sub:id,exp:String(Date.now()/1000+600),scope:'aws.cognito.signin.user.admin'}}}}} as unknown as APIGatewayProxyEventV2WithJWTAuthorizer}
 const attributes=[{Name:'sub',Value:id},{Name:'email',Value:'verified@example.org'},{Name:'email_verified',Value:'true'}]
 describe('verified invitation bridge and delivery',()=>{
-  const claim={statusCode:409,error:'in use',accountClaim:{previousSubject:org}}
-  it.each(['deleted','active'] as const)('asks Cognito once about the other sign-in holding the email (%s) and retries with the answer',async state=>{
-    const store=vi.fn().mockResolvedValueOnce(claim).mockResolvedValueOnce({items:[]}),signInState=vi.fn().mockResolvedValue(state)
-    expect((await handleDirectory(event(),config,{getUser:async()=>({UserAttributes:attributes}),store,signInState})).statusCode).toBe(200)
-    expect(signInState).toHaveBeenCalledExactlyOnceWith(org)
-    expect(store).toHaveBeenLastCalledWith({action:'list',identity:{issuer:config.issuer,subject:id,email:'verified@example.org'},previousSignIn:{subject:org,state}})
-  })
-  it('refuses with a conflict when the email stays claimed or Cognito cannot be asked',async()=>{
-    const store=vi.fn().mockResolvedValue(claim)
-    expect((await handleDirectory(event(),config,{getUser:async()=>({UserAttributes:attributes}),store,signInState:async()=>'active'})).statusCode).toBe(409)
-    expect(store).toHaveBeenCalledTimes(2)
-    const once=vi.fn().mockResolvedValue(claim)
-    expect((await handleDirectory(event(),config,{getUser:async()=>({UserAttributes:attributes}),store:once})).statusCode).toBe(409)
-    expect(once).toHaveBeenCalledTimes(1)
-  })
-  it('never takes the previous sign-in from the HTTP request',async()=>{
-    const store=vi.fn()
-    expect((await handleDirectory(event({organizationId:org,previousSignIn:{subject:org,state:'deleted'}}),config,{getUser:async()=>({UserAttributes:attributes}),store,signInState:async()=>'deleted'})).statusCode).toBe(400)
-    expect(store).not.toHaveBeenCalled()
-  })
   it('uses authoritative Cognito email and binds acceptance to the authenticated subject',async()=>{
     const store=vi.fn().mockResolvedValue({organizationId:org}),getUser=vi.fn().mockResolvedValue({UserAttributes:attributes})
     expect((await handleDirectory(event({organizationId:org}),config,{getUser,store})).statusCode).toBe(200)

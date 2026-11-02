@@ -5,9 +5,8 @@ import { productionRoutes, productionRequest } from '../production/routes'
 import {accountRoutes,accountRequest,joinMethodRoutes} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
-import { ApiError, jsonResponse, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
+import { ApiError, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
 import { DatabaseUnavailableError } from './client'
-import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 
 export const databaseApiRoutes = [
   'GET /me', 'POST /me', 'GET /organizations',
@@ -19,11 +18,6 @@ export const databaseApiRoutes = [
   'GET /organizations/{organizationId}/reservations/{reservationId}',
   'POST /organizations/{organizationId}/reservations/{reservationId}/cancel',
 ] as const
-/** Routes removed with Teams. They keep their place in the route lists only so infra reserves their slots and later route resource IDs stay stable. */
-export const retiredRoutes = new Set<string>([
-  'GET /organizations/{organizationId}/groups', 'POST /organizations/{organizationId}/groups',
-  'GET /organizations/{organizationId}/administration/teams', 'POST /organizations/{organizationId}/administration/teams', 'PATCH /organizations/{organizationId}/administration/teams/{teamId}',
-])
 export const bugReportRoutes = ['POST /organizations/{organizationId}/bug-reports','GET /organizations/{organizationId}/bug-reports'] as const
 export const privatePhotoRoutes = ['POST /photos/uploads', 'POST /organizations/{organizationId}/photos/{photoId}/complete', 'GET /organizations/{organizationId}/inventory/{itemId}/photo'] as const
 export const databaseApiScope = 'aws.cognito.signin.user.admin'
@@ -32,7 +26,7 @@ export function apiConfiguration(env: Record<string, string | undefined> = proce
   const environment = env.STUDIOSTACK_ENV
   const expectedApi = environment === 'dev' ? 'vugf6fpl4k' : environment === 'prod' ? 'ixzikwz8n5' : undefined
   if (!expectedApi || env.DATABASE_API_ID !== expectedApi) throw new Error('Database API environment mismatch')
-  if (!userPoolPattern.test(env.COGNITO_USER_POOL_ID ?? '') || !/^[a-z0-9]{1,128}$/.test(env.COGNITO_APP_CLIENT_ID ?? '')) {
+  if (!/^us-east-2_[a-zA-Z0-9]+$/.test(env.COGNITO_USER_POOL_ID ?? '') || !/^[a-z0-9]{1,128}$/.test(env.COGNITO_APP_CLIENT_ID ?? '')) {
     throw new Error('Cognito user pool and app client must be explicitly configured')
   }
   return { apiId: expectedApi, issuer: `https://cognito-idp.us-east-2.amazonaws.com/${env.COGNITO_USER_POOL_ID}`, clientId: env.COGNITO_APP_CLIENT_ID! }
@@ -46,7 +40,7 @@ export function trustedIdentity(event: APIGatewayProxyEventV2WithJWTAuthorizer, 
     throw new ApiError(401, 'A valid access token is required')
   }
   // Standard Cognito access tokens normally do not include email; keep it null.
-  const email = claims.email_verified === 'true' && typeof claims.email === 'string' && claims.email.length <= 254 && emailPattern.test(claims.email) ? claims.email : null
+  const email = claims.email_verified === 'true' && typeof claims.email === 'string' && claims.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claims.email) ? claims.email : null
   return { issuer: config.issuer, subject: claims.sub, email }
 }
 function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
@@ -56,7 +50,7 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || retiredRoutes.has(event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
   if(alertRoutes.includes(event.routeKey))return alertRequest(event,()=>json(event))
   if(reportRoutes.includes(event.routeKey))return reportRequest(event,()=>json(event))
   if(equipmentRoutes.includes(event.routeKey))return equipmentRequest(event,()=>json(event))
@@ -81,11 +75,13 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
   const organizationId = uuid(event.pathParameters?.organizationId)
   if (event.routeKey === 'GET /organizations/{organizationId}/bug-reports') return {operation:'bugReports',organizationId,page:pagination(params)}
   if (event.routeKey === 'GET /organizations/{organizationId}/members') return { operation: 'members', organizationId, page: pagination(params) }
+  if (event.routeKey === 'GET /organizations/{organizationId}/groups') return { operation: 'groups', organizationId, page: pagination(params) }
   if (event.routeKey === 'GET /organizations/{organizationId}/inventory') return { operation: 'inventory', organizationId, page: pagination(params) }
   if (event.routeKey === 'GET /organizations/{organizationId}/reservations') return { operation: 'reservations', organizationId, page: pagination(params) }
   object(params, [])
   switch (event.routeKey) {
     case 'POST /organizations/{organizationId}/bug-reports': { const body=object(json(event),['title','description','pagePath','requestId']); if(typeof body.description!=='string'||!body.description.trim()||body.description.trim().length>4000||[...body.description].some(c=>{const n=c.charCodeAt(0);return n===127||n<32&&![9,10,13].includes(n)}))throw new ApiError(400,'Invalid report description');const pagePath=text(body.pagePath,255);if(!/^\/[A-Za-z0-9/_-]*$/.test(pagePath))throw new ApiError(400,'Invalid page path');return {operation:'bugReport',organizationId,title:text(body.title,160),description:body.description.trim(),pagePath,requestId:uuid(body.requestId)} }
+    case 'POST /organizations/{organizationId}/groups': return { operation: 'createGroup', organizationId, name: text(object(json(event), ['name']).name, 120) }
     case 'POST /organizations/{organizationId}/inventory': return { operation: 'createEquipment', organizationId, input: createEquipment(json(event)) }
     case 'PATCH /organizations/{organizationId}/inventory/{itemId}': return { operation: 'updateEquipment', organizationId, itemId: uuid(event.pathParameters?.itemId), input: updateEquipment(json(event)) }
     case 'POST /organizations/{organizationId}/reservations': return { operation: 'createReservation', organizationId, input: createReservation(json(event)) }
@@ -102,6 +98,7 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
 }
 export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof createApiRepository>, 'execute'>, config: ApiConfiguration, now = Date.now) {
   return async (event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyStructuredResultV2> => {
+    const respond = (statusCode: number, value: unknown) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }, body: JSON.stringify(value) })
     try {
       const identity = trustedIdentity(event, config, now())
       const parsed = request(event)
@@ -116,14 +113,23 @@ export function createDatabaseApiHandler(repository: Pick<ReturnType<typeof crea
         // small wake-up signal to the outside-VPC sender; no customer data logged.
         console.log(JSON.stringify({type:'production-decision-queued'}))
       }
-      return jsonResponse(200, value)
+      return respond(200, value)
     } catch (error) {
-      if (error instanceof ApiError) return jsonResponse(error.status, { error: error.message })
+      if (error instanceof ApiError) return respond(error.status, { error: error.message })
       // Never return raw SQL, credentials, AWS details, or customer data in errors.
       if (error instanceof DatabaseUnavailableError && error.diagnosticStage === 'connection') {
-        return jsonResponse(503, { error: 'Database connection is initializing; please retry shortly' }, { 'Retry-After': '2' })
+        return {
+          statusCode: 503,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+            'Retry-After': '2'
+          },
+          body: JSON.stringify({ error: 'Database connection is initializing; please retry shortly' })
+        }
       }
-      return jsonResponse(503, { error: 'Database API temporarily unavailable' })
+      return respond(503, { error: 'Database API temporarily unavailable' })
     }
   }
 }

@@ -34,7 +34,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>('signed-out')
   const [email, setEmail] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
-  const [bugReportOpen, setBugReportOpen] = useState(false)
   const [organizations, setOrganizations] = useState<ApiOrganization[]>([])
   const [selectedOrganizationId,setSelectedOrganizationId]=useState(''), [subject,setSubject]=useState('')
   const chooseOrganization=useCallback((id:string)=>{setSelectedOrganizationId(id);if(subject&&organizations.some(o=>o.id===id))try{localStorage.setItem('studiostack.organization.'+subject,id)}catch{/* Storage unavailable */}},[subject,organizations])
@@ -170,9 +169,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : loginPage ? children
       : mode === 'signed-out' ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || organizations.length > 0}>
-        <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} />
+        <Header isAdmin={currentAdmin} logOut={logOut} email={email} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
-        <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><BugReportPopup userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} /></footer>
+        <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><BugReportPopup userEmail={email} /></footer>
       </TourProvider>}
   </AppSessionProvider>
 }

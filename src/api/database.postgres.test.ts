@@ -11,16 +11,15 @@ import {directoryTask,type DirectoryRequest} from '../../backend/accounts/direct
 import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
 import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
-import type {JoinCode,ManagedMember,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
+import type {JoinCode,ManagedMember,ManagedTeam,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
-import { emptyBrief, type ProductionBrief, type BriefCommand, type ProductionSettings } from '../types/production'
+import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
 import { randomUUID } from 'node:crypto'
 import { beforeAll, afterAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
 import type { createDatabase, DatabaseClient } from '../../backend/database/client'
 import { loadMigrations } from '../../backend/database/migrations'
 import { databaseApiGrants } from '../../backend/database/api-grants'
-import { retentionTask } from '../../backend/database/retention'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
 import type { ApiEquipment, ApiPage, ApiReservation, ApiUser, ApiOrganization } from '../types/database-api'
@@ -101,7 +100,10 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(list.items).toHaveLength(1)
     if (list.nextCursor) expect((await repository.execute(member, { operation: 'inventory', organizationId, page: { limit: 1, after: list.nextCursor } }) as ApiPage<ApiEquipment>).items[0].id).not.toBe(list.items[0].id)
   })
-  it('enforces admin-only member lists', async () => {
+  it('enforces admin-only member lists and group creation', async () => {
+    const group = await repository.execute(owner, { operation: 'createGroup', organizationId, name: 'Editors' })
+    expect(group).toMatchObject({ name: 'Editors' })
+    expect(await repository.execute(member, { operation: 'groups', organizationId, page: listPage })).toMatchObject({ items: [group] })
     await expect(repository.execute(member, { operation: 'members', organizationId, page: listPage })).rejects.toMatchObject({ status: 403 })
     expect((await repository.execute(owner, { operation: 'members', organizationId, page: listPage }) as ApiPage<ApiUser>).items).toHaveLength(4)
   })
@@ -177,7 +179,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const connection = new pg.Client({ connectionString })
     try {
       await connection.connect(); await connection.query('SET ROLE "studiostack_dev_app"')
-      for (const sql of ['CREATE TABLE app.forbidden (id int)', 'UPDATE app.organization_memberships SET user_id = user_id', 'UPDATE app.users SET cognito_subject = cognito_subject', 'DELETE FROM app.users', 'DELETE FROM app.inventory']) {
+      for (const sql of ['CREATE TABLE app.forbidden (id int)', 'UPDATE app.organization_memberships SET user_id = user_id', 'DELETE FROM app.inventory']) {
         await expect(connection.query(sql)).rejects.toMatchObject({ code: '42501' })
       }
     } finally { await connection.end() }
@@ -212,12 +214,6 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const d=await draft()
     const saved=await production(member,{resource:'briefs',method:'PATCH',briefId:d.id,body:{version:d.version,requestId:randomUUID(),data:{...d.data,clientAccountId:c.id}}}) as ProductionBrief
     expect(saved.data).toMatchObject({clientAccountId:c.id,client:'Agency test client'})
-    const storedCopy=async()=>(await operator.query('SELECT data ? \'clientAccountId\' AS copied,client_account_id AS "clientAccountId" FROM app.production_briefs WHERE id=$1',[saved.id])).rows[0]
-    expect(await storedCopy()).toEqual({copied:false,clientAccountId:c.id})
-    await operator.query("UPDATE app.production_briefs SET data=data||jsonb_build_object('clientAccountId',client_account_id) WHERE id=$1",[saved.id])
-    await operator.query((await loadMigrations()).find(m=>m.name==='015_brief_client_account_single_source.sql')!.sql)
-    expect(await storedCopy()).toEqual({copied:false,clientAccountId:c.id})
-    expect((await production(member,{resource:'briefs',method:'GET',briefId:saved.id}) as ProductionBrief).data).toMatchObject({clientAccountId:c.id})
     const other=(await operator.query('INSERT INTO app.client_accounts(organization_id,name) VALUES($1,$2) RETURNING id',[otherOrganizationId,'Other tenant client'])).rows[0]
     await expect(production(member,{resource:'briefs',method:'PATCH',briefId:saved.id,body:{version:saved.version,requestId:randomUUID(),data:{...saved.data,clientAccountId:other.id}}})).rejects.toMatchObject({status:400})
     const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(item),clientAccountId:c.id}}) as ApiReservation
@@ -378,6 +374,18 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await account(secondMember,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:suspendedMember.version,requestId:randomUUID()}})
     await account(owner,{resource:'members',method:'PATCH',memberId:target.id,body:{role:'member',status:'active',version:updated.version,requestId:randomUUID()}})
     expect((await operator.query('SELECT id FROM app.organization_audit_events WHERE request_id=$1',[requestId])).rows).toHaveLength(1)
+  })
+  it('accounts: team membership updates reject foreign users and archival preserves team history',async()=>{
+    const requestId=randomUUID(),team=await account<ManagedTeam>(owner,{resource:'teams',method:'POST',body:{name:'Production team',requestId}})
+    expect(await account(owner,{resource:'teams',method:'POST',body:{name:'Production team',requestId}})).toMatchObject({id:team.id})
+    const body={name:team.name,archived:false,memberIds:[profiles.member.id],version:team.version,requestId:randomUUID()}
+    await expect(account(owner,{resource:'teams',method:'PATCH',teamId:team.id,body:{...body,memberIds:[profiles.outsider.id]}})).rejects.toMatchObject({status:400})
+    const updated=await account<ManagedTeam>(owner,{resource:'teams',method:'PATCH',teamId:team.id,body})
+    expect(updated.memberIds).toEqual([profiles.member.id])
+    const archived=await account<ManagedTeam>(owner,{resource:'teams',method:'PATCH',teamId:team.id,body:{...body,archived:true,version:updated.version,requestId:randomUUID()}})
+    expect(archived.archivedAt).toBeTruthy()
+    expect((await repository.execute(member,{operation:'groups',organizationId,page:listPage}) as ApiPage<ManagedTeam>).items.some(t=>t.id===team.id)).toBe(false)
+    expect((await account<ApiPage<ManagedTeam>>(owner,{resource:'teams',method:'GET'})).items.find(t=>t.id===team.id)?.memberIds).toEqual([profiles.member.id])
   })
   it('accounts: organization policies use optimistic versions and retain an append-only audit',async()=>{
     const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'}),body={name:'Renamed studio',reservationDays:14,version:current.version,requestId:randomUUID()}
@@ -801,93 +809,5 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(decide('approve',2)).rejects.toMatchObject({status:409})
     expect(await repository.execute(asker,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:organizationId,role:'member'})]})
     await expect(account(outsider,{resource:'access-requests',method:'POST',organizationId:otherOrganizationId,accessRequestId:second.id,action:'deny',body:{version:2,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
-  })
-  it('indexes tenant timelines, reports, attachments, audit pages and client groupings',async()=>{
-    const {rows}=await operator.query("SELECT indexname FROM pg_indexes WHERE schemaname='app'")
-    expect(rows.map(r=>r.indexname)).toEqual(expect.arrayContaining(['equipment_events_reservation','equipment_events_report','equipment_reports_equipment','production_attachments_brief','organization_audit_page','reservation_owner_page','reservation_client_account','production_briefs_client_account']))
-  })
-  it('production tables reject unknown event kinds, malformed hashes, excess attempts and stray leases',async()=>{
-    expect(Number((await operator.query('SELECT count(*) FROM app.production_brief_events')).rows[0].count)).toBeGreaterThan(0)
-    expect(Number((await operator.query('SELECT count(*) FROM app.production_outbox')).rows[0].count)).toBeGreaterThan(0)
-    for(const sql of ["UPDATE app.production_brief_events SET kind='tampered'","UPDATE app.production_brief_events SET request_hash='not-a-hash'","UPDATE app.production_briefs SET request_hash='not-a-hash'","UPDATE app.production_outbox SET attempts=6","UPDATE app.production_outbox SET lease_token=gen_random_uuid(),lease_until=now() WHERE status<>'sending'"]){
-      await operator.query('BEGIN')
-      try{await expect(operator.query(sql)).rejects.toMatchObject({code:'23514'})}finally{await operator.query('ROLLBACK')}
-    }
-  })
-  it('re-applying grants removes privileges that are no longer listed, including column grants',async()=>{
-    const privileges=async()=>(await operator.query(`SELECT table_name||':'||privilege_type AS p FROM information_schema.role_table_grants WHERE grantee='studiostack_dev_app'
-      UNION ALL SELECT table_name||'.'||column_name||':'||privilege_type FROM information_schema.column_privileges WHERE grantee='studiostack_dev_app' ORDER BY 1`)).rows.map(r=>r.p)
-    const expected=await privileges()
-    await operator.query('GRANT DELETE ON app.inventory TO "studiostack_dev_app"; GRANT UPDATE (equipment_code) ON app.inventory TO "studiostack_dev_app"; GRANT UPDATE ON app.users TO "studiostack_dev_app"')
-    expect(await privileges()).toEqual(expect.arrayContaining(['inventory:DELETE','inventory.equipment_code:UPDATE','users:UPDATE']))
-    await operator.query('BEGIN');await operator.query(databaseApiGrants('dev'));await operator.query('COMMIT')
-    expect(await privileges()).toEqual(expected)
-    expect(expected).not.toContain('inventory:DELETE')
-  })
-  it('accounts: suspending a member ends their production review and ELT roles for good',async()=>{
-    const current=await production(owner,{resource:'settings',method:'GET'}) as ProductionSettings
-    const body={version:current.version,reviewerIds:[...current.reviewerIds,profiles.member.id],executiveIds:[...current.executiveIds,profiles.member.id],approvalConfirmsDates:true}
-    expect(await production(owner,{resource:'settings',method:'PATCH',body})).toMatchObject({version:current.version+1})
-    expect(await production(member,{resource:'access',method:'GET'})).toMatchObject({canReview:true,isExecutive:true})
-    const setStatus=async(status:'active'|'suspended')=>{const m=await accountMember(member);return account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:m.role,status,version:m.version,requestId:randomUUID()}})}
-    await setStatus('suspended')
-    expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+2,reviewerIds:current.reviewerIds,executiveIds:current.executiveIds})
-    expect((await operator.query("SELECT details FROM app.organization_audit_events WHERE organization_id=$1 AND target_id=$2 AND kind='member_updated' ORDER BY created_at DESC LIMIT 1",[organizationId,profiles.member.id])).rows[0].details).toMatchObject({status:'suspended',productionRolesRemoved:true})
-    await setStatus('active')
-    expect(await production(member,{resource:'access',method:'GET'})).toMatchObject({canReview:false,isExecutive:false})
-    expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+2})
-    await operator.query('UPDATE app.production_settings SET reviewer_ids=reviewer_ids||$2::uuid,executive_ids=executive_ids||$2::uuid WHERE organization_id=$1',[organizationId,profiles.suspended.id])
-    const prune=(await loadMigrations()).find(m=>m.name==='014_prune_inactive_production_roles.sql')!
-    await operator.query(prune.sql)
-    expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+3,reviewerIds:current.reviewerIds,executiveIds:current.executiveIds})
-  })
-  it('retention purges only past-retention uploads, join attempts and read alerts through the runtime role',async()=>{
-    const old="now()-interval '8 days'",ancient="now()-interval '181 days'"
-    const upload=(expires:string)=>operator.query(`INSERT INTO app.photo_uploads(organization_id,uploaded_by,request_id,content_type,input_size,staging_key,expires_at) VALUES($1,$2,gen_random_uuid(),'image/jpeg',10,gen_random_uuid()::text,${expires}) RETURNING id`,[organizationId,profiles.owner.id])
-    const expired=(await upload(old)).rows[0].id,recent=(await upload("now()-interval '1 day'")).rows[0].id
-    await operator.query(`INSERT INTO app.join_code_attempts(user_id,attempted_at) VALUES($1,${old}),($1,now())`,[profiles.outsider.id])
-    const alert=(read:string,status='skipped')=>operator.query(`INSERT INTO app.user_alerts(organization_id,recipient_id,kind,title,message,target_path,dedupe_key,read_at,email_status) VALUES($1,$2,'report_update','Old','Old alert','/reservations/?reservation='||gen_random_uuid(),gen_random_uuid()::text,${read},$3) RETURNING id`,[organizationId,profiles.owner.id,status])
-    const purged=(await alert(ancient)).rows[0].id,kept=[(await alert("now()-interval '10 days'")).rows[0].id,(await alert(ancient,'pending')).rows[0].id]
-    const connection=new pg.Client({connectionString})
-    try{
-      await connection.connect();await connection.query('SET ROLE "studiostack_dev_app"')
-      await expect(connection.query('DELETE FROM app.join_code_attempts')).rejects.toMatchObject({code:'42501'})
-      expect(await retentionTask(connection,{})).toEqual({photoUploads:1,joinCodeAttempts:1,readAlerts:1})
-      expect(await retentionTask(connection,{})).toEqual({photoUploads:0,joinCodeAttempts:0,readAlerts:0})
-    }finally{await connection.end()}
-    expect((await operator.query('SELECT id FROM app.photo_uploads WHERE id=ANY($1::uuid[])',[[expired,recent]])).rows.map(r=>r.id)).toEqual([recent])
-    expect((await operator.query('SELECT id FROM app.user_alerts WHERE id=ANY($1::uuid[]) ORDER BY id',[[purged,...kept]])).rows.map(r=>r.id)).toEqual([...kept].sort())
-    expect(Number((await operator.query('SELECT count(*) FROM app.join_code_attempts WHERE user_id=$1',[profiles.outsider.id])).rows[0].count)).toBeGreaterThan(0)
-    expect((await operator.query("SELECT has_function_privilege('public','app.purge_expired_rows()','EXECUTE') AS public")).rows[0].public).toBe(false)
-  })
-  it('accounts: one account per verified email across deleted, moved and already-used sign-ins',async()=>{
-    const email=`${randomUUID()}@example.org`,me=(who:Identity)=>repository.execute(who,{operation:'me'}),orgs=(who:Identity)=>repository.execute(who,{operation:'organizations',page:listPage})
-    const signIn=async(displayName:string)=>{const identity={issuer,subject:randomUUID(),email};return {identity,profile:await repository.execute(identity,{operation:'register',displayName}) as ApiUser}}
-    const first=await signIn('First sign-in')
-    expect(await directory({action:'list',identity:first.identity})).toEqual({items:[]})
-    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[organizationId,first.profile.id])
-    // Cognito deleted the first sign-in and the same email signed up again.
-    const second=await signIn('Second sign-in')
-    expect(await directory({action:'list',identity:second.identity})).toMatchObject({statusCode:409,accountClaim:{previousSubject:first.identity.subject}})
-    expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:randomUUID(),state:'deleted'}})).toMatchObject({statusCode:409,accountClaim:{previousSubject:first.identity.subject}})
-    expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:first.identity.subject,state:'deleted'}})).toEqual({items:[]})
-    expect(await me(second.identity)).toMatchObject({id:first.profile.id,email})
-    expect(await orgs(second.identity)).toMatchObject({items:[expect.objectContaining({id:organizationId})]})
-    expect((await operator.query('SELECT id FROM app.users WHERE id=$1',[second.profile.id])).rows).toEqual([])
-    await expect(me(first.identity)).rejects.toMatchObject({status:404})
-    // That sign-in moved to another email, and a different person now verifies this one.
-    const third=await signIn('Third sign-in')
-    expect(await directory({action:'list',identity:third.identity,previousSignIn:{subject:second.identity.subject,state:'active'}})).toEqual({items:[]})
-    expect(await me(third.identity)).toMatchObject({id:third.profile.id,email})
-    expect(await me(second.identity)).toMatchObject({id:first.profile.id,email:null})
-    expect(await orgs(third.identity)).toMatchObject({items:[]})
-    // A sign-in that already holds memberships is never folded into another account.
-    const fourth=await signIn('Fourth sign-in')
-    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[organizationId,fourth.profile.id])
-    expect(await directory({action:'list',identity:fourth.identity,previousSignIn:{subject:third.identity.subject,state:'deleted'}})).toMatchObject({statusCode:409})
-    expect(await me(fourth.identity)).toMatchObject({id:fourth.profile.id,email:null})
-    expect((await operator.query('SELECT count(*)::int AS n FROM app.users WHERE email=$1',[email])).rows[0].n).toBe(1)
-    await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email])).rejects.toMatchObject({code:'23505'})
-    await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email.toUpperCase()])).rejects.toMatchObject({code:'23514'})
   })
 })

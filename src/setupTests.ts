@@ -28,6 +28,9 @@ vi.mock('./data/localStore', async (importOriginal) => {
   return {
     ...actual,
     collection: vi.fn(actual.collection),
+    query: vi.fn(actual.query),
+    orderBy: vi.fn(actual.orderBy),
+    onSnapshot: vi.fn<typeof actual.onSnapshot>(() => () => {}),
     getDocs: vi.fn<typeof actual.getDocs>().mockResolvedValue({ docs: [] }),
     getDoc: vi.fn(actual.getDoc),
     setDoc: vi.fn(actual.setDoc),
@@ -36,5 +39,7 @@ vi.mock('./data/localStore', async (importOriginal) => {
     deleteDoc: vi.fn(actual.deleteDoc),
     doc: vi.fn(actual.doc),
     serverTimestamp: vi.fn(actual.serverTimestamp),
+    arrayUnion: vi.fn(actual.arrayUnion),
+    where: vi.fn(actual.where),
   };
 });
