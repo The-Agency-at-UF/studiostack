@@ -232,7 +232,10 @@ body { min-width:0; }
 .ws-stagger > :nth-child(5) { animation-delay:200ms; }
 .ws-stagger > :nth-child(n+6) { animation-delay:250ms; }
 .ws-loading-delayed { animation:ws-fade .25s ease .2s both; }
-@media(prefers-reduced-motion:reduce) { .ws-enter,.ws-stagger > *,.ws-loading-delayed { animation:none; } }
+/* Every page eases in when its tab opens, and so do sub-views, detail panels and organization sections. */
+@keyframes ws-page-enter { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.app-content#workspace-content > *,:is(.production-settings,.production-decisions,.production-calendar,.production-review,.org-section,.org-section-heading,.org-directory-section,.ws-detail-panel,.equipment-handoff-layout) { animation:ws-page-enter .36s cubic-bezier(.22,1,.36,1) both; }
+@media(prefers-reduced-motion:reduce) { .ws-enter,.ws-stagger > *,.ws-loading-delayed,.app-content#workspace-content > *,:is(.production-settings,.production-decisions,.production-calendar,.production-review,.org-section,.org-section-heading,.org-directory-section,.ws-detail-panel,.equipment-handoff-layout) { animation:none; } }
 
 /* Skeletons hold the shape of loading content with a slow shimmer. */
 .ws-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }

@@ -1,5 +1,5 @@
 'use client'
-import {DetailPanel,Select} from '../../components/workspace/WorkspaceUI'
+import {DetailPanel,Select,Skeleton} from '../../components/workspace/WorkspaceUI'
 import type {EquipmentRecord} from '../../types/equipment'
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react'
 import type {FormEvent} from 'react'
@@ -38,11 +38,11 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   const [view,setView]=useState('all')
   const current=items.find(i=>i.id===selected),filtered=items.filter(i=>(view==='all'||view==='out'&&i.checkedOut||view==='ready'&&!i.checkedOut&&i.status==='available'||view==='service'&&i.status==='maintenance')&&(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(query.toLowerCase()))
   return <main className="administration workspace-surface inventory-workspace"><header><div><p className="administration-eyebrow">Equipment workspace</p><h1>Inventory</h1><p>{items.length} items · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div><div className="administration-actions"><button onClick={()=>{setError('');void load().catch(e=>setError(equipmentError(e)))}}>Refresh</button>{admin&&<button className="ws-button-primary" onClick={()=>{setAdding(true);setSelected(null)}}>Add item</button>}</div></header>
-    {error&&<p role="alert">{error}</p>}{loading&&<p role="status">Loading inventory…</p>}
+    {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading inventory…" variant="row" count={5}/>}
 <nav className="production-tabs" aria-label="Inventory views">{[['all','All production equipment'],['ready','Available'],['out','Checked out'],['service','Maintenance']].map(([id,label])=><button key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav>
     <div className="administration-form"><label>Search inventory<input type="search" value={query} onChange={e=>setQuery(e.target.value)}/></label><label>Category<Select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</Select></label></div>
     {!loading&&!error&&!filtered.length&&<p className="equipment-empty">No matching equipment. {admin?'Add an item to get started.':''}</p>}
-    <div className="equipment-layout"><section className="administration-table"><table><thead><tr><th>Item</th><th>Category</th><th>Condition</th><th>Service status</th></tr></thead><tbody>{filtered.map(i=><tr key={i.id}><td><button className="equipment-item-link" onClick={()=>{setSelected(i.id);setAdding(false)}}>{i.name}</button><small>{i.equipmentCode}</small></td><td>{i.category}</td><td>{i.condition}</td><td>{i.checkedOut?'Checked out':i.status}</td></tr>)}</tbody></table></section>
+    <div className="equipment-layout"><section className="administration-table"><table><thead><tr><th>Item</th><th>Category</th><th>Condition</th><th>Service status</th></tr></thead><tbody className="ws-stagger">{filtered.map(i=><tr key={i.id}><td><button className="equipment-item-link" onClick={()=>{setSelected(i.id);setAdding(false)}}>{i.name}</button><small>{i.equipmentCode}</small></td><td>{i.category}</td><td>{i.condition}</td><td>{i.checkedOut?'Checked out':i.status}</td></tr>)}</tbody></table></section>
       {(current||adding)&&<DetailPanel className="equipment-inspector" label="Equipment details"><button className="equipment-item-link" onClick={()=>{setSelected(null);setAdding(false)}}>Close details</button><h2>{current?.name??'Add equipment'}</h2>
         {current?.photoId&&<PrivatePhoto key={`${current.id}:${current.photoId}`} api={api} organizationId={organizationId} item={current}/>}
         {current&&<details><summary>Equipment QR label</summary><QRCodeGenerator equipmentID={current.equipmentCode}/></details>}

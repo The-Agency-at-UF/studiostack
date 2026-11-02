@@ -7,7 +7,7 @@ import {equipmentConditions,type EquipmentRecord,type EquipmentReservation,type 
 import {reservationLabel} from './Reservations'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
-import {Select} from '../../components/workspace/WorkspaceUI'
+import {Select,Skeleton} from '../../components/workspace/WorkspaceUI'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 type CachedFulfillment = { rows: EquipmentReservation[]; items: EquipmentRecord[] }
@@ -43,13 +43,13 @@ function FulfillmentWorkspace({api,organizationId}:{api:DatabaseApi;organization
     setRows(value=>value.map(r=>r.id===row.id?row:r));setNotice(row.fulfillmentStatus==='returned'?(damaged?'Equipment returned. A damage report was created and damaged items were placed in maintenance.':'Equipment returned.'):'Equipment checked out.');try{const value=await load();setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items})}catch(e){setError(equipmentError(e))}
   }
   return <main className="administration workspace-surface"><header><div><p className="administration-eyebrow">Equipment handoff</p><h1>Pickup & return</h1><p>Record the condition of every item at pickup and return.</p></div><button disabled={loading} onClick={()=>void refresh()}>Refresh</button></header>
-    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<p role="status">Loading equipment handoffs…</p>}
+    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<Skeleton label="Loading equipment handoffs…" variant="row" count={3}/>}
     <label className="equipment-booking-select">Reservation<Select value={selected} onChange={e=>{setSelected(e.target.value);setNotice('')}}><option value="">Choose a reservation</option>{[...rows].sort((a,b)=>Date.parse(b.startsAt)-Date.parse(a.startsAt)).map(r=><option key={r.id} value={r.id}>{r.name} · {reservationLabel(r)}</option>)}</Select></label>
     {!loading&&!rows.length&&<p>No reservations yet. <Link href="/create-reservation/">Book equipment</Link> to get started.</p>}
     {current&&!loading&&<div className="equipment-handoff-layout"><section><h2>{current.name}</h2><p>{reservationLabel(current)} · {new Date(current.startsAt).toLocaleString()} to {new Date(current.endsAt).toLocaleString()}</p>
       {current.checkedOutAt&&<p className="administration-hint">Picked up {new Date(current.checkedOutAt).toLocaleString()}</p>}{current.returnedAt&&<p className="administration-hint">Returned {new Date(current.returnedAt).toLocaleString()}</p>}
       {current.status==='confirmed'&&current.fulfillmentStatus!=='returned'?<ConditionForm key={current.id+':'+current.version} api={api} organizationId={organizationId} reservation={current} items={items.filter(i=>current.equipmentIds.includes(i.id))} onSaved={saved}/>:<p className="equipment-empty">This reservation is closed. Its condition history remains available.</p>}
-    </section><section><h2>Condition & activity history</h2>{historyError&&<p role="alert">{historyError}</p>}<ol className="equipment-history">{[...history].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(event=><li key={event.id}><strong>{event.kind.replaceAll('_',' ')}</strong><small>{event.actorName} · {new Date(event.createdAt).toLocaleString()}</small>{Array.isArray(event.details.conditions)&&(event.details.conditions as ItemCondition[]).map(c=><p key={c.equipmentId}>{items.find(i=>i.id===c.equipmentId)?.name??'Equipment'} · {c.condition}{c.notes&&<span>{c.notes}</span>}</p>)}</li>)}</ol>{!history.length&&!historyError&&<p>No equipment activity recorded yet.</p>}</section></div>}
+    </section><section><h2>Condition & activity history</h2>{historyError&&<p role="alert">{historyError}</p>}<ol className="equipment-history ws-stagger">{[...history].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(event=><li key={event.id}><strong>{event.kind.replaceAll('_',' ')}</strong><small>{event.actorName} · {new Date(event.createdAt).toLocaleString()}</small>{Array.isArray(event.details.conditions)&&(event.details.conditions as ItemCondition[]).map(c=><p key={c.equipmentId}>{items.find(i=>i.id===c.equipmentId)?.name??'Equipment'} · {c.condition}{c.notes&&<span>{c.notes}</span>}</p>)}</li>)}</ol>{!history.length&&!historyError&&<p>No equipment activity recorded yet.</p>}</section></div>}
   </main>
 }
 function ConditionForm({api,organizationId,reservation:r,items,onSaved}:{api:DatabaseApi;organizationId:string;reservation:EquipmentReservation;items:EquipmentRecord[];onSaved:(row:EquipmentReservation,damaged:boolean)=>Promise<void>}){
