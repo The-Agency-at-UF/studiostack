@@ -795,4 +795,8 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await repository.execute(asker,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:organizationId,role:'member'})]})
     await expect(account(outsider,{resource:'access-requests',method:'POST',organizationId:otherOrganizationId,accessRequestId:second.id,action:'deny',body:{version:2,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
   })
+  it('indexes tenant timelines, reports, attachments, audit pages and client groupings',async()=>{
+    const {rows}=await operator.query("SELECT indexname FROM pg_indexes WHERE schemaname='app'")
+    expect(rows.map(r=>r.indexname)).toEqual(expect.arrayContaining(['equipment_events_reservation','equipment_events_report','equipment_reports_equipment','production_attachments_brief','organization_audit_page','reservation_owner_page','reservation_client_account','production_briefs_client_account']))
+  })
 })
