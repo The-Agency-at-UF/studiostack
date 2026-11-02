@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
 import { AppSessionProvider } from '../context/AppSessionContext'
+import { TourProvider } from './tour/TourContext'
 import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
 import {restorePasswordSession,signOutPasswordSession} from '../auth/password'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
@@ -167,10 +168,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
     {busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
       : loginPage ? children
       : mode === 'signed-out' ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
-      : <>
+      : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || organizations.length > 0}>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
         <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><BugReportPopup userEmail={email} /></footer>
-      </>}
+      </TourProvider>}
   </AppSessionProvider>
 }
