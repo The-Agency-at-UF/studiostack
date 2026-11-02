@@ -1,8 +1,8 @@
 import type {ApiPage} from '../types/database-api'
 import type {ChangeMember,ChangeOrganization,CreateJoinCode,DirectoryMember,InviteMember,JoinCode,ManagedMember,OrganizationActivity,OrganizationInvitation,OrganizationSettings,PendingAccessRequest,VersionedRequest,WorkspaceDomain} from '../types/accounts'
-type Send=<T>(path:string,method?:string,body?:unknown)=>Promise<T>
+import {pageQuery,type Send} from './scoped'
 export function accountClient(send:Send) {
-  const page=(path:string,after?:string)=>`${path}?limit=100${after?`&after=${encodeURIComponent(after)}`:''}`
+  const page=(path:string,after?:string)=>path+pageQuery(after)
   return {
     settings:()=>send<OrganizationSettings>('settings'),
     saveSettings:(body:ChangeOrganization)=>send<OrganizationSettings>('settings','PATCH',body),
