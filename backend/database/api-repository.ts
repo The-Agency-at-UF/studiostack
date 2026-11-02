@@ -57,10 +57,11 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
   }
   async function dispatch(client: DatabaseClient, identity: Identity, request: ApiRequest): Promise<unknown> {
     if (request.operation === 'register') {
-      const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, email, display_name) VALUES ($1, $2, $3, $4)
-        ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET email = COALESCE(EXCLUDED.email, app.users.email),
+      // Email is attached only by the verified directory claim, which keeps it unique per account.
+      const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, display_name) VALUES ($1, $2, $3)
+        ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET
         display_name = COALESCE(EXCLUDED.display_name, app.users.display_name) RETURNING ${userColumns}`,
-      [identity.issuer, identity.subject, identity.email, request.displayName])
+      [identity.issuer, identity.subject, request.displayName])
       return result.rows[0]
     }
     const users = await client.query<User>(`SELECT ${userColumns} FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])

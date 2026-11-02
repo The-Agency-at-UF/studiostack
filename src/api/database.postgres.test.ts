@@ -20,6 +20,7 @@ import pg from 'pg'
 import type { createDatabase, DatabaseClient } from '../../backend/database/client'
 import { loadMigrations } from '../../backend/database/migrations'
 import { databaseApiGrants } from '../../backend/database/api-grants'
+import { retentionTask } from '../../backend/database/retention'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
 import type { ApiEquipment, ApiPage, ApiReservation, ApiUser, ApiOrganization } from '../types/database-api'
@@ -176,7 +177,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const connection = new pg.Client({ connectionString })
     try {
       await connection.connect(); await connection.query('SET ROLE "studiostack_dev_app"')
-      for (const sql of ['CREATE TABLE app.forbidden (id int)', 'UPDATE app.organization_memberships SET user_id = user_id', 'DELETE FROM app.inventory']) {
+      for (const sql of ['CREATE TABLE app.forbidden (id int)', 'UPDATE app.organization_memberships SET user_id = user_id', 'UPDATE app.users SET cognito_subject = cognito_subject', 'DELETE FROM app.users', 'DELETE FROM app.inventory']) {
         await expect(connection.query(sql)).rejects.toMatchObject({ code: '42501' })
       }
     } finally { await connection.end() }
@@ -839,5 +840,54 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const prune=(await loadMigrations()).find(m=>m.name==='014_prune_inactive_production_roles.sql')!
     await operator.query(prune.sql)
     expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+3,reviewerIds:current.reviewerIds,executiveIds:current.executiveIds})
+  })
+  it('retention purges only past-retention uploads, join attempts and read alerts through the runtime role',async()=>{
+    const old="now()-interval '8 days'",ancient="now()-interval '181 days'"
+    const upload=(expires:string)=>operator.query(`INSERT INTO app.photo_uploads(organization_id,uploaded_by,request_id,content_type,input_size,staging_key,expires_at) VALUES($1,$2,gen_random_uuid(),'image/jpeg',10,gen_random_uuid()::text,${expires}) RETURNING id`,[organizationId,profiles.owner.id])
+    const expired=(await upload(old)).rows[0].id,recent=(await upload("now()-interval '1 day'")).rows[0].id
+    await operator.query(`INSERT INTO app.join_code_attempts(user_id,attempted_at) VALUES($1,${old}),($1,now())`,[profiles.outsider.id])
+    const alert=(read:string,status='skipped')=>operator.query(`INSERT INTO app.user_alerts(organization_id,recipient_id,kind,title,message,target_path,dedupe_key,read_at,email_status) VALUES($1,$2,'report_update','Old','Old alert','/reservations/?reservation='||gen_random_uuid(),gen_random_uuid()::text,${read},$3) RETURNING id`,[organizationId,profiles.owner.id,status])
+    const purged=(await alert(ancient)).rows[0].id,kept=[(await alert("now()-interval '10 days'")).rows[0].id,(await alert(ancient,'pending')).rows[0].id]
+    const connection=new pg.Client({connectionString})
+    try{
+      await connection.connect();await connection.query('SET ROLE "studiostack_dev_app"')
+      await expect(connection.query('DELETE FROM app.join_code_attempts')).rejects.toMatchObject({code:'42501'})
+      expect(await retentionTask(connection,{})).toEqual({photoUploads:1,joinCodeAttempts:1,readAlerts:1})
+      expect(await retentionTask(connection,{})).toEqual({photoUploads:0,joinCodeAttempts:0,readAlerts:0})
+    }finally{await connection.end()}
+    expect((await operator.query('SELECT id FROM app.photo_uploads WHERE id=ANY($1::uuid[])',[[expired,recent]])).rows.map(r=>r.id)).toEqual([recent])
+    expect((await operator.query('SELECT id FROM app.user_alerts WHERE id=ANY($1::uuid[]) ORDER BY id',[[purged,...kept]])).rows.map(r=>r.id)).toEqual([...kept].sort())
+    expect(Number((await operator.query('SELECT count(*) FROM app.join_code_attempts WHERE user_id=$1',[profiles.outsider.id])).rows[0].count)).toBeGreaterThan(0)
+    expect((await operator.query("SELECT has_function_privilege('public','app.purge_expired_rows()','EXECUTE') AS public")).rows[0].public).toBe(false)
+  })
+  it('accounts: one account per verified email across deleted, moved and already-used sign-ins',async()=>{
+    const email=`${randomUUID()}@example.org`,me=(who:Identity)=>repository.execute(who,{operation:'me'}),orgs=(who:Identity)=>repository.execute(who,{operation:'organizations',page:listPage})
+    const signIn=async(displayName:string)=>{const identity={issuer,subject:randomUUID(),email};return {identity,profile:await repository.execute(identity,{operation:'register',displayName}) as ApiUser}}
+    const first=await signIn('First sign-in')
+    expect(await directory({action:'list',identity:first.identity})).toEqual({items:[]})
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[organizationId,first.profile.id])
+    // Cognito deleted the first sign-in and the same email signed up again.
+    const second=await signIn('Second sign-in')
+    expect(await directory({action:'list',identity:second.identity})).toMatchObject({statusCode:409,accountClaim:{previousSubject:first.identity.subject}})
+    expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:randomUUID(),state:'deleted'}})).toMatchObject({statusCode:409,accountClaim:{previousSubject:first.identity.subject}})
+    expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:first.identity.subject,state:'deleted'}})).toEqual({items:[]})
+    expect(await me(second.identity)).toMatchObject({id:first.profile.id,email})
+    expect(await orgs(second.identity)).toMatchObject({items:[expect.objectContaining({id:organizationId})]})
+    expect((await operator.query('SELECT id FROM app.users WHERE id=$1',[second.profile.id])).rows).toEqual([])
+    await expect(me(first.identity)).rejects.toMatchObject({status:404})
+    // That sign-in moved to another email, and a different person now verifies this one.
+    const third=await signIn('Third sign-in')
+    expect(await directory({action:'list',identity:third.identity,previousSignIn:{subject:second.identity.subject,state:'active'}})).toEqual({items:[]})
+    expect(await me(third.identity)).toMatchObject({id:third.profile.id,email})
+    expect(await me(second.identity)).toMatchObject({id:first.profile.id,email:null})
+    expect(await orgs(third.identity)).toMatchObject({items:[]})
+    // A sign-in that already holds memberships is never folded into another account.
+    const fourth=await signIn('Fourth sign-in')
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[organizationId,fourth.profile.id])
+    expect(await directory({action:'list',identity:fourth.identity,previousSignIn:{subject:third.identity.subject,state:'deleted'}})).toMatchObject({statusCode:409})
+    expect(await me(fourth.identity)).toMatchObject({id:fourth.profile.id,email:null})
+    expect((await operator.query('SELECT count(*)::int AS n FROM app.users WHERE email=$1',[email])).rows[0].n).toBe(1)
+    await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email])).rejects.toMatchObject({code:'23505'})
+    await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email.toUpperCase()])).rejects.toMatchObject({code:'23514'})
   })
 })
