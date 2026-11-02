@@ -1,18 +1,18 @@
-import {createHash} from 'node:crypto'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object} from '../database/api-validation'
 import {inviteMember,versioned} from './validation'
 import type {AccountRequest} from './routes'
+import {pageOf,requestHash} from '../database/repository-utils'
 export const invitationColumns='id,email,display_name AS "displayName",role,status,delivery_status AS "deliveryStatus",attempts,expires_at AS "expiresAt",version,created_at AS "createdAt"'
 export async function dispatchInvitations(client:DatabaseClient,request:AccountRequest,actor:{id:string;role:string}) {
   const org=request.organizationId
   const get=async(id:string)=>{const v=(await client.query(`SELECT ${invitationColumns} FROM app.organization_invitations WHERE organization_id=$1 AND id=$2`,[org,id])).rows[0];if(!v)throw new ApiError(404,'Invitation not found');return v}
   if(request.method==='GET') {
-    const {rows}=await client.query(`SELECT ${invitationColumns} FROM app.organization_invitations WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3`,[org,request.page.after,request.page.limit+1]),items=rows.slice(0,request.page.limit)
-    return {items,nextCursor:rows.length>request.page.limit?items.at(-1)!.id:null}
+    const {rows}=await client.query(`SELECT ${invitationColumns} FROM app.organization_invitations WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2) ORDER BY id LIMIT $3`,[org,request.page.after,request.page.limit+1])
+    return pageOf(rows,request.page.limit)
   }
   const input=request.invitationId?versioned(object(request.body,['version','requestId'])):inviteMember(request.body)
-  const hash=createHash('sha256').update(JSON.stringify({input,id:request.invitationId,action:request.action})).digest('hex')
+  const hash=requestHash({input,id:request.invitationId,action:request.action})
   const previous=(await client.query('SELECT target_id,request_hash FROM app.organization_audit_events WHERE organization_id=$1 AND actor_id=$2 AND request_id=$3',[org,actor.id,input.requestId])).rows[0]
   if(previous){if(previous.request_hash!==hash)throw new ApiError(409,'Request ID already used for another action');return get(previous.target_id)}
   let id=request.invitationId,kind=''

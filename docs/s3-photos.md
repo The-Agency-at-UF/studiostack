@@ -2,12 +2,11 @@
 
 ## Current status
 
-The TypeScript upload signer, browser upload helper, local connection check,
-and dev-only CORS configuration script are implemented. They do not deploy AWS
-resources or connect the UI's local session to AWS. On October 1, 2026, the local
+The local connection check and dev-only CORS configuration script are
+implemented. They do not deploy AWS resources. On October 1, 2026, the local
 SSO profile was authenticated and the dev-bucket connection verified. The dev
 bucket has a localhost CORS rule; its four Block Public Access settings remain
-enabled. The photo API still requires deployment and real authentication.
+enabled.
 
 ## Existing buckets
 
@@ -38,29 +37,11 @@ studiostack-dev`; no permanent access keys are needed.
 
 ## Upload flow
 
-1. `src/api/preparePhoto.ts` processes the selected photo locally (see limits below).
-   The browser calls an authenticated photo API with its access token, processed
-   MIME type and processed file size. Do not use the demo session as proof of identity.
-2. API Gateway validates the token with a JWT authorizer and an appropriate
-   photo-upload authorization scope. Lambda uses `backend/photos.ts`'s `handler`.
-3. The handler generates a five-minute S3 POST form scoped to a unique object
-   key under the verified user's prefix. Processed JPEG and WebP only, up to 10 MiB.
-   The signed POST policy enforces the declared content type and exact file size.
-4. `src/api/photos.ts` uploads the file and returns its S3 object key. A future
-   authenticated backend saves that key alongside the equipment/report in RDS.
-
-In Lambda, configure `AWS_REGION` and `S3_PHOTOS_BUCKET`, not `AWS_PROFILE` or
-permanent keys. Its IAM execution role needs only `s3:PutObject` on the intended
-bucket's `photos/*` prefix, plus any permissions required by bucket encryption.
-Keep Block Public Access enabled. Configure API Gateway CORS for the web origin
-separately from S3 CORS. Treat signed upload forms as temporary credentials.
-
-Set `NEXT_PUBLIC_PHOTO_UPLOAD_API_URL` only after deploying the authenticated
-endpoint. The current Next.js static export is preserved; no Next.js server API
-route or unauthenticated upload service is exposed. There is no AWS deployment,
-Cognito setup, RDS persistence, private-photo download API, or photo UI wiring in
-this change. Validate real file contents in backend processing before displaying
-uploads; a declared MIME type is not proof of file contents.
+Uploads use the organization-scoped private-photo API; see
+[private-photos.md](private-photos.md). `src/api/preparePhoto.ts` processes the
+selected photo locally first (see limits below). Validate real file contents in
+backend processing before displaying uploads; a declared MIME type is not proof
+of file contents.
 
 ## Phone photos and processing limits
 

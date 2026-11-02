@@ -19,8 +19,6 @@ Use `/organizations/{organizationId}` as the organization prefix below. UUIDs ar
 | `GET /organizations` | List the caller's active organizations | Current identity only |
 | `GET {prefix}/members` | List organization members | Active owner/admin |
 | `GET {prefix}/administration/directory` | List active members by display name and role, for the Organization page | Any active member; no emails or statuses |
-| `GET {prefix}/groups` | List organization-local groups | Active member |
-| `POST {prefix}/groups` | Create a group with `name` | Active owner/admin |
 | `GET {prefix}/inventory` | List equipment and operational status | Active member |
 | `POST {prefix}/inventory` | Add `equipmentCode`, `name`, `category` | Active owner/admin |
 | `PATCH {prefix}/inventory/{itemId}` | Update `name`, `category`, `status` | Active owner/admin |

@@ -1,4 +1,4 @@
-/** Shared contracts for the active web application and its local data adapter. */
+/** Collection shapes for the local preview data adapter. */
 export interface Timestamp {
   seconds?: number
   toDate(): Date
@@ -17,8 +17,6 @@ export interface InventoryData {
   photoKey?: string
   timestamp?: Timestamp
 }
-export type InventoryItem = InventoryData & { id: string }
-export type ReservableEquipment = InventoryData & { equipmentID: string }
 
 export interface ReservationData {
   name: string
@@ -32,7 +30,6 @@ export interface ReservationData {
   checkedInItems: Equipment[]
   overdueItems: (Equipment & { time: Timestamp })[]
 }
-export type Reservation = ReservationData & { reservationId: string }
 
 export interface ReportData {
   item: string
@@ -45,37 +42,7 @@ export interface ReportData {
   resolvedBy?: string
   resolvedOn?: Timestamp
 }
-export type EquipmentReport = ReportData & { reportID: string }
 
-export interface NotificationData {
-  userEmail: string
-  type: 'report' | 'overdue'
-  time: Timestamp
-  userClosed: boolean
-  adminClosed: boolean
-  resolved?: boolean
-  resolvedBy?: string
-  item?: string
-  itemId?: string
-  amount?: number
-  reservationName?: string
-}
-export type AppNotification = NotificationData & { id: string }
-
-export interface UserData {
-  isAdmin: boolean
-  reservations?: Timestamp[]
-}
-export type AppUser = UserData & { email: string }
-export interface TeamData { type: string }
-export type Team = TeamData & { name: string }
-
-export interface MailData {
-  to: string
-  message: { subject: string; html: string }
-  type?: { subject: string }
-  delivery?: { startTime: Timestamp }
-}
 export interface BugReportData {
   title: string
   description: string
@@ -88,23 +55,5 @@ export interface CollectionData {
   inventory: InventoryData
   reservations: ReservationData
   reports: ReportData
-  notifications: NotificationData
-  users: UserData
-  teams: TeamData
-  mail: MailData
   bugReports: BugReportData
-}
-
-export interface AlertMessage { text: string; type: 'success' | 'error' }
-export interface SelectOption<T = string> { value: T; label: string }
-export interface ChartValue { name: string; value: number }
-export interface ChartRecord { name: string; time: Date }
-export interface OverdueEquipment extends Equipment { user: string }
-export interface OverdueTime { user: string; id: string; time: string; totalMinutes: number }
-export interface OverdueRecord {
-  user: string
-  numberOfOverdueEquipment: number
-  overdueTimes: { converted: string; total: number }[]
-  avgTime: string
-  overdueTimesDisplay: string
 }

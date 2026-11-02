@@ -23,9 +23,9 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) :is(.production-primary,button[type=submit],.ws-button-primary):hover:not(:disabled) { background:var(--accent-hover); color:var(--on-frame); }
 .app-content#workspace-content :is(.administration,.production-page) .production-danger { color:var(--danger); border-color:var(--danger); background:var(--surface); }
 .app-content#workspace-content :is(.administration,.production-page) header { align-items:flex-start; padding-bottom:var(--space-6); gap:var(--space-6); }
-:is(.production-heading,.org-heading) { margin:0 0 var(--space-6); padding:0; }
-:is(.administration-eyebrow,.production-eyebrow,.ws-context) { font-size:var(--text-xs); text-transform:none; letter-spacing:normal; font-weight:var(--weight-medium); color:var(--muted); margin:0 0 var(--space-2); }
-:is(.ws-page-header,.production-heading) p:last-child { margin-top:var(--space-2); }
+:is(.org-heading) { margin:0 0 var(--space-6); padding:0; }
+:is(.administration-eyebrow,.ws-context) { font-size:var(--text-xs); text-transform:none; letter-spacing:normal; font-weight:var(--weight-medium); color:var(--muted); margin:0 0 var(--space-2); }
+:is(.ws-page-header) p:last-child { margin-top:var(--space-2); }
 .ws-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-6); margin-bottom:var(--space-6); }
 .ws-page-header .ws-description { font-size:var(--text-sm); color:var(--muted); margin:var(--space-2) 0 0; }
 .ws-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; }
@@ -70,7 +70,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) th { background:var(--surface-subtle); color:var(--muted); font-size:var(--text-xs); font-weight:var(--weight-medium); letter-spacing:normal; text-transform:none; white-space:nowrap; }
 .app-content#workspace-content :is(.administration,.production-page) tbody tr:hover { background:var(--surface-hover); }
 .app-content#workspace-content :is(.administration,.production-page) td small { font-size:var(--text-xs); color:var(--muted); }
-.app-content#workspace-content .administration :is(.administration-table,.equipment-table-scroll) { overflow-x:auto; }
+.app-content#workspace-content .administration :is(.administration-table) { overflow-x:auto; }
 .administration td a { color:var(--accent); }
 .app-content#workspace-content .production-page .production-tabs,.app-content#workspace-content .administration .production-tabs { display:flex; gap:var(--space-6); flex-wrap:nowrap; overflow:auto; margin:var(--space-5) 0; border-bottom:1px solid var(--line); }
 .app-content#workspace-content :is(.production-page,.administration) .production-tabs button { border:0; border-radius:0; border-bottom:2px solid transparent; padding:var(--space-3) 0; color:var(--muted); background:transparent; white-space:nowrap; }
@@ -143,7 +143,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 }
 @media(max-width:767px) {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page),.app-content#workspace-content .live-dashboard.administration { padding:var(--space-6) var(--space-4); }
-  .ws-page-header,.administration header,.production-heading { flex-direction:column; }
+  .ws-page-header,.administration header { flex-direction:column; }
   .ws-queue-columns { grid-template-columns:1fr; gap:var(--space-4); }
   .production-fields { grid-template-columns:1fr; }
   .production-context { min-width:0; width:100%; }
@@ -194,4 +194,4 @@ body { min-width:0; }
 :is(.production-calendar,.equipment-calendar) .fc-daygrid-event { min-height:var(--control-height); }
 .app-content#workspace-content .administration .equipment-item-link { border:0; background:transparent; color:var(--accent); padding:0; text-align:left; }
 .app-content#workspace-content .administration .equipment-item-link:hover { background:transparent; text-decoration:underline; }
-.app-content#workspace-content :is(.administration-eyebrow,.production-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
+.app-content#workspace-content :is(.administration-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
