@@ -1,10 +1,18 @@
 import type { DatabaseEnvironment } from './config'
 
-/** Maintenance-only SQL; neither HTTP requests nor runtime ever grant privileges. */
+/** Maintenance-only SQL; neither HTTP requests nor runtime ever grant privileges.
+ * Starts from no privileges, so a grant removed here is also removed from the role.
+ * Revoking a table privilege drops its column privileges too. Runs in one
+ * transaction, so the role is never seen without its grants.
+ */
 export function databaseApiGrants(environment: DatabaseEnvironment) {
   if (!['dev', 'prod'].includes(environment)) throw new Error('Explicit database environment required')
   const role = `"studiostack_${environment}_app"`
   return `
+    REVOKE ALL ON ALL TABLES IN SCHEMA app FROM ${role};
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA app FROM ${role};
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM ${role};
+    REVOKE ALL ON SCHEMA app FROM ${role};
     GRANT SELECT,INSERT ON app.client_accounts,app.production_assignments TO ${role};
     GRANT UPDATE(name,archived_at,version) ON app.client_accounts TO ${role};
     GRANT DELETE ON app.production_assignments TO ${role};

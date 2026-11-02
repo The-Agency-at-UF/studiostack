@@ -807,4 +807,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       try{await expect(operator.query(sql)).rejects.toMatchObject({code:'23514'})}finally{await operator.query('ROLLBACK')}
     }
   })
+  it('re-applying grants removes privileges that are no longer listed, including column grants',async()=>{
+    const privileges=async()=>(await operator.query(`SELECT table_name||':'||privilege_type AS p FROM information_schema.role_table_grants WHERE grantee='studiostack_dev_app'
+      UNION ALL SELECT table_name||'.'||column_name||':'||privilege_type FROM information_schema.column_privileges WHERE grantee='studiostack_dev_app' ORDER BY 1`)).rows.map(r=>r.p)
+    const expected=await privileges()
+    await operator.query('GRANT DELETE ON app.inventory TO "studiostack_dev_app"; GRANT UPDATE (equipment_code) ON app.inventory TO "studiostack_dev_app"; GRANT UPDATE ON app.users TO "studiostack_dev_app"')
+    expect(await privileges()).toEqual(expect.arrayContaining(['inventory:DELETE','inventory.equipment_code:UPDATE','users:UPDATE']))
+    await operator.query('BEGIN');await operator.query(databaseApiGrants('dev'));await operator.query('COMMIT')
+    expect(await privileges()).toEqual(expected)
+    expect(expected).not.toContain('inventory:DELETE')
+  })
 })
