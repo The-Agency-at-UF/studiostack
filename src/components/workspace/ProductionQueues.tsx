@@ -10,7 +10,7 @@ import { allPages, equipmentError } from '../../views/Equipment/live'
 import { getCached, setCached } from '../../api/cache'
 import { statusLabels, type ProductionAccess, type ProductionBrief } from '../../types/production'
 import type { ProductionClient } from '../../api/production'
-import { Button, EmptyState, Notice, QueueSection, StatusLabel } from './WorkspaceUI'
+import { Button, EmptyState, Notice, QueueSection, Skeleton, StatusLabel } from './WorkspaceUI'
 
 type Snapshot = { briefs: ProductionBrief[]; access: ProductionAccess }
 function briefNeedsAttention(brief: ProductionBrief, access: ProductionAccess) {
@@ -62,13 +62,13 @@ function ProductionQueueWorkspace({ client, org, identity, preview }: { client: 
   return <div className="ws-production-overview">
     {preview && <p className="ws-preview-note">Preview workspace · Example production records</p>}
     {error && <Notice kind="error"><span>Production: {error}</span><Button disabled={loading} onClick={() => void refresh()}>{loading ? 'Retrying…' : 'Retry production'}</Button></Notice>}
-    {loading && !snapshot && <p className="ws-loading" role="status">Loading production queues…</p>}
-    {snapshot && <div className="ws-queue-columns">
+    {loading && !snapshot && <Skeleton label="Loading production queues…" variant="row" count={3} />}
+    {snapshot && <div className="ws-queue-columns ws-stagger">
       <QueueSection title="Briefs needing attention" action={<Link href="/production/">All briefs</Link>}>
-        {attention.length ? <ul className="ws-record-list">{attention.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{brief.data.client || 'Client not added'}</p></div><StatusLabel tone={brief.status === 'changes_requested' ? 'warning' : brief.status === 'submitted' ? 'accent' : 'neutral'}>{statusLabels[brief.status]}</StatusLabel></li>)}</ul> : <EmptyState title="No briefs need your attention." />}
+        {attention.length ? <ul className="ws-record-list ws-stagger">{attention.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{brief.data.client || 'Client not added'}</p></div><StatusLabel tone={brief.status === 'changes_requested' ? 'warning' : brief.status === 'submitted' ? 'accent' : 'neutral'}>{statusLabels[brief.status]}</StatusLabel></li>)}</ul> : <EmptyState title="No briefs need your attention." />}
       </QueueSection>
       <QueueSection title="Upcoming productions" action={<Button disabled={loading} onClick={() => void refresh()}>{loading ? 'Refreshing…' : 'Refresh production'}</Button>}>
-        {shoots.length ? <ul className="ws-record-list">{shoots.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{brief.data.client} · {brief.shootStartsAt ? 'Confirmed shoot' : 'Tentative shoot'}</p></div><time dateTime={(brief.shootStartsAt || brief.data.fields.proposedStart).slice(0, 10)}>{dateLabel(brief.shootStartsAt || brief.data.fields.proposedStart)}</time></li>)}</ul> : <EmptyState title="No upcoming shoots scheduled." />}
+        {shoots.length ? <ul className="ws-record-list ws-stagger">{shoots.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{brief.data.client} · {brief.shootStartsAt ? 'Confirmed shoot' : 'Tentative shoot'}</p></div><time dateTime={(brief.shootStartsAt || brief.data.fields.proposedStart).slice(0, 10)}>{dateLabel(brief.shootStartsAt || brief.data.fields.proposedStart)}</time></li>)}</ul> : <EmptyState title="No upcoming shoots scheduled." />}
       </QueueSection>
     </div>}
   </div>
