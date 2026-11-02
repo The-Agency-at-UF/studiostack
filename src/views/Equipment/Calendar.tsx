@@ -10,11 +10,13 @@ import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './li
 import type {EquipmentAvailability,EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {getCached,setCached} from '../../api/cache'
 import {Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import {usePickedDay} from '../../components/workspace/usePickedDay'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 export default function LiveEquipmentCalendar(){const c=useLiveOrganization();return c?<CalendarWorkspace key={c.organization.id} api={c.api} org={c.organization.id}/>:<main className="administration"><h1>Equipment calendar</h1><p>Select an active organization in your account to view equipment bookings.</p></main>}
 function CalendarWorkspace({api,org}:{api:DatabaseApi;org:string}){
  const [initialView] = useState(() => getCached<{date:string;view:string}>(`calendar-view:${org}`,86_400_000))
+ const day=usePickedDay()
  const cachedInventory = getCached<EquipmentRecord[]>(`inventory:${org}`)
  const cachedReservations = getCached<{ bookings: EquipmentReservation[] }>(`reservations:${org}`)
  const cachedDashboard = getCached<{ items: EquipmentRecord[]; bookings: EquipmentReservation[] }>(`dashboard:${org}`)
@@ -64,7 +66,7 @@ function CalendarWorkspace({api,org}:{api:DatabaseApi;org:string}){
  return <main className="administration"><header><div><p className="administration-eyebrow">Gear schedule</p><h1>Equipment calendar</h1><p>View reserved equipment and pickup dates in your local timezone.</p></div><div className="administration-actions"><button disabled={loading} onClick={()=>setReload(v=>v+1)}>Refresh</button><Link href="/create-reservation/">Reserve equipment</Link></div></header>
   <label className="equipment-filter">Filter equipment<Select value={equipment} onChange={e=>{setEquipment(e.target.value);setSelected('')}}><option value="">All equipment</option>{items.map(i=><option key={i.id} value={i.id}>{i.name} · {i.equipmentCode}</option>)}</Select></label>{item&&<p className="administration-hint">Current condition: {item.condition} · {item.status}{item.checkedOut?' · Currently checked out':''}</p>}
   {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading equipment calendar…"/>}
-  <div className="equipment-calendar"><FullCalendar plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialDate={initialView?.date} initialView={initialView?.view ?? 'dayGridMonth'} headerToolbar={{left:'prev,next today',center:'title',right:'dayGridMonth,timeGridWeek,timeGridDay'}} datesSet={dates} events={events} height="auto" dayMaxEvents eventClick={arg=>setSelected(arg.event.id)} editable={false}/></div>
+  <div className="equipment-calendar"><FullCalendar dateClick={day.dateClick} dayCellClassNames={day.dayCellClassNames} plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialDate={initialView?.date} initialView={initialView?.view ?? 'dayGridMonth'} headerToolbar={{left:'prev,next today',center:'title',right:'dayGridMonth,timeGridWeek,timeGridDay'}} datesSet={dates} events={events} height="auto" dayMaxEvents eventClick={arg=>setSelected(arg.event.id)} editable={false}/></div>
   {current&&<section aria-label="Selected equipment booking"><h2>{owned?.name??'Reserved equipment'}</h2><p>{new Date(current.startsAt).toLocaleString()} to {new Date(current.endsAt).toLocaleString()} · {current.fulfillmentStatus==='checked_out'?'Checked out':'Reserved'}</p><ul className="equipment-detail-list">{current.equipmentIds.map(id=><li key={id}>{items.find(i=>i.id===id)?.name??'Equipment item'}</li>)}</ul>{owned&&<Link href={`/reservations/?reservation=${owned.id}`}>{owned.readOnly?'View reservation':'View reservation / change dates'}</Link>}</section>}
   {!loading&&!error&&!visible.length&&<p className="equipment-empty">No equipment bookings in this period.</p>}
   <p className="administration-hint">Production Leads can view organization booking names and equipment. Other members see their own booking details and shared occupied slots. Overdue checkouts keep equipment unavailable for pickup until returned.</p>
