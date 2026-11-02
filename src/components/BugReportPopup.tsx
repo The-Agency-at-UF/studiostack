@@ -8,7 +8,7 @@ import type {ApiBugReport} from '../types/database-api';
 import { IoIosCloseCircle, IoIosBug } from "react-icons/io";
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 
-function BugReportPopup({ userEmail }: { userEmail: string }) {
+function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const pathname = usePathname(), session=useAppSession();
   const request=useRef<{key:string;id:string}|null>(null),historyGeneration=useRef(0);
   useEffect(()=>{historyGeneration.current++;setHistory([]);setHistoryError('');setHistoryLoading(false)},[session.selectedOrganizationId,session.email]);
@@ -90,6 +90,9 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
       }
       modal
       nested
+      open={open}
+      onOpen={() => onOpenChange?.(true)}
+      onClose={() => onOpenChange?.(false)}
       contentStyle={{
         backgroundColor: "#ECECEC",
         borderRadius: "0.5rem",
@@ -138,16 +141,6 @@ function BugReportPopup({ userEmail }: { userEmail: string }) {
                       className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white resize-none"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold mb-1">Current URL</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={currentUrl}
-                      className="border-2 border-gray-200 p-2 rounded-md w-full bg-gray-100 text-gray-600 text-sm italic"
                     />
                   </div>
                 </div>

@@ -172,4 +172,14 @@ describe('Header tour', () => {
     await user.click(screen.getByRole('button', { name: 'Account' }));
     expect(screen.queryByRole('button', { name: 'Take the tour' })).not.toBeInTheDocument();
   });
+  it.each([[false, 'My reservations'], [true, 'Organization settings']])('places Report a bug after the last account link (admin: %s) and opens it', async (isAdmin, previous) => {
+    const user = userEvent.setup(), onReportBug = vi.fn();
+    render(<Header isAdmin={isAdmin} logOut={() => {}} onReportBug={onReportBug} />);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    const report = screen.getByRole('button', { name: 'Report a bug' });
+    expect(screen.getByRole('link', { name: previous }).nextElementSibling).toBe(report);
+    await user.click(report);
+    expect(onReportBug).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Your account')).not.toBeInTheDocument();
+  });
 });
