@@ -1,5 +1,6 @@
 import {assertRecipientAllowed} from '../email/feedback'
 import {alertEmail,deliverAppAlerts} from '../alerts/delivery'
+import { deliverLeased, rejectedSesErrors } from '../email/delivery'
 import { AdminGetUserCommand, CognitoIdentityProviderClient, ListUsersCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
@@ -34,21 +35,10 @@ export async function verifiedRecipient(job: Pick<NotificationJob,'recipientSubj
 }
 export async function deliverNotifications(deps: NotificationDependencies) {
   const { jobs = [] } = await deps.store({ action: 'claim' })
-  let sent = 0, failed = 0
-  for (const job of jobs) {
-    let outcome: 'sent' | 'retry' | 'failed' | 'uncertain' = 'sent'
-    try { await deps.send(job); sent++ }
-    catch (error) {
-      const name = (error as { name?: string }).name
-      // Only explicit service rejections are retried. Unknown transport outcomes
-      // could have accepted the email and need operator review to avoid duplicates.
-      outcome = ['TooManyRequestsException','ThrottlingException','LimitExceededException'].includes(name ?? '') ? 'retry' : ['MessageRejected','MailFromDomainNotVerifiedException','AccountSuspendedException','SendingPausedException','BadRequestException','UnverifiedRecipient','UserNotFoundException'].includes(name ?? '') ? 'failed' : 'uncertain'
-      failed++
-    }
-    const ack = await deps.store({ action: 'ack', organizationId: job.organizationId, id: job.id, leaseToken: job.leaseToken, outcome })
-    if (!ack.updated) throw new Error('Delivery acknowledgement failed; inspect the lease before retrying')
-  }
-  return { claimed: jobs.length, sent, failed }
+  const { claimed, sent, failed } = await deliverLeased({ jobs, rejected: rejectedSesErrors, ackError: 'Delivery acknowledgement failed; inspect the lease before retrying',
+    deliver: async job => { await deps.send(job); return 'sent' as const },
+    ack: (job, outcome) => deps.store({ action: 'ack', organizationId: job.organizationId, id: job.id, leaseToken: job.leaseToken, outcome }) })
+  return { claimed, sent, failed }
 }
 /** Outside-VPC sender invokes a private IAM-only outbox store, then SES. */
 export async function handler() {

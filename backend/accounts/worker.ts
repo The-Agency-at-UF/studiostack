@@ -1,16 +1,17 @@
 import {assertRecipientAllowed} from '../email/feedback'
+import {deliverLeased} from '../email/delivery'
 import {AdminCreateUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
 import {apiConfiguration,trustedIdentity,type ApiConfiguration} from '../database/api'
 import {ApiError,jsonResponse as response,object,text,uuid} from '../database/api-validation'
-import type {DirectoryRequest} from './directory'
+import {emailInUse,type AccountClaim,type DirectoryRequest} from './directory'
 import type {InvitationJob,InvitationQueueRequest} from './queue'
 import {directoryRoutes} from './routes'
 import {emailPattern,userPoolPattern} from '../../src/types/patterns'
 type Attributes={Name?:string;Value?:string}[]
-export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>}) {
+export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>;signInState?(subject:string):Promise<'deleted'|'active'>}) {
   try {
     const identity=trustedIdentity(event,config,Date.now())
     if(!directoryRoutes.includes(event.routeKey)||event.requestContext.http.method!==event.routeKey.split(' ')[0])throw new ApiError(404,'Account operation not found')
@@ -30,18 +31,23 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
       else if(route==='/account/onboarding/access-requests'){const value=object(body,['organizationId','message']);Object.assign(input,{action:'request-access',organizationId:uuid(value.organizationId),...(value.message===undefined||value.message===''?{}:{message:text(value.message,500)})})}
       else {const value=object(body,['organizationId']);Object.assign(input,{action:'withdraw-request',requestId:uuid(event.pathParameters?.requestId),organizationId:uuid(value.organizationId)})}
     } else if(event.routeKey==='GET /account/onboarding')input.action='overview'
-    const result=await deps.store(input) as {statusCode?:number;error?:string}
+    let result=await deps.store(input) as {statusCode?:number;error?:string}&Partial<AccountClaim>
+    if(result.accountClaim) {
+      // Another account holds this verified email. Ask Cognito whether its sign-in still exists, once.
+      if(!deps.signInState)return response(409,{error:emailInUse})
+      const subject=result.accountClaim.previousSubject
+      result=await deps.store({...input,previousSignIn:{subject,state:await deps.signInState(subject)}}) as typeof result
+      if(result.accountClaim)return response(409,{error:emailInUse})
+    }
     return result.statusCode?response(result.statusCode,{error:result.error}):response(200,result)
   } catch(error){return error instanceof ApiError?response(error.status,{error:error.message}):response(503,{error:'Account services are temporarily unavailable'})}
 }
 export async function deliverInvitations(deps:{store(request:InvitationQueueRequest):Promise<{jobs?:InvitationJob[];updated?:boolean}>;send(job:InvitationJob):Promise<void>}) {
-  const {jobs=[]}=await deps.store({action:'claim'});let sent=0,failed=0
-  for(const job of jobs) {
-    let outcome:'sent'|'retry'|'failed'|'uncertain'='sent'
-    try{await deps.send(job);sent++}catch(error){const name=(error as {name?:string}).name;outcome=['TooManyRequestsException','ThrottlingException','LimitExceededException'].includes(name??'')?'retry':['MessageRejected','InvalidParameterException','CodeDeliveryFailureException','UnverifiedRecipient'].includes(name??'')?'failed':'uncertain';failed++}
-    const ack=await deps.store({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome});if(!ack.updated)throw new Error('Invitation acknowledgement failed')
-  }
-  return {claimed:jobs.length,sent,failed}
+  const {jobs=[]}=await deps.store({action:'claim'})
+  const {claimed,sent,failed}=await deliverLeased({jobs,rejected:['MessageRejected','InvalidParameterException','CodeDeliveryFailureException','UnverifiedRecipient'],ackError:'Invitation acknowledgement failed',
+    deliver:async job=>{await deps.send(job);return 'sent' as const},
+    ack:(job,outcome)=>deps.store({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome})})
+  return {claimed,sent,failed}
 }
 export async function handler(event:Record<string,unknown>={}) {
   const env=process.env.STUDIOSTACK_ENV,pool=process.env.COGNITO_USER_POOL_ID,storeName=process.env.PRODUCTION_OUTBOX_FUNCTION,from=process.env.PRODUCTION_EMAIL_FROM,web=process.env.PRODUCTION_WEB_URL
@@ -49,7 +55,7 @@ export async function handler(event:Record<string,unknown>={}) {
   const lambda=new LambdaClient({region:'us-east-2',maxAttempts:1}),cognito=new CognitoIdentityProviderClient({region:'us-east-2',maxAttempts:1}),ses=new SESv2Client({region:'us-east-2',maxAttempts:1})
   async function invoke<T>(task:string,body:unknown):Promise<T>{const result=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task,...body as object}))}));if(result.FunctionError||!result.Payload)throw new Error('Private account operation failed');const value=JSON.parse(Buffer.from(result.Payload).toString());if(task==='account-invitation-queue'&&(!value||value.statusCode))throw new Error('Private invitation queue failed');return value as T}
   try {
-    if('requestContext'in event||'version'in event)return await handleDirectory(event as unknown as APIGatewayProxyEventV2WithJWTAuthorizer,apiConfiguration(),{getUser:token=>cognito.send(new GetUserCommand({AccessToken:token})),store:input=>invoke('account-directory',input)})
+    if('requestContext'in event||'version'in event)return await handleDirectory(event as unknown as APIGatewayProxyEventV2WithJWTAuthorizer,apiConfiguration(),{getUser:token=>cognito.send(new GetUserCommand({AccessToken:token})),store:input=>invoke('account-directory',input),signInState:async subject=>((await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = ${JSON.stringify(subject)}`,Limit:1}))).Users??[]).length?'active':'deleted'})
     let ready=false
     for(let attempt=0;attempt<2;attempt++) {
       const probe=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from('{}')})),value=probe.Payload?JSON.parse(Buffer.from(probe.Payload).toString()):null

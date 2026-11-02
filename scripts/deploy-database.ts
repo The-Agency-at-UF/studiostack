@@ -1,10 +1,8 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { account, region, vpc, subnets, environments, infrastructure, executionPolicy, trust, roleArn } from '../infra/database/resources'
+import { execute } from './dev-aws'
 
-const execute = promisify(execFile)
 const stackName = 'studiostack-database-connections'
 const directory = resolve('.aws/database-deployment')
 type Cluster = { DBClusterIdentifier: string; Status: string; Endpoint: string; DatabaseName: string; Port: number; MasterUserSecret: { SecretArn: string }; VpcSecurityGroups: { VpcSecurityGroupId: string }[] }
