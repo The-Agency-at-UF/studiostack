@@ -57,6 +57,12 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
       if(owners.rows.length<2)throw new ApiError(409,'Keep at least one active organization owner')
     }
     await client.query('UPDATE app.organization_memberships SET role=$3,status=$4,version=version+1 WHERE organization_id=$1 AND user_id=$2',[organizationId,current.id,v.role,v.status]);kind='member_updated';details={fromRole:current.role,role:v.role,fromStatus:current.status,status:v.status}
+    if(v.status!=='active'){
+      // Production review and ELT roles end with the membership; restoring it does not restore them.
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`production-settings:${organizationId}`])
+      const pruned=await client.query('UPDATE app.production_settings SET reviewer_ids=array_remove(reviewer_ids,$2),executive_ids=array_remove(executive_ids,$2),version=version+1 WHERE organization_id=$1 AND $2::uuid=ANY(reviewer_ids||executive_ids) RETURNING version',[organizationId,current.id])
+      if(pruned.rows.length)details.productionRolesRemoved=true
+    }
   }
   await client.query('INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7)',[organizationId,user.id,kind,targetId,details,input.requestId,fingerprint])
   return resource==='settings'?{...await settings(),role}:member(targetId)

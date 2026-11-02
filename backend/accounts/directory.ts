@@ -4,13 +4,19 @@ import {ApiError,object,text,uuid} from '../database/api-validation'
 import {onboardingTask} from './onboarding'
 import {emailPattern} from '../../src/types/patterns'
 export const directoryActions=['list','accept','overview','join-domain','join-code','request-access','withdraw-request'] as const
-export interface DirectoryRequest {action:typeof directoryActions[number];identity:{issuer:string;subject:string;email:string};invitationId?:string;organizationId?:string;code?:string;message?:string;requestId?:string}
+export interface PreviousSignIn {subject:string;state:'deleted'|'active'}
+export interface DirectoryRequest {action:typeof directoryActions[number];identity:{issuer:string;subject:string;email:string};previousSignIn?:PreviousSignIn;invitationId?:string;organizationId?:string;code?:string;message?:string;requestId?:string}
+/** Returned instead of a result when another sign-in's account holds the verified email. */
+export interface AccountClaim {statusCode:409;error:string;accountClaim:{previousSubject:string}}
+export const emailInUse='This email is linked to another StudioStack sign-in. Ask your workspace administrator for help.'
 const organizationActions=['accept','join-domain','request-access','withdraw-request']
 export function directoryRequest(input:unknown,pool:string):DirectoryRequest {
-  const v=object(input,['action','identity','invitationId','organizationId','code','message','requestId']),identity=object(v.identity,['issuer','subject','email'])
+  const v=object(input,['action','identity','previousSignIn','invitationId','organizationId','code','message','requestId']),identity=object(v.identity,['issuer','subject','email'])
   if(!directoryActions.includes(v.action as DirectoryRequest['action'])||identity.issuer!==`https://cognito-idp.us-east-2.amazonaws.com/${pool}`)throw new ApiError(400,'Invalid directory operation')
   const action=v.action as DirectoryRequest['action'],email=text(identity.email,254).toLowerCase();if(!emailPattern.test(email))throw new ApiError(400,'A verified email is required')
-  return {action,identity:{issuer:String(identity.issuer),subject:uuid(identity.subject),email},
+  const previous=v.previousSignIn===undefined?undefined:object(v.previousSignIn,['subject','state'])
+  if(previous&&!['deleted','active'].includes(String(previous.state)))throw new ApiError(400,'Invalid directory operation')
+  return {action,identity:{issuer:String(identity.issuer),subject:uuid(identity.subject),email},...(previous?{previousSignIn:{subject:uuid(previous.subject),state:previous.state as PreviousSignIn['state']}}:{}),
     ...(organizationActions.includes(action)?{organizationId:uuid(v.organizationId)}:{}),...(action==='accept'?{invitationId:uuid(v.invitationId)}:{}),
     ...(action==='join-code'?{code:text(v.code,32)}:{}),...(action==='request-access'&&v.message!==undefined?{message:text(v.message,500)}:{}),...(action==='withdraw-request'?{requestId:uuid(v.requestId)}:{})}
 }
@@ -42,9 +48,12 @@ export async function directoryTask(client:DatabaseClient,request:DirectoryReque
   try {
     return await inTransaction(client,async()=>{
     const {identity}=request
-    const user=(await client.query('SELECT id,display_name AS "displayName" FROM app.users WHERE cognito_issuer=$1 AND cognito_subject=$2',[identity.issuer,identity.subject])).rows[0]
-    if(!user)throw new ApiError(404,'Sign in and register the account before accepting invitations')
-    await client.query('UPDATE app.users SET email=$2 WHERE id=$1',[user.id,identity.email])
+    // One account per verified email: link or release it before anything reads by email.
+    const claim=(await client.query('SELECT account_id AS "accountId",conflicting_subject AS "conflictingSubject",merge_blocked AS "mergeBlocked" FROM app.claim_account_email($1,$2,$3,$4,$5)',[identity.issuer,identity.subject,identity.email,request.previousSignIn?.subject??null,request.previousSignIn?.state??null])).rows[0] as {accountId:string|null;conflictingSubject:string|null;mergeBlocked:boolean}
+    if(claim.conflictingSubject)return {statusCode:409,error:emailInUse,accountClaim:{previousSubject:claim.conflictingSubject}} satisfies AccountClaim
+    if(claim.mergeBlocked)throw new ApiError(409,emailInUse)
+    if(!claim.accountId)throw new ApiError(404,'Sign in and register the account before accepting invitations')
+    const user=(await client.query('SELECT id,display_name AS "displayName" FROM app.users WHERE id=$1',[claim.accountId])).rows[0]
     const result=['list','accept'].includes(request.action)?await invitationTask(client,request,user)
       :await onboardingTask(client,request,user,async()=>((await invitationTask(client,{...request,action:'list'},user)) as {items:unknown[]}).items)
     return result
