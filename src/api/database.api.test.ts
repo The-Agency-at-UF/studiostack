@@ -295,8 +295,13 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     const serialized = JSON.stringify(template)
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
     expect(serialized).toContain(`${config.apiId}/*/*/*`)
-    expect(Object.values(template.Resources).filter((r:unknown)=>(r as {Type:string}).Type==='AWS::Lambda::Permission')).toHaveLength(1)
+    expect(Object.values(template.Resources).filter((r:unknown)=>(r as {Type:string}).Type==='AWS::Lambda::Permission').map(r=>(r as {Properties:{Principal:string}}).Properties.Principal)).toEqual(['apigateway.amazonaws.com','events.amazonaws.com'])
     expect(serialized).not.toMatch(/AWS::IAM::Role|AWS::Lambda::Url|ixzikwz8n5|rds!cluster|photos\/uploads/)
+  })
+  it('schedules the retention task daily through EventBridge only',()=>{
+    const {Resources}=databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId }) as unknown as {Resources:Record<string,{Type:string;Properties:Record<string,unknown>}>}
+    expect(Resources.RetentionSchedule).toMatchObject({Type:'AWS::Events::Rule',Properties:{ScheduleExpression:'rate(1 day)',State:'ENABLED',Targets:[{Arn:expect.stringMatching(/:function:studiostack-dev-database$/),Input:'{"task":"database-retention"}'}]}})
+    expect(Resources.RetentionPermission).toMatchObject({Type:'AWS::Lambda::Permission',Properties:{FunctionName:'studiostack-dev-database',Principal:'events.amazonaws.com',SourceArn:{'Fn::GetAtt':['RetentionSchedule','Arn']}}})
   })
   it('validates the signed-in bug report and strips unknown fields',async()=>{
     const execute=vi.fn().mockResolvedValue({id:requestId}),handler=createDatabaseApiHandler({execute},config,()=>now)
