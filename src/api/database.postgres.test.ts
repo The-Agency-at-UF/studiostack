@@ -20,6 +20,7 @@ import pg from 'pg'
 import type { createDatabase, DatabaseClient } from '../../backend/database/client'
 import { loadMigrations } from '../../backend/database/migrations'
 import { databaseApiGrants } from '../../backend/database/api-grants'
+import { retentionTask } from '../../backend/database/retention'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
 import type { ApiEquipment, ApiPage, ApiReservation, ApiUser, ApiOrganization } from '../types/database-api'
@@ -839,5 +840,24 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const prune=(await loadMigrations()).find(m=>m.name==='014_prune_inactive_production_roles.sql')!
     await operator.query(prune.sql)
     expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+3,reviewerIds:current.reviewerIds,executiveIds:current.executiveIds})
+  })
+  it('retention purges only past-retention uploads, join attempts and read alerts through the runtime role',async()=>{
+    const old="now()-interval '8 days'",ancient="now()-interval '181 days'"
+    const upload=(expires:string)=>operator.query(`INSERT INTO app.photo_uploads(organization_id,uploaded_by,request_id,content_type,input_size,staging_key,expires_at) VALUES($1,$2,gen_random_uuid(),'image/jpeg',10,gen_random_uuid()::text,${expires}) RETURNING id`,[organizationId,profiles.owner.id])
+    const expired=(await upload(old)).rows[0].id,recent=(await upload("now()-interval '1 day'")).rows[0].id
+    await operator.query(`INSERT INTO app.join_code_attempts(user_id,attempted_at) VALUES($1,${old}),($1,now())`,[profiles.outsider.id])
+    const alert=(read:string,status='skipped')=>operator.query(`INSERT INTO app.user_alerts(organization_id,recipient_id,kind,title,message,target_path,dedupe_key,read_at,email_status) VALUES($1,$2,'report_update','Old','Old alert','/reservations/?reservation='||gen_random_uuid(),gen_random_uuid()::text,${read},$3) RETURNING id`,[organizationId,profiles.owner.id,status])
+    const purged=(await alert(ancient)).rows[0].id,kept=[(await alert("now()-interval '10 days'")).rows[0].id,(await alert(ancient,'pending')).rows[0].id]
+    const connection=new pg.Client({connectionString})
+    try{
+      await connection.connect();await connection.query('SET ROLE "studiostack_dev_app"')
+      await expect(connection.query('DELETE FROM app.join_code_attempts')).rejects.toMatchObject({code:'42501'})
+      expect(await retentionTask(connection,{})).toEqual({photoUploads:1,joinCodeAttempts:1,readAlerts:1})
+      expect(await retentionTask(connection,{})).toEqual({photoUploads:0,joinCodeAttempts:0,readAlerts:0})
+    }finally{await connection.end()}
+    expect((await operator.query('SELECT id FROM app.photo_uploads WHERE id=ANY($1::uuid[])',[[expired,recent]])).rows.map(r=>r.id)).toEqual([recent])
+    expect((await operator.query('SELECT id FROM app.user_alerts WHERE id=ANY($1::uuid[]) ORDER BY id',[[purged,...kept]])).rows.map(r=>r.id)).toEqual([...kept].sort())
+    expect(Number((await operator.query('SELECT count(*) FROM app.join_code_attempts WHERE user_id=$1',[profiles.outsider.id])).rows[0].count)).toBeGreaterThan(0)
+    expect((await operator.query("SELECT has_function_privilege('public','app.purge_expired_rows()','EXECUTE') AS public")).rows[0].public).toBe(false)
   })
 })
