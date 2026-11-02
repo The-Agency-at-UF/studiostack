@@ -9,7 +9,7 @@ import type { BriefStorage } from './storage'
 import { isAdmin, pageOf, requestHash } from '../database/repository-utils'
 export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; clientId?:string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
 export type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
-const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
+const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data || jsonb_build_object('clientAccountId', b.client_account_id) AS data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
 const deny = (message = 'You do not have permission for this action'): never => { throw new ApiError(403, message) }
 const conflict = (message = 'This brief changed. Reload it before saving.'): never => { throw new ApiError(409, message) }
 const defaultSettings = (): ProductionSettings => ({ version: 0, reviewerIds: [], executiveIds: [], approvalConfirmsDates: true })
@@ -55,6 +55,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     }
     return result.rows[0].id as string
   }
+  // client_account_id is the only stored copy; reads project it back into data.
+  const stored=({clientAccountId,...data}:BriefData)=>({data,clientAccountId:clientAccountId??null})
   async function resolveClient(data:BriefData,previous?:BriefData){
     if(!data.clientAccountId)return
     const account=(await client.query('SELECT name,archived_at FROM app.client_accounts WHERE organization_id=$1 AND id=$2 FOR SHARE',[organizationId,data.clientAccountId])).rows[0]
@@ -97,7 +99,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     const previous = (await client.query('SELECT id, request_hash FROM app.production_briefs WHERE organization_id = $1 AND owner_id = $2 AND request_id = $3', [organizationId, user.id, requestId])).rows[0]
     if (previous) { if (previous.request_hash !== fingerprint) conflict('Request ID already used for different content'); request.briefId = previous.id; return detail(await getBrief()) }
     await resolveClient(data)
-    const inserted = await client.query('INSERT INTO app.production_briefs (organization_id, owner_id, data, request_id, request_hash,client_account_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [organizationId, user.id, data, requestId, fingerprint,data.clientAccountId??null])
+    const row=stored(data)
+    const inserted = await client.query('INSERT INTO app.production_briefs (organization_id, owner_id, data, request_id, request_hash,client_account_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [organizationId, user.id, row.data, requestId, fingerprint,row.clientAccountId])
     request.briefId = inserted.rows[0].id
     const brief = await getBrief()
     await event(brief, 'created', requestId, fingerprint)
@@ -124,7 +127,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (expected !== brief.version) conflict()
     await resolveClient(data,brief.data)
     brief.data = data; brief.version++
-    await client.query('UPDATE app.production_briefs SET data = $3, version = $4,client_account_id=$5, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, data, brief.version,data.clientAccountId??null])
+    const row=stored(data)
+    await client.query('UPDATE app.production_briefs SET data = $3, version = $4,client_account_id=$5, updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id, row.data, brief.version,row.clientAccountId])
     await event(brief, 'saved', requestId, fingerprint)
     return detail(await getBrief())
   }
