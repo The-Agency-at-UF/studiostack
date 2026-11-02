@@ -27,12 +27,14 @@ function fieldError(field:Field,values:Values,step:PasswordFormStep){
 }
 const serverField:Record<string,Field>={UsernameExistsException:'email',InvalidPasswordException:'password',CodeMismatchException:'code',ExpiredCodeException:'code'}
 export default function PasswordForm({onAuthenticated,onBusyChange,onStepChange,configured=true}:{onAuthenticated:(user:SignedInUser)=>Promise<void>;onBusyChange?:(busy:boolean)=>void;onStepChange?:(step:PasswordFormStep)=>void;configured?:boolean}) {
-  const [step,setStep]=useState<PasswordFormStep>('sign-in'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirmation,setConfirmation]=useState(''),[code,setCode]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[errors,setErrors]=useState<Partial<Record<Field,string>>>({}),[touched,setTouched]=useState<Partial<Record<Field,boolean>>>({})
+  const [step,setStep]=useState<PasswordFormStep>('sign-in'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirmation,setConfirmation]=useState(''),[code,setCode]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[errors,setErrors]=useState<Partial<Record<Field,string>>>({}),[touched,setTouched]=useState<Partial<Record<Field,boolean>>>({}),[hydrated,setHydrated]=useState(false)
   const emailInput=useRef<HTMLInputElement>(null),passwordInput=useRef<HTMLInputElement>(null),codeInput=useRef<HTMLInputElement>(null),confirmInput=useRef<HTMLInputElement>(null)
   const inputs:Record<Field,typeof emailInput>={email:emailInput,code:codeInput,password:passwordInput,confirmation:confirmInput}
   const values:Values={email,code,password,confirmation}
   const emailLocked=step==='new-password'||step==='reset'||step==='confirm-sign-up'
   const verifying=step==='confirm-sign-up',choosingPassword=step==='reset'||step==='new-password'||step==='sign-up'
+  // Until React attaches onSubmit, a native submit would put the password in the URL.
+  useEffect(()=>setHydrated(true),[])
   useEffect(()=>{(step==='reset'||step==='confirm-sign-up'?codeInput:step==='new-password'?passwordInput:emailInput).current?.focus()},[step])
   function changeStep(next:PasswordFormStep){setStep(next);onStepChange?.(next);setError('');setErrors({});setTouched({});setNotice('');setPassword('');setConfirmation('');setCode('');setVisible(false)}
   async function finish(result:PasswordStep){
@@ -82,7 +84,7 @@ export default function PasswordForm({onAuthenticated,onBusyChange,onStepChange,
     catch(e){showServerError(e)}finally{setBusy(false);onBusyChange?.(false)}
   }
   const passwordLabel=choosingPassword&&step!=='sign-up'?'New password':'Password'
-  return <form className="login-password-form" onSubmit={submit} noValidate aria-label={step==='sign-up'||verifying?'StudioStack account sign-up':'StudioStack account sign-in'}><fieldset disabled={busy||!configured}>
+  return <form className="login-password-form" method="post" onSubmit={submit} noValidate aria-label={step==='sign-up'||verifying?'StudioStack account sign-up':'StudioStack account sign-in'}><fieldset disabled={busy||!configured||!hydrated}>
     {!onStepChange&&step!=='sign-in'&&<div className="login-step-heading"><h2>{titles[step]}</h2></div>}
     <div className="login-field"><label htmlFor="studio-email">Email<input id="studio-email" ref={emailInput} name="email" type="email" autoComplete="username" value={email} maxLength={254} readOnly={emailLocked} aria-invalid={invalid('email')||undefined} aria-describedby={describedBy('email')} onChange={e=>update('email',e.target.value)} onBlur={()=>blur('email')} required/></label>{fieldMessage('email')}</div>
     {(step==='reset'||verifying)&&<div className="login-field"><label htmlFor="studio-code">{verifying?'Email verification code':'Email reset code'}<input id="studio-code" ref={codeInput} name="code" autoComplete="one-time-code" inputMode="numeric" maxLength={12} value={code} aria-invalid={invalid('code')||undefined} aria-describedby={describedBy('code')} onChange={e=>update('code',e.target.value)} onBlur={()=>blur('code')} required/></label>{fieldMessage('code')}</div>}
