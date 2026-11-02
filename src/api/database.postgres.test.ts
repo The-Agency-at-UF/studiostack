@@ -13,7 +13,7 @@ import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/acc
 import type {AccountRequest} from '../../backend/accounts/routes'
 import type {JoinCode,ManagedMember,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
-import { emptyBrief, type ProductionBrief, type BriefCommand } from '../types/production'
+import { emptyBrief, type ProductionBrief, type BriefCommand, type ProductionSettings } from '../types/production'
 import { randomUUID } from 'node:crypto'
 import { beforeAll, afterAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
@@ -816,5 +816,22 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await operator.query('BEGIN');await operator.query(databaseApiGrants('dev'));await operator.query('COMMIT')
     expect(await privileges()).toEqual(expected)
     expect(expected).not.toContain('inventory:DELETE')
+  })
+  it('accounts: suspending a member ends their production review and ELT roles for good',async()=>{
+    const current=await production(owner,{resource:'settings',method:'GET'}) as ProductionSettings
+    const body={version:current.version,reviewerIds:[...current.reviewerIds,profiles.member.id],executiveIds:[...current.executiveIds,profiles.member.id],approvalConfirmsDates:true}
+    expect(await production(owner,{resource:'settings',method:'PATCH',body})).toMatchObject({version:current.version+1})
+    expect(await production(member,{resource:'access',method:'GET'})).toMatchObject({canReview:true,isExecutive:true})
+    const setStatus=async(status:'active'|'suspended')=>{const m=await accountMember(member);return account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:m.role,status,version:m.version,requestId:randomUUID()}})}
+    await setStatus('suspended')
+    expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+2,reviewerIds:current.reviewerIds,executiveIds:current.executiveIds})
+    expect((await operator.query("SELECT details FROM app.organization_audit_events WHERE organization_id=$1 AND target_id=$2 AND kind='member_updated' ORDER BY created_at DESC LIMIT 1",[organizationId,profiles.member.id])).rows[0].details).toMatchObject({status:'suspended',productionRolesRemoved:true})
+    await setStatus('active')
+    expect(await production(member,{resource:'access',method:'GET'})).toMatchObject({canReview:false,isExecutive:false})
+    expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+2})
+    await operator.query('UPDATE app.production_settings SET reviewer_ids=reviewer_ids||$2::uuid,executive_ids=executive_ids||$2::uuid WHERE organization_id=$1',[organizationId,profiles.suspended.id])
+    const prune=(await loadMigrations()).find(m=>m.name==='014_prune_inactive_production_roles.sql')!
+    await operator.query(prune.sql)
+    expect(await production(owner,{resource:'settings',method:'GET'})).toMatchObject({version:current.version+3,reviewerIds:current.reviewerIds,executiveIds:current.executiveIds})
   })
 })
