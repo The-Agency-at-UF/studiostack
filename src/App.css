@@ -947,6 +947,10 @@
 .login-password-form input { width:100%;height:50px;padding:12px 14px;background:rgba(255,255,255,.65);border:1px solid var(--line);border-radius:0;color:var(--ink);font-size:15px;outline:none;transition:border-color .15s,box-shadow .15s; }
 .login-password-form input:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(113,56,184,.1); }
 .login-password-form input:read-only { background:transparent;color:var(--muted); }
+.login-field { display:grid;gap:6px; }
+.login-password-form input[aria-invalid=true] { border-color:var(--danger,#a3232e); }
+.login-password-form input[aria-invalid=true]:focus { box-shadow:0 0 0 3px rgba(163,35,46,.12); }
+.login-field-error { margin:0;color:var(--danger,#a3232e);font-size:12px;line-height:1.5; }
 .login-password-input { position:relative;display:block; }
 .login-password-input input { padding-right:46px; }
 .login-password-toggle { position:absolute;right:10px;top:0;height:50px;padding:0 4px;color:var(--muted); }
