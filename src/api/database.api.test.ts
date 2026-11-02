@@ -6,8 +6,8 @@ import {accountRequest,accountRoutes,joinMethodRoutes} from '../../backend/accou
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
-import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, databaseApiScope } from '../../backend/database/api'
-import { ApiError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
+import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, retiredRoutes, databaseApiScope } from '../../backend/database/api'
+import { ApiError, constraintError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
 import type { createDatabase } from '../../backend/database/client'
@@ -119,6 +119,7 @@ describe('trusted API identity and strict HTTP inputs', () => {
     request.isBase64Encoded = false; request.body = 'x'.repeat(25000)
     expect((await handler(request)).statusCode).toBe(400)
     expect((await handler(event('GET /sql'))).statusCode).toBe(404)
+    for (const route of retiredRoutes) expect((await handler(event(route, {}))).statusCode).toBe(404)
   })
   it('redacts driver and credential details', async () => {
     const response = await createDatabaseApiHandler({ execute: vi.fn().mockRejectedValue(new Error('password=SECRET; SELECT private')) }, config, () => now)(event())
@@ -171,10 +172,9 @@ describe('tenant authorization and atomic repository operations', () => {
     expect(select[1]).toEqual([org, null, 11])
     expect(query.mock.calls.at(-1)?.[0]).toBe('COMMIT')
   })
-  it.each(['members', 'createGroup', 'createEquipment', 'updateEquipment'] as const)('requires an admin for %s', async operation => {
+  it.each(['members', 'createEquipment', 'updateEquipment'] as const)('requires an admin for %s', async operation => {
     const { repository, query } = repoFixture()
     const request = operation === 'members' ? { operation, organizationId: org, page: { limit: 50, after: null } }
-      : operation === 'createGroup' ? { operation, organizationId: org, name: 'Editors' }
       : operation === 'createEquipment' ? { operation, organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' as const } }
       : { operation, organizationId: org, itemId, input: { name: 'Changed' } }
     await expect(repository.execute(identity, request)).rejects.toMatchObject({ status: 403 })
@@ -185,8 +185,16 @@ describe('tenant authorization and atomic repository operations', () => {
     await repository.execute(identity, { operation: 'register', displayName })
     const insert = query.mock.calls.find(call => call[0].startsWith('INSERT'))!
     expect(insert[0]).not.toContain(displayName)
-    expect(insert[1]).toEqual([identity.issuer, identity.subject, null, displayName])
+    expect(insert[1]).toEqual([identity.issuer, identity.subject, displayName])
     expect(query.mock.calls.some(call => /INSERT INTO app.organization/.test(call[0]))).toBe(false)
+  })
+  it('never attaches a token email at registration; only the verified directory claim does', async () => {
+    const { repository, query } = repoFixture()
+    await repository.execute({ ...identity, email: 'someone@example.org' }, { operation: 'register', displayName: null })
+    const insert = query.mock.calls.find(call => call[0].startsWith('INSERT'))!
+    expect(insert[0]).toContain('INSERT INTO app.users (cognito_issuer, cognito_subject, display_name)')
+    expect(insert[0]).not.toMatch(/SET[^]*email\s*=/)
+    expect(insert[1]).not.toContain('someone@example.org')
   })
   it('restricts regular reservation lists to the caller', async () => {
     const { repository, query } = repoFixture()
@@ -243,8 +251,20 @@ describe('tenant authorization and atomic repository operations', () => {
       if (sql.startsWith('INSERT')) throw { code: '23505', detail: 'PRIVATE' }
       return { rows: sql.includes('FROM app.users WHERE') ? [user] : sql.includes('SELECT m.role FROM') ? [{ role: 'admin' }] : [], rowCount: 0 }
     })
-    await expect(fixture.repository.execute(identity, { operation: 'createGroup', organizationId: org, name: 'Editors' })).rejects.toMatchObject({ status: 409, message: 'A record with these unique details already exists' })
+    await expect(fixture.repository.execute(identity, { operation: 'createEquipment', organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' } })).rejects.toMatchObject({ status: 409, message: 'A record with these unique details already exists' })
     expect(fixture.query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK')
+  })
+  it.each([['23503', 409, 'A related record changed or no longer exists'], ['23514', 400, 'Invalid request values'], ['22P02', 400, 'Invalid request values']])('maps constraint error %s to a generic %i and rolls back', async (code, status, message) => {
+    const fixture = repoFixture('admin')
+    fixture.query.mockImplementation(async sql => {
+      if (sql.startsWith('INSERT')) throw { code, detail: 'PRIVATE' }
+      return { rows: sql.includes('FROM app.users WHERE') ? [user] : sql.includes('SELECT m.role FROM') ? [{ role: 'admin' }] : [], rowCount: 0 }
+    })
+    await expect(fixture.repository.execute(identity, { operation: 'createEquipment', organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' } })).rejects.toEqual(new ApiError(status as 400 | 409, message))
+    expect(fixture.query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK')
+  })
+  it('leaves permission and unknown driver errors to the redacted unavailable path', () => {
+    for (const error of [{ code: '42501' }, { code: '40001' }, new Error('PRIVATE'), null]) expect(constraintError(error)).toBeUndefined()
   })
 })
 
@@ -275,13 +295,21 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length)
+    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length - retiredRoutes.size)
+    // Retired routes keep their slots, so later route resource IDs do not shift.
+    expect(routes.some(route => retiredRoutes.has(route.Properties.RouteKey))).toBe(false)
+    expect((template.Resources.Route6 as { Properties: { RouteKey: string } }).Properties.RouteKey).toBe('GET /organizations/{organizationId}/inventory')
     expect(routes.every(route => route.Properties.AuthorizationType === 'JWT' && route.Properties.AuthorizationScopes.includes(databaseApiScope))).toBe(true)
     const serialized = JSON.stringify(template)
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(51200)
     expect(serialized).toContain(`${config.apiId}/*/*/*`)
-    expect(Object.values(template.Resources).filter((r:unknown)=>(r as {Type:string}).Type==='AWS::Lambda::Permission')).toHaveLength(1)
+    expect(Object.values(template.Resources).filter((r:unknown)=>(r as {Type:string}).Type==='AWS::Lambda::Permission').map(r=>(r as {Properties:{Principal:string}}).Properties.Principal)).toEqual(['apigateway.amazonaws.com','events.amazonaws.com'])
     expect(serialized).not.toMatch(/AWS::IAM::Role|AWS::Lambda::Url|ixzikwz8n5|rds!cluster|photos\/uploads/)
+  })
+  it('schedules the retention task daily through EventBridge only',()=>{
+    const {Resources}=databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId }) as unknown as {Resources:Record<string,{Type:string;Properties:Record<string,unknown>}>}
+    expect(Resources.RetentionSchedule).toMatchObject({Type:'AWS::Events::Rule',Properties:{ScheduleExpression:'rate(1 day)',State:'ENABLED',Targets:[{Arn:expect.stringMatching(/:function:studiostack-dev-database$/),Input:'{"task":"database-retention"}'}]}})
+    expect(Resources.RetentionPermission).toMatchObject({Type:'AWS::Lambda::Permission',Properties:{FunctionName:'studiostack-dev-database',Principal:'events.amazonaws.com',SourceArn:{'Fn::GetAtt':['RetentionSchedule','Arn']}}})
   })
   it('validates the signed-in bug report and strips unknown fields',async()=>{
     const execute=vi.fn().mockResolvedValue({id:requestId}),handler=createDatabaseApiHandler({execute},config,()=>now)

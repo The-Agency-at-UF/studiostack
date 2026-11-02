@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { readFile, writeFile, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { aws, guardDevApply, devDirectory, pause } from './dev-aws'
+import { aws, guardDevApply, devDirectory, pause, execute } from './dev-aws'
 import { readMetadata } from './deploy-dev-api'
-const execute = promisify(execFile)
 async function main() {
   await guardDevApply()
   const metadata = await readMetadata(), name = 'studiostack-development'

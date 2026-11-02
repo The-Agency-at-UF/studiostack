@@ -1,11 +1,8 @@
-import {execFile} from 'node:child_process'
-import {promisify} from 'node:util'
 import {mkdir,readFile,writeFile,appendFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
-import {aws,pause} from './dev-aws'
+import {aws,pause,execute,applyEnvironment} from './dev-aws'
 import {account} from '../infra/database/resources'
 import {verifyStaticRoutes} from './verify-static-routes'
-const execute=promisify(execFile)
 
 /** Public build settings per environment. These values ship in the website bundle; no secrets belong here. */
 export const webTargets={
@@ -24,7 +21,7 @@ export function webBuildEnv(environment:WebEnvironment):Record<string,string>{
 
 /** Build, publish and byte-verify the static site. Publishing only: no Cognito, API or storage changes. */
 async function main(){
-  const flag=process.argv.slice(2).join(' '),environment:WebEnvironment|undefined=flag==='--apply-dev'?'dev':flag==='--apply-prod'?'prod':undefined
+  const environment:WebEnvironment|undefined=applyEnvironment()
   if(!environment)throw new Error('Explicit --apply-dev or --apply-prod required')
   if((await aws<{Account:string}>('sts','get-caller-identity')).Account!==account)throw new Error('Unexpected AWS account')
   const t=webTargets[environment],origin=webOrigin(environment)

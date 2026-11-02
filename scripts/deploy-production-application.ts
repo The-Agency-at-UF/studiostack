@@ -1,16 +1,13 @@
 import {emailConfigurationSet} from './email-configuration'
 import {sendProductionOwnerInvitation} from './send-production-owner-invitation'
-import {execFile} from 'node:child_process'
-import {promisify} from 'node:util'
 import {mkdir,readFile,writeFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
-import {aws,applyStack,pause,waitFunction} from './dev-aws'
+import {aws,applyStack,pause,waitFunction,execute} from './dev-aws'
 import {guardProductionApply,productionMetadata,prodDirectory,approvedProductionEmail} from './prod-aws'
 import {accountInfrastructure} from '../infra/production/accounts'
 import {productionNotificationInfrastructure} from '../infra/production/notifications'
 import {productionAuthInfrastructure} from '../infra/production/auth'
 import {verifyStaticRoutes} from './verify-static-routes'
-const execute=promisify(execFile)
 async function main(){
  await guardProductionApply();const metadata=await productionMetadata(),routes=metadata.routes;if(!routes)throw new Error('Production API must be verified first')
  const {app}=await aws<{app:{tags:Record<string,string>;defaultDomain:string}}>('amplify','get-app',['--app-id',metadata.app.appId]);if(app.tags.ManagedBy!=='StudioStack'||app.tags.Environment!=='prod'||metadata.app.origin!==`https://${metadata.app.branch}.${app.defaultDomain}`)throw new Error('Unexpected production hosting app')

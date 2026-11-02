@@ -1,7 +1,7 @@
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
 import {object,pagination,text,uuid} from '../database/api-validation'
 import type {Page} from '../database/api-repository'
-export interface AccountRequest {operation:'accounts'; organizationId:string; resource:string; method:string; memberId?:string; teamId?:string; invitationId?:string; domain?:string; codeId?:string; accessRequestId?:string; action?:string; body?:unknown; page:Page}
+export interface AccountRequest {operation:'accounts'; organizationId:string; resource:string; method:string; memberId?:string; invitationId?:string; domain?:string; codeId?:string; accessRequestId?:string; action?:string; body?:unknown; page:Page}
 const prefix='/organizations/{organizationId}/administration'
 // Deployed route IDs follow list order, so the infrastructure appends this newer route last.
 export const organizationDirectoryRoute=`GET ${prefix}/directory`
@@ -29,7 +29,7 @@ export function accountRequest(event:APIGatewayProxyEventV2WithJWTAuthorizer,bod
   const method=event.requestContext.http.method,resource=event.routeKey.split(' ')[1].slice(prefix.length).split('/')[1]
   if(method!=='GET')object(event.queryStringParameters??{},[])
   return {operation:'accounts',organizationId:uuid(event.pathParameters?.organizationId),resource,method,page:method==='GET'?pagination(event.queryStringParameters??{}):{limit:100,after:null},
-    ...(event.pathParameters?.memberId?{memberId:uuid(event.pathParameters.memberId)}:{}),...(event.pathParameters?.teamId?{teamId:uuid(event.pathParameters.teamId)}:{}),
+    ...(event.pathParameters?.memberId?{memberId:uuid(event.pathParameters.memberId)}:{}),
     ...(event.pathParameters?.invitationId?{invitationId:uuid(event.pathParameters.invitationId),action:event.routeKey.split('/').at(-1)}:{}),
     ...(event.pathParameters?.domain?{domain:text(event.pathParameters.domain,253).toLowerCase(),action:method==='PATCH'?'update':event.routeKey.split('/').at(-1)}:{}),
     ...(event.pathParameters?.codeId?{codeId:uuid(event.pathParameters.codeId),action:event.routeKey.split('/').at(-1)}:{}),

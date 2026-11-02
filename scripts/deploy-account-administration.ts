@@ -1,13 +1,10 @@
 import {emailConfigurationSet} from './email-configuration'
-import {execFile} from 'node:child_process'
-import {promisify} from 'node:util'
 import {mkdir,readFile,writeFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
 import {accountInfrastructure} from '../infra/production/accounts'
 import {devAuthInfrastructure} from '../infra/database/dev-auth'
 import {readMetadata} from './deploy-dev-api'
-import {aws,applyStack,guardDevApply,devDirectory,invoke} from './dev-aws'
-const execute=promisify(execFile)
+import {aws,applyStack,guardDevApply,devDirectory,invoke,execute} from './dev-aws'
 async function main(){
   await guardDevApply()
   const metadata=await readMetadata(),web=JSON.parse(await readFile(`${devDirectory}/web-deployment.json`,'utf8')) as {origin:string}

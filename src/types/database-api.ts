@@ -5,7 +5,6 @@ export type EquipmentStatus = 'available' | 'maintenance' | 'retired'
 export interface ApiUser { id: string; email: string | null; displayName: string | null }
 export interface ApiOrganization { id: string; slug: string; name: string; role: 'owner' | 'admin' | 'member' }
 export interface ApiMember extends ApiUser { role: ApiOrganization['role']; status: 'invited' | 'active' | 'suspended' }
-export interface ApiGroup { id: string; name: string }
 export interface ApiEquipment { id: string; equipmentCode: string; name: string; category: EquipmentCategory; status: EquipmentStatus; createdAt: string; photoId: string | null }
 export interface ApiReservation { readOnly?: boolean; clientAccountId?:string|null; id: string; userId: string; name: string; startsAt: string; endsAt: string; status: 'confirmed' | 'cancelled'; equipmentIds: string[]; createdAt: string }
 export interface ApiBugReport {id:string;title:string;description:string;pagePath:string;createdAt:string}
