@@ -4,6 +4,18 @@ import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUp
 export class ApiError extends Error {
   constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 503, message: string) { super(message) }
 }
+/** Generic client error for an expected constraint failure; other driver errors stay a redacted 503. */
+export function constraintError(error: unknown): ApiError | undefined {
+  const code = (error as { code?: unknown })?.code
+  if (code === '23505') return new ApiError(409, 'A record with these unique details already exists')
+  if (code === '23503') return new ApiError(409, 'A related record changed or no longer exists')
+  if (code === '23514' || code === '22P02') return new ApiError(400, 'Invalid request values')
+  return undefined
+}
+/** JSON Lambda proxy response that is never cached or content-sniffed. */
+export function jsonResponse(statusCode: number, body: unknown, headers: Record<string, string> = {}) {
+  return { statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers }, body: JSON.stringify(body) }
+}
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function uuid(value: unknown): string {
   if (typeof value !== 'string' || !uuidPattern.test(value)) throw new ApiError(400, 'A valid UUID is required')

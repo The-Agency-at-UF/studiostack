@@ -5,6 +5,7 @@ import { createDatabase, DatabaseUnavailableError, parseCredentials } from '../.
 import type { DatabaseClient, DatabaseDependencies } from '../../backend/database/client'
 import { applyMigrations, loadMigrations, migrationOptions } from '../../backend/database/migrations'
 import { createDatabaseHandler } from '../../backend/database/handler'
+import { retentionTask } from '../../backend/database/retention'
 
 const env = {
   STUDIOSTACK_ENV: 'dev', AWS_REGION: 'us-east-2', RDS_AWS_ACCOUNT_ID: '111122223333',
@@ -177,5 +178,20 @@ describe('private database Lambda connection check', () => {
     const { database, client } = fixture()
     client.query.mockResolvedValue({ rows: [row], rowCount: 1 })
     return expect(createDatabaseHandler(database, config)()).rejects.toBeInstanceOf(DatabaseUnavailableError)
+  })
+})
+
+describe('scheduled retention', () => {
+  it('runs only the fixed purge function in one transaction and returns its counts', async () => {
+    const { client } = fixture()
+    const counts = { photoUploads: 1, joinCodeAttempts: 2, readAlerts: 3 }
+    client.query.mockImplementation(async (sql: string) => ({ rows: sql.includes('purge_expired_rows') ? [counts] : [], rowCount: 0 }))
+    expect(await retentionTask(client as unknown as DatabaseClient, {})).toEqual(counts)
+    expect(client.query.mock.calls.map(call => String(call[0]).split(' ')[0])).toEqual(['BEGIN', 'SELECT', 'COMMIT'])
+  })
+  it('rejects task input, since retention windows are not caller-controlled', async () => {
+    const { client } = fixture()
+    await expect(retentionTask(client as unknown as DatabaseClient, { days: 0 })).rejects.toThrow()
+    expect(client.query).not.toHaveBeenCalled()
   })
 })
