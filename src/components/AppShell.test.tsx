@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks(); mocks.pathname = '/login/'; mocks.preview = false; mocks.storedSession = null
   localStorage.clear(); window.history.replaceState(null, '', '/login/')
   sessionStorage.clear();mocks.restore.mockImplementation(async()=>mocks.storedSession?.user??null)
-  mocks.me.mockResolvedValue({}); mocks.register.mockResolvedValue({}); mocks.organizations.mockResolvedValue({ items: [] })
+  mocks.me.mockResolvedValue({}); mocks.register.mockResolvedValue({}); mocks.organizations.mockResolvedValue({ items: [{ id: 'org-1', name: 'Studio', role: 'member' }] })
   mocks.finish.mockResolvedValue({ label: 'member@example.test', subject: 'member-subject', expiresAt: Date.now() + 900_000 })
 })
 afterEach(cleanup)
@@ -149,6 +149,35 @@ describe('Session boundary', () => {
   })
 })
 
+describe('New account onboarding',()=>{
+  const saved={token:'saved-token',user:{label:'new@example.test',subject:'new-subject',expiresAt:Date.now()+900000}}
+  it('registers a new account and keeps it on /welcome/ without the workspace or tour',async()=>{
+    const {DatabaseApiClientError}=await import('../api/database')
+    mocks.pathname='/inventory/';mocks.storedSession=saved
+    mocks.me.mockRejectedValue(new (DatabaseApiClientError as unknown as new(status:number)=>Error)(404));mocks.register.mockResolvedValue({id:'u',email:null,displayName:'new@example.test',onboardedAt:null})
+    const view=render(<AppShell><Controls/></AppShell>)
+    await vi.waitFor(()=>expect(mocks.replace).toHaveBeenCalledWith('/welcome/'))
+    expect(mocks.register).toHaveBeenCalledWith('new@example.test')
+    expect(screen.getByText('Opening StudioStack…')).toBeInTheDocument();expect(screen.queryByText('Workspace navigation')).not.toBeInTheDocument()
+    mocks.pathname='/welcome/';view.rerender(<AppShell><Controls/></AppShell>)
+    expect(await screen.findByText('authenticated/new@example.test/false/token')).toBeInTheDocument()
+    expect(screen.queryByText('Workspace navigation')).not.toBeInTheDocument();expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('leaves an onboarded member in the workspace',async()=>{
+    mocks.pathname='/';mocks.storedSession=saved;mocks.me.mockResolvedValue({id:'u',email:null,displayName:'Member',onboardedAt:'2026-11-01T00:00:00Z'})
+    render(<AppShell><Controls/></AppShell>)
+    expect(await screen.findByText('Workspace navigation')).toBeInTheDocument()
+    expect(mocks.replace).not.toHaveBeenCalledWith('/welcome/')
+  })
+  it('sends a fresh sign-in to /welcome/ before any return path',async()=>{
+    sessionStorage.setItem('studiostack.return','/inventory/');mocks.me.mockResolvedValue({id:'u',email:null,displayName:null,onboardedAt:null})
+    render(<AppShell><Controls/></AppShell>)
+    fireEvent.click(await screen.findByRole('button',{name:'Complete Sign In'}))
+    await vi.waitFor(()=>expect(mocks.replace).toHaveBeenCalledWith('/welcome/'))
+    expect(mocks.replace).not.toHaveBeenCalledWith('/inventory/')
+  })
+})
+
 describe('Preview document hydration',()=>{
   it('renders the same initial document before reading browser preview storage',()=>{
     mocks.pathname='/';mocks.preview=true;
@@ -175,12 +204,12 @@ describe('Workspace tour',()=>{
     await screen.findByText('authenticated/member@example.test/false/token')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
-  it('waits while an account has no workspace to join yet',async()=>{
-    mocks.pathname='/'
+  it('sends an account without any organization to onboarding instead of the tour',async()=>{
+    mocks.pathname='/';mocks.organizations.mockResolvedValue({items:[]})
     mocks.storedSession={token:'saved-token',user:{label:'member@example.test',subject:'member',expiresAt:Date.now()+900000}}
     render(<AppShell><Controls/></AppShell>)
-    await screen.findByText('authenticated/member@example.test/false/token')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await vi.waitFor(()=>expect(mocks.replace).toHaveBeenCalledWith('/welcome/'))
+    expect(screen.queryByText('Workspace navigation')).not.toBeInTheDocument();expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
   it('shows the tour in preview but never on the sign-in page',async()=>{
     render(<AppShell><Controls/></AppShell>)

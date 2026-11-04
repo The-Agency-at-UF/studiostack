@@ -26,6 +26,9 @@ export interface AppSession {
   refreshOrganizations?: ()=>Promise<void>
   completeSignIn?: (user:SignedInUser)=>Promise<void>
   setAuthenticating?: (busy:boolean)=>void
+  /** True while a signed-in account must finish /welcome/ before using the workspace. */
+  needsWelcome?: boolean
+  markOnboarded?: ()=>void
 }
 const AppSessionContext = createContext<AppSession | null>(null)
 
