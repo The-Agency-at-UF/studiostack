@@ -909,4 +909,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email])).rejects.toMatchObject({code:'23505'})
     await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email.toUpperCase()])).rejects.toMatchObject({code:'23514'})
   })
+  it('onboarding: every new account joins the Agency once as a member and suspensions stay',async()=>{
+    const agency=(await operator.query("INSERT INTO app.organizations(slug,name) VALUES('agency-uf','The Agency at UF') RETURNING id")).rows[0].id as string
+    const identity=await newcomer(`${randomUUID()}@gmail.com`)
+    await repository.execute(identity,{operation:'register',displayName:'Again'})
+    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:agency,role:'member'})]})
+    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_signup'",[identity.subject])).rows).toHaveLength(1)
+    await operator.query("UPDATE app.organization_memberships m SET status='suspended' FROM app.users u WHERE u.id=m.user_id AND u.cognito_subject=$1 AND m.organization_id=$2",[identity.subject,agency])
+    await repository.execute(identity,{operation:'register',displayName:'Returning'})
+    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+  })
 })
