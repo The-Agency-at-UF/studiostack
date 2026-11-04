@@ -15,8 +15,7 @@ export const tours: Record<TourId, (context: TourContextValues) => TourStep[]> =
     { id: 'equipment', target: 'nav-equipment', title: 'Find and track gear', body: 'Browse Inventory, check availability on the Gear calendar, manage Reservations and file Reports when something is damaged or missing.' },
     ...(isAdmin ? [{ id: 'administration', target: 'nav-administration', title: 'Run your workspace', body: 'As an administrator you can review Statistics and manage members, roles and settings under Organization.' }] : []),
     { id: 'book-gear', target: 'book-gear', title: 'Book gear from anywhere', body: 'Reserve equipment for a shoot without leaving the page you’re on.' },
-    { id: 'account', target: 'account', title: 'Your account', body: 'Switch workspaces, see your reservations, replay this tour or sign out.' },
-    { id: 'bug-report', target: 'bug-report', title: 'Tell us what’s broken', body: 'Found a bug or have feedback? Send it here. Reports include the page you were on.' },
+    { id: 'account', target: 'account', title: 'Your account', body: 'Switch workspaces, see your reservations, report a bug, replay this tour or sign out.' },
     { id: 'done', title: 'You’re all set', body: 'Replay this tour anytime from the Account menu.' },
   ],
 }
