@@ -49,6 +49,20 @@ function admin(membership: Membership) {
   if (!isAdmin(membership.role)) throw new ApiError(403, 'Organization administrator required')
 }
 
+// Temporary open enrollment: every registered account joins the Agency as a member.
+// An existing membership, including a suspended one, is left as it is.
+const openEnrollmentSlug = 'agency-uf'
+async function joinOpenEnrollment(client: DatabaseClient, userId: string) {
+  const organization = (await client.query<QueryResultRow & { id: string }>('SELECT id FROM app.organizations WHERE slug = $1', [openEnrollmentSlug])).rows[0]
+  if (!organization) return
+  const added = await client.query(`INSERT INTO app.organization_memberships (organization_id, user_id, role, status) VALUES ($1, $2, 'member', 'active')
+    ON CONFLICT (organization_id, user_id) DO NOTHING RETURNING user_id`, [organization.id, userId])
+  if (!added.rows.length) return
+  await client.query("SELECT set_config('app.organization_id', $1, true)", [organization.id])
+  await client.query('INSERT INTO app.organization_audit_events (organization_id, actor_id, kind, target_id, request_id, request_hash) VALUES ($1, $2, $3, $2, $4, $5)',
+    [organization.id, userId, 'member_joined_signup', randomUUID(), requestHash({ kind: 'member_joined_signup', organizationId: organization.id, userId })])
+}
+
 export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now, storage?: PhotoStorage, briefStorage?: BriefStorage) {
   async function checkAttachment(client: DatabaseClient, organizationId: string, photoId?: string | null) {
     if (!photoId) return
@@ -62,6 +76,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET
         display_name = COALESCE(EXCLUDED.display_name, app.users.display_name) RETURNING ${userColumns}`,
       [identity.issuer, identity.subject, request.displayName])
+      await joinOpenEnrollment(client, result.rows[0].id)
       return result.rows[0]
     }
     const users = await client.query<User>(`SELECT ${userColumns} FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])
