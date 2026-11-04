@@ -29,6 +29,8 @@ const BugReportPopup = dynamic(() => import('./BugReportPopup'), { ssr: false })
 export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter(), pathname = usePathname()
   const loginPage = pathname === '/login' || pathname === '/login/'
+  // Onboarding uses the sign-in frame, so it renders without the workspace header.
+  const welcomePage = pathname === '/welcome' || pathname === '/welcome/'
   const loginPageRef = useRef(loginPage)
   loginPageRef.current = loginPage
   const [mode, setMode] = useState<Mode>('signed-out')
@@ -169,6 +171,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     {busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
       : loginPage ? children
       : mode === 'signed-out' ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
+      : welcomePage ? children
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || organizations.length > 0}>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
