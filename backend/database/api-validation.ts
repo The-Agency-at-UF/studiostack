@@ -1,5 +1,5 @@
 import { equipmentCategories } from '../../src/types/database-api'
-import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
+import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, FeedbackKind } from '../../src/types/database-api'
 
 export class ApiError extends Error {
   constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 503, message: string) { super(message) }
@@ -75,6 +75,11 @@ export function createReservation(value: unknown, now?: number): CreateReservati
   const equipmentIds = body.equipmentIds.map(uuid).sort()
   if (new Set(equipmentIds).size !== equipmentIds.length) throw new ApiError(400, 'Equipment IDs must be unique')
   return { ...(body.clientAccountId===undefined?{}:{clientAccountId:body.clientAccountId===null?null:uuid(body.clientAccountId)}),name: text(body.name, 120), startsAt, endsAt, equipmentIds, requestId: uuid(body.requestId) }
+}
+/** Bug reports and feature requests share one table; omitting the kind keeps older clients filing bugs. */
+export function feedbackKind(value: unknown): FeedbackKind {
+  if (value === undefined || value === 'bug' || value === 'feature') return value ?? 'bug'
+  throw new ApiError(400, 'Invalid feedback kind')
 }
 export function pagination(params: Record<string, string | undefined> = {}) {
   if (Object.keys(params).some(key => !['limit', 'after'].includes(key))) throw new ApiError(400, 'Invalid query parameters')
