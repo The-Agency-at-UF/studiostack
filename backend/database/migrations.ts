@@ -20,6 +20,16 @@ export async function loadMigrations(directory = new URL('./migrations/', import
   }))
 }
 
+/**
+ * Production applied these two migrations from a branch under earlier names before they were renumbered on main.
+ * The earlier SQL is the same apart from a comment, so the current name is recorded instead of running it again.
+ * Only the exact earlier file, identified by its checksum, counts.
+ */
+export const renamedMigrations: Record<string, { name: string; checksum: string }> = {
+  '018_bug_report_email.sql': { name: '013_bug_report_email.sql', checksum: '8a8fe93f15b0f763cb63e84ce1e3cc695263db64694b57dc0741db3d101247f4' },
+  '019_feature_requests.sql': { name: '012_feature_requests.sql', checksum: '9b9ae42f01dfc8739bd61081c83094a87ac8899ed01b3fbabb69afc981317fc3' },
+}
+
 export async function applyMigrations(database: ReturnType<typeof createDatabase>, directory?: URL) {
   const migrations = await loadMigrations(directory)
   return database.transaction(async client => {
@@ -35,7 +45,10 @@ export async function applyMigrations(database: ReturnType<typeof createDatabase
         if (existing.rows[0].checksum !== migration.checksum) throw new Error('Applied migration checksum differs; create a new migration instead')
         continue
       }
-      await client.query(migration.sql)
+      const earlier = renamedMigrations[migration.name]
+      const recorded = earlier && (await client.query<{ checksum: string }>('SELECT checksum FROM app.schema_migrations WHERE name = $1', [earlier.name])).rows[0]
+      if (recorded && recorded.checksum !== earlier.checksum) throw new Error('Applied migration checksum differs; create a new migration instead')
+      if (!recorded) await client.query(migration.sql)
       await client.query('INSERT INTO app.schema_migrations (name, checksum) VALUES ($1, $2)', [migration.name, migration.checksum])
       applied.push(migration.name)
     }
