@@ -6,7 +6,7 @@ describe('StudioStack sign-in', () => {
   it('renders the account sign-in action and keeps preview separate', () => {
     const onSignIn = vi.fn(), onPreview = vi.fn()
     render(<LogIn onSignIn={onSignIn} onPreview={onPreview} />)
-    expect(screen.getByAltText('StudioStack')).toBeInTheDocument()
+    expect(screen.getByText('StudioStack', { selector: '.login-wordmark' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Continue to sign in' }))
     expect(onSignIn).toHaveBeenCalledOnce()

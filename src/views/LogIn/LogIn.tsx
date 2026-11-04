@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { HiOutlineArrowRight, HiOutlineArrowUpRight, HiOutlineLockClosed, HiOutlineCheckCircle, HiOutlineBuildingOffice2 } from 'react-icons/hi2'
 import { FcGoogle } from 'react-icons/fc'
 import { SiApple } from 'react-icons/si'
-import logo from '../../assets/StudioStack.png'
 import type { ApiOrganization } from '../../types/database-api'
 import type { LoginProvider, LoginProviderOption } from '../../auth/providers'
 import { Select } from '../../components/workspace/WorkspaceUI'
@@ -39,13 +38,11 @@ export interface LoginProps {
 export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
   return <main className="login-page">
     <section className="login-brand" aria-label="About StudioStack">
-      <div className="login-brand-top"><span className="login-kicker">The Agency at UF</span><span className="login-edition">Studio workspace</span></div>
+      <div className="login-lava" aria-hidden="true"><span /><span /><span /><span /><span /><span /></div>
       <div className="login-brand-center">
-        <img src={logo.src ?? logo} className="login-wordmark" alt="StudioStack" />
-        <p>Production, equipment,<br />and your team.</p>
-        <div className="login-orbit" aria-hidden="true"><div /><div /><div /><span>SS</span></div>
+        <div className="login-wordmark">StudioStack</div>
+        <p>Production, equipment, <br />and your team.</p>
       </div>
-      <div className="login-brand-bottom"><span>Built for teams.<br />Ready for the next production.</span><span className="login-brand-arrow" aria-hidden="true">↗</span></div>
     </section>
     <section className="login-access" aria-labelledby="login-title">
       <div className="login-access-top"><span>YOUR WORKSPACE, CONNECTED.</span><button type="button" onClick={onPreview} disabled={busy}>Explore preview <HiOutlineArrowUpRight aria-hidden="true" /></button></div>

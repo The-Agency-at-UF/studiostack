@@ -259,11 +259,22 @@
 .login-kicker { display: flex; align-items: center; gap: 10px; }
 .login-kicker::before { content: ''; width: 6px; height: 6px; background: var(--accent); }
 .login-edition { white-space: nowrap; color: #777; font-size: 9px; }
-.login-brand-center { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; padding-bottom: 60px; }
-.login-wordmark { position: relative; z-index: 1; display: block; width: 100%; height: auto; animation: rise-in .6s ease both; }
+.login-brand-center { position: relative; z-index: 1; container-type: inline-size; flex: 1; display: flex; flex-direction: column; justify-content: center; padding-bottom: 60px; }
+.login-wordmark { position: relative; z-index: 1; margin: 0; font-family: var(--font-ui); font-size: min(17cqi, 150px); font-weight: 800; line-height: .9; letter-spacing: -.045em; color: white; animation: rise-in .6s ease both; }
 .login-brand-center > p { position: relative; z-index: 1; margin: 32px 0 0; color: #b6b6b6; font-size: clamp(18px, 1.9vw, 29px); line-height: 1.4; letter-spacing: -.025em; animation: rise-in .65s .08s ease both; }
 .login-brand-bottom { color: #999; font-size: 11px; line-height: 1.65; }
 .login-brand-arrow { color: var(--accent); font-size: 60px; line-height: .8; }
+.login-lava { position: absolute; inset: 0; z-index: 0; pointer-events: none; filter: blur(26px) saturate(1.5) contrast(1.1); }
+.login-lava span { position: absolute; aspect-ratio: 1; border-radius: 46% 54% 58% 42% / 52% 44% 56% 48%; will-change: transform, border-radius; animation: lava-drift 13s ease-in-out infinite alternate, lava-morph 6.5s ease-in-out infinite alternate; }
+.login-lava span:nth-child(1) { width: 62%; top: -18%; left: -20%; background: radial-gradient(circle at 58% 58%, #ff5a5f 0 34%, #f0368f 52%, #7a1cff 72%, transparent 78%); }
+.login-lava span:nth-child(2) { width: 40%; top: 2%; right: -14%; background: radial-gradient(circle, #c9b8ff 0 22%, #8a5cff 50%, #5a1fd6 66%, transparent 74%); animation-duration: 15s, 7.5s; animation-delay: -6s, -2s; }
+.login-lava span:nth-child(3) { width: 36%; bottom: 4%; left: -8%; background: radial-gradient(circle, #ff6a5c 0 30%, #e13a9a 50%, #6c22e0 66%, transparent 74%); animation-duration: 11.5s, 6s; animation-delay: -11s, -4s; }
+.login-lava span:nth-child(4) { width: 56%; bottom: -20%; right: -20%; background: radial-gradient(circle at 44% 40%, #ffd23f 0 24%, #ff8a3d 42%, #e2448f 58%, #7a2bdc 70%, transparent 76%); animation-duration: 14s, 7s; animation-delay: -3s, -6s; }
+.login-lava span:nth-child(5) { width: 28%; top: 42%; left: 46%; background: radial-gradient(circle, #7b4bff 0 30%, #4a14c9 56%, transparent 72%); opacity: .8; animation-duration: 16.5s, 8s; animation-delay: -15s, -7s; }
+.login-lava span:nth-child(6) { width: 20%; top: 22%; left: 38%; background: radial-gradient(circle, #ff7ab6 0 30%, #c42dd6 56%, transparent 72%); opacity: .75; animation-duration: 10s, 5s; animation-delay: -9s, -1s; }
+@keyframes lava-drift { 0% { transform: translate(0, 0) scale(1); } 33% { transform: translate(24%, 28%) scale(1.22, .86); } 66% { transform: translate(-20%, 14%) scale(.84, 1.18); } 100% { transform: translate(18%, -22%) scale(1.12); } }
+@keyframes lava-morph { 0% { border-radius: 46% 54% 58% 42% / 52% 44% 56% 48%; } 50% { border-radius: 60% 40% 36% 64% / 42% 62% 38% 58%; } 100% { border-radius: 38% 62% 54% 46% / 60% 36% 64% 40%; } }
+@media (prefers-reduced-motion: reduce) { .login-lava span { animation: none; } }
 .login-orbit { position: absolute; width: clamp(260px, 34vw, 500px); height: clamp(260px, 34vw, 500px); right: -55%; bottom: -9%; pointer-events: none; }
 .login-orbit div { position: absolute; border: 1px solid #343434; border-radius: 50%; inset: 0; }
 .login-orbit div:nth-child(2) { inset: 12%; border-color: var(--accent-muted); }
@@ -323,7 +334,6 @@
   .login-page { grid-template-columns: 1fr; }
   .login-brand { min-height: 210px; padding: 26px; }
   .login-brand-center { padding: 32px 0 8px; }
-  .login-wordmark { width: min(310px, 80%); }
   .login-brand-center > p { font-size: 16px; margin-top: 20px; }
   .login-brand-center > p br { display: none; }
   .login-brand-bottom { display: none; }
