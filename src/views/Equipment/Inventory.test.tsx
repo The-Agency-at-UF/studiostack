@@ -2,7 +2,7 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import {setCached,invalidateCache} from '../../api/cache'
-import LiveInventory from './Inventory'
+import LiveInventory,{generatedEquipmentCode} from './Inventory'
 const mocks=vi.hoisted(()=>({inventory:vi.fn(),createEquipment:vi.fn(),updateEquipment:vi.fn(),photo:vi.fn()}))
 vi.mock('./live',async()=>({...await vi.importActual('./live'),useLiveOrganization:()=>({api:mocks,organization:{id:'org',name:'Studio'},admin:true})}))
 vi.mock('../../components/EquipmentQrScanner',()=>({default:()=>null}))
@@ -38,4 +38,6 @@ describe('Authenticated inventory',()=>{
    }
  })
  it('shows a real service error without sample inventory',async()=>{mocks.inventory.mockRejectedValue(new Error('private details'));render(<LiveInventory/>);expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByRole('button',{name:'Live camera'})).not.toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()})
+ it('generates readable label codes from the category',()=>{expect(generatedEquipmentCode('Lights',()=>0)).toBe('LIG-AAAA');expect(generatedEquipmentCode('Camera & Accessories')).toMatch(/^CAM-[A-HJ-NP-Z2-9]{4}$/)})
+ it('opens the QR label of newly added equipment',async()=>{const user=userEvent.setup();render(<LiveInventory/>);await screen.findByRole('button',{name:'Live camera'});await user.click(screen.getByRole('button',{name:'Add item'}));await user.click(screen.getByRole('button',{name:'Generate new code'}));expect((screen.getByLabelText('Equipment code') as HTMLInputElement).value).toMatch(/^CAM-[A-HJ-NP-Z2-9]{4}$/);await user.clear(screen.getByLabelText('Equipment code'));await user.type(screen.getByLabelText('Equipment code'),'NEW-1');await user.type(screen.getByLabelText('Item name'),'New camera');mocks.inventory.mockResolvedValue({items:[item,{...item,id:'new',equipmentCode:'NEW-1',name:'New camera'}],nextCursor:null});await user.click(screen.getByRole('button',{name:'Create equipment'}));await waitFor(()=>expect(mocks.createEquipment).toHaveBeenCalledWith('org',{equipmentCode:'NEW-1',name:'New camera',category:'Camera & Accessories'}));expect(await screen.findByRole('status')).toHaveTextContent('New camera added. Download its QR label');expect(screen.getByText('Equipment QR label').closest('details')).toHaveAttribute('open')})
 })
