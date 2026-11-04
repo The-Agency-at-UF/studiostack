@@ -3,22 +3,22 @@ import {inTransaction,type DatabaseClient} from '../database/client'
 import {ApiError,object,text,uuid} from '../database/api-validation'
 import {onboardingTask} from './onboarding'
 import {emailPattern} from '../../src/types/patterns'
-export const directoryActions=['list','accept','overview','join-domain','join-code','request-access','withdraw-request'] as const
+export const directoryActions=['list','accept','overview','join-domain','join-code','request-access','withdraw-request','search'] as const
 export interface PreviousSignIn {subject:string;state:'deleted'|'active'}
-export interface DirectoryRequest {action:typeof directoryActions[number];identity:{issuer:string;subject:string;email:string};previousSignIn?:PreviousSignIn;invitationId?:string;organizationId?:string;code?:string;message?:string;requestId?:string}
+export interface DirectoryRequest {action:typeof directoryActions[number];identity:{issuer:string;subject:string;email:string};previousSignIn?:PreviousSignIn;invitationId?:string;organizationId?:string;code?:string;message?:string;requestId?:string;query?:string}
 /** Returned instead of a result when another sign-in's account holds the verified email. */
 export interface AccountClaim {statusCode:409;error:string;accountClaim:{previousSubject:string}}
 export const emailInUse='This email is linked to another StudioStack sign-in. Ask your workspace administrator for help.'
 const organizationActions=['accept','join-domain','request-access','withdraw-request']
 export function directoryRequest(input:unknown,pool:string):DirectoryRequest {
-  const v=object(input,['action','identity','previousSignIn','invitationId','organizationId','code','message','requestId']),identity=object(v.identity,['issuer','subject','email'])
+  const v=object(input,['action','identity','previousSignIn','invitationId','organizationId','code','message','requestId','query']),identity=object(v.identity,['issuer','subject','email'])
   if(!directoryActions.includes(v.action as DirectoryRequest['action'])||identity.issuer!==`https://cognito-idp.us-east-2.amazonaws.com/${pool}`)throw new ApiError(400,'Invalid directory operation')
   const action=v.action as DirectoryRequest['action'],email=text(identity.email,254).toLowerCase();if(!emailPattern.test(email))throw new ApiError(400,'A verified email is required')
   const previous=v.previousSignIn===undefined?undefined:object(v.previousSignIn,['subject','state'])
   if(previous&&!['deleted','active'].includes(String(previous.state)))throw new ApiError(400,'Invalid directory operation')
   return {action,identity:{issuer:String(identity.issuer),subject:uuid(identity.subject),email},...(previous?{previousSignIn:{subject:uuid(previous.subject),state:previous.state as PreviousSignIn['state']}}:{}),
     ...(organizationActions.includes(action)?{organizationId:uuid(v.organizationId)}:{}),...(action==='accept'?{invitationId:uuid(v.invitationId)}:{}),
-    ...(action==='join-code'?{code:text(v.code,32)}:{}),...(action==='request-access'&&v.message!==undefined?{message:text(v.message,500)}:{}),...(action==='withdraw-request'?{requestId:uuid(v.requestId)}:{})}
+    ...(action==='join-code'?{code:text(v.code,32)}:{}),...(action==='request-access'&&v.message!==undefined?{message:text(v.message,500)}:{}),...(action==='withdraw-request'?{requestId:uuid(v.requestId)}:{}),...(action==='search'?{query:text(v.query,80)}:{})}
 }
 async function invitationTask(client:DatabaseClient,request:DirectoryRequest,user:{id:string}) {
   const {identity}=request
