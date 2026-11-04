@@ -1,5 +1,6 @@
 import {assertRecipientAllowed} from '../email/feedback'
 import {alertEmail,deliverAppAlerts} from '../alerts/delivery'
+import {bugReportEmail,deliverBugReports} from '../bug-reports/delivery'
 import { deliverLeased, rejectedSesErrors } from '../email/delivery'
 import { AdminGetUserCommand, CognitoIdentityProviderClient, ListUsersCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
@@ -44,6 +45,8 @@ export async function deliverNotifications(deps: NotificationDependencies) {
 export async function handler() {
   const env = process.env.STUDIOSTACK_ENV, storeName = process.env.PRODUCTION_OUTBOX_FUNCTION, sender = process.env.PRODUCTION_EMAIL_FROM, webUrl = process.env.PRODUCTION_WEB_URL
   if (!['dev','prod'].includes(env ?? '') || storeName !== `studiostack-${env}-database` || !sender || !emailPattern.test(sender) || !webUrl || new URL(webUrl).protocol !== 'https:') throw new Error('Notification configuration is incomplete')
+  const feedbackRecipient = process.env.FEEDBACK_EMAIL_TO
+  if (feedbackRecipient && !emailPattern.test(feedbackRecipient)) throw new Error('Feedback recipient is invalid')
   const pool = process.env.COGNITO_USER_POOL_ID
   if (!pool || !userPoolPattern.test(pool)) throw new Error('Recipient directory is not configured')
   const cognito = new CognitoIdentityProviderClient({ region:'us-east-2', maxAttempts:1 })
@@ -73,5 +76,10 @@ export async function handler() {
       async store(request){const response=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'app-alert-outbox',...request}))}));if(response.FunctionError||!response.Payload)throw new Error('Alert outbox unavailable');const value=JSON.parse(Buffer.from(response.Payload).toString('utf8'));if(request.action==='claim'?!Array.isArray(value.jobs):request.action==='authorize'?typeof value.allowed!=='boolean':typeof value.updated!=='boolean')throw new Error('Invalid alert outbox response');return value},
       async send(job){const recipient=await verifiedRecipient(job,pool,{async find(subject){return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users??[]},get(username){return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))}}),email=alertEmail(job,webUrl);await recipientAllowed(recipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[recipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
     })
-    console.log(JSON.stringify({service:'app-alerts',...alerts}));console.log(JSON.stringify({service:'production-notifications',...result}));return {...result,alerts} } finally { lambda.destroy(); ses.destroy(); cognito.destroy() }
+    // Without a configured support address, reports stay pending until one is set.
+    const bugReports=feedbackRecipient?await deliverBugReports({
+      async store(request){const response=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'bug-report-outbox',...request}))}));if(response.FunctionError||!response.Payload)throw new Error('Bug report outbox unavailable');const value=JSON.parse(Buffer.from(response.Payload).toString('utf8'));if(request.action==='claim'?!Array.isArray(value.jobs):typeof value.updated!=='boolean')throw new Error('Invalid bug report outbox response');return value},
+      async send(job){const email=bugReportEmail(job,webUrl);await recipientAllowed(feedbackRecipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[feedbackRecipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
+    }):undefined
+    console.log(JSON.stringify({service:'app-alerts',...alerts}));if(bugReports)console.log(JSON.stringify({service:'bug-reports',...bugReports}));console.log(JSON.stringify({service:'production-notifications',...result}));return {...result,alerts,...(bugReports?{bugReports}:{})} } finally { lambda.destroy(); ses.destroy(); cognito.destroy() }
 }

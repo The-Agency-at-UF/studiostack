@@ -1,5 +1,6 @@
 import {feedbackRequest,feedbackTask} from '../email/feedback'
 import {alertOutboxRequest,alertOutboxTask} from '../alerts/outbox'
+import {bugReportOutboxRequest,bugReportOutboxTask} from '../bug-reports/outbox'
 import { outboxTask, parseOutboxRequest } from '../production/outbox'
 import {directoryRequest,directoryTask} from '../accounts/directory'
 import {invitationQueueRequest,invitationQueueTask} from '../accounts/queue'
@@ -36,6 +37,7 @@ function getRuntime() {
 const tasks = new Map<string, (client: DatabaseClient, input: unknown) => Promise<unknown>>([
   ['email-feedback', (client, input) => feedbackTask(client, feedbackRequest(input))],
   ['app-alert-outbox', (client, input) => alertOutboxTask(client, alertOutboxRequest(input))],
+  ['bug-report-outbox', (client, input) => bugReportOutboxTask(client, bugReportOutboxRequest(input))],
   ['account-invitation-queue', (client, input) => invitationQueueTask(client, invitationQueueRequest(input))],
   ['account-directory', (client, input) => directoryTask(client, directoryRequest(input, process.env.COGNITO_USER_POOL_ID ?? ''))],
   ['production-outbox', (client, input) => outboxTask(client, parseOutboxRequest(input))],
