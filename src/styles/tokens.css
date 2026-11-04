@@ -3,6 +3,7 @@
   --ink: #19171e;
   --paper: #f5f5f7;
   --paper-light: #ffffff;
+  --canvas: #ecebf1;
   --surface: #ffffff;
   --surface-subtle: #f5f5f7;
   --surface-hover: #f7f5fd;
@@ -59,5 +60,5 @@
   --focus-width: 2px;
   --focus-offset: 3px;
   --shadow-menu: 0 8px 32px #19171e1a;
-  --shadow-card: 0 1px 2px #19171e0f, 0 8px 24px #19171e14;
+  --shadow-card: 0 1px 2px #19171e14, 0 4px 8px #19171e0a, 0 16px 32px -4px #19171e24;
 }
