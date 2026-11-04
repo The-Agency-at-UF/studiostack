@@ -13,7 +13,7 @@ const conflict=():never=>{throw new ApiError(409,'The record changed. Reload bef
 export async function dispatchAccounts(client:DatabaseClient,request:AccountRequest,context:Context) {
   const {organizationId,user}=context,{resource,method,page}=request
   let role=context.membership.role
-  async function settings(){return (await client.query('SELECT id,name,slug,reservation_days AS "reservationDays",version FROM app.organizations WHERE id=$1',[organizationId])).rows[0]}
+  async function settings(){return (await client.query('SELECT id,name,slug,reservation_days AS "reservationDays",location,version FROM app.organizations WHERE id=$1',[organizationId])).rows[0]}
   async function member(id:string){const row=(await client.query(`SELECT ${memberColumns} FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.user_id=$2`,[organizationId,id])).rows[0];if(!row)throw new ApiError(404,'Member not found');return row}
   if(method!=='GET') {
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`organization-admin:${organizationId}`])
@@ -46,7 +46,7 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
   let targetId=organizationId,kind='',details:Record<string,unknown>={}
   if(resource==='settings') {
     const v=changeOrganization(request.body),current=await settings();if(current.version!==v.version)conflict()
-    await client.query('UPDATE app.organizations SET name=$2,reservation_days=$3,version=version+1 WHERE id=$1',[organizationId,v.name,v.reservationDays]);kind='organization_updated';details={name:v.name,reservationDays:v.reservationDays}
+    await client.query('UPDATE app.organizations SET name=$2,reservation_days=$3,location=CASE WHEN $4::boolean THEN $5 ELSE location END,version=version+1 WHERE id=$1',[organizationId,v.name,v.reservationDays,v.location!==undefined,v.location??null]);kind='organization_updated';details={name:v.name,reservationDays:v.reservationDays,...(v.location!==undefined?{location:v.location}:{})}
   } else if(resource==='members') {
     const v=changeMember(request.body),current=await member(request.memberId!);targetId=current.id
     if(current.version!==v.version)conflict()

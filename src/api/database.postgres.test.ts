@@ -364,6 +364,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(account(owner,{resource:'members',method:'PATCH',memberId:profiles.outsider.id,body:{role:'owner',status:'active',version:1,requestId:randomUUID()}})).rejects.toMatchObject({status:404})
     expect(await account<OrganizationSettings>(member,{resource:'settings',method:'GET'})).toMatchObject({name:'Test Org',role:'member'})
   })
+  it('accounts: owners set the location shown in organization search, and omitting it keeps it',async()=>{
+    const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'})
+    const saved=await account<OrganizationSettings>(owner,{resource:'settings',method:'PATCH',body:{name:current.name,reservationDays:current.reservationDays,location:'Gainesville',version:current.version,requestId:randomUUID()}})
+    expect(saved).toMatchObject({location:'Gainesville',version:current.version+1})
+    const kept=await account<OrganizationSettings>(owner,{resource:'settings',method:'PATCH',body:{name:current.name,reservationDays:current.reservationDays,version:saved.version,requestId:randomUUID()}})
+    expect(kept).toMatchObject({location:'Gainesville'})
+    expect(await account<OrganizationSettings>(owner,{resource:'settings',method:'PATCH',body:{name:current.name,reservationDays:current.reservationDays,location:'',version:kept.version,requestId:randomUUID()}})).toMatchObject({location:null})
+  })
   it('accounts: active members see a names-only directory of active members in their organization',async()=>{
     const directory=await account<ApiPage<Record<string,unknown>>>(member,{resource:'directory',method:'GET'})
     expect(directory.items.map(m=>m.id)).toEqual(expect.arrayContaining([owner,member,secondMember].map(i=>profiles[i.subject].id)))

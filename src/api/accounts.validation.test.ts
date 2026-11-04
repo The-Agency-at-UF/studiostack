@@ -50,5 +50,9 @@ describe('account administration inputs',()=>{
   })
   it('bounds organization policies',()=>{
     expect(()=>changeOrganization({name:'Studio',reservationDays:91,version,requestId})).toThrow()
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId})).not.toHaveProperty('location')
+    expect(changeOrganization({name:'Studio',reservationDays:14,location:' Gainesville ',version,requestId})).toMatchObject({location:'Gainesville'})
+    expect(changeOrganization({name:'Studio',reservationDays:14,location:'',version,requestId})).toMatchObject({location:null})
+    expect(()=>changeOrganization({name:'Studio',reservationDays:14,location:'x'.repeat(81),version,requestId})).toThrow()
   })
 })
