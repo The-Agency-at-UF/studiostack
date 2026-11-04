@@ -249,6 +249,7 @@
   border-top: 1px solid rgba(255,255,255,.15);
 }
 
+.footer-feedback { display: inline-flex; align-items: center; gap: 24px; flex-wrap: wrap; justify-content: center; }
 .footer-status { display: inline-flex; align-items: center; gap: 9px; color: rgba(255,255,255,.48); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
 
 .login-page { min-height: 100svh; display: grid; grid-template-columns: 46% 54%; background: var(--paper-light); }

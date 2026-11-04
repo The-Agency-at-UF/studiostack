@@ -13,7 +13,16 @@ afterEach(cleanup)
 it('saves signed-in reports through the organization API without sharing URL query data',async()=>{
  const user=userEvent.setup();render(<AppSessionProvider value={{email:'member@example.test',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',selectedOrganizationId:'org',getAccessToken:async()=> 'token'}}><BugReportPopup userEmail="member@example.test"/></AppSessionProvider>)
  await user.type(screen.getByPlaceholderText('What happened?'),'Broken button');await user.type(screen.getByPlaceholderText('Provide more details...'),'Details');await user.click(screen.getByRole('button',{name:'Submit Report'}))
- await waitFor(()=>expect(mock.submit).toHaveBeenCalledWith('org',{title:'Broken button',description:'Details',pagePath:'/inventory/',requestId:expect.any(String)}))
+ await waitFor(()=>expect(mock.submit).toHaveBeenCalledWith('org',{kind:'bug',title:'Broken button',description:'Details',pagePath:'/inventory/',requestId:expect.any(String)}))
 })
 
-it('loads the signed-in account’s saved reports on request',async()=>{const user=userEvent.setup();render(<AppSessionProvider value={{email:'member@example.test',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',selectedOrganizationId:'org',getAccessToken:async()=> 'token'}}><BugReportPopup userEmail="member@example.test"/></AppSessionProvider>);await user.click(screen.getByText('Your submitted reports'));expect(await screen.findByText('Earlier report')).toBeInTheDocument();expect(mock.list).toHaveBeenCalledWith('org',{limit:100,after:undefined})})
+it('loads the signed-in account’s saved reports on request',async()=>{const user=userEvent.setup();render(<AppSessionProvider value={{email:'member@example.test',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',selectedOrganizationId:'org',getAccessToken:async()=> 'token'}}><BugReportPopup userEmail="member@example.test"/></AppSessionProvider>);await user.click(screen.getByText('Your submitted reports'));expect(await screen.findByText('Earlier report')).toBeInTheDocument();expect(mock.list).toHaveBeenCalledWith('org',{limit:100,after:undefined},'bug')})
+
+it('files feature requests through the same API and lists only requests',async()=>{
+ const user=userEvent.setup();render(<AppSessionProvider value={{email:'admin@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',selectedOrganizationId:'org',getAccessToken:async()=> 'token'}}><BugReportPopup kind="feature" userEmail="admin@example.test"/></AppSessionProvider>)
+ expect(screen.getByRole('heading',{name:'Request a Feature'})).toBeInTheDocument()
+ await user.click(screen.getByText('Your submitted requests'));await waitFor(()=>expect(mock.list).toHaveBeenCalledWith('org',{limit:100,after:undefined},'feature'))
+ await user.type(screen.getByPlaceholderText('What would you like?'),'Bulk checkout');await user.type(screen.getByPlaceholderText('Provide more details...'),'Details');await user.click(screen.getByRole('button',{name:'Submit Request'}))
+ await waitFor(()=>expect(mock.submit).toHaveBeenCalledWith('org',{kind:'feature',title:'Bulk checkout',description:'Details',pagePath:'/inventory/',requestId:expect.any(String)}))
+ expect(await screen.findByText('Request Submitted!')).toBeInTheDocument()
+})

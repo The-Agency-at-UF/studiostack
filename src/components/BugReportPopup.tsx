@@ -4,11 +4,17 @@ import Popup from './Popup';
 import {useAppSession} from '../context/AppSessionContext';
 import {createDatabaseApiClient} from '../api/database';
 import {authConfiguration} from '../auth/cognito';
-import type {ApiBugReport} from '../types/database-api';
-import { IoIosCloseCircle, IoIosBug } from "react-icons/io";
+import type {ApiBugReport,FeedbackKind} from '../types/database-api';
+import { IoIosCloseCircle, IoIosBug, IoIosBulb } from "react-icons/io";
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 
-function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void }) {
+const copy = {
+  bug: { Icon: IoIosBug, trigger: 'Report a Bug', heading: 'Report a Bug', history: 'Your submitted reports', empty: 'No reports yet.', titlePlaceholder: 'What happened?', submit: 'Submit Report', success: 'Report Submitted!', thanks: 'Thank you for your feedback. Our team has been notified and will look into this issue.', failure: 'Failed to submit bug report. Please try again later.', collection: 'bugReports' },
+  feature: { Icon: IoIosBulb, trigger: 'Request a Feature', heading: 'Request a Feature', history: 'Your submitted requests', empty: 'No requests yet.', titlePlaceholder: 'What would you like?', submit: 'Submit Request', success: 'Request Submitted!', thanks: 'Thank you for the idea. Our team will review it when planning what to build next.', failure: 'Failed to submit feature request. Please try again later.', collection: 'featureRequests' },
+} as const
+
+function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug' }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void; kind?: FeedbackKind }) {
+  const text = copy[kind]
   const pathname = usePathname(), session=useAppSession();
   const request=useRef<{key:string;id:string}|null>(null),historyGeneration=useRef(0);
   useEffect(()=>{historyGeneration.current++;setHistory([]);setHistoryError('');setHistoryLoading(false)},[session.selectedOrganizationId,session.email]);
@@ -45,11 +51,11 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
       if(session.mode==='authenticated'){
         const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
         if(!organizationId||!session.getAccessToken)throw new Error('Organization unavailable')
-        const payload={title:title.trim(),description:description.trim(),pagePath:pathname||'/'},key=JSON.stringify(payload)
+        const payload={kind,title:title.trim(),description:description.trim(),pagePath:pathname||'/'},key=JSON.stringify(payload)
         if(request.current?.key!==key)request.current={key,id:crypto.randomUUID()}
         await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}).submitBugReport(organizationId,{...payload,requestId:request.current.id})
         request.current=null
-      }else await addDoc(collection(db, "bugReports"), reportData);
+      }else await addDoc(collection(db, text.collection), reportData);
       setSubmitted(true);
 
       // Reset fields
@@ -57,7 +63,7 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
       setDescription("");
     } catch (err) {
       void err;
-      setError("Failed to submit bug report. Please try again later.");
+      setError(text.failure);
     } finally {
       setIsSubmitting(false);
     }
@@ -67,7 +73,7 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
     const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
     if(!organizationId||!session.getAccessToken)return
     const generation=historyGeneration.current;setHistoryLoading(true);setHistoryError('')
-    try{const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after});items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
+    try{const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after},kind);items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
   }
 
   const handleClose = (close: () => void) => {
@@ -84,8 +90,8 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
     <Popup
       trigger={
         <button className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
-          <IoIosBug className="w-5 h-5" />
-          <span>Report a Bug</span>
+          <text.Icon className="w-5 h-5" />
+          <span>{text.trigger}</span>
         </button>
       }
       modal
@@ -117,16 +123,16 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
             {!submitted && !error ? (
               <>
                 <h1 className="font-bold text-2xl pb-4 border-b border-black mb-4">
-                  Report a Bug
+                  {text.heading}
                 </h1>
 
-                {session.mode==='authenticated'&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>Your submitted reports</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>No reports yet.</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
+                {session.mode==='authenticated'&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
                 <div className="space-y-4">
                   <div>
                     <label className="block font-semibold mb-1">Title</label>
                     <input
                       type="text"
-                      placeholder="What happened?" maxLength={160}
+                      placeholder={text.titlePlaceholder} maxLength={160}
                       className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
@@ -161,7 +167,7 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
                     onClick={() => !isSubmitting && handleSubmit()}
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? "Submitting..." : "Submit Report"}
+                    {isSubmitting ? "Submitting..." : text.submit}
                   </button>
                 </div>
               </>
@@ -170,17 +176,17 @@ function BugReportPopup({ userEmail, open, onOpenChange }: { userEmail: string; 
                 {submitted ? (
                   <>
                     <div className="flex justify-center text-green-600">
-                      <IoIosBug className="w-16 h-16" />
+                      <text.Icon className="w-16 h-16" />
                     </div>
-                    <h2 className="text-2xl font-bold">Report Submitted!</h2>
+                    <h2 className="text-2xl font-bold">{text.success}</h2>
                     <p className="text-gray-700">
-                      Thank you for your feedback. Our team has been notified and will look into this issue.
+                      {text.thanks}
                     </p>
                   </>
                 ) : (
                   <>
                     <div className="flex justify-center text-red-600">
-                      <IoIosBug className="w-16 h-16" />
+                      <text.Icon className="w-16 h-16" />
                     </div>
                     <h2 className="text-2xl font-bold">Submission Failed</h2>
                     <p className="text-gray-700">{error}</p>
