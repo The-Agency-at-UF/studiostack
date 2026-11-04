@@ -56,4 +56,5 @@ export interface CollectionData {
   reservations: ReservationData
   reports: ReportData
   bugReports: BugReportData
+  featureRequests: BugReportData
 }

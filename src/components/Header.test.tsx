@@ -182,4 +182,14 @@ describe('Header tour', () => {
     expect(onReportBug).toHaveBeenCalledOnce();
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
   });
+  it.each([false, true])('places Request a feature directly under Report a bug (admin: %s) and opens it', async isAdmin => {
+    const user = userEvent.setup(), onRequestFeature = vi.fn();
+    render(<Header isAdmin={isAdmin} logOut={() => {}} onReportBug={() => {}} onRequestFeature={onRequestFeature} />);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    const request = screen.getByRole('button', { name: 'Request a feature' });
+    expect(screen.getByRole('button', { name: 'Report a bug' }).nextElementSibling).toBe(request);
+    await user.click(request);
+    expect(onRequestFeature).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Your account')).not.toBeInTheDocument();
+  });
 });

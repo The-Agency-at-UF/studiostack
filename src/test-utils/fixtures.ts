@@ -14,6 +14,7 @@ const defaults: CollectionData = {
     message: 'Test report', resolved: false, timestamp,
   },
   bugReports: { title: 'Test', description: 'Test', userEmail: 'test@ufl.edu', url: '/', timestamp, status: 'Open' },
+  featureRequests: { title: 'Test', description: 'Test', userEmail: 'test@ufl.edu', url: '/', timestamp, status: 'Open' },
 }
 
 /** Complete typed fixtures while allowing each test to specify only relevant fields. */
