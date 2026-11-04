@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { databaseConfig } from '../../backend/database/config'
 import { createDatabase, DatabaseUnavailableError, parseCredentials } from '../../backend/database/client'
 import type { DatabaseClient, DatabaseDependencies } from '../../backend/database/client'
-import { applyMigrations, loadMigrations, migrationOptions } from '../../backend/database/migrations'
+import { applyMigrations, loadMigrations, migrationOptions, renamedMigrations } from '../../backend/database/migrations'
 import { createDatabaseHandler } from '../../backend/database/handler'
 import { retentionTask } from '../../backend/database/retention'
 
@@ -154,6 +154,25 @@ describe('guarded schema migrations', () => {
     for (const migration of migrations) expect(client.query).toHaveBeenCalledWith('INSERT INTO app.schema_migrations (name, checksum) VALUES ($1, $2)', [migration.name, migration.checksum])
     client.query.mockImplementation(async (sql: string, values: unknown[] = []) => ({ rows: sql.startsWith('SELECT checksum') ? [{ checksum: migrations.find(migration => migration.name === values[0])!.checksum }] : [] }))
     expect(await applyMigrations(database)).toEqual([])
+  })
+  it('records renamed migrations that production applied under their earlier names without running them again', async () => {
+    const { database, client } = fixture()
+    const migrations = await loadMigrations()
+    const earlier = Object.fromEntries(Object.values(renamedMigrations).map(m => [m.name, m.checksum]))
+    client.query.mockImplementation(async (sql: string, values: unknown[] = []) => ({ rows: sql.startsWith('SELECT checksum') && earlier[values[0] as string] ? [{ checksum: earlier[values[0] as string] }] : [] }))
+    expect(await applyMigrations(database)).toEqual(migrations.map(migration => migration.name))
+    for (const name of Object.keys(renamedMigrations)) {
+      const migration = migrations.find(m => m.name === name)!
+      expect(client.query).not.toHaveBeenCalledWith(migration.sql)
+      expect(client.query).toHaveBeenCalledWith('INSERT INTO app.schema_migrations (name, checksum) VALUES ($1, $2)', [name, migration.checksum])
+    }
+    expect(client.query).toHaveBeenCalledWith(migrations.find(m => m.name === '017_unique_account_email.sql')!.sql)
+  })
+  it('refuses an earlier-named migration whose recorded SQL differs', async () => {
+    const { database, client } = fixture()
+    client.query.mockImplementation(async (sql: string, values: unknown[] = []) => ({ rows: sql.startsWith('SELECT checksum') && values[0] === '013_bug_report_email.sql' ? [{ checksum: 'different' }] : [] }))
+    await expect(applyMigrations(database)).rejects.toBeInstanceOf(DatabaseUnavailableError)
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK')
   })
   it('rolls back if an already-applied migration was changed', async () => {
     const { database, client } = fixture()
