@@ -39,6 +39,7 @@
   --space-16: 64px;
   --radius-control: 6px;
   --radius-panel: 8px;
+  --radius-card: 12px;
   --text-xs: 12px;
   --text-sm: 14px;
   --text-base: 16px;
@@ -58,4 +59,5 @@
   --focus-width: 2px;
   --focus-offset: 3px;
   --shadow-menu: 0 8px 32px #19171e1a;
+  --shadow-card: 0 1px 2px #19171e0f, 0 8px 24px #19171e14;
 }
