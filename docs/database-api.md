@@ -113,7 +113,9 @@ The steps below describe the original preparation sequence. The approved dev dep
    COGNITO_APP_CLIENT_ID=your-dev-client-id
    ```
 
-   Output is gitignored `.aws/database-api/runtime.zip`, `setup.zip`, dev/prod grant SQL, and (only with valid Cognito configuration) the environment's routes JSON. Preparation does not deploy or migrate anything.
+   Each run writes a new gitignored folder, `.aws/database-api/builds/<commit>-<random>/`, holding `runtime.zip`, `setup.zip`, dev/prod grant SQL, (only with valid Cognito configuration) the environment's routes JSON, and a `manifest.json` with the commit, whether the checkout was clean, and archive SHA-256 hashes. Preparation does not deploy or migrate anything.
+
+   Deploy scripts upload only the build named by `DATABASE_API_BUILD` (the path the command prints). They refuse a build from a different commit or one whose archives changed after preparation, and production also refuses builds made from uncommitted changes. Separate builds never share a folder, so another checkout or session preparing at the same time cannot replace the archive you deploy.
 
 6. After explicit deployment approval, update `studiostack-dev-database` with `runtime.zip`, handler `index.handler`, its existing dev role/VPC/group/app secret and the above API/Cognito variables. Preserve all connection/TLS variables. Set bounded reserved concurrency (initially at most 4, since the app login has a five-connection limit). No new runtime role, endpoint, NAT or database is needed. **Do not run the old connection-only `db:deploy` package afterward: it would replace API code/configuration.**
 7. Review/deploy the route template to `studiostack-dev-api`. Every route requires JWT/access scope and matching API/method/path invocation permission. Rewire the existing dev photo route to the authorized database/photo handler; do not alter production. Verify stage/CORS settings. Never create a public Lambda function URL. This account has a 10-execution quota, so reserved concurrency is currently unavailable; dev has a 2-request/second, burst-4 stage throttle and a five-connection database login limit.
