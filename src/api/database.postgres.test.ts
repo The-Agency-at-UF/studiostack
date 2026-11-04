@@ -468,21 +468,24 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(operator.query("UPDATE app.reservations SET fulfillment_status='returned',checked_out_at=now(),returned_at=NULL WHERE id=$1",[reservation.id])).rejects.toMatchObject({code:'23514'})
   })
 
+  const onCampus={latitude:29.6478,longitude:-82.3473,accuracy:25}
   function workflow<T=EquipmentReservation>(actor:Identity,reservationId:string,resource:string,body?:unknown,method='POST',query:Record<string,string>={}){return repository.execute(actor,{operation:'equipment',organizationId,reservationId,resource,method,body,query} as EquipmentRequest) as Promise<T>}
   async function nearBooking(item:ApiEquipment,actor=member){const start=new Date(Date.now()+5*60000).toISOString();return await repository.execute(actor,{operation:'createReservation',organizationId,input:{...booking(item),startsAt:start,endsAt:new Date(Date.parse(start)+3600000).toISOString()}}) as EquipmentReservation}
   it('equipment: checkout is owner-scoped, durable, idempotent and prevents cancellation',async()=>{
-    const item=await equipment(),r=await nearBooking(item),body={version:r.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good',notes:'Ready'}]}
+    const item=await equipment(),r=await nearBooking(item),body={version:r.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good',notes:'Ready'}]}
     await expect(workflow(secondMember,r.id,'checkout',body)).rejects.toMatchObject({status:404})
+    await expect(workflow(member,r.id,'checkout',{...body,location:{latitude:28.5384,longitude:-81.3789,accuracy:25}})).rejects.toMatchObject({status:403})
     const out=await workflow(member,r.id,'checkout',body);expect(out).toMatchObject({fulfillmentStatus:'checked_out',version:r.version+1});expect(out.checkedOutAt).toBeTruthy()
-    expect(await workflow(member,r.id,'checkout',body)).toMatchObject({version:out.version})
+    expect(await workflow(member,r.id,'checkout',{...body,location:{...onCampus,latitude:29.6482}})).toMatchObject({version:out.version})
+    expect((await operator.query("SELECT details->>'campusDistanceMeters' AS distance FROM app.equipment_events WHERE reservation_id=$1 AND kind='checked_out'",[r.id])).rows[0].distance).toBe('0')
     expect((await operator.query('SELECT id FROM app.equipment_checkouts WHERE reservation_id=$1',[r.id])).rows).toHaveLength(1)
     await expect(repository.execute(member,{operation:'cancelReservation',organizationId,reservationId:r.id})).rejects.toMatchObject({status:409})
     await expect(workflow(outsider,r.id,'checkout',body)).rejects.toMatchObject({status:403})
   })
   it('equipment: a damaged return creates one report and takes the item out of service atomically',async()=>{
-    const item=await equipment(),r=await nearBooking(item),out=await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good'}]})
-    await expect(workflow(member,r.id,'return',{version:out.version,requestId:randomUUID(),conditions:[{equipmentId:randomUUID(),condition:'damaged'}]})).rejects.toMatchObject({status:400})
-    const body={version:out.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'damaged',notes:'Broken mount during shoot.'}]},returned=await workflow(member,r.id,'return',body)
+    const item=await equipment(),r=await nearBooking(item),out=await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
+    await expect(workflow(member,r.id,'return',{version:out.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:randomUUID(),condition:'damaged'}]})).rejects.toMatchObject({status:400})
+    const body={version:out.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'damaged',notes:'Broken mount during shoot.'}]},returned=await workflow(member,r.id,'return',body)
     expect(returned).toMatchObject({fulfillmentStatus:'returned',version:out.version+1});expect(returned.returnedAt).toBeTruthy()
     expect(await workflow(member,r.id,'return',body)).toMatchObject({version:returned.version})
     expect((await operator.query('SELECT status,condition FROM app.inventory WHERE id=$1',[item.id])).rows[0]).toEqual({status:'maintenance',condition:'damaged'})
@@ -490,10 +493,10 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect((await operator.query('SELECT returned_at FROM app.equipment_checkouts WHERE reservation_id=$1',[r.id])).rows[0].returned_at).toBeTruthy()
   })
   it('equipment: overdue physical checkout prevents another borrower taking the same item',async()=>{
-    const item=await equipment(),r=await nearBooking(item);await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good'}]})
+    const item=await equipment(),r=await nearBooking(item);await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
     await operator.query("UPDATE app.reservations SET starts_at=now()-interval '1 hour',ends_at=now()-interval '1 second' WHERE id=$1",[r.id])
     const next=await nearBooking(item,secondMember)
-    await expect(workflow(secondMember,next.id,'checkout',{version:next.version,requestId:randomUUID(),conditions:[{equipmentId:item.id,condition:'good'}]})).rejects.toMatchObject({status:409})
+    await expect(workflow(secondMember,next.id,'checkout',{version:next.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})).rejects.toMatchObject({status:409})
   })
   it('equipment: edits and extensions preserve versions and reject conflicting bookings',async()=>{
     const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as EquipmentReservation
