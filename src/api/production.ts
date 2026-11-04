@@ -15,6 +15,7 @@ export function productionClient(send: Send) {
     get: (id: string) => send<ProductionBrief>(`briefs/${encodeURIComponent(id)}`),
     create: (data: BriefData, requestId: string) => send<ProductionBrief>('briefs', 'POST', { data, requestId }),
     save: (id: string, data: BriefData, version: number, requestId: string) => send<ProductionBrief>(`briefs/${encodeURIComponent(id)}`, 'PATCH', { data, version, requestId }),
+    remove: (id: string) => send<{ id: string }>(`briefs/${encodeURIComponent(id)}`, 'DELETE'),
     action: (id: string, command: BriefCommand) => send<ProductionBrief>(`briefs/${encodeURIComponent(id)}/actions`, 'POST', command),
     deliveries: (after?: string) => send<ApiPage<Delivery>>(page('deliveries', after)),
     retry: (id: string) => send<{ id: string }>(`deliveries/${encodeURIComponent(id)}/retry`, 'POST', {}),

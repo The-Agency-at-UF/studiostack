@@ -315,6 +315,15 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const withdrawn=await command(member,b,'withdraw');expect(withdrawn.status).toBe('withdrawn');expect(withdrawn.shootStartsAt).toBeNull()
     expect(await command(member,withdrawn,'reopen')).toMatchObject({status:'draft',submission:1})
   })
+  it('production: authors delete only never-submitted drafts, which are hidden rather than removed',async()=>{
+    const b=await draft()
+    await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:b.id})).rejects.toMatchObject({status:404})
+    expect(await production(member,{resource:'briefs',method:'DELETE',briefId:b.id})).toEqual({id:b.id})
+    await expect(production(member,{resource:'briefs',method:'GET',briefId:b.id})).rejects.toMatchObject({status:404})
+    expect((await production(member,{resource:'briefs',method:'GET'}) as {items:ProductionBrief[]}).items.some(x=>x.id===b.id)).toBe(false)
+    const submitted=await command(member,await draft(),'submit')
+    await expect(production(member,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:403})
+  })
   it('production: attachment completion is owner-scoped and blocks premature submission',async()=>{
     let b=await draft();const attachmentId=randomUUID(),body={id:attachmentId,name:'Reference.pdf',contentType:'application/pdf',size:120}
     expect(await production(member,{resource:'attachments',method:'POST',briefId:b.id,body})).toMatchObject({id:attachmentId})

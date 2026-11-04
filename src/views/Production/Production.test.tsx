@@ -43,6 +43,17 @@ describe('production workspace',()=>{
     await user.click(screen.getByRole('button',{name:'Submit for review'}));await waitFor(()=>expect(screen.queryByRole('button',{name:'Submit for review'})).not.toBeInTheDocument())
     expect(screen.getByText('In review',{selector:'.production-status'})).toBeInTheDocument();expect(screen.getByRole('button',{name:/View revision/})).toBeInTheDocument()
   })
+  it('lets the author delete a never-submitted draft from the brief list',async()=>{
+    const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
+    expect(screen.queryByRole('button',{name:'Delete Campus stories'})).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:/New brief/}));await screen.findByRole('heading',{name:'New production brief'})
+    await user.click(screen.getByRole('button',{name:/Back to briefs/}))
+    vi.stubGlobal('confirm',vi.fn(()=>true))
+    await user.click(await screen.findByRole('button',{name:'Delete untitled brief'}))
+    await screen.findByText('Brief deleted.')
+    expect(screen.queryByRole('button',{name:'Delete untitled brief'})).not.toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Campus stories'})).toBeInTheDocument()
+  })
   it('lets configured Production leadership approve and confirms the proposed dates',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     await user.selectOptions(screen.getByRole('combobox',{name:/Preview as/}),'preview-reviewer');await screen.findByRole('button',{name:'Decisions & delivery'})
