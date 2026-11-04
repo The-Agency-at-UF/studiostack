@@ -27,7 +27,7 @@
 .ws-menu-toggle,.ws-drawer-heading,.ws-drawer-backdrop { display:none; }
 .ws-skip-link { position:fixed; top:var(--space-2); left:var(--space-2); padding:var(--space-3); background:var(--surface); color:var(--accent); transform:translateY(-200%); z-index:200; }
 .ws-skip-link:focus { transform:none; }
-.app-content#workspace-content { margin-left:var(--sidebar-width); min-height:calc(100svh - var(--space-16)); background:var(--paper); padding-bottom:var(--space-8); }
+.app-content#workspace-content { margin-left:var(--sidebar-width); min-height:calc(100svh - var(--space-16)); background:var(--canvas); padding-bottom:var(--space-8); }
 .app-content#workspace-content:focus { outline:none; }
 .app-content#workspace-content + .sticky-footer { margin-left:var(--sidebar-width); width:calc(100% - var(--sidebar-width)); min-height:var(--space-16); padding:var(--space-3) var(--space-8); background:var(--surface); color:var(--muted); border-top:1px solid var(--line); }
 .app-content#workspace-content + .sticky-footer .footer-status { color:var(--muted); font-size:var(--text-xs); letter-spacing:normal; text-transform:none; }
