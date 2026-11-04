@@ -1,13 +1,13 @@
 import { cp, mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { relative, resolve } from 'node:path'
 import { databaseApiInfrastructure } from '../infra/database/api-resources'
 import { databaseApiGrants } from '../backend/database/api-grants'
 import { execute } from './dev-aws'
+import { createBuildDirectory, sourceState, writeBuildManifest } from './database-build'
 
 // Local build only: no AWS CLI, credentials, database connection or deployment.
 async function main() {
-  const directory = resolve('.aws/database-api')
-  await mkdir(directory, { recursive: true })
+  const source = await sourceState(), directory = await createBuildDirectory(source)
   const archiveDirectory = await mkdtemp(`${directory}/archives-`)
   for (const [name, source] of [['runtime', 'api-entry'], ['setup', 'api-setup']]) {
     const output = await mkdtemp(`${directory}/${name}-`)
@@ -31,6 +31,8 @@ async function main() {
     await writeFile(`${directory}/${process.env.STUDIOSTACK_ENV}-routes.json`, JSON.stringify(template, null, 2))
     console.log('Generated JWT-protected route template for the explicitly configured environment')
   } else console.log('Route template pending: configure the environment, Cognito user pool and app client IDs')
-  console.log('Prepared local packages and grants under .aws/database-api; nothing deployed or migrated')
+  await writeBuildManifest(directory, source)
+  console.log(`Prepared local packages and grants${source.clean ? '' : ' from uncommitted changes (dev only)'}; nothing deployed or migrated`)
+  console.log(`Deploy this build with DATABASE_API_BUILD=${relative(process.cwd(), directory)}`)
 }
 main().catch(() => { console.error('API preparation failed; verify dependencies, certificate and explicit configuration'); process.exitCode = 1 })

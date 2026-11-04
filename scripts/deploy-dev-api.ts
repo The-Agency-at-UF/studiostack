@@ -1,8 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { infrastructure, executionPolicy, trust, roleArn, subnets, account, region } from '../infra/database/resources'
 import { databaseApiInfrastructure } from '../infra/database/api-resources'
 import { aws, applyStack, guardDevApply, devDirectory, waitFunction, invoke, pause } from './dev-aws'
+import { selectedBuild } from './database-build'
 
 export interface DevMetadata { auth: Record<string, string>; network: Record<string, string>; masterSecrets: Record<'dev' | 'prod', string>; prefixListId: string }
 export async function readMetadata(): Promise<DevMetadata> { return JSON.parse(await readFile(`${devDirectory}/metadata.json`, 'utf8')) }
@@ -51,7 +51,7 @@ export async function withMaintenance<T>(metadata: DevMetadata, runId: string, o
     await aws('iam', 'put-role-policy', ['--role-name', `${name}-role`, '--policy-name', 'dev-temporary-schema', '--policy-document', JSON.stringify(executionPolicy(name, [metadata.masterSecrets.dev, metadata.network.DevSecretArn]))])
     await pause(15_000)
     const vars = { ...await devVariables(metadata), RDS_SECRET_ARN: metadata.masterSecrets.dev, RDS_APP_SECRET_ARN: metadata.network.DevSecretArn, RDS_CONNECT_TIMEOUT_MS: '45000', APPLY_DATABASE_API_SCHEMA: 'yes', FIXTURE_RUN_ID: runId }
-    await aws('lambda', 'create-function', ['--function-name', name, '--role', roleArn(`${name}-role`), '--handler', 'index.handler', '--runtime', 'nodejs24.x', '--architectures', 'arm64', '--timeout', '90', '--memory-size', '256', '--environment', JSON.stringify({ Variables: vars }), '--vpc-config', JSON.stringify({ SubnetIds: subnets, SecurityGroupIds: ['sg-06b804b6a003b95e0'] }), '--zip-file', `fileb://${resolve('.aws/database-api/setup.zip')}`, '--tags', 'ManagedBy=StudioStack,Temporary=true'])
+    await aws('lambda', 'create-function', ['--function-name', name, '--role', roleArn(`${name}-role`), '--handler', 'index.handler', '--runtime', 'nodejs24.x', '--architectures', 'arm64', '--timeout', '90', '--memory-size', '256', '--environment', JSON.stringify({ Variables: vars }), '--vpc-config', JSON.stringify({ SubnetIds: subnets, SecurityGroupIds: ['sg-06b804b6a003b95e0'] }), '--zip-file', `fileb://${(await selectedBuild('dev')).setup}`, '--tags', 'ManagedBy=StudioStack,Temporary=true'])
     await waitFunction(name)
     // Endpoint policy changes and newly recreated IAM roles propagate separately
     // from CloudFormation/Lambda readiness. No SQL is replayed during this wait.
@@ -65,6 +65,7 @@ export async function withMaintenance<T>(metadata: DevMetadata, runId: string, o
 }
 async function main() {
   await guardDevApply()
+  await selectedBuild('dev')
   const metadata = await readMetadata()
   await withMaintenance(metadata, '20261013-00000000', async () => {
     const result = await invokeMaintenance<{ ok: boolean; environment: string; applied: string[] }>({})
@@ -74,7 +75,7 @@ async function main() {
   const vars = await devVariables(metadata)
   const fn = await aws<{ Role: string; Architectures: string[]; Environment?: { Variables?: Record<string, string> } }>('lambda', 'get-function-configuration', ['--function-name', 'studiostack-dev-database'])
   if (fn.Role !== roleArn('studiostack-dev-database-role') || fn.Architectures[0] !== 'arm64') throw new Error('Unexpected dev Lambda owner/architecture')
-  await aws('lambda', 'update-function-code', ['--function-name', 'studiostack-dev-database', '--zip-file', `fileb://${resolve('.aws/database-api/runtime.zip')}`])
+  await aws('lambda', 'update-function-code', ['--function-name', 'studiostack-dev-database', '--zip-file', `fileb://${(await selectedBuild('dev')).runtime}`])
   await waitFunction('studiostack-dev-database')
   await aws('lambda', 'update-function-configuration', ['--function-name', 'studiostack-dev-database', '--memory-size', '1024', '--timeout', '28', '--environment', JSON.stringify({ Variables: { ...fn.Environment?.Variables, ...vars } })])
   await waitFunction('studiostack-dev-database')
