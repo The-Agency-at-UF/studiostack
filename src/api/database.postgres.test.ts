@@ -918,14 +918,20 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email])).rejects.toMatchObject({code:'23505'})
     await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email.toUpperCase()])).rejects.toMatchObject({code:'23514'})
   })
-  it('onboarding: every new account joins the Agency once as a member and suspensions stay',async()=>{
+  it('onboarding: new accounts join the Agency through its ufl.edu domain instead of at registration',async()=>{
     const agency=(await operator.query("INSERT INTO app.organizations(slug,name) VALUES('agency-uf','The Agency at UF') RETURNING id")).rows[0].id as string
-    const identity=await newcomer(`${randomUUID()}@gmail.com`)
-    await repository.execute(identity,{operation:'register',displayName:'Again'})
-    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:agency,role:'member'})]})
-    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_signup'",[identity.subject])).rows).toHaveLength(1)
-    await operator.query("UPDATE app.organization_memberships m SET status='suspended' FROM app.users u WHERE u.id=m.user_id AND u.cognito_subject=$1 AND m.organization_id=$2",[identity.subject,agency])
-    await repository.execute(identity,{operation:'register',displayName:'Returning'})
-    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    const owner=(await operator.query("INSERT INTO app.users(cognito_issuer,cognito_subject,display_name) VALUES($1,$2,'Agency owner') RETURNING id",[issuer,randomUUID()])).rows[0].id as string
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'owner','active')",[agency,owner])
+    const migration=(await loadMigrations()).find(m=>m.name==='021_agency_domain_join.sql')!
+    await operator.query(migration.sql);await operator.query(migration.sql)
+    expect((await operator.query('SELECT organization_id,auto_join,created_by FROM app.organization_domains WHERE domain=$1',['ufl.edu'])).rows).toEqual([{organization_id:agency,auto_join:true,created_by:owner}])
+    const student=await newcomer(`${randomUUID()}@ufl.edu`)
+    expect(await repository.execute(student,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    expect((await directory({action:'overview',identity:student}) as OnboardingOverview).domainMatches).toEqual([{organizationId:agency,organizationName:'The Agency at UF',autoJoin:true}])
+    expect(await directory({action:'join-domain',identity:student,organizationId:agency})).toEqual({organizationId:agency})
+    expect(await repository.execute(student,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:agency,role:'member'})]})
+    const outsider=await newcomer(`${randomUUID()}@gmail.com`)
+    expect((await directory({action:'overview',identity:outsider}) as OnboardingOverview).domainMatches).toEqual([])
+    await operator.query("DELETE FROM app.organization_domains WHERE domain='ufl.edu'")
   })
 })
