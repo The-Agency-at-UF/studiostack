@@ -623,12 +623,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   })
   async function bugReportQueue(r:BugReportOutboxRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await bugReportOutboxTask(c,r)}finally{await c.end()}}
   it('bug reports: new reports are claimed once for email and acknowledged only by their lease',async()=>{
-    const report=await repository.execute(member,{operation:'bugReport',organizationId,title:'Email me',description:'Queued for support.',pagePath:'/reservations/',requestId:randomUUID()}) as {id:string}
+    const report=await repository.execute(member,{operation:'bugReport',organizationId,kind:'bug',title:'Email me',description:'Queued for support.',pagePath:'/reservations/',requestId:randomUUID()}) as {id:string}
     const results=await Promise.all([bugReportQueue({action:'claim'}),bugReportQueue({action:'claim'})]),jobs=results.flatMap(v=>v.jobs??[]).filter(j=>j.id===report.id);expect(jobs).toHaveLength(1)
-    const job=jobs[0];expect(job).toMatchObject({organizationId,title:'Email me',pagePath:'/reservations/'})
+    const job=jobs[0];expect(job).toMatchObject({organizationId,kind:'bug',title:'Email me',pagePath:'/reservations/'})
     expect(await bugReportQueue({action:'ack',organizationId,id:job.id,leaseToken:randomUUID(),outcome:'sent'})).toEqual({updated:false})
     expect(await bugReportQueue({action:'ack',organizationId,id:job.id,leaseToken:job.leaseToken,outcome:'sent'})).toEqual({updated:true})
     expect((await operator.query('SELECT email_status,sent_at IS NOT NULL AS sent FROM app.bug_reports WHERE id=$1',[job.id])).rows[0]).toEqual({email_status:'sent',sent:true})
+    const feature=await repository.execute(member,{operation:'bugReport',organizationId,kind:'feature',title:'Email this idea',description:'Queued for support.',pagePath:'/reservations/',requestId:randomUUID()}) as {id:string}
+    expect((await bugReportQueue({action:'claim'})).jobs?.find(j=>j.id===feature.id)).toMatchObject({kind:'feature',title:'Email this idea'})
   })
   it('alerts: expired leases become uncertain instead of sending duplicate messages',async()=>{
     await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:2}})
