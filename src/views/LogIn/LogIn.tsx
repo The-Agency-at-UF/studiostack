@@ -2,7 +2,7 @@
 
 import type {ReactNode} from 'react'
 import Link from 'next/link'
-import { HiOutlineArrowRight, HiOutlineArrowUpRight, HiOutlineLockClosed, HiOutlineCheckCircle, HiOutlineBuildingOffice2 } from 'react-icons/hi2'
+import { HiOutlineArrowRight, HiOutlineLockClosed, HiOutlineCheckCircle, HiOutlineBuildingOffice2 } from 'react-icons/hi2'
 import { FcGoogle } from 'react-icons/fc'
 import { SiApple } from 'react-icons/si'
 import type { ApiOrganization } from '../../types/database-api'
@@ -18,7 +18,6 @@ const providerButtons = [
 export interface LoginProps {
   onSignIn: (provider?: LoginProvider) => void | Promise<void>
   providers?: LoginProviderOption[]
-  onPreview: () => void
   onSignOut?: () => void | Promise<void>
   busy?: boolean
   error?: string
@@ -35,7 +34,7 @@ export interface LoginProps {
   accessHeading?:string
   accessDescription?:string
 }
-export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
+export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
   return <main className="login-page">
     <section className="login-brand" aria-label="About StudioStack">
       <div className="login-lava" aria-hidden="true"><span /><span /><span /><span /><span /><span /></div>
@@ -45,7 +44,6 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
       </div>
     </section>
     <section className="login-access" aria-labelledby="login-title">
-      <div className="login-access-top"><span>YOUR WORKSPACE, CONNECTED.</span><button type="button" onClick={onPreview} disabled={busy}>Explore preview <HiOutlineArrowUpRight aria-hidden="true" /></button></div>
       <div className="login-form-area">
         <span className="login-section-number">{authenticated ? 'Your account' : accessSection?.replace(/ \/ 01$/, '')??'Sign in'}</span>
         <h1 id="login-title">{authenticated ? 'You’re signed in.' : accessHeading??'Welcome back.'}</h1>
@@ -81,13 +79,12 @@ export default function LogIn({ onSignIn, onPreview, onSignOut, providers = [], 
           {accountSignIn??<><button type="button" className="login-primary" onClick={() => void onSignIn()} disabled={busy || !configured}>
             {busy ? <><span className="login-spinner" aria-hidden="true" />Connecting securely…</> : <>Continue to sign in <HiOutlineArrowRight aria-hidden="true" /></>}
           </button>
-          {!configured && <p className="login-inline-note">Sign-in is not configured for this website address yet. You can still explore the preview.</p>}
+          {!configured && <p className="login-inline-note">Sign-in is not configured for this website address yet.</p>}
           {error && <p className="login-error" role="alert">{error}</p>}
           {busy && <p className="login-security-note" role="status">Connecting to secure sign-in. Please wait.</p>}
           <p className="login-password-note"><HiOutlineLockClosed aria-hidden="true" />Your password stays with the sign-in provider.</p></>}
         </>}
       </div>
-      <div className="login-access-bottom"><span>Private access. Shared possibilities.</span><Link href="/login/">StudioStack</Link></div>
     </section>
   </main>
 }

@@ -1,7 +1,7 @@
 'use client'
 import {useEffect,useRef,useState} from 'react'
 import type {FormEvent} from 'react'
-import {HiOutlineArrowRight,HiOutlineEye,HiOutlineEyeSlash,HiOutlineLockClosed} from 'react-icons/hi2'
+import {HiOutlineArrowRight,HiOutlineEye,HiOutlineEyeSlash} from 'react-icons/hi2'
 import {passwordSignIn,invitationPassword,createAccount,confirmAccount,resendAccountCode,requestPasswordReset,confirmPasswordReset,passwordError,passwordRules,type PasswordStep} from '../../auth/password'
 import type {SignedInUser} from '../../auth/cognito'
 export type PasswordFormStep='sign-in'|'sign-up'|'confirm-sign-up'|'forgot'|'reset'|'new-password'
@@ -99,6 +99,5 @@ export default function PasswordForm({onAuthenticated,onBusyChange,onStepChange,
     {step!=='sign-in'&&<button type="button" className="login-text-action" onClick={()=>changeStep('sign-in')}>Back to sign in</button>}
     {step==='reset'&&<button type="button" className="login-text-action" onClick={()=>changeStep('forgot')}>Request a new code</button>}
     {verifying&&<><button type="button" className="login-text-action" onClick={()=>void resend()}>Resend verification code</button><button type="button" className="login-text-action" onClick={()=>changeStep('sign-up')}>Use another email</button></>}
-    <p className="login-password-note"><HiOutlineLockClosed aria-hidden="true"/>Your organization controls access to its workspace.</p>
   </fieldset></form>
 }
