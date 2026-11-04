@@ -148,7 +148,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .login-page .login-form-area h1 { font-family:var(--font-ui); font-size:var(--text-title); letter-spacing:-.02em; font-weight:var(--weight-bold); }
 .login-page .login-description { font-size:var(--text-base); }
 .login-page .login-section-number { font-size:var(--text-xs); letter-spacing:normal; text-transform:none; }
-.login-page .login-brand-center>p { color:var(--on-frame-muted); }
+.login-page .login-brand-center>p { color:var(--on-frame); }
 .login-page .login-brand-top,.login-page .login-brand-bottom { color:var(--on-frame-muted); font-size:var(--text-xs); letter-spacing:normal; }
 .login-page .login-brand-arrow { color:var(--accent-light); }
 .login-page .login-orbit { display:none; }
@@ -185,7 +185,6 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .ws-record-list li { align-items:flex-start; }
   .ws-record-list li .ws-status { margin-top:var(--space-2); }
   .login-page .login-brand { min-height:240px; }
-  .login-page .login-wordmark { max-width:280px; }
   .login-page .login-brand-center { padding:var(--space-8) 0; }
   .login-page .login-brand-center > p { font-size:var(--text-lg); margin-top:var(--space-4); }
   .login-page .login-form-area { padding:var(--space-8) 0; }
