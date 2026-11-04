@@ -347,7 +347,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     const grants = databaseApiGrants('dev')
     expect(grants).toContain('GRANT UPDATE (client_account_id,name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations')
     expect(grants).not.toMatch(/GRANT ALL|schema_migrations|TO "studiostack_prod_app"|CREATE/)
-    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT DELETE ON app.production_assignments TO "studiostack_dev_app"','GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT SELECT, INSERT, DELETE ON app.organization_domains TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"'])
+    expect(grants.split(';').filter(statement=>statement.includes('DELETE')).map(s=>s.trim())).toEqual(['GRANT DELETE ON app.production_assignments TO "studiostack_dev_app"','GRANT INSERT, DELETE ON app.user_group_memberships TO "studiostack_dev_app"','GRANT SELECT, INSERT, DELETE ON app.organization_domains TO "studiostack_dev_app"','GRANT DELETE ON app.reservation_items TO "studiostack_dev_app"','GRANT DELETE ON app.production_briefs, app.production_brief_events, app.production_attachments TO "studiostack_dev_app"'])
     expect(grants).toContain('GRANT UPDATE (role, status, version) ON app.organization_memberships')
   })
   it('keeps onboarding join methods tenant scoped and stores only join code hashes', async () => {

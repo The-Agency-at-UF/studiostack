@@ -120,6 +120,14 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   }
   const brief = await getBrief(request.method !== 'GET')
   if (request.resource === 'briefs' && request.method === 'GET') return detail(brief)
+  if (request.resource === 'briefs' && request.method === 'DELETE') {
+    // Never-submitted drafts have no decisions, outbox rows or crew to preserve.
+    if (brief.ownerId !== user.id || brief.status !== 'draft' || brief.submission > 0) deny('Only the author can delete a draft that was never submitted')
+    await client.query('DELETE FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2', [organizationId, brief.id])
+    await client.query('DELETE FROM app.production_brief_events WHERE organization_id = $1 AND brief_id = $2', [organizationId, brief.id])
+    await client.query('DELETE FROM app.production_briefs WHERE organization_id = $1 AND id = $2', [organizationId, brief.id])
+    return { id: brief.id }
+  }
   if (request.resource === 'briefs' && request.method === 'PATCH') {
     const body = object(request.body, ['data', 'version', 'requestId']), data = briefData(body.data), expected = version(body.version), requestId = uuid(body.requestId), fingerprint = requestHash({ data, version: expected })
     if (await previousEvent(requestId, fingerprint)) return detail(brief)

@@ -52,6 +52,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE (version, reviewer_ids, executive_ids, approval_confirms_dates) ON app.production_settings TO ${role};
     GRANT UPDATE (client_account_id,data, status, version, submission, shoot_starts_at, shoot_ends_at, updated_at) ON app.production_briefs TO ${role};
     GRANT UPDATE (status) ON app.production_attachments TO ${role};
+    GRANT DELETE ON app.production_briefs, app.production_brief_events, app.production_attachments TO ${role};
     GRANT UPDATE (status, attempts, next_attempt_at, lease_token, lease_until, sent_at) ON app.production_outbox TO ${role};
     GRANT SELECT, INSERT ON app.photo_uploads TO ${role};
     GRANT UPDATE (status, object_key, width, height, stored_size, sha256) ON app.photo_uploads TO ${role};
