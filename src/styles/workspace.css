@@ -67,8 +67,21 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .live-dashboard .equipment-summary dd { font-size:var(--text-xl); font-weight:var(--weight-bold); letter-spacing:normal; font-variant-numeric:tabular-nums; margin-top:var(--space-2); }
 .live-dashboard .equipment-summary dt,.live-dashboard .equipment-summary small { font-size:var(--text-xs); }
 .live-dashboard .equipment-summary div { min-width:120px; }
-.app-content#workspace-content .ws-production-overview .ws-queue { border-top:0; padding-top:0; padding-bottom:var(--space-3); }
 .app-content#workspace-content .administration section { border-color:var(--line); }
+/* Workspace content sits on raised cards above the canvas; page headers, tabs and filters stay on the canvas. */
+.app-content#workspace-content { --card-pad:var(--space-6); --card-shadow:var(--shadow-card); }
+.app-content#workspace-content > :is(.administration,.production-page,.organization-page) { background:transparent; }
+.app-content#workspace-content :where(.live-dashboard .ws-queue,.equipment-summary > div,.administration > section,.administration-table,.equipment-inspector,.equipment-calendar,.production-table-wrap,.production-form,.production-inspector,.production-calendar,.production-settings,.org-workspace) { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); box-shadow:var(--card-shadow); padding:var(--card-pad); }
+.app-content#workspace-content :is(.administration-table,.production-table-wrap,.org-workspace) { padding:0; overflow:auto; }
+.app-content#workspace-content .administration > section .administration-table { border:0; border-radius:0; box-shadow:none; }
+.app-content#workspace-content .administration > section { margin:0 0 var(--space-6); }
+.app-content#workspace-content :is(.administration-table,.production-table-wrap) :is(.equipment-empty,.ws-empty) { padding:var(--space-5) var(--space-4); }
+.live-dashboard .ws-queue-columns { gap:var(--space-6); }
+.app-content#workspace-content .equipment-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); border:0; padding:0; gap:var(--space-4); margin:var(--space-6) 0; }
+.app-content#workspace-content .equipment-summary div { min-width:0; }
+.app-content#workspace-content .equipment-summary dd { margin-bottom:0; }
+.app-content#workspace-content :is(.administration-list,.equipment-dashboard-alerts,.equipment-alert-list) > li:last-child,.app-content#workspace-content :is(.administration > section,.administration-table,.production-table-wrap) tbody tr:last-child td { border-bottom:0; }
+.app-content#workspace-content .live-dashboard :is(.equipment-empty,.ws-empty) { padding:var(--space-4) 0 0; }
 .app-content#workspace-content :is(.administration,.production-page) :is(table,.production-table) { font-size:var(--text-sm); border-collapse:collapse; width:100%; text-align:left; }
 .app-content#workspace-content :is(.administration,.production-page) :is(th,td) { padding:var(--space-4) var(--space-3); border-bottom:1px solid var(--line); vertical-align:middle; }
 .app-content#workspace-content :is(.administration,.production-page) th { background:var(--surface-subtle); color:var(--muted); font-size:var(--text-xs); font-weight:var(--weight-medium); letter-spacing:normal; text-transform:none; white-space:nowrap; }
@@ -154,8 +167,8 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .production-toolbar > label,.production-toolbar .production-search { flex:1 1 100%; max-width:none; }
   .production-toolbar>.production-primary { margin-left:0; }
   .production-tabs { max-width:100%; }
-  .live-dashboard .equipment-summary { display:grid; grid-template-columns:1fr 1fr; }
-  .live-dashboard .equipment-summary div { min-width:0; }
+  .app-content#workspace-content { --card-pad:var(--space-4); }
+  .app-content#workspace-content .equipment-summary { grid-template-columns:1fr 1fr; }
   .administration .equipment-handoff-layout { grid-template-columns:1fr; }
   .ws-actions { width:100%; }
   .ws-actions .ws-button { flex:1; }
@@ -175,6 +188,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page) { min-height:0; padding:0; max-width:none; }
   .production-section-nav,.ws-page-header .ws-actions,.production-page .production-inspector { display:none!important; }
   .production-page .production-detail-grid { display:block; }
+  .app-content#workspace-content { --card-shadow:none; }
 }
 .app-content#workspace-content .production-toolbar .production-client-filter { margin:0; display:flex; max-width:none; }
 .app-content#workspace-content :is(.production-table-wrap,.administration-table,.org-table-scroll) { position:relative; }

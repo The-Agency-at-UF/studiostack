@@ -8,7 +8,7 @@ The approved UI overhaul and `docs/brand-guidelines.md` govern this system. Nerv
 
 ## Tokens and type
 
-`src/styles/tokens.css` is the source of truth for colors, spacing, typography, radii, control heights and motion. Prefer licensed Gentona Book/Bold; files are not supplied. Use Franklin Gothic/Arial consistently as the fallback. Do not fetch unlicensed fonts. White surfaces, a cool neutral canvas and 1px dividers replace cream, graph paper and offset shadows. Dark purple has white text; lavender is for black surfaces. Semantic success/warning/danger colors have readable text variants.
+`src/styles/tokens.css` is the source of truth for colors, spacing, typography, radii, control heights and motion. Prefer licensed Gentona Book/Bold; files are not supplied. Use Franklin Gothic/Arial consistently as the fallback. Do not fetch unlicensed fonts. White surfaces, a cool neutral canvas and 1px dividers replace cream, graph paper and offset shadows. Workspace content blocks (sections, tables, detail panels and calendars) are the one exception: white cards with `--radius-card` and the soft, diffuse `--shadow-card`, so they lift off the canvas. Page headers, tabs and filters stay on the canvas, and tables sit flush inside their card. Dark purple has white text; lavender is for black surfaces. Semantic success/warning/danger colors have readable text variants.
 
 ## Structure
 
