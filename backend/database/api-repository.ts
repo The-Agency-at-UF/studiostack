@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { createDatabase, DatabaseClient } from './client'
 import { ApiError, constraintError } from './api-validation'
-import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload } from '../../src/types/database-api'
+import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, FeedbackKind } from '../../src/types/database-api'
 import type { PendingPhoto, PhotoStorage } from './photo-storage'
 import { isAdmin, pageOf as page, requestHash } from './repository-utils'
 
@@ -29,8 +29,8 @@ export type ApiRequest =
   | { operation: 'register'; displayName: string | null }
   | { operation: 'organizations'; page: Page }
   | { operation: 'members' | 'inventory' | 'reservations'; organizationId: string; page: Page }
-  | { operation:'bugReports';organizationId:string;page:Page }
-  | { operation:'bugReport';organizationId:string;title:string;description:string;pagePath:string;requestId:string }
+  | { operation:'bugReports';organizationId:string;page:Page;kind:FeedbackKind }
+  | { operation:'bugReport';organizationId:string;kind:FeedbackKind;title:string;description:string;pagePath:string;requestId:string }
   | { operation: 'createEquipment'; organizationId: string; input: CreateEquipment }
   | { operation: 'updateEquipment'; organizationId: string; itemId: string; input: UpdateEquipment }
   | { operation: 'createReservation'; organizationId: string; input: CreateReservation }
@@ -92,15 +92,15 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     if (request.operation === 'accounts') return dispatchAccounts(client, request, { organizationId, user, membership })
     switch (request.operation) {
       case 'bugReports': {
-        const result=await client.query<QueryResultRow & {id:string}>(`SELECT id,title,description,page_path AS "pagePath",created_at AS "createdAt" FROM app.bug_reports WHERE organization_id=$1 AND reported_by=$2 AND ($3::uuid IS NULL OR id>$3) ORDER BY id LIMIT $4`,[organizationId,user.id,request.page.after,request.page.limit+1])
+        const result=await client.query<QueryResultRow & {id:string}>(`SELECT id,title,description,page_path AS "pagePath",created_at AS "createdAt" FROM app.bug_reports WHERE organization_id=$1 AND reported_by=$2 AND kind=$5 AND ($3::uuid IS NULL OR id>$3) ORDER BY id LIMIT $4`,[organizationId,user.id,request.page.after,request.page.limit+1,request.kind])
         return page(result.rows,request.page.limit)
       }
       case 'bugReport': {
-        const fingerprint=requestHash({title:request.title,description:request.description,pagePath:request.pagePath})
+        const fingerprint=requestHash({...(request.kind==='feature'?{kind:request.kind}:{}),title:request.title,description:request.description,pagePath:request.pagePath})
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`bug-report:${organizationId}:${user.id}:${request.requestId}`])
         const previous=(await client.query('SELECT id,request_hash FROM app.bug_reports WHERE organization_id=$1 AND reported_by=$2 AND request_id=$3',[organizationId,user.id,request.requestId])).rows[0]
         if(previous){if(previous.request_hash!==fingerprint)throw new ApiError(409,'Request ID already used');return {id:previous.id}}
-        return (await client.query('INSERT INTO app.bug_reports(organization_id,reported_by,request_id,request_hash,title,description,page_path) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id',[organizationId,user.id,request.requestId,fingerprint,request.title,request.description,request.pagePath])).rows[0]
+        return (await client.query('INSERT INTO app.bug_reports(organization_id,reported_by,request_id,request_hash,title,description,page_path,kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',[organizationId,user.id,request.requestId,fingerprint,request.title,request.description,request.pagePath,request.kind])).rows[0]
       }
       case 'members': {
         admin(membership)

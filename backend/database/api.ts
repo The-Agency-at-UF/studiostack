@@ -5,7 +5,7 @@ import { productionRoutes, productionRequest } from '../production/routes'
 import {accountRoutes,accountRequest,joinMethodRoutes} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
-import { ApiError, jsonResponse, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text } from './api-validation'
+import { ApiError, jsonResponse, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text, feedbackKind } from './api-validation'
 import { DatabaseUnavailableError } from './client'
 import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 
@@ -79,13 +79,13 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
   }
   if (event.routeKey === 'GET /organizations') return { operation: 'organizations', page: pagination(params) }
   const organizationId = uuid(event.pathParameters?.organizationId)
-  if (event.routeKey === 'GET /organizations/{organizationId}/bug-reports') return {operation:'bugReports',organizationId,page:pagination(params)}
+  if (event.routeKey === 'GET /organizations/{organizationId}/bug-reports') { const {kind,...rest}=params; return {operation:'bugReports',organizationId,kind:feedbackKind(kind),page:pagination(rest)} }
   if (event.routeKey === 'GET /organizations/{organizationId}/members') return { operation: 'members', organizationId, page: pagination(params) }
   if (event.routeKey === 'GET /organizations/{organizationId}/inventory') return { operation: 'inventory', organizationId, page: pagination(params) }
   if (event.routeKey === 'GET /organizations/{organizationId}/reservations') return { operation: 'reservations', organizationId, page: pagination(params) }
   object(params, [])
   switch (event.routeKey) {
-    case 'POST /organizations/{organizationId}/bug-reports': { const body=object(json(event),['title','description','pagePath','requestId']); if(typeof body.description!=='string'||!body.description.trim()||body.description.trim().length>4000||[...body.description].some(c=>{const n=c.charCodeAt(0);return n===127||n<32&&![9,10,13].includes(n)}))throw new ApiError(400,'Invalid report description');const pagePath=text(body.pagePath,255);if(!/^\/[A-Za-z0-9/_-]*$/.test(pagePath))throw new ApiError(400,'Invalid page path');return {operation:'bugReport',organizationId,title:text(body.title,160),description:body.description.trim(),pagePath,requestId:uuid(body.requestId)} }
+    case 'POST /organizations/{organizationId}/bug-reports': { const body=object(json(event),['kind','title','description','pagePath','requestId']); if(typeof body.description!=='string'||!body.description.trim()||body.description.trim().length>4000||[...body.description].some(c=>{const n=c.charCodeAt(0);return n===127||n<32&&![9,10,13].includes(n)}))throw new ApiError(400,'Invalid report description');const pagePath=text(body.pagePath,255);if(!/^\/[A-Za-z0-9/_-]*$/.test(pagePath))throw new ApiError(400,'Invalid page path');return {operation:'bugReport',organizationId,kind:feedbackKind(body.kind),title:text(body.title,160),description:body.description.trim(),pagePath,requestId:uuid(body.requestId)} }
     case 'POST /organizations/{organizationId}/inventory': return { operation: 'createEquipment', organizationId, input: createEquipment(json(event)) }
     case 'PATCH /organizations/{organizationId}/inventory/{itemId}': return { operation: 'updateEquipment', organizationId, itemId: uuid(event.pathParameters?.itemId), input: updateEquipment(json(event)) }
     case 'POST /organizations/{organizationId}/reservations': return { operation: 'createReservation', organizationId, input: createReservation(json(event)) }

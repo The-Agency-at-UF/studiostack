@@ -85,14 +85,18 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await repository.execute(suspended, { operation: 'organizations', page: listPage })).toMatchObject({ items: [] })
   })
   it('persists submitted bug reports once and keeps other organizations out',async()=>{
-    const input={operation:'bugReport' as const,organizationId,title:'Test issue',description:'Details\nwith context',pagePath:'/inventory/',requestId:randomUUID()}
+    const input={operation:'bugReport' as const,organizationId,kind:'bug' as const,title:'Test issue',description:'Details\nwith context',pagePath:'/inventory/',requestId:randomUUID()}
     const first=await repository.execute(member,input) as {id:string}
     expect(await repository.execute(member,input)).toEqual(first)
     await expect(repository.execute(member,{...input,title:'Different'})).rejects.toMatchObject({status:409})
     await expect(repository.execute(outsider,input)).rejects.toMatchObject({status:403})
-    const own=await repository.execute(member,{operation:'bugReports',organizationId,page:listPage}) as ApiPage<{id:string}>;expect(own.items).toEqual([expect.objectContaining({id:first.id})])
-    const other=await repository.execute(secondMember,{operation:'bugReports',organizationId,page:listPage}) as ApiPage<{id:string}>;expect(other.items).toEqual([])
+    const own=await repository.execute(member,{operation:'bugReports',organizationId,kind:'bug',page:listPage}) as ApiPage<{id:string}>;expect(own.items).toEqual([expect.objectContaining({id:first.id})])
+    const other=await repository.execute(secondMember,{operation:'bugReports',organizationId,kind:'bug',page:listPage}) as ApiPage<{id:string}>;expect(other.items).toEqual([])
     const rows=await operator.query('SELECT count(*)::int AS count FROM app.bug_reports WHERE organization_id=$1 AND id=$2',[organizationId,first.id]);expect(rows.rows[0].count).toBe(1)
+
+    const feature=await repository.execute(member,{...input,kind:'feature',requestId:randomUUID()}) as {id:string}
+    const features=await repository.execute(member,{operation:'bugReports',organizationId,kind:'feature',page:listPage}) as ApiPage<{id:string}>;expect(features.items).toEqual([expect.objectContaining({id:feature.id})])
+    const bugs=await repository.execute(member,{operation:'bugReports',organizationId,kind:'bug',page:listPage}) as ApiPage<{id:string}>;expect(bugs.items).toEqual([expect.objectContaining({id:first.id})])
   })
   it('persists admin inventory changes and refuses member writes', async () => {
     const item = await equipment()
@@ -619,12 +623,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   })
   async function bugReportQueue(r:BugReportOutboxRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await bugReportOutboxTask(c,r)}finally{await c.end()}}
   it('bug reports: new reports are claimed once for email and acknowledged only by their lease',async()=>{
-    const report=await repository.execute(member,{operation:'bugReport',organizationId,title:'Email me',description:'Queued for support.',pagePath:'/reservations/',requestId:randomUUID()}) as {id:string}
+    const report=await repository.execute(member,{operation:'bugReport',organizationId,kind:'bug',title:'Email me',description:'Queued for support.',pagePath:'/reservations/',requestId:randomUUID()}) as {id:string}
     const results=await Promise.all([bugReportQueue({action:'claim'}),bugReportQueue({action:'claim'})]),jobs=results.flatMap(v=>v.jobs??[]).filter(j=>j.id===report.id);expect(jobs).toHaveLength(1)
-    const job=jobs[0];expect(job).toMatchObject({organizationId,title:'Email me',pagePath:'/reservations/'})
+    const job=jobs[0];expect(job).toMatchObject({organizationId,kind:'bug',title:'Email me',pagePath:'/reservations/'})
     expect(await bugReportQueue({action:'ack',organizationId,id:job.id,leaseToken:randomUUID(),outcome:'sent'})).toEqual({updated:false})
     expect(await bugReportQueue({action:'ack',organizationId,id:job.id,leaseToken:job.leaseToken,outcome:'sent'})).toEqual({updated:true})
     expect((await operator.query('SELECT email_status,sent_at IS NOT NULL AS sent FROM app.bug_reports WHERE id=$1',[job.id])).rows[0]).toEqual({email_status:'sent',sent:true})
+    const feature=await repository.execute(member,{operation:'bugReport',organizationId,kind:'feature',title:'Email this idea',description:'Queued for support.',pagePath:'/reservations/',requestId:randomUUID()}) as {id:string}
+    expect((await bugReportQueue({action:'claim'})).jobs?.find(j=>j.id===feature.id)).toMatchObject({kind:'feature',title:'Email this idea'})
   })
   it('alerts: expired leases become uncertain instead of sending duplicate messages',async()=>{
     await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:2}})

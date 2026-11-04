@@ -319,6 +319,17 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
     expect(execute).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({operation:'bugReport',organizationId:org,pagePath:'/inventory/'}))
     expect((await handler(event(route,{title:'x',description:'x',pagePath:'//evil.example',requestId}))).statusCode).toBe(400)
     expect((await handler(event(route,{title:'x',description:'x',pagePath:'/inventory/',requestId,userEmail:'other@example.test'}))).statusCode).toBe(400)
+
+    expect(execute).toHaveBeenLastCalledWith(expect.anything(),expect.objectContaining({kind:'bug'}))
+    expect((await handler(event(route,{kind:'feature',title:'Bulk checkout',description:'x',pagePath:'/inventory/',requestId}))).statusCode).toBe(200)
+    expect(execute).toHaveBeenLastCalledWith(expect.anything(),expect.objectContaining({operation:'bugReport',kind:'feature'}))
+    expect((await handler(event(route,{kind:'praise',title:'x',description:'x',pagePath:'/inventory/',requestId}))).statusCode).toBe(400)
+    const list=(query?:Record<string,string>)=>handler({...event('GET /organizations/{organizationId}/bug-reports'),queryStringParameters:query})
+    expect((await list()).statusCode).toBe(200)
+    expect(execute).toHaveBeenLastCalledWith(expect.anything(),expect.objectContaining({operation:'bugReports',kind:'bug'}))
+    expect((await list({kind:'feature',limit:'10'})).statusCode).toBe(200)
+    expect(execute).toHaveBeenLastCalledWith(expect.anything(),expect.objectContaining({operation:'bugReports',kind:'feature',page:{limit:10,after:null}}))
+    expect((await list({kind:'praise'})).statusCode).toBe(400)
   })
   it('parses join-method administration routes with their own path parameters', () => {
     const base='/organizations/{organizationId}/administration'

@@ -5,7 +5,7 @@ import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
 import { productionClient } from './production'
 import type {OnboardingOverview,OwnAccessRequest,PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
-import type { ApiBugReport, ApiUser, ApiOrganization, ApiMember, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
+import type { ApiBugReport, FeedbackKind, ApiUser, ApiOrganization, ApiMember, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 import type { Send } from './scoped'
 
 // Coalesce only identical, currently pending reads. Never retain responses or
@@ -107,8 +107,8 @@ export function createDatabaseApiClient(options: ClientOptions) {
     equipment:(org:string)=>equipmentClient(scoped(org,resource=>`equipment/${resource}`)),
     accounts: (org:string) => accountClient(scoped(org,resource=>`administration/${resource}`)),
     production: (org: string) => productionClient(scoped(org, resource => `production/${resource}`)),
-    bugReports:(org:string,page?:PageOptions)=>request<ApiPage<ApiBugReport>>(paged(path(org,'bug-reports'),page)),
-    submitBugReport:(org:string,input:{title:string;description:string;pagePath:string;requestId:string})=>request<{id:string}>(path(org,'bug-reports'),'POST',input),
+    bugReports:(org:string,page?:PageOptions,kind:FeedbackKind='bug')=>{const resource=paged(path(org,'bug-reports'),page);return request<ApiPage<ApiBugReport>>(`${resource}${resource.includes('?')?'&':'?'}kind=${kind}`)},
+    submitBugReport:(org:string,input:{kind?:FeedbackKind;title:string;description:string;pagePath:string;requestId:string})=>request<{id:string}>(path(org,'bug-reports'),'POST',input),
     me: () => request<ApiUser>('/me'),
     register: (displayName?: string) => request<ApiUser>('/me', 'POST', displayName === undefined ? {} : { displayName }),
     organizations: (page?: PageOptions) => request<ApiPage<ApiOrganization>>(paged('/organizations', page)),

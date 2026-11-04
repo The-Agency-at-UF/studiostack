@@ -13,6 +13,13 @@ describe('authenticated database browser client', () => {
     try{const work=Promise.all([client.me(),client.organizations(),client.inventory('org')]);await vi.advanceTimersByTimeAsync(0);expect(fetcher).toHaveBeenCalledTimes(3);await work}finally{vi.unstubAllEnvs()}
   })
 
+  it('asks for bug reports by default and feature requests when named',async()=>{
+    const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({items:[],nextCursor:null})))
+    const client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher})
+    await client.bugReports('org');await client.bugReports('org',{limit:100},'feature')
+    expect(fetcher.mock.calls.map(([url])=>String(url))).toEqual(['https://example.com/organizations/org/bug-reports?kind=bug','https://example.com/organizations/org/bug-reports?limit=100&kind=feature'])
+  })
+
   it('coalesces pending identical reads across page clients, then fetches fresh data',async()=>{
     let resolve!:(value:Response)=>void
     const fetcher=vi.fn().mockImplementation(()=>new Promise<Response>(done=>{resolve=done}))

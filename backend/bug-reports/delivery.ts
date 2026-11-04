@@ -1,9 +1,9 @@
 import {deliverLeased,rejectedSesErrors} from '../email/delivery'
 import type {BugReportJob,BugReportOutboxRequest} from './outbox'
 export function bugReportEmail(job:BugReportJob,webUrl:string){
- const reporter=job.reporterName?`${job.reporterName} <${job.reporterEmail}>`:job.reporterEmail
- return {subject:`StudioStack bug report: ${job.title}`.replace(/[\r\n]/g,' ').slice(0,200),text:[
-  `Bug report · ${job.organizationName}`,'',`Title: ${job.title}`,`From: ${reporter}`,`Page: ${new URL(job.pagePath,webUrl).href}`,`Submitted: ${job.createdAt}`,`Report ID: ${job.id}`,'','Description:',job.description,
+ const label=job.kind==='feature'?'Feature request':'Bug report',reporter=job.reporterName?`${job.reporterName} <${job.reporterEmail}>`:job.reporterEmail
+ return {subject:`StudioStack ${label.toLowerCase()}: ${job.title}`.replace(/[\r\n]/g,' ').slice(0,200),text:[
+  `${label} · ${job.organizationName}`,'',`Title: ${job.title}`,`From: ${reporter}`,`Page: ${new URL(job.pagePath,webUrl).href}`,`Submitted: ${job.createdAt}`,`Report ID: ${job.id}`,'','Description:',job.description,
  ].join('\n')}
 }
 export async function deliverBugReports(deps:{store:(r:BugReportOutboxRequest)=>Promise<{jobs?:BugReportJob[];updated?:boolean}>;send:(j:BugReportJob)=>Promise<void>}){
