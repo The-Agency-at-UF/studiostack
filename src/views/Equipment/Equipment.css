@@ -70,3 +70,11 @@
 .administration .production-tabs button { background:var(--surface-subtle);color:#4d3b61; }
 .administration .production-tabs button[aria-current="page"] { background:var(--accent);color:white; }
 .inventory-workspace .administration-form label:first-child { flex:1;max-width:520px;min-width:200px; }
+.equipment-scan { border:1px solid var(--line);padding:20px;margin:20px 0;display:grid;gap:16px;max-width:640px; }
+.equipment-scan-header { display:flex;justify-content:space-between;gap:16px;align-items:flex-start; }
+.equipment-scan h2 { margin:0 0 6px; }
+.equipment-scan h3 { font-weight:600;font-size:15px;margin:0; }
+.equipment-scan small { display:block;color:var(--muted);font-size:12px;margin:4px 0 12px; }
+.equipment-scan > div > button + button { margin-left:12px; }
+.equipment-scan-manual { display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap; }
+.equipment-scan-manual label { flex:1;min-width:200px; }
