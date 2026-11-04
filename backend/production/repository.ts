@@ -22,7 +22,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const editable = (brief: ProductionBrief) => brief.ownerId === user.id && ['draft', 'changes_requested'].includes(brief.status)
   const readable = (brief: ProductionBrief) => admin || brief.ownerId === user.id || brief.status !== 'draft'
   async function getBrief(lock = false): Promise<ProductionBrief> {
-    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.id = $2 ${lock ? 'FOR UPDATE OF b' : ''}`, [organizationId, request.briefId])
+    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.id = $2 AND b.deleted_at IS NULL ${lock ? 'FOR UPDATE OF b' : ''}`, [organizationId, request.briefId])
     const brief = result.rows[0] as ProductionBrief | undefined
     if (!brief || !readable(brief)) throw new ApiError(404, 'Brief not found')
     return brief
@@ -88,7 +88,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   }
   if (request.resource === 'briefs' && request.method === 'GET' && !request.briefId) {
     const { page } = request
-    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND ($2::uuid IS NULL OR b.id > $2) AND ($4::boolean OR b.owner_id = $5 OR ($6::boolean AND b.status <> 'draft')) ORDER BY b.id LIMIT $3`, [organizationId, page.after, page.limit + 1, admin, user.id, true])
+    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.deleted_at IS NULL AND ($2::uuid IS NULL OR b.id > $2) AND ($4::boolean OR b.owner_id = $5 OR ($6::boolean AND b.status <> 'draft')) ORDER BY b.id LIMIT $3`, [organizationId, page.after, page.limit + 1, admin, user.id, true])
     const visible=result.rows.slice(0,page.limit),assignments=await crew(visible.map(b=>b.id))
     const items = visible.map(b => ({ ...b, crew:assignments.filter(a=>a.briefId===b.id),events: [], attachments: [] }))
     return { items, nextCursor: result.rows.length > page.limit ? items[items.length - 1].id : null }
@@ -121,11 +121,9 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const brief = await getBrief(request.method !== 'GET')
   if (request.resource === 'briefs' && request.method === 'GET') return detail(brief)
   if (request.resource === 'briefs' && request.method === 'DELETE') {
-    // Never-submitted drafts have no decisions, outbox rows or crew to preserve.
+    // Only never-submitted drafts, which no reviewer has seen; the row is hidden, not removed.
     if (brief.ownerId !== user.id || brief.status !== 'draft' || brief.submission > 0) deny('Only the author can delete a draft that was never submitted')
-    await client.query('DELETE FROM app.production_attachments WHERE organization_id = $1 AND brief_id = $2', [organizationId, brief.id])
-    await client.query('DELETE FROM app.production_brief_events WHERE organization_id = $1 AND brief_id = $2', [organizationId, brief.id])
-    await client.query('DELETE FROM app.production_briefs WHERE organization_id = $1 AND id = $2', [organizationId, brief.id])
+    await client.query('UPDATE app.production_briefs SET deleted_at = now(), updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id])
     return { id: brief.id }
   }
   if (request.resource === 'briefs' && request.method === 'PATCH') {

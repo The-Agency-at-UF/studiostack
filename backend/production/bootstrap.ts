@@ -11,7 +11,7 @@ export async function bootstrapProductionAdmin(database: ReturnType<typeof creat
     const org = (await client.query(`INSERT INTO app.organizations (slug,name) VALUES ('agency-uf','The Agency at UF') ON CONFLICT (slug) DO UPDATE SET slug=EXCLUDED.slug RETURNING id,name,slug`)).rows[0]
     await client.query(`INSERT INTO app.organization_memberships (organization_id,user_id,role,status) VALUES ($1,$2,'owner','active') ON CONFLICT (organization_id,user_id) DO NOTHING`,[org.id,user.id])
     const membership=(await client.query('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[org.id,user.id])).rows[0]
-    const counts=(await client.query('SELECT (SELECT count(*)::int FROM app.organization_memberships WHERE organization_id=$1) AS members,(SELECT count(*)::int FROM app.inventory WHERE organization_id=$1) AS equipment,(SELECT count(*)::int FROM app.production_briefs WHERE organization_id=$1) AS briefs',[org.id])).rows[0]
+    const counts=(await client.query('SELECT (SELECT count(*)::int FROM app.organization_memberships WHERE organization_id=$1) AS members,(SELECT count(*)::int FROM app.inventory WHERE organization_id=$1) AS equipment,(SELECT count(*)::int FROM app.production_briefs WHERE organization_id=$1 AND deleted_at IS NULL) AS briefs',[org.id])).rows[0]
     return {ok:true,organizationId:org.id,userId:user.id,membership,workspace:{name:org.name,slug:org.slug,...counts}}
   },'maintenance')
 }
