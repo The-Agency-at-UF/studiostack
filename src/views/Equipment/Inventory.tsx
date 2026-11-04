@@ -8,6 +8,7 @@ import {equipmentCategories,type EquipmentCategory,type EquipmentStatus} from '.
 import {uploadOrganizationPhoto} from '../../api/privatePhotos'
 import QRCodeGenerator from '../../components/QRCodeGenerator'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
+import ScanHandoff from './ScanHandoff'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
@@ -20,6 +21,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   const [adding,setAdding]=useState(false)
   const [addCode,setAddCode]=useState('')
   const [added,setAdded]=useState('')
+  const [scanning,setScanning]=useState(false)
   const [loading,setLoading]=useState(!cached)
   const [error,setError]=useState('')
   const [query,setQuery]=useState('')
@@ -39,8 +41,9 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   },[api,organizationId,cacheKey,cached])
   const [view,setView]=useState('all')
   const current=items.find(i=>i.id===selected),filtered=items.filter(i=>(view==='all'||view==='out'&&i.checkedOut||view==='ready'&&!i.checkedOut&&i.status==='available'||view==='service'&&i.status==='maintenance')&&(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(query.toLowerCase()))
-  return <main className="administration workspace-surface inventory-workspace"><header><div><p className="administration-eyebrow">Equipment workspace</p><h1>Inventory</h1><p>{items.length} items · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div><div className="administration-actions"><button onClick={()=>{setError('');void load().catch(e=>setError(equipmentError(e)))}}>Refresh</button>{admin&&<button className="ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}>Add item</button>}</div></header>
+  return <main className="administration workspace-surface inventory-workspace"><header><div><p className="administration-eyebrow">Equipment workspace</p><h1>Inventory</h1><p>{items.length} items · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div><div className="administration-actions"><button onClick={()=>{setError('');void load().catch(e=>setError(equipmentError(e)))}}>Refresh</button><button onClick={()=>setScanning(true)}>Scan equipment</button>{admin&&<button className="ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}>Add item</button>}</div></header>
     {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading inventory…" variant="row" count={5}/>}
+    {scanning&&<ScanHandoff api={api} organizationId={organizationId} items={items} admin={admin} onClose={()=>setScanning(false)} onAdd={code=>{setScanning(false);setAddCode(code);setAdded('');setAdding(true);setSelected(null)}} onSaved={async()=>{for(const key of ['fulfillment','reservations','inventory','dashboard','reports'])invalidateCache(`${key}:${organizationId}`);await load().catch(e=>setError(equipmentError(e)))}}/>}
 <nav className="production-tabs" aria-label="Inventory views">{[['all','All production equipment'],['ready','Available'],['out','Checked out'],['service','Maintenance']].map(([id,label])=><button key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav>
     <div className="administration-form"><label>Search inventory<input type="search" value={query} onChange={e=>setQuery(e.target.value)}/></label><label>Category<Select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</Select></label></div>
     {!loading&&!error&&!filtered.length&&<p className="equipment-empty">No matching equipment. {admin?'Add an item to get started.':''}</p>}
