@@ -35,4 +35,5 @@
 .administration-code code { font-size:20px;font-weight:650;letter-spacing:.12em; }
 .administration-code small { flex-basis:100%;color:var(--muted); }
 
+.administration td button + button { margin-left:10px; }
 .administration-back { gap:var(--space-2);margin-bottom:var(--space-4); }

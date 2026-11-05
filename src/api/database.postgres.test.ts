@@ -393,6 +393,28 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await account(owner,{resource:'members',method:'PATCH',memberId:target.id,body:{role:'member',status:'active',version:updated.version,requestId:randomUUID()}})
     expect((await operator.query('SELECT id FROM app.organization_audit_events WHERE request_id=$1',[requestId])).rows).toHaveLength(1)
   })
+  it('accounts: administrators manage other administrators but cannot alter owners or grant ownership',async()=>{
+    const actor=await accountMember(secondMember),target=await accountMember(member),ownerBefore=await accountMember(owner)
+    const change=async(identity:Identity,id:string,role:string,status:string,version:number)=>account<ManagedMember>(identity,{resource:'members',method:'PATCH',memberId:id,body:{role,status,version,requestId:randomUUID()}})
+    const admin=await change(owner,actor.id,'admin','active',actor.version)
+    let edited=target
+    try {
+      edited=await change(secondMember,target.id,'admin','active',target.version)
+      expect(edited.role).toBe('admin')
+      await expect(change(secondMember,ownerBefore.id,'member','active',ownerBefore.version)).rejects.toMatchObject({status:403})
+      await expect(change(secondMember,ownerBefore.id,'owner','suspended',ownerBefore.version)).rejects.toMatchObject({status:403})
+      await expect(change(secondMember,target.id,'owner','active',edited.version)).rejects.toMatchObject({status:403})
+      edited=await change(secondMember,target.id,'admin','suspended',edited.version)
+      await expect(account(member,{resource:'settings',method:'GET'})).rejects.toMatchObject({status:403})
+      edited=await change(secondMember,target.id,'admin','active',edited.version)
+      edited=await change(secondMember,target.id,'member','active',edited.version)
+      expect(edited).toMatchObject({role:'member',status:'active'})
+      expect(await accountMember(owner)).toMatchObject(ownerBefore)
+    } finally {
+      if(edited.role!==target.role||edited.status!==target.status)await change(owner,target.id,target.role,target.status,edited.version)
+      await change(owner,actor.id,actor.role,actor.status,admin.version)
+    }
+  })
   it('accounts: organization policies use optimistic versions and retain an append-only audit',async()=>{
     const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'}),body={name:'Renamed studio',reservationDays:14,version:current.version,requestId:randomUUID()}
     expect(await account(owner,{resource:'settings',method:'PATCH',body})).toMatchObject({name:body.name,reservationDays:14,version:current.version+1})
