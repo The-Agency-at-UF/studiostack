@@ -66,6 +66,7 @@ All HTTP routes use the existing JWT authorizer and `studiostack-api/access` sco
 | GET/PATCH `/settings` | Admin-managed reviewer and ELT membership |
 | GET/POST `/briefs` | Paginated visible briefs / create draft |
 | GET/PATCH `/briefs/{briefId}` | Details/history / versioned draft save |
+| DELETE `/briefs/{briefId}` | Author hides a never-submitted draft; history is retained |
 | POST `/briefs/{briefId}/actions` | Submit, comment, approve, request changes, deny, withdraw, reopen, schedule |
 | POST `/briefs/{briefId}/attachments` | Authorize private upload |
 | POST `/briefs/{briefId}/attachments/{attachmentId}/complete` | Validate and finalize upload |
@@ -76,6 +77,19 @@ All HTTP routes use the existing JWT authorizer and `studiostack-api/access` sco
 The outbox task is an IAM-only Lambda invocation and is never registered as a public HTTP route. Migration 004 adds organization RLS, foreign keys, restricted column grants and production-workflow tables. It does not alter legacy reservation data.
 
 ## Local verification and deployment
+
+### Production brief deletion
+
+Publishing the website alone does not deploy API routes, Lambda code or database migrations. Brief deletion requires migration `020_production_brief_soft_delete.sql`, the runtime's `deleted_at` update grant, the matching backend, and the JWT-protected DELETE route together. The browser can report “Load failed” when an undeployed route returns a response without CORS headers.
+
+From a clean checkout of the merged release, with the existing `.aws/dev-rollout/metadata.json`, `.aws/prod-rollout/metadata.json` and public regional RDS certificate configured:
+
+```sh
+npm run db:api:prepare
+DATABASE_API_BUILD=<folder printed by db:api:prepare> node --import=tsx scripts/deploy-production-brief-deletion.ts --apply-prod
+```
+
+This deployment preserves the prior runtime archive, applies pending migrations and application grants through temporary maintenance access, removes that access, updates the runtime, and deploys/verifies the protected route. It does not bootstrap users or change organization membership. The production web release workflow still publishes only the website; backend releases need this separate deployment.
 
 ```sh
 npm ci
