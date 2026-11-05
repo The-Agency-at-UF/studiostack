@@ -37,6 +37,8 @@ describe('account administration inputs',()=>{
     expect(()=>addDomain({domain:'studio.example.edu',requestId})).toThrow()
     expect(createJoinCode({label:'Fall crew',requestId})).toEqual({label:'Fall crew',maxUses:null,expiresInDays:null,requestId})
     for(const extra of [{maxUses:0},{maxUses:1.5},{expiresInDays:366},{role:'admin'}])expect(()=>createJoinCode({label:'Crew',requestId,...extra})).toThrow()
+    expect(createJoinCode({label:'Agency',reusable:true,requestId})).toMatchObject({reusable:true})
+    for(const extra of [{reusable:'yes'},{reusable:true,maxUses:5},{reusable:true,expiresInDays:7},{replaces:requestId}])expect(()=>createJoinCode({label:'Agency',requestId,...extra})).toThrow()
     expect(publicEmailDomains.has('gmail.com')).toBe(true);expect(publicEmailDomains.has('ufl.edu')).toBe(false)
   })
   it('normalizes invitation email and excludes owner invitations',()=>{

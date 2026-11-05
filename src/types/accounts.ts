@@ -13,6 +13,6 @@ export interface InviteMember { email:string; displayName:string; role:'admin'|'
 export interface ChangeMember extends VersionedRequest { role:ApiOrganization['role']; status:ApiMember['status'] }
 export interface ChangeOrganization extends VersionedRequest { name:string; reservationDays:number }
 export interface WorkspaceDomain { domain:string; autoJoin:boolean; version:number; createdAt:string }
-export interface JoinCode { id:string; label:string; maxUses:number|null; uses:number; expiresAt:string|null; revokedAt:string|null; version:number; createdAt:string; /** Present only in the create response. */ code?:string }
-export interface CreateJoinCode { label:string; maxUses?:number|null; expiresInDays?:number|null; requestId:string }
+export interface JoinCode { id:string; label:string; maxUses:number|null; uses:number; expiresAt:string|null; revokedAt:string|null; version:number; createdAt:string; /** Also returned on admin reads for a reusable organization code. */ code?:string }
+export interface CreateJoinCode { label:string; reusable?:boolean; replaces?:string; maxUses?:number|null; expiresInDays?:number|null; requestId:string }
 export interface PendingAccessRequest { id:string; userId:string; email:string; displayName:string|null; message:string|null; status:'pending'|'approved'|'denied'|'withdrawn'; version:number; createdAt:string; decidedAt:string|null }
