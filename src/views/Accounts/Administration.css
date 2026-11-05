@@ -36,3 +36,4 @@
 .administration-code small { flex-basis:100%;color:var(--muted); }
 
 .administration td button + button { margin-left:10px; }
+.administration-back { gap:var(--space-2);margin-bottom:var(--space-4); }

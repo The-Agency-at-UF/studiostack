@@ -1,4 +1,6 @@
 'use client'
+import Link from 'next/link'
+import {HiOutlineArrowLeft} from 'react-icons/hi2'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database'
 import {authConfiguration} from '../../auth/cognito'
@@ -28,7 +30,9 @@ export default function Administration() {
   useEffect(()=>{const g=++generation.current;setSettings(null);setMembers([]);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setNotice('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
   async function run(key:string,task:(client:AccountClient,id:string)=>Promise<unknown>):Promise<unknown>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`;if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};setBusy(true);setError('');setNotice('');try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.');await session.refreshOrganizations?.();if(g===generation.current)await load();return result}catch(e){if(g===generation.current)setError(message(e))}finally{if(g===generation.current)setBusy(false)}}
   const owner=settings?.role==='owner',admin=owner||settings?.role==='admin'
-  return <main className="administration workspace-surface"><header><div><p className="administration-eyebrow">Organization administration</p><h1>Organization</h1><p>{settings?.name??'Select an organization to continue.'}{settings&&` · ${settings.role}`}</p></div><button disabled={busy||loading||!api} onClick={()=>{setLoading(true);setError('');load().then(()=>session.refreshOrganizations?.()).catch(e=>setError(message(e))).finally(()=>setLoading(false))}}>Refresh</button></header>
+  return <main className="administration workspace-surface">
+    <Link className="ws-button administration-back" href="/organization"><HiOutlineArrowLeft aria-hidden="true"/>Back to organization</Link>
+    <header><div><p className="administration-eyebrow">Organization administration</p><h1>Organization</h1><p>{settings?.name??'Select an organization to continue.'}{settings&&` · ${settings.role}`}</p></div><button disabled={busy||loading||!api} onClick={()=>{setLoading(true);setError('');load().then(()=>session.refreshOrganizations?.()).catch(e=>setError(message(e))).finally(()=>setLoading(false))}}>Refresh</button></header>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
     {!loading&&settings&&!admin&&<p>Only organization owners and administrators can manage the organization.</p>}
     {!loading&&admin&&settings&&<>
