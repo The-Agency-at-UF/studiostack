@@ -8,7 +8,7 @@ import {pageOf,requestHash} from '../database/repository-utils'
 /** Free-mail providers can never identify an organization. */
 export const publicEmailDomains=new Set(['gmail.com','googlemail.com','outlook.com','hotmail.com','live.com','msn.com','icloud.com','me.com','mac.com','yahoo.com','ymail.com','aol.com','proton.me','protonmail.com','pm.me','gmx.com','gmx.net','mail.com','zoho.com','yandex.com','hey.com','fastmail.com','tutanota.com','qq.com','163.com','edu.com'])
 const domainColumns='domain,auto_join AS "autoJoin",version,created_at AS "createdAt"'
-const codeColumns='id,label,max_uses AS "maxUses",uses,expires_at AS "expiresAt",revoked_at AS "revokedAt",version,created_at AS "createdAt"'
+const codeColumns='id,label,max_uses AS "maxUses",uses,expires_at AS "expiresAt",revoked_at AS "revokedAt",version,created_at AS "createdAt",CASE WHEN revoked_at IS NULL THEN display_code END AS code'
 const requestColumns='r.id,r.user_id AS "userId",u.email,u.display_name AS "displayName",r.message,r.status,r.version,r.created_at AS "createdAt",r.decided_at AS "decidedAt"'
 export function addDomain(input:unknown) {
   const v=object(input,['domain','autoJoin','requestId']),domain=text(v.domain,253).toLowerCase().replace(/^@/,'')
@@ -16,16 +16,20 @@ export function addDomain(input:unknown) {
   return {domain,autoJoin:v.autoJoin,requestId:uuid(v.requestId)}
 }
 export function createJoinCode(input:unknown) {
-  const v=object(input,['label','maxUses','expiresInDays','requestId'])
+  const v=object(input,['label','maxUses','expiresInDays','reusable','replaces','requestId'])
   if(v.maxUses!==undefined&&v.maxUses!==null&&(!Number.isInteger(v.maxUses)||Number(v.maxUses)<1||Number(v.maxUses)>10000))throw new ApiError(400,'Uses must be between 1 and 10000')
   if(v.expiresInDays!==undefined&&v.expiresInDays!==null&&(!Number.isInteger(v.expiresInDays)||Number(v.expiresInDays)<1||Number(v.expiresInDays)>365))throw new ApiError(400,'Expiry must be between 1 and 365 days')
-  return {label:text(v.label,80),maxUses:(v.maxUses??null) as number|null,expiresInDays:(v.expiresInDays??null) as number|null,requestId:uuid(v.requestId)}
+  if(v.reusable!==undefined&&typeof v.reusable!=='boolean')throw new ApiError(400,'Choose whether the code is reusable')
+  if(v.replaces!==undefined&&v.reusable!==true)throw new ApiError(400,'Only reusable codes can be replaced')
+  if(v.reusable&&(v.maxUses!=null||v.expiresInDays!=null))throw new ApiError(400,'Reusable organization codes have no expiry or usage limit')
+  return {...(v.reusable===true?{reusable:true}:{}),...(v.replaces===undefined?{}:{replaces:uuid(v.replaces)}),label:text(v.label,80),maxUses:(v.maxUses??null) as number|null,expiresInDays:(v.expiresInDays??null) as number|null,requestId:uuid(v.requestId)}
 }
+const presentCode=<T extends Record<string,unknown>>(row:T)=>{if(row.code==null)delete row.code;return row}
 const newCode=()=>Array.from({length:joinCodeLength},()=>joinCodeAlphabet[randomInt(joinCodeAlphabet.length)]).join('')
 export async function dispatchJoinMethods(client:DatabaseClient,request:AccountRequest,actor:{id:string;role:string}) {
   const org=request.organizationId,{resource,method,page}=request
   const domain=async(name:string)=>{const v=(await client.query(`SELECT ${domainColumns} FROM app.organization_domains WHERE organization_id=$1 AND domain=$2`,[org,name])).rows[0];if(!v)throw new ApiError(404,'Domain not found');return v}
-  const code=async(id:string)=>{const v=(await client.query(`SELECT ${codeColumns} FROM app.organization_join_codes WHERE organization_id=$1 AND id=$2`,[org,id])).rows[0];if(!v)throw new ApiError(404,'Join code not found');return v}
+  const code=async(id:string)=>{const v=(await client.query(`SELECT ${codeColumns} FROM app.organization_join_codes WHERE organization_id=$1 AND id=$2`,[org,id])).rows[0];if(!v)throw new ApiError(404,'Join code not found');return presentCode(v)}
   const accessRequest=async(id:string)=>{const v=(await client.query(`SELECT ${requestColumns} FROM app.organization_access_requests r JOIN app.users u ON u.id=r.user_id WHERE r.organization_id=$1 AND r.id=$2`,[org,id])).rows[0];if(!v)throw new ApiError(404,'Access request not found');return v}
   if(resource==='domains'&&actor.role!=='owner')throw new ApiError(403,'Only an owner can manage workspace domains')
   if(method==='GET') {
@@ -36,7 +40,7 @@ export async function dispatchJoinMethods(client:DatabaseClient,request:AccountR
       'access-requests':`SELECT ${requestColumns} FROM app.organization_access_requests r JOIN app.users u ON u.id=r.user_id WHERE r.organization_id=$1 AND r.status='pending' AND ($2::uuid IS NULL OR r.id>$2) ORDER BY r.id LIMIT $3`,
     }
     const {rows}=await client.query(queries[resource],[org,page.after,page.limit+1])
-    return pageOf(rows,page.limit)
+    return pageOf(resource==='join-codes'?rows.map(presentCode):rows,page.limit)
   }
   const input=resource==='domains'&&!request.domain?addDomain(request.body):resource==='join-codes'&&!request.codeId?createJoinCode(request.body):resource==='domains'&&request.action==='update'?(v=>({...versioned(v),autoJoin:v.autoJoin}))(object(request.body,['autoJoin','version','requestId'])):versioned(object(request.body,['version','requestId']))
   const hash=requestHash({resource,input,domain:request.domain,codeId:request.codeId,accessRequestId:request.accessRequestId,action:request.action})
@@ -68,9 +72,14 @@ export async function dispatchJoinMethods(client:DatabaseClient,request:AccountR
   } else if(resource==='join-codes') {
     if(!request.codeId) {
       const v=input as ReturnType<typeof createJoinCode>,plain=newCode()
-      targetId=(await client.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,max_uses,expires_at,created_by) VALUES($1,$2,$3,$4,CASE WHEN $5::int IS NULL THEN NULL ELSE now()+make_interval(days=>$5::int) END,$6) RETURNING id",[org,joinCodeHash(plain),v.label,v.maxUses,v.expiresInDays,actor.id])).rows[0].id
+      if(v.reusable){
+        const current=(await client.query('SELECT id FROM app.organization_join_codes WHERE organization_id=$1 AND display_code IS NOT NULL AND revoked_at IS NULL',[org])).rows[0]
+        if(current?.id!==v.replaces)throw new ApiError(409,'The organization join code changed. Reload before replacing it.')
+        if(current)await client.query('UPDATE app.organization_join_codes SET revoked_at=now(),version=version+1 WHERE organization_id=$1 AND id=$2',[org,current.id])
+      }
+      targetId=(await client.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,max_uses,expires_at,created_by,display_code) VALUES($1,$2,$3,$4,CASE WHEN $5::int IS NULL THEN NULL ELSE now()+make_interval(days=>$5::int) END,$6,$7) RETURNING id",[org,joinCodeHash(plain),v.label,v.maxUses,v.expiresInDays,actor.id,v.reusable?`${plain.slice(0,5)}-${plain.slice(5)}`:null])).rows[0].id
       kind='join_code_created';details={label:v.label,maxUses:v.maxUses,expiresInDays:v.expiresInDays}
-      // The plain code is returned once here and never stored.
+      // Standard codes are shown once; the organization code remains available to admins.
       result={...await code(targetId!),code:`${plain.slice(0,5)}-${plain.slice(5)}`}
     } else {
       const current=await code(request.codeId),v=input as {version:number}

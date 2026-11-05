@@ -801,6 +801,39 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await account(owner,{resource:'domains',method:'POST',domain,action:'remove',body:{version:2,requestId:randomUUID()}})).toEqual({domain,removed:true})
     expect((await operator.query("SELECT kind FROM app.organization_audit_events WHERE details->>'domain'=$1 ORDER BY created_at",[domain])).rows.map(r=>r.kind)).toEqual(['domain_added','domain_updated','domain_removed'])
   })
+  it('onboarding admin: reusable codes persist, replace atomically and remain admin only',async()=>{
+    const created=await account<JoinCode>(owner,{resource:'join-codes',method:'POST',body:{label:'Organization code',reusable:true,requestId:randomUUID()}})
+    const listed=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.find(c=>c.id===created.id)!
+    expect(listed.code).toBe(created.code)
+    await expect(account(member,{resource:'join-codes',method:'GET'})).rejects.toMatchObject({status:403})
+    await expect(account(owner,{resource:'join-codes',method:'POST',body:{label:'Duplicate',reusable:true,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    const nextRequest={resource:'join-codes',method:'POST',body:{label:'Replacement',reusable:true,replaces:created.id,requestId:randomUUID()}}
+    const replacement=await account<JoinCode>(owner,nextRequest)
+    expect(replacement.code).not.toBe(created.code)
+    expect((await account<JoinCode>(owner,nextRequest)).code).toBe(replacement.code)
+    const codes=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items
+    expect(codes.find(c=>c.id===created.id)?.revokedAt).toBeTruthy()
+    expect(codes.find(c=>c.id===created.id)).not.toHaveProperty('code')
+    expect(await directory({action:'join-code',identity:await newcomer(`old-code@${freshDomain()}`),code:created.code!})).toMatchObject({statusCode:404})
+    for(let i=0;i<2;i++)expect(await directory({action:'join-code',identity:await newcomer(`reusable-${i}@${freshDomain()}`),code:replacement.code!})).toEqual({organizationId})
+    await account(owner,{resource:'join-codes',method:'POST',codeId:replacement.id,action:'revoke',body:{version:replacement.version+2,requestId:randomUUID()}})
+  })
+
+  it('provisions the Agency reusable code once without embedding a credential',async()=>{
+    const migration=(await loadMigrations()).find(m=>m.name==='024_agency_reusable_join_code.sql')!
+    const original=(await operator.query('SELECT slug FROM app.organizations WHERE id=$1',[organizationId])).rows[0].slug
+    await operator.query("UPDATE app.organizations SET slug='agency-uf' WHERE id=$1",[organizationId])
+    try {
+      await operator.query(migration.sql)
+      const first=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.find(c=>c.code)!
+      expect(first.code).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/)
+      await operator.query(migration.sql)
+      expect((await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.filter(c=>c.code)).toHaveLength(1)
+      expect(await directory({action:'join-code',identity:await newcomer(`agency-seed@${freshDomain()}`),code:first.code!})).toEqual({organizationId})
+      await account(owner,{resource:'join-codes',method:'POST',codeId:first.id,action:'revoke',body:{version:first.version+1,requestId:randomUUID()}})
+    } finally { await operator.query('UPDATE app.organizations SET slug=$2 WHERE id=$1',[organizationId,original]) }
+  })
+
   it('onboarding admin: join codes are shown once, never listed, and stop working when revoked',async()=>{
     await expect(account(member,{resource:'join-codes',method:'POST',body:{label:'Crew',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
     await expect(account(owner,{resource:'join-codes',method:'POST',body:{label:'Crew',maxUses:0,requestId:randomUUID()}})).rejects.toMatchObject({status:400})
