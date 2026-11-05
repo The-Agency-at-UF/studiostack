@@ -822,6 +822,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('provisions the Agency reusable code once without embedding a credential',async()=>{
     const migration=(await loadMigrations()).find(m=>m.name==='024_agency_reusable_join_code.sql')!
     const original=(await operator.query('SELECT slug FROM app.organizations WHERE id=$1',[organizationId])).rows[0].slug
+    const joiner=await newcomer(`agency-seed@${freshDomain()}`)
     await operator.query("UPDATE app.organizations SET slug='agency-uf' WHERE id=$1",[organizationId])
     try {
       await operator.query(migration.sql)
@@ -829,7 +830,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       expect(first.code).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/)
       await operator.query(migration.sql)
       expect((await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.filter(c=>c.code)).toHaveLength(1)
-      expect(await directory({action:'join-code',identity:await newcomer(`agency-seed@${freshDomain()}`),code:first.code!})).toEqual({organizationId})
+      expect(await directory({action:'join-code',identity:joiner,code:first.code!})).toEqual({organizationId})
       await account(owner,{resource:'join-codes',method:'POST',codeId:first.id,action:'revoke',body:{version:first.version+1,requestId:randomUUID()}})
     } finally { await operator.query('UPDATE app.organizations SET slug=$2 WHERE id=$1',[organizationId,original]) }
   })
