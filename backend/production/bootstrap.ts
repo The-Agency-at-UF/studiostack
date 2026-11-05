@@ -10,6 +10,9 @@ export async function bootstrapProductionAdmin(database: ReturnType<typeof creat
     const user = (await client.query(`INSERT INTO app.users (cognito_issuer,cognito_subject,email,display_name) VALUES ($1,$2,$3,$4) ON CONFLICT (cognito_issuer,cognito_subject) DO UPDATE SET email=EXCLUDED.email RETURNING id`,[issuer,v.subject,v.email,'Roger McKenzie'])).rows[0]
     const org = (await client.query(`INSERT INTO app.organizations (slug,name) VALUES ('agency-uf','The Agency at UF') ON CONFLICT (slug) DO UPDATE SET slug=EXCLUDED.slug RETURNING id,name,slug`)).rows[0]
     await client.query(`INSERT INTO app.organization_memberships (organization_id,user_id,role,status) VALUES ($1,$2,'owner','active') ON CONFLICT (organization_id,user_id) DO NOTHING`,[org.id,user.id])
+    // New @ufl.edu accounts join the Agency from onboarding through this domain.
+    await client.query("SELECT set_config('app.organization_id',$1,true)",[org.id])
+    await client.query(`INSERT INTO app.organization_domains (domain,organization_id,auto_join,created_by) VALUES ('ufl.edu',$1,true,$2) ON CONFLICT (domain) DO NOTHING`,[org.id,user.id])
     const membership=(await client.query('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[org.id,user.id])).rows[0]
     const counts=(await client.query('SELECT (SELECT count(*)::int FROM app.organization_memberships WHERE organization_id=$1) AS members,(SELECT count(*)::int FROM app.inventory WHERE organization_id=$1) AS equipment,(SELECT count(*)::int FROM app.production_briefs WHERE organization_id=$1 AND deleted_at IS NULL) AS briefs',[org.id])).rows[0]
     return {ok:true,organizationId:org.id,userId:user.id,membership,workspace:{name:org.name,slug:org.slug,...counts}}

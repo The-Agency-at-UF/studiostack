@@ -24,7 +24,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE(equipment_email,version) ON app.alert_preferences TO ${role};
     GRANT UPDATE(read_at,email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at) ON app.user_alerts TO ${role};
     GRANT SELECT, INSERT ON app.users TO ${role};
-    GRANT UPDATE (email, display_name) ON app.users TO ${role};
+    GRANT UPDATE (email, display_name, onboarded_at) ON app.users TO ${role};
     GRANT SELECT ON app.organizations, app.organization_memberships, app.user_group_memberships TO ${role};
     GRANT UPDATE (name, reservation_days, version, logo_photo_id, logo_key) ON app.organizations TO ${role};
     GRANT UPDATE (role, status, version) ON app.organization_memberships TO ${role};
@@ -39,6 +39,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT SELECT, INSERT ON app.organization_join_codes TO ${role};
     GRANT UPDATE (uses, revoked_at, version) ON app.organization_join_codes TO ${role};
     GRANT SELECT, INSERT ON app.join_code_attempts TO ${role};
+    GRANT SELECT, INSERT ON app.organization_search_attempts TO ${role};
     GRANT SELECT, INSERT ON app.organization_access_requests TO ${role};
     GRANT UPDATE (status, decided_by, decided_at, version) ON app.organization_access_requests TO ${role};
     GRANT SELECT, INSERT ON app.user_groups, app.inventory, app.reservations, app.reservation_items TO ${role};

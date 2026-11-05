@@ -46,6 +46,7 @@ describe('verified invitation bridge and delivery',()=>{
     ['POST /account/onboarding/access-requests',{organizationId:org,message:'Fall shoot crew'},{action:'request-access',organizationId:org,message:'Fall shoot crew'}],
     ['POST /account/onboarding/access-requests',{organizationId:org,message:''},{action:'request-access',organizationId:org}],
     ['POST /account/onboarding/access-requests/{requestId}/withdraw',{organizationId:org},{action:'withdraw-request',requestId:id,organizationId:org}],
+    ['POST /account/onboarding/searches',{query:' agency '},{action:'search',query:'agency'}],
   ])('maps %s to a verified directory action',async(routeKey,body,expected)=>{
     const store=vi.fn().mockResolvedValue({}),getUser=vi.fn().mockResolvedValue({UserAttributes:attributes})
     expect((await handleDirectory(event(body,routeKey),config,{getUser,store})).statusCode).toBe(200)
@@ -55,7 +56,7 @@ describe('verified invitation bridge and delivery',()=>{
     const getUser=vi.fn().mockResolvedValue({UserAttributes:attributes})
     expect((await handleDirectory(event({code:'ABCDEFGHJK'},'POST /account/onboarding/code-joins'),config,{getUser,store:vi.fn().mockResolvedValue({statusCode:429,error:'Too many'})})).statusCode).toBe(429)
     const store=vi.fn()
-    for(const [routeKey,body] of [['POST /account/onboarding/domain-joins',{organizationId:org,email:'attacker@example.org'}],['POST /account/onboarding/code-joins',{code:'ABCDEFGHJK',organizationId:org}],['POST /account/onboarding/access-requests',{organizationId:org,role:'admin'}],['DELETE /account/onboarding/access-requests',{organizationId:org}]] as const)
+    for(const [routeKey,body] of [['POST /account/onboarding/domain-joins',{organizationId:org,email:'attacker@example.org'}],['POST /account/onboarding/code-joins',{code:'ABCDEFGHJK',organizationId:org}],['POST /account/onboarding/access-requests',{organizationId:org,role:'admin'}],['DELETE /account/onboarding/access-requests',{organizationId:org}],['POST /account/onboarding/searches',{query:'agency',email:'attacker@example.org'}],['POST /account/onboarding/searches',{query:'x'.repeat(81)}]] as const)
       expect((await handleDirectory(event(body,routeKey),config,{getUser,store})).statusCode).toBeGreaterThanOrEqual(400)
     expect(store).not.toHaveBeenCalled()
   })
@@ -67,6 +68,6 @@ describe('verified invitation bridge and delivery',()=>{
     const template=accountInfrastructure({environment:'dev',artifactBucket:'studio-stack-photos-dev',artifactKey:'deployments/accounts/test.zip',pool:'us-east-2_test',client:'client',apiId:config.apiId,authorizerId:'auth',sender:'owner@example.org',webUrl:'https://studio.example.org'})
     const serialized=JSON.stringify(template);expect(serialized).toContain('cognito-idp:AdminCreateUser');expect(serialized).not.toMatch(/AdminSetUserPassword|AdminAddUserToGroup|studiostack-prod|NAT|secretsmanager:GetSecretValue/)
     const routes=Object.values(template.Resources).filter((r)=> (r as {Type:string}).Type==='AWS::ApiGatewayV2::Route') as {Properties:{AuthorizationType:string}}[]
-    expect(routes).toHaveLength(7);expect(routes.every(r=>r.Properties.AuthorizationType==='JWT')).toBe(true)
+    expect(routes).toHaveLength(8);expect(routes.every(r=>r.Properties.AuthorizationType==='JWT')).toBe(true)
   })
 })

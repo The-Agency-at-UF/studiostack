@@ -6,7 +6,7 @@ import {accountRequest,accountRoutes,joinMethodRoutes} from '../../backend/accou
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from 'aws-lambda'
-import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, retiredRoutes, databaseApiScope } from '../../backend/database/api'
+import { apiConfiguration, createDatabaseApiHandler, databaseApiRoutes, bugReportRoutes, onboardingRoutes, retiredRoutes, databaseApiScope } from '../../backend/database/api'
 import { ApiError, constraintError, createEquipment, updateEquipment, createReservation, pagination } from '../../backend/database/api-validation'
 import { createApiRepository } from '../../backend/database/api-repository'
 import type { Identity } from '../../backend/database/api-repository'
@@ -131,6 +131,13 @@ describe('trusted API identity and strict HTTP inputs', () => {
     Object.assign(request.requestContext.authorizer.jwt.claims, { email: 'real@example.com', email_verified: 'true' })
     await createDatabaseApiHandler({ execute }, config, () => now)(request)
     expect(execute.mock.calls[0][0].email).toBe('real@example.com')
+  })
+  it('finishes onboarding without accepting any body fields', async () => {
+    const execute = vi.fn().mockResolvedValue(user), handler = createDatabaseApiHandler({ execute }, config, () => now)
+    expect((await handler(event('POST /me/onboarding', {}))).statusCode).toBe(200)
+    expect(execute).toHaveBeenCalledWith(identity, { operation: 'completeOnboarding' })
+    expect((await handler(event('POST /me/onboarding', { onboardedAt: '2020-01-01' }))).statusCode).toBe(400)
+    expect((await handler(event('GET /me/onboarding'))).statusCode).toBe(404)
   })
   it('validates organization-scoped processed photo authorization', async () => {
     const execute = vi.fn().mockResolvedValue({}), handler = createDatabaseApiHandler({ execute }, config, () => now)
@@ -295,7 +302,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   it('gives every route JWT authorization and a required access scope; permissions target the matching API', () => {
     const template = databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId })
     const routes = Object.values(template.Resources).filter((resource: unknown) => (resource as { Type: string }).Type === 'AWS::ApiGatewayV2::Route') as { Properties: { AuthorizationType: string; AuthorizationScopes: string[]; RouteKey: string } }[]
-    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length - retiredRoutes.size)
+    expect(routes).toHaveLength(databaseApiRoutes.length + bugReportRoutes.length + productionRoutes.length + accountRoutes.length + joinMethodRoutes.length + equipmentRoutes.length + reportRoutes.length + alertRoutes.length + onboardingRoutes.length - retiredRoutes.size)
     // Retired routes keep their slots, so later route resource IDs do not shift.
     expect(routes.some(route => retiredRoutes.has(route.Properties.RouteKey))).toBe(false)
     expect((template.Resources.Route6 as { Properties: { RouteKey: string } }).Properties.RouteKey).toBe('GET /organizations/{organizationId}/inventory')

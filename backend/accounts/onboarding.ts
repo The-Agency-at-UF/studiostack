@@ -3,7 +3,7 @@ import type {DatabaseClient} from '../database/client'
 import {ApiError} from '../database/api-validation'
 import {emailDomains,joinCodeHash,normalizeJoinCode} from './join-codes'
 import type {DirectoryRequest} from './directory'
-const codeAttemptsPerHour=10
+const codeAttemptsPerHour=10,searchesPerHour=120
 const requestColumns='r.id,r.organization_id AS "organizationId",o.name AS "organizationName",r.status,r.created_at AS "createdAt",r.decided_at AS "decidedAt"'
 async function organizations(client:DatabaseClient,id?:string){return (await client.query('SELECT id,name FROM app.organizations WHERE ($1::uuid IS NULL OR id=$1) ORDER BY id',[id??null])).rows as {id:string;name:string}[]}
 const scope=(client:DatabaseClient,org:string)=>client.query("SELECT set_config('app.organization_id',$1,true)",[org])
@@ -33,6 +33,25 @@ export async function onboardingTask(client:DatabaseClient,request:DirectoryRequ
       requests.push(...(await client.query(`SELECT ${requestColumns} FROM app.organization_access_requests r JOIN app.organizations o ON o.id=r.organization_id WHERE r.organization_id=$1 AND r.user_id=$2 AND (r.status='pending' OR (r.status='denied' AND r.decided_at>now()-interval '30 days')) ORDER BY r.created_at DESC`,[org.id,user.id])).rows)
     }
     return {email:identity.email,displayName:user.displayName,invitations:await invitations(),domainMatches,requests}
+  }
+  if(request.action==='search') {
+    const query=request.query!.trim()
+    if(query.length<2)throw new ApiError(400,'Type at least 2 characters to search')
+    const recent=Number((await client.query("SELECT count(*) FROM app.organization_search_attempts WHERE user_id=$1 AND attempted_at>now()-interval '1 hour'",[user.id])).rows[0].count)
+    if(recent>=searchesPerHour)return {statusCode:429,error:'Too many searches. Try again in an hour.'}
+    await client.query('INSERT INTO app.organization_search_attempts(user_id) VALUES($1)',[user.id])
+    // Names and locations are public to signed-in accounts; how to join depends on the verified email.
+    const pattern=query.replace(/[\\%_]/g,c=>'\\'+c)
+    const found=(await client.query(`SELECT id,name,location FROM app.organizations WHERE name ILIKE '%'||$1||'%' ESCAPE '\\' ORDER BY (name ILIKE $1||'%' ESCAPE '\\') DESC,name,id LIMIT 10`,[pattern])).rows as {id:string;name:string;location:string|null}[]
+    const items=[]
+    for(const org of found) {
+      await scope(client,org.id)
+      const member=await membership(client,org.id,user.id),match=await domainMatch(client,org.id,identity.email)
+      const pending=(await client.query("SELECT 1 FROM app.organization_access_requests WHERE organization_id=$1 AND user_id=$2 AND status='pending'",[org.id,user.id])).rows.length>0
+      const policy=member?.status==='active'?'member':member?'invite':pending?'pending':match?.autoJoin?'open':match?'request':'invite'
+      items.push({organizationId:org.id,name:org.name,location:org.location,policy})
+    }
+    return {items}
   }
   if(request.action==='join-domain') {
     const [org]=await organizations(client,request.organizationId)

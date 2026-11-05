@@ -27,6 +27,7 @@ export type ApiRequest =
   | ProductionRequest
   | { operation: 'me' }
   | { operation: 'register'; displayName: string | null }
+  | { operation: 'completeOnboarding' }
   | { operation: 'organizations'; page: Page }
   | { operation: 'members' | 'inventory' | 'reservations'; organizationId: string; page: Page }
   | { operation:'bugReports';organizationId:string;page:Page;kind:FeedbackKind }
@@ -38,29 +39,15 @@ export type ApiRequest =
   | { operation: 'photoUpload'; organizationId: string; input: CreatePhotoUpload }
   | { operation: 'completePhoto'; organizationId: string; photoId: string }
   | { operation: 'downloadPhoto'; organizationId: string; itemId: string }
-type User = QueryResultRow & { id: string; email: string | null; displayName: string | null }
+type User = QueryResultRow & { id: string; email: string | null; displayName: string | null; onboardedAt: string | null }
 type Membership = QueryResultRow & { role: 'owner' | 'admin' | 'member' }
 type ReservationRow = QueryResultRow & { id: string; userId: string; status: string; requestHash?: string }
-const userColumns = 'id, email, display_name AS "displayName"'
+const userColumns = 'id, email, display_name AS "displayName", onboarded_at AS "onboardedAt"'
 const equipmentColumns = 'id, equipment_code AS "equipmentCode", name, category, status, created_at AS "createdAt", photo_id AS "photoId", condition, version, EXISTS(SELECT 1 FROM app.equipment_checkouts ec WHERE ec.organization_id=inventory.organization_id AND ec.equipment_id=inventory.id AND ec.returned_at IS NULL) AS "checkedOut"'
 
 
 function admin(membership: Membership) {
   if (!isAdmin(membership.role)) throw new ApiError(403, 'Organization administrator required')
-}
-
-// Temporary open enrollment: every registered account joins the Agency as a member.
-// An existing membership, including a suspended one, is left as it is.
-const openEnrollmentSlug = 'agency-uf'
-async function joinOpenEnrollment(client: DatabaseClient, userId: string) {
-  const organization = (await client.query<QueryResultRow & { id: string }>('SELECT id FROM app.organizations WHERE slug = $1', [openEnrollmentSlug])).rows[0]
-  if (!organization) return
-  const added = await client.query(`INSERT INTO app.organization_memberships (organization_id, user_id, role, status) VALUES ($1, $2, 'member', 'active')
-    ON CONFLICT (organization_id, user_id) DO NOTHING RETURNING user_id`, [organization.id, userId])
-  if (!added.rows.length) return
-  await client.query("SELECT set_config('app.organization_id', $1, true)", [organization.id])
-  await client.query('INSERT INTO app.organization_audit_events (organization_id, actor_id, kind, target_id, request_id, request_hash) VALUES ($1, $2, $3, $2, $4, $5)',
-    [organization.id, userId, 'member_joined_signup', randomUUID(), requestHash({ kind: 'member_joined_signup', organizationId: organization.id, userId })])
 }
 
 export function createApiRepository(database: Pick<ReturnType<typeof createDatabase>, 'withClient'>, now = Date.now, storage?: PhotoStorage, briefStorage?: BriefStorage) {
@@ -76,13 +63,17 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET
         display_name = COALESCE(EXCLUDED.display_name, app.users.display_name) RETURNING ${userColumns}`,
       [identity.issuer, identity.subject, request.displayName])
-      await joinOpenEnrollment(client, result.rows[0].id)
       return result.rows[0]
     }
     const users = await client.query<User>(`SELECT ${userColumns} FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])
     const user = users.rows[0]
     if (!user) throw new ApiError(404, 'User profile not registered; POST /me first')
     if (request.operation === 'me') return user
+    if (request.operation === 'completeOnboarding') {
+      const active = await client.query("SELECT 1 FROM app.organization_memberships WHERE user_id = $1 AND status = 'active' LIMIT 1", [user.id])
+      if (!active.rows.length) throw new ApiError(409, 'Join an organization first')
+      return (await client.query<User>(`UPDATE app.users SET onboarded_at = COALESCE(onboarded_at, now()) WHERE id = $1 RETURNING ${userColumns}`, [user.id])).rows[0]
+    }
     if (request.operation === 'organizations') {
       const result = await client.query<QueryResultRow & { id: string; logoKey: string | null }>(`SELECT o.id, o.slug, o.name, m.role, o.logo_key AS "logoKey" FROM app.organizations o
         JOIN app.organization_memberships m ON m.organization_id = o.id WHERE m.user_id = $1 AND m.status = 'active'
