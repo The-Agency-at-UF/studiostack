@@ -18,14 +18,12 @@ export async function dispatchInvitations(client:DatabaseClient,request:AccountR
   let id=request.invitationId,kind=''
   if(!id) {
     const v=inviteMember(request.body)
-    if(v.role==='admin'&&actor.role!=='owner')throw new ApiError(403,'Only an owner can invite an administrator')
     const existing=await client.query("SELECT 1 FROM app.users u JOIN app.organization_memberships m ON m.user_id=u.id WHERE m.organization_id=$1 AND lower(u.email)=$2 AND m.status IN ('active','suspended')",[org,v.email])
     if(existing.rows.length)throw new ApiError(409,'Manage the existing organization member instead')
     await client.query("UPDATE app.organization_invitations SET status='expired',version=version+1 WHERE organization_id=$1 AND email=$2 AND status='pending' AND expires_at<=now()",[org,v.email])
     id=(await client.query('INSERT INTO app.organization_invitations(organization_id,email,display_name,role,created_by,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id',[org,v.email,v.displayName,v.role,actor.id,v.requestId,hash])).rows[0].id;kind='invitation_created'
   } else {
     const current=await get(id),v=versioned(object(request.body,['version','requestId']))
-    if(current.role==='admin'&&actor.role!=='owner')throw new ApiError(403,'Only an owner can manage administrator invitations')
     if(current.version!==v.version||current.status!=='pending'||Date.parse(String(current.expiresAt))<=Date.now())throw new ApiError(409,'Invitation changed, expired or is no longer pending')
     if(request.action==='revoke'){await client.query("UPDATE app.organization_invitations SET status='revoked',version=version+1 WHERE organization_id=$1 AND id=$2",[org,id]);kind='invitation_revoked'}
     else if(request.action==='retry') {

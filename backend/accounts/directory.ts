@@ -30,7 +30,7 @@ async function invitationTask(client:DatabaseClient,request:DirectoryRequest,use
     const rows=(await client.query(`SELECT i.*,m.role AS inviter_role,m.status AS inviter_status FROM app.organization_invitations i JOIN app.organization_memberships m ON m.organization_id=i.organization_id AND m.user_id=i.created_by WHERE i.organization_id=$1 AND i.email=$2 AND ($3::uuid IS NULL OR i.id=$3)`,[org.id,identity.email,request.invitationId??null])).rows
     for(const invitation of rows) {
       if(invitation.status==='accepted'&&invitation.accepted_by===user.id&&request.action==='accept'){accepted={organizationId:org.id};continue}
-      if(invitation.status!=='pending'||Date.parse(String(invitation.expires_at))<=Date.now()||invitation.inviter_status!=='active'||!['owner','admin'].includes(invitation.inviter_role)||(invitation.role==='admin'&&invitation.inviter_role!=='owner'))continue
+      if(invitation.status!=='pending'||Date.parse(String(invitation.expires_at))<=Date.now()||invitation.inviter_status!=='active'||!['owner','admin'].includes(invitation.inviter_role))continue
       if(request.action!=='accept'){items.push({id:invitation.id,organizationId:org.id,organizationName:org.name,role:invitation.role,displayName:invitation.display_name,expiresAt:invitation.expires_at});continue}
       const existing=(await client.query('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[org.id,user.id])).rows[0]
       if(existing&&existing.status!=='active')throw new ApiError(409,'Ask an administrator to restore the existing membership')

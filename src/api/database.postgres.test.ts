@@ -417,7 +417,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   async function invitation(email=`${randomUUID()}@example.org`,role:'member'|'admin'='member') {
     return account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',body:{email,displayName:'Invited person',role,requestId:randomUUID()}})
   }
-  it('invitations: creation is authorized, idempotent, and owner-only for administrator invitations',async()=>{
+  it('invitations: creation is authorized and idempotent for owners and administrators',async()=>{
     const body={email:`${randomUUID()}@example.org`,displayName:'New teammate',role:'member',requestId:randomUUID()}
     await expect(account(member,{resource:'invitations',method:'POST',body})).rejects.toMatchObject({status:403})
     const created=await account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',body})
@@ -425,8 +425,30 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await account(owner,{resource:'invitations',method:'POST',body})).toMatchObject({id:created.id,version:1})
     await expect(account(owner,{resource:'invitations',method:'POST',body:{...body,role:'admin'}})).rejects.toMatchObject({status:409})
     const m=await accountMember(secondMember),admin=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'admin',status:'active',version:m.version,requestId:randomUUID()}})
-    await expect(account(secondMember,{resource:'invitations',method:'POST',body:{...body,email:'another@example.org',role:'admin',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
-    await account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:admin.version,requestId:randomUUID()}})
+    try {
+      const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
+      await repository.execute(identity,{operation:'register',displayName:'Administrator recipient'})
+      const inviteBody={email:identity.email,role:'admin',requestId:randomUUID()}
+      const invited=await account<OrganizationInvitation>(secondMember,{resource:'invitations',method:'POST',body:inviteBody})
+      expect(invited).toMatchObject({role:'admin',displayName:identity.email,status:'pending'})
+      expect(await account(secondMember,{resource:'invitations',method:'POST',body:inviteBody})).toMatchObject({id:invited.id,version:1})
+      await operator.query("UPDATE app.organization_invitations SET delivery_status='failed' WHERE id=$1",[invited.id])
+      const retried=await account<OrganizationInvitation>(secondMember,{resource:'invitations',method:'POST',invitationId:invited.id,action:'retry',body:{version:invited.version,requestId:randomUUID()}})
+      const queueClient=new pg.Client({connectionString})
+      try {
+        await queueClient.connect();await queueClient.query('SET ROLE "studiostack_dev_app"')
+        const claimed=await invitationQueueTask(queueClient,{action:'claim'})
+        expect('jobs' in claimed&&claimed.jobs?.some(job=>job.id===invited.id)).toBe(true)
+      } finally {await queueClient.end()}
+      expect(await directory({action:'list',identity})).toMatchObject({items:[expect.objectContaining({id:invited.id})]})
+      expect(await directory({action:'accept',identity,organizationId,invitationId:invited.id})).toEqual({organizationId})
+      expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({role:'admin',id:organizationId})]})
+      const revoked=await account<OrganizationInvitation>(secondMember,{resource:'invitations',method:'POST',body:{email:`${randomUUID()}@example.org`,role:'admin',requestId:randomUUID()}})
+      expect(await account(secondMember,{resource:'invitations',method:'POST',invitationId:revoked.id,action:'revoke',body:{version:revoked.version,requestId:randomUUID()}})).toMatchObject({status:'revoked'})
+      expect(retried.deliveryStatus).toBe('queued')
+    } finally {
+      await account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:admin.version,requestId:randomUUID()}})
+    }
   })
   it('invitations: only the verified recipient can accept; membership and audit commit once',async()=>{
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}

@@ -15,7 +15,7 @@ export async function invitationQueueTask(client:DatabaseClient,request:Invitati
     if(request.action==='ack')return acknowledgeLease(client,invitationOutbox,request)
     return {jobs:await claimLeases<{id:string;name:string},InvitationJob>(client,invitationOutbox,{
       organizations:'SELECT id,name FROM app.organizations ORDER BY id',
-      cleanup:org=>client.query("UPDATE app.organization_invitations i SET delivery_status='failed' WHERE organization_id=$1 AND status='pending' AND delivery_status='queued' AND NOT EXISTS(SELECT 1 FROM app.organization_memberships m WHERE m.organization_id=i.organization_id AND m.user_id=i.created_by AND m.status='active' AND (m.role='owner' OR (m.role='admin' AND i.role='member')))",[org.id]),
+      cleanup:org=>client.query("UPDATE app.organization_invitations i SET delivery_status='failed' WHERE organization_id=$1 AND status='pending' AND delivery_status='queued' AND NOT EXISTS(SELECT 1 FROM app.organization_memberships m WHERE m.organization_id=i.organization_id AND m.user_id=i.created_by AND m.status='active' AND m.role IN ('owner','admin'))",[org.id]),
       select:`SELECT id,email,display_name AS "displayName",role,attempts FROM app.organization_invitations WHERE organization_id=$1 AND status='pending' AND delivery_status='queued' AND expires_at>now() AND next_attempt_at<=now() AND attempts<5 ORDER BY next_attempt_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`,
       job:(row,org,leaseToken)=>({...row,organizationId:org.id,organizationName:org.name,attempts:Number(row.attempts)+1,leaseToken}) as InvitationJob,
     })}
