@@ -51,7 +51,7 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
     const v=changeMember(request.body),current=await member(request.memberId!);targetId=current.id
     if(current.version!==v.version)conflict()
     if(current.status==='invited')throw new ApiError(409,'An invited person must accept their invitation first')
-    if(role!=='owner'&&(current.role!=='member'||v.role!=='member'))forbidden()
+    if(role!=='owner'&&(current.role==='owner'||v.role==='owner'))forbidden()
     if(current.role==='owner'&&current.status==='active'&&(v.role!=='owner'||v.status!=='active')) {
       const owners=await client.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'",[organizationId])
       if(owners.rows.length<2)throw new ApiError(409,'Keep at least one active organization owner')
