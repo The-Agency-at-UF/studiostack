@@ -5,6 +5,7 @@ import { withProductionMaintenance, invokeProductionMaintenance } from './produc
 import { deployProductionRoutes } from './deploy-production-api'
 import { selectedBuild, sourceState } from './database-build'
 import { roleArn } from '../infra/database/resources'
+import { databaseApiScope } from '../backend/database/api'
 
 /** Deploy the existing brief deletion feature without bootstrapping accounts. */
 async function main() {
@@ -28,7 +29,7 @@ async function main() {
   await deployProductionRoutes(metadata)
   const route = 'DELETE /organizations/{organizationId}/production/briefs/{briefId}'
   const { Items } = await aws<{ Items: { RouteKey: string; AuthorizationType: string; AuthorizationScopes?: string[] }[] }>('apigatewayv2', 'get-routes', ['--api-id', metadata.apiId])
-  if (!Items.some(r => r.RouteKey === route && r.AuthorizationType === 'JWT' && r.AuthorizationScopes?.includes('studiostack-api/access'))) throw new Error('Protected brief deletion route missing')
+  if (!Items.some(r => r.RouteKey === route && r.AuthorizationType === 'JWT' && r.AuthorizationScopes?.includes(databaseApiScope))) throw new Error('Protected brief deletion route missing')
   await writeFile(`${prodDirectory}/brief-deletion-deployment.json`, JSON.stringify({ commit: (await sourceState()).commit, previousCodeSha256: current.Configuration.CodeSha256, backup, route, verifiedAt: new Date().toISOString() }, null, 2))
   console.log('Production brief deletion schema, runtime, restricted connection and JWT route verified')
 }
