@@ -9,7 +9,7 @@ export interface OwnAccessRequest { id:string; organizationId:string; organizati
 export interface OnboardingOverview { email:string; displayName:string|null; invitations:PendingInvitation[]; domainMatches:DomainMatch[]; requests:OwnAccessRequest[] }
 export interface OrganizationActivity { id:string; actorName:string; kind:string; targetId:string|null; details:Record<string,unknown>; createdAt:string }
 export interface VersionedRequest { version:number; requestId:string }
-export interface InviteMember { email:string; displayName:string; role:'admin'|'member'; requestId:string }
+export interface InviteMember { email:string; displayName?:string; role:'admin'|'member'; requestId:string }
 export interface ChangeMember extends VersionedRequest { role:ApiOrganization['role']; status:ApiMember['status'] }
 export interface ChangeOrganization extends VersionedRequest { name:string; reservationDays:number }
 export interface WorkspaceDomain { domain:string; autoJoin:boolean; version:number; createdAt:string }

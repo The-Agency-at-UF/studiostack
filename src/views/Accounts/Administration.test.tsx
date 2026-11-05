@@ -11,7 +11,15 @@ function view(){render(<AppSessionProvider value={{email:'owner@example.test',is
 beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.members.mockResolvedValue({items:[{id:'member',displayName:'Teammate',email:'member@example.test',role:'member',status:'active',version:2}],nextCursor:null});for(const name of ['invitations','activity','accessRequests','joinCodes','domains']as const)m[name].mockResolvedValue({items:[],nextCursor:null});m.invite.mockResolvedValue({});m.updateMember.mockResolvedValue({})})
 afterEach(cleanup)
 describe('Real account administration',()=>{
-  it('sends an invitation through the authenticated organization client',async()=>{const user=userEvent.setup();view();await screen.findByText('Teammate');await user.type(screen.getByLabelText('Name'),'New teammate');await user.type(screen.getByLabelText('Email'),'new@example.test');await user.click(screen.getByRole('button',{name:'Send invitation'}));await waitFor(()=>expect(m.invite).toHaveBeenCalledWith({displayName:'New teammate',email:'new@example.test',role:'member',requestId:expect.any(String)}));expect(m.refresh).toHaveBeenCalled()})
+  it('sends an invitation through the authenticated organization client',async()=>{const user=userEvent.setup();view();await screen.findByText('Teammate');expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();await user.type(screen.getByLabelText('Email'),'new@example.test');await user.click(screen.getByRole('button',{name:'Send invitation'}));await waitFor(()=>expect(m.invite).toHaveBeenCalledWith({email:'new@example.test',role:'member',requestId:expect.any(String)}));expect(m.refresh).toHaveBeenCalled()})
+  it('lets administrators invite administrators using only email',async()=>{
+    m.settings.mockResolvedValue({...settings,role:'admin'})
+    const user=userEvent.setup();view();await screen.findByText('Teammate')
+    await user.type(screen.getByLabelText('Email'),'admin@example.test')
+    await user.selectOptions(screen.getByLabelText('Role'),'admin')
+    await user.click(screen.getByRole('button',{name:'Send invitation'}))
+    await waitFor(()=>expect(m.invite).toHaveBeenCalledWith({email:'admin@example.test',role:'admin',requestId:expect.any(String)}))
+  })
   it.each(['member','admin'])('lets administrators edit a %s without granting ownership',async role=>{
     m.settings.mockResolvedValue({...settings,role:'admin'})
     m.members.mockResolvedValue({items:[{id:'member',displayName:'Teammate',role,status:'active',version:2}],nextCursor:null})
