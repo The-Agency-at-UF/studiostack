@@ -13,6 +13,13 @@ describe('authenticated database browser client', () => {
     try{const work=Promise.all([client.me(),client.organizations(),client.inventory('org')]);await vi.advanceTimersByTimeAsync(0);expect(fetcher).toHaveBeenCalledTimes(3);await work}finally{vi.unstubAllEnvs()}
   })
 
+  it('searches organizations and finishes onboarding with POST bodies',async()=>{
+    const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({items:[]})))
+    const client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher})
+    await client.searchOrganizations('agency');await client.completeOnboarding()
+    expect(fetcher.mock.calls.map(([url,init])=>[String(url),init.method,init.body])).toEqual([['https://example.com/account/onboarding/searches','POST',JSON.stringify({query:'agency'})],['https://example.com/me/onboarding','POST','{}']])
+  })
+
   it('asks for bug reports by default and feature requests when named',async()=>{
     const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({items:[],nextCursor:null})))
     const client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher})

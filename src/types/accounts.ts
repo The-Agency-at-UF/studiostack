@@ -6,6 +6,9 @@ export interface OrganizationInvitation { id:string; email:string; displayName:s
 export interface PendingInvitation { id:string; organizationId:string; organizationName:string; role:'admin'|'member'; displayName?:string; expiresAt:string }
 export interface DomainMatch { organizationId:string; organizationName:string; autoJoin:boolean }
 export interface OwnAccessRequest { id:string; organizationId:string; organizationName:string; status:'pending'|'denied'|'withdrawn'; createdAt:string; decidedAt:string|null }
+/** How the signed-in account can reach an organization found by search. */
+export type JoinPolicy = 'member' | 'open' | 'request' | 'pending' | 'invite'
+export interface OrganizationSearchResult { organizationId:string; name:string; location:string|null; policy:JoinPolicy }
 export interface OnboardingOverview { email:string; displayName:string|null; invitations:PendingInvitation[]; domainMatches:DomainMatch[]; requests:OwnAccessRequest[] }
 export interface OrganizationActivity { id:string; actorName:string; kind:string; targetId:string|null; details:Record<string,unknown>; createdAt:string }
 export interface VersionedRequest { version:number; requestId:string }

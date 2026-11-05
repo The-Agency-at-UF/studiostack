@@ -6,6 +6,7 @@ it('keeps deployed route IDs stable when adding Agency production endpoints',()=
  expect(resources.Route54.Properties.RouteKey).toBe('GET /organizations/{organizationId}/alerts/preferences')
  expect(resources.Route56.Properties.RouteKey).toBe('POST /organizations/{organizationId}/alerts/{alertId}/read')
  expect(resources.Route74.Properties.RouteKey).toBe('GET /organizations/{organizationId}/administration/directory')
- expect(Object.values(resources).filter(r=>r.Properties?.RouteKey).at(-1)!.Properties.RouteKey).toBe('DELETE /organizations/{organizationId}/production/briefs/{briefId}')
+ expect(Object.values(resources).filter(r=>r.Properties?.RouteKey).at(-1)!.Properties.RouteKey).toBe('POST /me/onboarding')
+ expect(Object.values(resources).filter(r=>r.Properties?.RouteKey).at(-2)!.Properties.RouteKey).toBe('DELETE /organizations/{organizationId}/production/briefs/{briefId}')
  expect(resources.Route61.Properties.RouteKey).toBe('POST /organizations/{organizationId}/production/briefs/{briefId}/crew')
 })

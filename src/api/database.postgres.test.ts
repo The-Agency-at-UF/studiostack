@@ -1012,14 +1012,56 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email])).rejects.toMatchObject({code:'23505'})
     await expect(operator.query('UPDATE app.users SET email=$2 WHERE id=$1',[fourth.profile.id,email.toUpperCase()])).rejects.toMatchObject({code:'23514'})
   })
-  it('onboarding: every new account joins the Agency once as a member and suspensions stay',async()=>{
+  it('onboarding: existing accounts are onboarded and new ones finish only with an active membership',async()=>{
+    const identity=await newcomer(`${randomUUID()}@example.org`)
+    expect(await repository.execute(identity,{operation:'me'})).toMatchObject({onboardedAt:null})
+    await expect(repository.execute(identity,{operation:'completeOnboarding'})).rejects.toMatchObject({status:409})
+    const id=(await repository.execute(identity,{operation:'me'}) as {id:string}).id
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','suspended')",[organizationId,id])
+    await expect(repository.execute(identity,{operation:'completeOnboarding'})).rejects.toMatchObject({status:409})
+    await operator.query("UPDATE app.organization_memberships SET status='active' WHERE organization_id=$1 AND user_id=$2",[organizationId,id])
+    const done=await repository.execute(identity,{operation:'completeOnboarding'}) as {onboardedAt:string}
+    expect(done.onboardedAt).toEqual(expect.any(Date))
+    expect(await repository.execute(identity,{operation:'completeOnboarding'})).toMatchObject({onboardedAt:done.onboardedAt})
+  })
+  it('onboarding: search shows each organization with how this verified email can join it',async()=>{
+    const tag=randomUUID().slice(0,8),domain=freshDomain()
+    const named=async(name:string,location:string|null=null)=>(await operator.query('INSERT INTO app.organizations(slug,name,location) VALUES($1,$2,$3) RETURNING id',[`s-${randomUUID().slice(0,12)}`,name,location])).rows[0].id as string
+    const open=await named(`${tag} Open Studio`,'Gainesville'),request=await named(`${tag} Request Club`),invite=await named(`${tag} Invite Lab`),wild=await named(`${tag} 100%_Wild`)
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) SELECT unnest($1::uuid[]),$2,'owner','active'",[[open,request],profiles.owner.id])
+    await operator.query('INSERT INTO app.organization_domains(domain,organization_id,auto_join,created_by) VALUES($1,$2,true,$4),($3,$5,false,$4)',[domain,open,`club.${domain}`,profiles.owner.id,request])
+    const identity=await newcomer(`person@club.${domain}`)
+    const search=async(query:string)=>((await directory({action:'search',identity,query})) as {items:{organizationId:string;name:string;location:string|null;policy:string}[]}).items
+    expect(await search(tag.toUpperCase())).toEqual([
+      {organizationId:wild,name:`${tag} 100%_Wild`,location:null,policy:'invite'},
+      {organizationId:invite,name:`${tag} Invite Lab`,location:null,policy:'invite'},
+      {organizationId:open,name:`${tag} Open Studio`,location:'Gainesville',policy:'open'},
+      {organizationId:request,name:`${tag} Request Club`,location:null,policy:'request'},
+    ])
+    expect((await search(`${tag} 100%`)).map(r=>r.organizationId)).toEqual([wild])
+    expect(await search(`${tag} 1_0`)).toEqual([])
+    await directory({action:'request-access',identity,organizationId:request})
+    await directory({action:'join-domain',identity,organizationId:open})
+    expect(Object.fromEntries((await search(tag)).map(r=>[r.organizationId,r.policy]))).toMatchObject({[open]:'member',[request]:'pending'})
+    expect(await directory({action:'search',identity,query:' a '})).toMatchObject({statusCode:400})
+    const id=(await repository.execute(identity,{operation:'me'}) as {id:string}).id
+    await operator.query('INSERT INTO app.organization_search_attempts(user_id) SELECT $1 FROM generate_series(1,120)',[id])
+    expect(await directory({action:'search',identity,query:tag})).toMatchObject({statusCode:429})
+  })
+  it('onboarding: new accounts join the Agency through its ufl.edu domain instead of at registration',async()=>{
     const agency=(await operator.query("INSERT INTO app.organizations(slug,name) VALUES('agency-uf','The Agency at UF') RETURNING id")).rows[0].id as string
-    const identity=await newcomer(`${randomUUID()}@gmail.com`)
-    await repository.execute(identity,{operation:'register',displayName:'Again'})
-    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:agency,role:'member'})]})
-    expect((await operator.query("SELECT e.id FROM app.organization_audit_events e JOIN app.users u ON u.id=e.actor_id WHERE u.cognito_subject=$1 AND e.kind='member_joined_signup'",[identity.subject])).rows).toHaveLength(1)
-    await operator.query("UPDATE app.organization_memberships m SET status='suspended' FROM app.users u WHERE u.id=m.user_id AND u.cognito_subject=$1 AND m.organization_id=$2",[identity.subject,agency])
-    await repository.execute(identity,{operation:'register',displayName:'Returning'})
-    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    const owner=(await operator.query("INSERT INTO app.users(cognito_issuer,cognito_subject,display_name) VALUES($1,$2,'Agency owner') RETURNING id",[issuer,randomUUID()])).rows[0].id as string
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'owner','active')",[agency,owner])
+    const migration=(await loadMigrations()).find(m=>m.name==='021_agency_domain_join.sql')!
+    await operator.query(migration.sql);await operator.query(migration.sql)
+    expect((await operator.query('SELECT organization_id,auto_join,created_by FROM app.organization_domains WHERE domain=$1',['ufl.edu'])).rows).toEqual([{organization_id:agency,auto_join:true,created_by:owner}])
+    const student=await newcomer(`${randomUUID()}@ufl.edu`)
+    expect(await repository.execute(student,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    expect((await directory({action:'overview',identity:student}) as OnboardingOverview).domainMatches).toEqual([{organizationId:agency,organizationName:'The Agency at UF',autoJoin:true}])
+    expect(await directory({action:'join-domain',identity:student,organizationId:agency})).toEqual({organizationId:agency})
+    expect(await repository.execute(student,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({id:agency,role:'member'})]})
+    const outsider=await newcomer(`${randomUUID()}@gmail.com`)
+    expect((await directory({action:'overview',identity:outsider}) as OnboardingOverview).domainMatches).toEqual([])
+    await operator.query("DELETE FROM app.organization_domains WHERE domain='ufl.edu'")
   })
 })

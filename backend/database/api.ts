@@ -24,6 +24,8 @@ export const retiredRoutes = new Set<string>([
   'GET /organizations/{organizationId}/groups', 'POST /organizations/{organizationId}/groups',
   'GET /organizations/{organizationId}/administration/teams', 'POST /organizations/{organizationId}/administration/teams', 'PATCH /organizations/{organizationId}/administration/teams/{teamId}',
 ])
+/** Deployed after every earlier route so existing API Gateway route IDs stay stable. */
+export const onboardingRoutes = ['POST /me/onboarding'] as const
 export const bugReportRoutes = ['POST /organizations/{organizationId}/bug-reports','GET /organizations/{organizationId}/bug-reports'] as const
 export const privatePhotoRoutes = ['POST /photos/uploads', 'POST /organizations/{organizationId}/photos/{photoId}/complete', 'GET /organizations/{organizationId}/inventory/{itemId}/photo'] as const
 export const databaseApiScope = 'aws.cognito.signin.user.admin'
@@ -56,7 +58,7 @@ function json(event: APIGatewayProxyEventV2WithJWTAuthorizer): unknown {
   try { return JSON.parse(body) } catch { throw new ApiError(400, 'Invalid JSON') }
 }
 function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
-  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes].some(route => route === event.routeKey) || retiredRoutes.has(event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
+  if (![...databaseApiRoutes, ...privatePhotoRoutes, ...bugReportRoutes, ...productionRoutes, ...accountRoutes, ...joinMethodRoutes, ...equipmentRoutes, ...reportRoutes, ...alertRoutes, ...onboardingRoutes].some(route => route === event.routeKey) || retiredRoutes.has(event.routeKey) || event.requestContext.http.method !== event.routeKey.split(' ')[0]) throw new ApiError(404, 'Route not found')
   if(alertRoutes.includes(event.routeKey))return alertRequest(event,()=>json(event))
   if(reportRoutes.includes(event.routeKey))return reportRequest(event,()=>json(event))
   if(equipmentRoutes.includes(event.routeKey))return equipmentRequest(event,()=>json(event))
@@ -76,6 +78,11 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
     object(params, [])
     const body = object(json(event), ['displayName'])
     return { operation: 'register', displayName: body.displayName === undefined ? null : text(body.displayName, 120) }
+  }
+  if (event.routeKey === 'POST /me/onboarding') {
+    object(params, [])
+    object(json(event), [])
+    return { operation: 'completeOnboarding' }
   }
   if (event.routeKey === 'GET /organizations') return { operation: 'organizations', page: pagination(params) }
   const organizationId = uuid(event.pathParameters?.organizationId)
