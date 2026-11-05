@@ -9,6 +9,7 @@ import { createPreviewProductionClient, previewPeople } from '../../production/p
 import { briefSections, emptyBrief, productionTypes, statusLabels, submissionErrors, visibleSections, type BriefCommand, type BriefData, type BriefEvent, type Delivery, type ProductionAccess, type ProductionBrief, type ProductionSettings } from '../../types/production'
 import type { ApiMember } from '../../types/database-api'
 import type { ProductionClient } from '../../api/production'
+import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import ClientAccounts from './ClientAccounts'
 import ProductionCrew from './ProductionCrew'
 import type {ClientAccount} from '../../types/production'
@@ -56,6 +57,7 @@ export default function Production() {
   const [clients,setClients]=useState<ClientAccount[]>(cached?.clients ?? []),[clientFilter,setClientFilter]=useState('')
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(!cached), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
+  const [pendingDelete, setPendingDelete] = useState<ProductionBrief | null>(null)
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
   const generation = useRef(0), mutation = useRef<{ key: string; id: string } | null>(null)
   const selection = useRef(0)
@@ -104,7 +106,7 @@ export default function Production() {
     }
   }, [api, cacheKey, cached])
   useEffect(() => {
-    const effectGeneration = ++generation.current; selection.current++; setSelected(null); setError(''); setNotice(''); setDirty(false)
+    const effectGeneration = ++generation.current; selection.current++; setPendingDelete(null); setSelected(null); setError(''); setNotice(''); setDirty(false)
     setBriefs(cached?.briefs ?? []); setAccess(cached?.access ?? null); setClients(cached?.clients ?? []); setDeliveries(cached?.deliveries ?? [])
     setLoading(!cached)
     let active = true
@@ -143,7 +145,12 @@ export default function Production() {
   const save = () => selected && run(client => client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))))
   const action = (command: Omit<BriefCommand, 'version' | 'requestId'>) => selected && run(client => client.action(selected.id, { ...command, version: selected.version, requestId: requestId(JSON.stringify({ id: selected.id, version: selected.version, command })) }))
   const deletable = (brief: ProductionBrief) => brief.ownerId === access?.userId && brief.status === 'draft' && brief.submission === 0
-  const remove = (brief: ProductionBrief) => { if (window.confirm(`Delete ${brief.data.projectName ? `“${brief.data.projectName}”` : 'this untitled brief'}? This can’t be undone.`)) void run(async client => { await client.remove(brief.id); setSelected(null); setDirty(false) }, 'Brief deleted.') }
+  const remove = (brief: ProductionBrief) => setPendingDelete(brief)
+  const confirmDelete = async () => {
+    if (!pendingDelete || busy) return
+    await run(async client => { await client.remove(pendingDelete.id); setSelected(null); setDirty(false) }, 'Brief deleted.')
+    setPendingDelete(null)
+  }
   const update = (key: keyof BriefData, value: string | string[]) => { setForm(f => ({ ...f, [key]: value })); setDirty(true) }
   const updateField = (key: string, value: string) => { setForm(f => ({ ...f, fields: { ...f.fields, [key]: value } })); setDirty(true) }
   const editable = selected?.ownerId === access?.userId && ['draft','changes_requested'].includes(selected?.status ?? '')
@@ -158,6 +165,7 @@ export default function Production() {
   }, [preview,api])
   const selectView = (next: typeof tab) => { if (mayLeave()) { setTab(next); setSelected(null); setDirty(false); setSnapshot(null) } }
   return <main className="production-page">
+    {pendingDelete && <ConfirmDialog title="Delete this brief?" subject={pendingDelete.data.projectName || 'Untitled brief'} description="This brief will be removed from your workspace. This action can’t be undone." confirmLabel="Delete brief" busy={busy} onCancel={() => setPendingDelete(null)} onConfirm={() => void confirmDelete()} />}
     <PageHeader title="Briefs & production" context="Production workspace" description="Plan the work, review the brief, and confirm the shoot." actions={<><div className="production-context">
       {preview ? <label>Preview as<Select value={person} disabled={busy} onChange={e => { if (mayLeave()) setPerson(e.target.value) }}>{previewPeople.map(p => <option value={p.id} key={p.id}>{p.displayName}</option>)}</Select></label> : <label>Organization<Select disabled={busy} value={organizationId} onChange={e => { if (mayLeave()) {setOrganizationId(e.target.value);session.setSelectedOrganizationId?.(e.target.value)} }}>{session.organizations?.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></label>}
     </div>{!selected&&tab==='briefs'&&<button className="production-primary" disabled={busy||!api||!access} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create'))) }}>New brief</button>}</>}/>
