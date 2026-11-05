@@ -16,7 +16,7 @@ export function changeMember(input:unknown):ChangeMember {
   return {...versioned(v),role:v.role as ChangeMember['role'],status:v.status as ChangeMember['status']}
 }
 export function changeOrganization(input:unknown):ChangeOrganization {
-  const v=object(input,['name','reservationDays','version','requestId'])
+  const v=object(input,['name','reservationDays','logoPhotoId','version','requestId'])
   if(!Number.isInteger(v.reservationDays)||Number(v.reservationDays)<1||Number(v.reservationDays)>90)throw new ApiError(400,'Reservation length must be between 1 and 90 days')
-  return {...versioned(v),name:text(v.name,120),reservationDays:Number(v.reservationDays)}
+  return {...versioned(v),name:text(v.name,120),reservationDays:Number(v.reservationDays),...(v.logoPhotoId===undefined?{}:{logoPhotoId:v.logoPhotoId===null?null:uuid(v.logoPhotoId)})}
 }

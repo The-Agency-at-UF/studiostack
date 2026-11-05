@@ -3,7 +3,7 @@ export const equipmentCategories = ['Camera & Accessories', 'Lights', 'Productio
 export type EquipmentCategory = typeof equipmentCategories[number]
 export type EquipmentStatus = 'available' | 'maintenance' | 'retired'
 export interface ApiUser { id: string; email: string | null; displayName: string | null; onboardedAt: string | null }
-export interface ApiOrganization { id: string; slug: string; name: string; role: 'owner' | 'admin' | 'member' }
+export interface ApiOrganization { id: string; slug: string; name: string; role: 'owner' | 'admin' | 'member'; /** Hour-long private link to the workspace logo, or null when it has none. */ logoUrl?: string | null }
 export interface ApiMember extends Omit<ApiUser, 'onboardedAt'> { role: ApiOrganization['role']; status: 'invited' | 'active' | 'suspended' }
 export interface ApiEquipment { id: string; equipmentCode: string; name: string; category: EquipmentCategory; status: EquipmentStatus; createdAt: string; photoId: string | null }
 export interface ApiReservation { readOnly?: boolean; clientAccountId?:string|null; id: string; userId: string; name: string; startsAt: string; endsAt: string; status: 'confirmed' | 'cancelled'; equipmentIds: string[]; createdAt: string }

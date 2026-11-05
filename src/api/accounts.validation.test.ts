@@ -57,4 +57,10 @@ describe('account administration inputs',()=>{
   it('bounds organization policies',()=>{
     expect(()=>changeOrganization({name:'Studio',reservationDays:91,version,requestId})).toThrow()
   })
+  it('keeps, sets or removes the workspace logo only by photo id',()=>{
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId})).not.toHaveProperty('logoPhotoId')
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId,logoPhotoId:null}).logoPhotoId).toBeNull()
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId,logoPhotoId:requestId}).logoPhotoId).toBe(requestId)
+    expect(()=>changeOrganization({name:'Studio',reservationDays:14,version,requestId,logoPhotoId:'https://example.test/logo.png'})).toThrow()
+  })
 })

@@ -10,7 +10,8 @@ export interface StoredPhoto { key: string; width: number; height: number; size:
 export interface PhotoStorage {
   signUpload(photo: PendingPhoto): Promise<{ url: string; fields: Record<string, string> }>
   finalize(photo: PendingPhoto): Promise<StoredPhoto>
-  signDownload(key: string): Promise<{ url: string; expiresIn: number }>
+  /** Defaults to a 60-second, uncached link; logos ask for a longer, browser-cacheable one. */
+  signDownload(key: string, options?: { expiresIn?: number; cacheable?: boolean }): Promise<{ url: string; expiresIn: number }>
 }
 export function photoStorageConfig(env: Record<string, string | undefined> = process.env) {
   if (!['dev', 'prod'].includes(env.STUDIOSTACK_ENV ?? '') || env.AWS_REGION !== 'us-east-2' || env.S3_PHOTOS_BUCKET !== `studio-stack-photos-${env.STUDIOSTACK_ENV}`) throw new Error('Photo bucket must match the database environment')
@@ -62,9 +63,10 @@ export function createPhotoStorage(config = photoStorageConfig()): PhotoStorage 
       await service.send(new PutObjectCommand({ Bucket: config.bucket, Key: key, Body: sanitized.bytes, ContentType: 'image/jpeg', CacheControl: 'private, no-store', ServerSideEncryption: 'AES256' }), { abortSignal: AbortSignal.timeout(8_000) })
       return { key, width: sanitized.width, height: sanitized.height, size: sanitized.size, sha256: sanitized.sha256 }
     },
-    async signDownload(key) {
+    async signDownload(key, { expiresIn = 60, cacheable = false } = {}) {
       if (!/^photos\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/.test(key)) throw new Error('Unexpected private photo key')
-      return { expiresIn: 60, url: await getSignedUrl(service, new GetObjectCommand({ Bucket: config.bucket, Key: key, ResponseContentType: 'image/jpeg', ResponseContentDisposition: 'inline', ResponseCacheControl: 'private, no-store' }), { expiresIn: 60 }) }
+      if (!Number.isInteger(expiresIn) || expiresIn < 1 || expiresIn > 3600) throw new Error('Unexpected photo link lifetime')
+      return { expiresIn, url: await getSignedUrl(service, new GetObjectCommand({ Bucket: config.bucket, Key: key, ResponseContentType: 'image/jpeg', ResponseContentDisposition: 'inline', ResponseCacheControl: cacheable ? `private, max-age=${expiresIn}` : 'private, no-store' }), { expiresIn }) }
     },
   }
 }
