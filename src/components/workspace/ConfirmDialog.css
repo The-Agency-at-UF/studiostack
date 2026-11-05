@@ -1,0 +1,32 @@
+.ws-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  box-shadow: var(--shadow-tray);
+  animation: ws-confirm-in 150ms ease-out;
+}
+.ws-confirm-dialog::backdrop { background: var(--overlay); animation: ws-confirm-backdrop-in 150ms ease-out; }
+.ws-confirm-content { padding: var(--space-6); }
+.ws-confirm-content h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); line-height: var(--line-heading); font-weight: var(--weight-bold); letter-spacing: -.02em; }
+.ws-confirm-content p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--line-body); overflow-wrap: anywhere; }
+.ws-confirm-content .ws-confirm-subject { margin-bottom: var(--space-2); color: var(--ink); font-weight: var(--weight-medium); }
+.ws-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-6); border-top: 1px solid var(--line); }
+.ws-confirm-actions button { min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; transition: background var(--motion-fast); }
+.ws-confirm-actions button:hover:not(:disabled) { background: var(--surface-hover); }
+.ws-confirm-actions .ws-confirm-destructive { background: var(--danger); border-color: var(--danger); color: var(--on-frame); }
+.ws-confirm-actions .ws-confirm-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, black); }
+.ws-confirm-actions button:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--focus-offset); }
+.ws-confirm-actions button:disabled { opacity: .5; cursor: not-allowed; }
+@keyframes ws-confirm-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ws-confirm-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 480px) { .ws-confirm-actions button { flex: 1; } }
+@media (prefers-reduced-motion: reduce) { .ws-confirm-dialog, .ws-confirm-dialog::backdrop { animation: none; } .ws-confirm-actions button { transition: none; } }
