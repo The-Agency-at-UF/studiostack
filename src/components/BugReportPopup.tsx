@@ -13,7 +13,7 @@ const copy = {
   feature: { Icon: IoIosBulb, trigger: 'Request a Feature', heading: 'Request a Feature', history: 'Your submitted requests', empty: 'No requests yet.', titlePlaceholder: 'What would you like?', submit: 'Submit Request', success: 'Request Submitted!', thanks: 'Thank you for the idea. Our team will review it when planning what to build next.', failure: 'Failed to submit feature request. Please try again later.', collection: 'featureRequests' },
 } as const
 
-function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug' }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void; kind?: FeedbackKind }) {
+function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigger = true }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void; kind?: FeedbackKind; showTrigger?: boolean }) {
   const text = copy[kind]
   const pathname = usePathname(), session=useAppSession();
   const request=useRef<{key:string;id:string}|null>(null),historyGeneration=useRef(0);
@@ -89,10 +89,10 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug' }: { userE
   return (
     <Popup
       trigger={
-        <button className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
+        showTrigger ? <button className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
           <text.Icon className="w-5 h-5" />
           <span>{text.trigger}</span>
-        </button>
+        </button> : undefined
       }
       modal
       nested

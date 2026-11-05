@@ -27,10 +27,8 @@
 .ws-menu-toggle,.ws-drawer-heading,.ws-drawer-backdrop { display:none; }
 .ws-skip-link { position:fixed; top:var(--space-2); left:var(--space-2); padding:var(--space-3); background:var(--surface); color:var(--accent); transform:translateY(-200%); z-index:200; }
 .ws-skip-link:focus { transform:none; }
-.app-content#workspace-content { margin-left:var(--sidebar-width); min-height:calc(100svh - var(--space-16)); background:var(--canvas); padding-bottom:var(--space-8); }
+.app-content#workspace-content { margin-left:var(--sidebar-width); min-height:100svh; background:var(--canvas); padding-bottom:var(--space-8); }
 .app-content#workspace-content:focus { outline:none; }
-.app-content#workspace-content + .sticky-footer { margin-left:var(--sidebar-width); width:calc(100% - var(--sidebar-width)); min-height:var(--space-16); padding:var(--space-3) var(--space-8); background:var(--surface); color:var(--muted); border-top:1px solid var(--line); }
-.app-content#workspace-content + .sticky-footer .footer-status { color:var(--muted); font-size:var(--text-xs); letter-spacing:normal; text-transform:none; }
 @media(max-width:1023px) {
   .site-header.ws-shell { position:sticky; inset:0 0 auto; width:100%; height:var(--header-height); }
   .ws-shell .site-header-inner { height:var(--header-height); padding:0 var(--space-4); flex-direction:row; align-items:center; justify-content:space-between; }
@@ -45,8 +43,7 @@
   .drawer-close { display:grid; place-items:center; width:var(--control-height); height:var(--control-height); color:var(--on-frame); background:var(--frame-raised); border:0; border-radius:var(--radius-control); }
   .ws-shell .ws-nav-group { margin-bottom:var(--space-4); }
   .ws-shell .account-panel { left:auto; right:0; }
-  .app-content#workspace-content { margin-left:0; min-height:calc(100svh - var(--header-height) - var(--space-16)); }
-  .app-content#workspace-content + .sticky-footer { margin-left:0; width:100%; padding:var(--space-3) var(--space-4); }
+  .app-content#workspace-content { margin-left:0; min-height:calc(100svh - var(--header-height)); }
 }
 @media(prefers-reduced-motion:reduce) { .ws-shell :is(a,button),.ws-shell .account-panel { transition:none; animation:none; } }
 @media print { .site-header.ws-shell,.sticky-footer { display:none!important; } .app-content#workspace-content { margin:0; padding:0; background:var(--surface); } }

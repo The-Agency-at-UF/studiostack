@@ -173,7 +173,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || organizations.length > 0}>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
-        <footer className="sticky-footer"><span className="footer-status">StudioStack workspace</span><span className="footer-feedback"><BugReportPopup userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} /><BugReportPopup kind="feature" userEmail={email} open={featureRequestOpen} onOpenChange={setFeatureRequestOpen} /></span></footer>
+        <BugReportPopup showTrigger={false} userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} />
+        <BugReportPopup showTrigger={false} kind="feature" userEmail={email} open={featureRequestOpen} onOpenChange={setFeatureRequestOpen} />
       </TourProvider>}
   </AppSessionProvider>
 }
