@@ -423,6 +423,22 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(account(member,{resource:'activity',method:'GET'})).rejects.toMatchObject({status:403})
     const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');for(const sql of ['UPDATE app.organization_audit_events SET details=\'{}\'','DELETE FROM app.organization_audit_events'])await expect(c.query(sql)).rejects.toMatchObject({code:'42501'})}finally{await c.end()}
   })
+  it('accounts: a workspace logo must be a completed photo of the organization and is signed for members',async()=>{
+    const upload=async()=>(await repository.execute(owner,{operation:'photoUpload',organizationId,input:{organizationId,contentType:'image/jpeg',size:500,requestId:randomUUID()}}) as {photoId:string}).photoId
+    const save=async(logoPhotoId:string|null|undefined)=>{const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'});return account<OrganizationSettings>(owner,{resource:'settings',method:'PATCH',body:{name:current.name,reservationDays:current.reservationDays,version:current.version,requestId:randomUUID(),...(logoPhotoId===undefined?{}:{logoPhotoId})}})}
+    const logos=async(identity:Identity)=>(await repository.execute(identity,{operation:'organizations',page:listPage}) as ApiPage<ApiOrganization>).items.find(o=>o.id===organizationId)?.logoUrl
+    const pending=await upload()
+    await expect(save(pending)).rejects.toMatchObject({status:409})
+    await expect(save(randomUUID())).rejects.toMatchObject({status:409})
+    const ready=await upload();await repository.execute(owner,{operation:'completePhoto',organizationId,photoId:ready})
+    await expect(account(member,{resource:'settings',method:'PATCH',body:{name:'Test Org',reservationDays:14,version:1,requestId:randomUUID(),logoPhotoId:ready}})).rejects.toMatchObject({status:403})
+    expect(await save(ready)).toMatchObject({logoPhotoId:ready})
+    expect(await logos(member)).toBe('https://private.test/signed')
+    expect(await save(undefined)).toMatchObject({logoPhotoId:ready})
+    expect((await operator.query("SELECT details FROM app.organization_audit_events WHERE organization_id=$1 AND kind='organization_updated' ORDER BY created_at DESC, id DESC LIMIT 2",[organizationId])).rows.map(r=>r.details.logo)).toEqual([undefined,'updated'])
+    expect(await save(null)).toMatchObject({logoPhotoId:null})
+    expect(await logos(member)).toBeNull()
+  })
   it('accounts: concurrent owner demotions leave an active owner',async()=>{
     const a=await accountMember(owner),b=await accountMember(secondMember)
     const promoted=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:b.id,body:{role:'owner',status:'active',version:b.version,requestId:randomUUID()}})
