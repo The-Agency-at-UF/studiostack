@@ -43,6 +43,10 @@ describe('account administration inputs',()=>{
   })
   it('normalizes invitation email and excludes owner invitations',()=>{
     expect(inviteMember({email:' PERSON@Example.org ',displayName:'Person',role:'member',requestId}).email).toBe('person@example.org')
+    expect(inviteMember({email:' ADMIN@Example.org ',role:'admin',requestId})).toEqual({email:'admin@example.org',displayName:'admin@example.org',role:'admin',requestId})
+    const email=`${'a'.repeat(64)}@${'b'.repeat(60)}.example.org`
+    expect(inviteMember({email,role:'member',requestId}).displayName).toHaveLength(120)
+    expect(()=>inviteMember({email:'invalid',role:'admin',requestId})).toThrow()
     expect(()=>inviteMember({email:'a@example.org',displayName:'A',role:'owner',requestId})).toThrow()
   })
   it('rejects injected privileges and invalid versions',()=>{

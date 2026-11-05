@@ -5,10 +5,10 @@ export function versioned(value:Record<string,unknown>):VersionedRequest {
   if(!Number.isSafeInteger(value.version)||Number(value.version)<1)throw new ApiError(400,'A positive record version is required')
   return {version:Number(value.version),requestId:uuid(value.requestId)}
 }
-export function inviteMember(input:unknown):InviteMember {
+export function inviteMember(input:unknown):Required<InviteMember> {
   const v=object(input,['email','displayName','role','requestId']),email=text(v.email,254).toLowerCase()
   if(!emailPattern.test(email)||!['member','admin'].includes(String(v.role)))throw new ApiError(400,'A valid email and member/admin role are required')
-  return {email,displayName:text(v.displayName,120),role:v.role as InviteMember['role'],requestId:uuid(v.requestId)}
+  return {email,displayName:v.displayName===undefined?email.slice(0,120):text(v.displayName,120),role:v.role as InviteMember['role'],requestId:uuid(v.requestId)}
 }
 export function changeMember(input:unknown):ChangeMember {
   const v=object(input,['role','status','version','requestId'])
