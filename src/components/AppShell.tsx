@@ -75,7 +75,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       if (result.mode === 'authenticated' && loginPageRef.current) {
         const destination = sessionStorage.getItem('studiostack-production-return')
         sessionStorage.removeItem('studiostack-production-return')
-        const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();if(target)router.replace(target)
+        const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();router.replace(target||'/')
       }
       if(result.subject){setSubject(result.subject);const saved=localStorage.getItem('studiostack.organization.'+result.subject);if(saved&&result.organizations.some(o=>o.id===saved))setSelectedOrganizationId(saved)}
       setMode(result.mode); setEmail(result.label); setIsAdmin(result.admin); setOrganizations(result.organizations); setExpiresAt(result.expiresAt)
@@ -166,8 +166,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
     ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization])
 
   return <AppSessionProvider value={session}>
-    {busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
-      : loginPage ? children
+    {/* Keep the password form mounted while it owns a pending sign-in or challenge. */}
+    {loginPage ? children
+      : busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
       : mode === 'signed-out' ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || organizations.length > 0}>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} />
