@@ -8,6 +8,7 @@ import { SiApple } from 'react-icons/si'
 import type { ApiOrganization } from '../../types/database-api'
 import type { LoginProvider, LoginProviderOption } from '../../auth/providers'
 import { Select } from '../../components/workspace/WorkspaceUI'
+import AuthLayout from './AuthLayout'
 
 const providerButtons = [
   { id: 'google', label: 'Continue with Google', Icon: FcGoogle },
@@ -35,16 +36,7 @@ export interface LoginProps {
   accessDescription?:string
 }
 export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
-  return <main className="login-page">
-    <section className="login-brand" aria-label="About StudioStack">
-      <div className="login-lava" aria-hidden="true"><span /><span /><span /><span /><span /><span /></div>
-      <div className="login-brand-center">
-        <div className="login-wordmark">StudioStack</div>
-        <p>Production, equipment, <br />and your team.</p>
-      </div>
-    </section>
-    <section className="login-access" aria-labelledby="login-title">
-      <div className="login-form-area">
+  return <AuthLayout>
         <span className="login-section-number">{authenticated ? 'Your account' : accessSection?.replace(/ \/ 01$/, '')??'Sign in'}</span>
         <h1 id="login-title">{authenticated ? 'You’re signed in.' : accessHeading??'Welcome back.'}</h1>
         <p className="login-description">{authenticated ? label : accessDescription??'Sign in to access your organization’s workspace.'}</p>
@@ -84,7 +76,5 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
           {busy && <p className="login-security-note" role="status">Connecting to secure sign-in. Please wait.</p>}
           <p className="login-password-note"><HiOutlineLockClosed aria-hidden="true" />Your password stays with the sign-in provider.</p></>}
         </>}
-      </div>
-    </section>
-  </main>
+  </AuthLayout>
 }
