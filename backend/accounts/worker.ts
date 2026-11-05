@@ -28,6 +28,7 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
       if(route==='/account/invitations/{invitationId}/accept'){const value=object(body,['organizationId']);Object.assign(input,{action:'accept',invitationId:uuid(event.pathParameters?.invitationId),organizationId:uuid(value.organizationId)})}
       else if(route==='/account/onboarding/domain-joins'){const value=object(body,['organizationId']);Object.assign(input,{action:'join-domain',organizationId:uuid(value.organizationId)})}
       else if(route==='/account/onboarding/code-joins'){const value=object(body,['code']);Object.assign(input,{action:'join-code',code:text(value.code,32)})}
+      else if(route==='/account/onboarding/searches'){const value=object(body,['query']);Object.assign(input,{action:'search',query:text(value.query,80)})}
       else if(route==='/account/onboarding/access-requests'){const value=object(body,['organizationId','message']);Object.assign(input,{action:'request-access',organizationId:uuid(value.organizationId),...(value.message===undefined||value.message===''?{}:{message:text(value.message,500)})})}
       else {const value=object(body,['organizationId']);Object.assign(input,{action:'withdraw-request',requestId:uuid(event.pathParameters?.requestId),organizationId:uuid(value.organizationId)})}
     } else if(event.routeKey==='GET /account/onboarding')input.action='overview'

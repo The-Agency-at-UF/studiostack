@@ -4,7 +4,7 @@ import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes,agencyProductionRoutes,briefDeletionRoutes } from '../../backend/production/routes'
 import {accountRoutes,joinMethodRoutes,organizationDirectoryRoute} from '../../backend/accounts/routes'
 import { account, region } from './resources'
-import { databaseApiRoutes, privatePhotoRoutes, bugReportRoutes, retiredRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
+import { databaseApiRoutes, privatePhotoRoutes, bugReportRoutes, onboardingRoutes, retiredRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
 
 /** Additive API stack: no new database, secret, VPC endpoint or execution role. */
 export function databaseApiInfrastructure(env: Record<string, string | undefined>, includePhotos = false) {
@@ -20,7 +20,7 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
       ApiId: config.apiId, IntegrationType: 'AWS_PROXY', IntegrationUri: functionArn, IntegrationMethod: 'POST', PayloadFormatVersion: '2.0', TimeoutInMillis: 29_000,
     } },
   }
-  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes.filter(route=>!agencyProductionRoutes.includes(route)&&!briefDeletionRoutes.includes(route)), ...accountRoutes.filter(route=>route!==organizationDirectoryRoute), ...equipmentRoutes, ...reportRoutes, ...alertRoutes,...agencyProductionRoutes,...bugReportRoutes,...joinMethodRoutes,organizationDirectoryRoute,...briefDeletionRoutes].entries()) {
+  for (const [index, route] of [...databaseApiRoutes, ...(includePhotos ? privatePhotoRoutes : []), ...productionRoutes.filter(route=>!agencyProductionRoutes.includes(route)&&!briefDeletionRoutes.includes(route)), ...accountRoutes.filter(route=>route!==organizationDirectoryRoute), ...equipmentRoutes, ...reportRoutes, ...alertRoutes,...agencyProductionRoutes,...bugReportRoutes,...joinMethodRoutes,organizationDirectoryRoute,...briefDeletionRoutes,...onboardingRoutes].entries()) {
     // The upload route predates this stack. Deployment updates it in place,
     // avoiding duplicate routes or deleting the existing AWS resource.
     // A retired route keeps its index, so removing it deletes only its own resource.

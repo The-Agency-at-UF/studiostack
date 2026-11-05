@@ -3,7 +3,7 @@ import {reportClient} from './reports'
 import {equipmentClient} from './equipment'
 import type {EquipmentRecord,EquipmentReservation} from '../types/equipment'
 import { productionClient } from './production'
-import type {OnboardingOverview,OwnAccessRequest,PendingInvitation} from '../types/accounts'
+import type {OnboardingOverview,OrganizationSearchResult,OwnAccessRequest,PendingInvitation} from '../types/accounts'
 import {accountClient} from './accounts'
 import type { ApiBugReport, FeedbackKind, ApiUser, ApiOrganization, ApiMember, ApiPage, CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, ApiPhotoUpload, ApiCompletedPhoto, ApiPhotoDownload } from '../types/database-api'
 import type { Send } from './scoped'
@@ -101,6 +101,7 @@ export function createDatabaseApiClient(options: ClientOptions) {
     joinByDomain:(organizationId:string)=>request<{organizationId:string}>('/account/onboarding/domain-joins','POST',{organizationId}),
     joinByCode:(code:string)=>request<{organizationId:string}>('/account/onboarding/code-joins','POST',{code}),
     requestAccess:(organizationId:string,message?:string)=>request<OwnAccessRequest>('/account/onboarding/access-requests','POST',message?{organizationId,message}:{organizationId}),
+    searchOrganizations:(query:string)=>request<{items:OrganizationSearchResult[]}>('/account/onboarding/searches','POST',{query}),
     withdrawAccessRequest:(id:string,organizationId:string)=>request<{id:string;status:'withdrawn'}>(`/account/onboarding/access-requests/${encodeURIComponent(id)}/withdraw`,'POST',{organizationId}),
     alerts:(org:string)=>alertClient(scoped(org,resource=>'alerts'+resource)),
     reports:(org:string)=>reportClient(scoped(org,resource=>'equipment/reports'+(resource.startsWith('?')||!resource?resource:'/'+resource))),
@@ -111,6 +112,7 @@ export function createDatabaseApiClient(options: ClientOptions) {
     submitBugReport:(org:string,input:{kind?:FeedbackKind;title:string;description:string;pagePath:string;requestId:string})=>request<{id:string}>(path(org,'bug-reports'),'POST',input),
     me: () => request<ApiUser>('/me'),
     register: (displayName?: string) => request<ApiUser>('/me', 'POST', displayName === undefined ? {} : { displayName }),
+    completeOnboarding: () => request<ApiUser>('/me/onboarding', 'POST', {}),
     organizations: (page?: PageOptions) => request<ApiPage<ApiOrganization>>(paged('/organizations', page)),
     members: (org: string, page?: PageOptions) => request<ApiPage<ApiMember>>(paged(path(org, 'members'), page)),
     inventory: (org: string, page?: PageOptions) => request<ApiPage<EquipmentRecord>>(paged(path(org, 'inventory'), page)),
