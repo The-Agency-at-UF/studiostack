@@ -91,6 +91,17 @@ DATABASE_API_BUILD=<folder printed by db:api:prepare> node --import=tsx scripts/
 
 This deployment preserves the prior runtime archive, applies pending migrations and application grants through temporary maintenance access, removes that access, updates the runtime, and deploys/verifies the protected route. It does not bootstrap users or change organization membership. The production web release workflow still publishes only the website; backend releases need this separate deployment.
 
+### Production onboarding
+
+The `/welcome/` flow needs migrations `021_agency_domain_join.sql` and `022_user_onboarding.sql`, the database runtime with `POST /me/onboarding`, and the account worker with `POST /account/onboarding/searches`. Deploy them before merging the website change that routes new accounts to `/welcome/`, from a clean checkout of the merged release:
+
+```sh
+npm run db:api:prepare
+DATABASE_API_BUILD=<folder printed by db:api:prepare> node --import=tsx scripts/deploy-production-onboarding.ts --apply-prod
+```
+
+It preserves the prior runtime archive, applies pending migrations, updates the runtime, redeploys the account and notification workers, and checks that both new routes require a JWT. From then on registration no longer adds accounts to the Agency; verified `@ufl.edu` accounts join it from onboarding.
+
 ```sh
 npm ci
 npm run typecheck
