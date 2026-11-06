@@ -1,12 +1,13 @@
 import { StrictMode } from 'react'
 import {renderToString} from 'react-dom/server'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppShell from './AppShell'
+import PasswordForm from '../views/LogIn/PasswordForm'
 import { useAppSession } from '../context/AppSessionContext'
 
 const mocks = vi.hoisted(() => ({
-  pathname: '/login/', push: vi.fn(), replace: vi.fn(), finish: vi.fn(), me:vi.fn(),register: vi.fn(), organizations: vi.fn(),restore:vi.fn(),
+  passwordSignIn:vi.fn(), pathname: '/login/', push: vi.fn(), replace: vi.fn(), finish: vi.fn(), me:vi.fn(),register: vi.fn(), organizations: vi.fn(),restore:vi.fn(),
   preview: false, clear: vi.fn(), forget:vi.fn(),token: vi.fn(), storedSession: null as { token: string; user: { label: string; subject: string; expiresAt: number } } | null,
 }))
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useRouter: () => ({ push: mocks.push, replace: mocks.replace }) }))
@@ -19,7 +20,7 @@ vi.mock('../auth/cognito', () => ({
   isPreview: () => mocks.preview, clearSignIn: mocks.clear, forgetVerifiedSession: mocks.forget,AuthenticationUnavailable: class extends Error {},
   enterPreview: () => { mocks.preview = true }, signInUrl: vi.fn(), logoutUrl: () => 'https://provider.example.test/logout',
 }))
-vi.mock('../auth/password', () => ({restorePasswordSession: (...args:unknown[]) => mocks.restore(...args), signOutPasswordSession: vi.fn()}))
+vi.mock('../auth/password', () => ({passwordSignIn:mocks.passwordSignIn,passwordError:()=> 'Email or password is incorrect.',passwordRules:()=>true,restorePasswordSession: (...args:unknown[]) => mocks.restore(...args), signOutPasswordSession: vi.fn()}))
 vi.mock('../api/database', () => ({ DatabaseApiClientError: class extends Error {constructor(public status:number){super('API error')}}, createDatabaseApiClient: () => ({me:mocks.me, register: mocks.register, organizations: mocks.organizations }) }))
 function Controls() {
   const session = useAppSession()
@@ -217,5 +218,68 @@ describe('Workspace tour',()=>{
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     mocks.pathname='/';render(<AppShell><Controls/></AppShell>)
     expect(await screen.findByRole('dialog',{name:'Welcome to StudioStack'})).toBeInTheDocument()
+  })
+})
+
+function SignInForm() {
+  const session=useAppSession()
+  return <PasswordForm onBusyChange={session.setAuthenticating} onAuthenticated={async user=>{await session.completeSignIn?.(user)}}/>
+}
+async function submitPassword(email:string) {
+  await act(async()=>{})
+  const emailField=await screen.findByLabelText('Email')
+  await vi.waitFor(()=>expect(emailField).toBeEnabled())
+  fireEvent.change(emailField,{target:{value:email}})
+  fireEvent.change(screen.getByLabelText('Password'),{target:{value:'test-password'}})
+  fireEvent.submit(screen.getByRole('form'))
+}
+describe('Password form inside the session shell',()=>{
+  it.each(['mrrespect305@gmail.com','rmckenzie1@ufl.edu'])('keeps errors visible and allows %s to retry',async email=>{
+    let reject!:(reason:Error)=>void
+    mocks.passwordSignIn.mockImplementationOnce(()=>new Promise((_,fail)=>{reject=fail}))
+    render(<AppShell><SignInForm/></AppShell>)
+    await submitPassword(email)
+    expect(screen.getByLabelText('Email')).toHaveValue(email)
+    expect(screen.getByLabelText('Email')).toBeDisabled()
+    await act(async()=>{reject(new Error('invalid credentials'))})
+    expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is incorrect.')
+    expect(screen.getByLabelText('Email')).toHaveValue(email)
+    expect(screen.getByRole('button',{name:'Sign in'})).toBeEnabled()
+    expect(mocks.replace).not.toHaveBeenCalledWith('/')
+  })
+  it('retains a required new-password challenge after sign-in',async()=>{
+    mocks.passwordSignIn.mockResolvedValueOnce({step:'new-password'})
+    render(<AppShell><SignInForm/></AppShell>)
+    await submitPassword('member@example.test')
+    expect(await screen.findByRole('heading',{name:'Choose your password'})).toBeInTheDocument()
+    expect(screen.getByLabelText('New password',{exact:true})).toBeEnabled()
+  })
+  it('keeps an unconfirmed account on its email verification step',async()=>{
+    mocks.passwordSignIn.mockResolvedValueOnce({step:'confirm-sign-up'})
+    render(<AppShell><SignInForm/></AppShell>)
+    await submitPassword('mrrespect305@gmail.com')
+    expect(await screen.findByLabelText('Email verification code')).toBeEnabled()
+    expect(screen.getByLabelText('Email')).toHaveValue('mrrespect305@gmail.com')
+    expect(mocks.me).not.toHaveBeenCalled()
+    expect(mocks.replace).not.toHaveBeenCalledWith('/')
+  })
+  it('does not open the workspace until the signed-in account is loaded',async()=>{
+    let resolveAccount!:(value:object)=>void
+    mocks.passwordSignIn.mockResolvedValueOnce({step:'done',user:{subject:'member',label:'rmckenzie1@ufl.edu',expiresAt:Date.now()+900000}})
+    mocks.me.mockImplementationOnce(()=>new Promise(resolve=>{resolveAccount=resolve}))
+    render(<AppShell><SignInForm/></AppShell>)
+    await submitPassword('rmckenzie1@ufl.edu')
+    await vi.waitFor(()=>expect(mocks.me).toHaveBeenCalledOnce())
+    expect(mocks.replace).not.toHaveBeenCalledWith('/')
+    expect(screen.getByLabelText('Email')).toBeDisabled()
+    await act(async()=>{resolveAccount({onboardedAt:'2026-11-01T00:00:00Z'})})
+    expect(mocks.organizations).toHaveBeenCalledOnce()
+    expect(mocks.replace).toHaveBeenCalledWith('/')
+  })
+  it('opens the workspace when restoring an existing member at /login/',async()=>{
+    mocks.storedSession={token:'saved',user:{label:'member@example.test',subject:'member',expiresAt:Date.now()+900000}}
+    render(<AppShell><Controls/></AppShell>)
+    await screen.findByText('authenticated/member@example.test/false/token')
+    expect(mocks.replace).toHaveBeenCalledWith('/')
   })
 })

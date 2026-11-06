@@ -84,7 +84,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
             <button ref={accountTrigger} className="account-trigger" aria-label="Account" aria-expanded={accountOpen} aria-controls="account-panel" onClick={() => setAccountOpen(open => !open)}><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>
             {accountOpen && <div id="account-panel" className="account-panel">
               <div className="account-identity"><strong>Your account</strong></div>
-              <Link href="/login" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account & workspaces</Link>
+              <Link href="/account" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account & workspaces</Link>
               <Link href="/reservations" onClick={closeMenus}><HiOutlineCalendarDays aria-hidden="true" />My reservations</Link>
               {isAdmin && <><Link href="/organization" onClick={closeMenus}><HiOutlineUsers aria-hidden="true" />Manage members</Link><Link href="/organization/settings" onClick={closeMenus}><HiOutlineCog6Tooth aria-hidden="true" />Organization settings</Link></>}
               {onReportBug && <button className="account-report-bug" onClick={() => { closeMenus(); onReportBug() }}><HiOutlineBugAnt aria-hidden="true" />Report a bug</button>}

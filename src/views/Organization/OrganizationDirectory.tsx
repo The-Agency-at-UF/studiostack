@@ -10,6 +10,7 @@ import { EmptyState, Notice, Select, Skeleton, StatusLabel } from '../../compone
 import type { ApiPage } from '../../types/database-api'
 import type { OrganizationInvitation, OrganizationSettings } from '../../types/accounts'
 import './OrganizationDirectory.css'
+import OrganizationJoinCode from './OrganizationJoinCode'
 
 type Role = OrganizationSettings['role']
 // Members only ever receive id, name and role; email and status are filled in for owners and admins.
@@ -80,7 +81,7 @@ export default function OrganizationDirectory() {
     {error && <Notice kind="error">{error}</Notice>}
     {loading && <Skeleton label="Loading organization…" variant="row" count={4} />}
     {!org && !loading && <EmptyState title="Select an organization to continue." />}
-    {settings && <>
+    {settings && <div className="ws-tray" role="group" aria-label="Organization directory">
       <section className="org-directory-section" aria-labelledby="org-admins">
         <div className="org-directory-section-heading">
           <h2 id="org-admins">Admin</h2>
@@ -94,6 +95,7 @@ export default function OrganizationDirectory() {
             {person.email && <small>{person.email}</small>}
           </div>
         </li>)}</ul> : <EmptyState title="No active admins." />}
+        {manager && api && <OrganizationJoinCode key={org} api={api} name={settings.name} />}
       </section>
       <section className="org-directory-section" aria-labelledby="org-members">
         <div className="org-directory-section-heading">
@@ -122,6 +124,6 @@ export default function OrganizationDirectory() {
           <div><strong>{invitation.displayName}</strong><small>{invitation.email} · {invitation.role === 'admin' ? 'Admin' : 'Member'} · Expires {new Date(invitation.expiresAt).toLocaleDateString()}</small></div>
         </li>)}</ul> : <EmptyState title="No pending invitations." />}
       </section>}
-    </>}
+    </div>}
   </main>
 }

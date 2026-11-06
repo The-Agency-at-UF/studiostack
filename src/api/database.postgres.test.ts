@@ -401,6 +401,28 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await account(owner,{resource:'members',method:'PATCH',memberId:target.id,body:{role:'member',status:'active',version:updated.version,requestId:randomUUID()}})
     expect((await operator.query('SELECT id FROM app.organization_audit_events WHERE request_id=$1',[requestId])).rows).toHaveLength(1)
   })
+  it('accounts: administrators manage other administrators but cannot alter owners or grant ownership',async()=>{
+    const actor=await accountMember(secondMember),target=await accountMember(member),ownerBefore=await accountMember(owner)
+    const change=async(identity:Identity,id:string,role:string,status:string,version:number)=>account<ManagedMember>(identity,{resource:'members',method:'PATCH',memberId:id,body:{role,status,version,requestId:randomUUID()}})
+    const admin=await change(owner,actor.id,'admin','active',actor.version)
+    let edited=target
+    try {
+      edited=await change(secondMember,target.id,'admin','active',target.version)
+      expect(edited.role).toBe('admin')
+      await expect(change(secondMember,ownerBefore.id,'member','active',ownerBefore.version)).rejects.toMatchObject({status:403})
+      await expect(change(secondMember,ownerBefore.id,'owner','suspended',ownerBefore.version)).rejects.toMatchObject({status:403})
+      await expect(change(secondMember,target.id,'owner','active',edited.version)).rejects.toMatchObject({status:403})
+      edited=await change(secondMember,target.id,'admin','suspended',edited.version)
+      await expect(account(member,{resource:'settings',method:'GET'})).rejects.toMatchObject({status:403})
+      edited=await change(secondMember,target.id,'admin','active',edited.version)
+      edited=await change(secondMember,target.id,'member','active',edited.version)
+      expect(edited).toMatchObject({role:'member',status:'active'})
+      expect(await accountMember(owner)).toMatchObject(ownerBefore)
+    } finally {
+      if(edited.role!==target.role||edited.status!==target.status)await change(owner,target.id,target.role,target.status,edited.version)
+      await change(owner,actor.id,actor.role,actor.status,admin.version)
+    }
+  })
   it('accounts: organization policies use optimistic versions and retain an append-only audit',async()=>{
     const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'}),body={name:'Renamed studio',reservationDays:14,version:current.version,requestId:randomUUID()}
     expect(await account(owner,{resource:'settings',method:'PATCH',body})).toMatchObject({name:body.name,reservationDays:14,version:current.version+1})
@@ -408,6 +430,22 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const activity=await account<ApiPage<{id:string}>>(owner,{resource:'activity',method:'GET'});expect(activity.items.length).toBeGreaterThan(0)
     await expect(account(member,{resource:'activity',method:'GET'})).rejects.toMatchObject({status:403})
     const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');for(const sql of ['UPDATE app.organization_audit_events SET details=\'{}\'','DELETE FROM app.organization_audit_events'])await expect(c.query(sql)).rejects.toMatchObject({code:'42501'})}finally{await c.end()}
+  })
+  it('accounts: a workspace logo must be a completed photo of the organization and is signed for members',async()=>{
+    const upload=async()=>(await repository.execute(owner,{operation:'photoUpload',organizationId,input:{organizationId,contentType:'image/jpeg',size:500,requestId:randomUUID()}}) as {photoId:string}).photoId
+    const save=async(logoPhotoId:string|null|undefined)=>{const current=await account<OrganizationSettings>(owner,{resource:'settings',method:'GET'});return account<OrganizationSettings>(owner,{resource:'settings',method:'PATCH',body:{name:current.name,reservationDays:current.reservationDays,version:current.version,requestId:randomUUID(),...(logoPhotoId===undefined?{}:{logoPhotoId})}})}
+    const logos=async(identity:Identity)=>(await repository.execute(identity,{operation:'organizations',page:listPage}) as ApiPage<ApiOrganization>).items.find(o=>o.id===organizationId)?.logoUrl
+    const pending=await upload()
+    await expect(save(pending)).rejects.toMatchObject({status:409})
+    await expect(save(randomUUID())).rejects.toMatchObject({status:409})
+    const ready=await upload();await repository.execute(owner,{operation:'completePhoto',organizationId,photoId:ready})
+    await expect(account(member,{resource:'settings',method:'PATCH',body:{name:'Test Org',reservationDays:14,version:1,requestId:randomUUID(),logoPhotoId:ready}})).rejects.toMatchObject({status:403})
+    expect(await save(ready)).toMatchObject({logoPhotoId:ready})
+    expect(await logos(member)).toBe('https://private.test/signed')
+    expect(await save(undefined)).toMatchObject({logoPhotoId:ready})
+    expect((await operator.query("SELECT details FROM app.organization_audit_events WHERE organization_id=$1 AND kind='organization_updated' ORDER BY created_at DESC, id DESC LIMIT 2",[organizationId])).rows.map(r=>r.details.logo)).toEqual([undefined,'updated'])
+    expect(await save(null)).toMatchObject({logoPhotoId:null})
+    expect(await logos(member)).toBeNull()
   })
   it('accounts: concurrent owner demotions leave an active owner',async()=>{
     const a=await accountMember(owner),b=await accountMember(secondMember)
@@ -425,7 +463,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   async function invitation(email=`${randomUUID()}@example.org`,role:'member'|'admin'='member') {
     return account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',body:{email,displayName:'Invited person',role,requestId:randomUUID()}})
   }
-  it('invitations: creation is authorized, idempotent, and owner-only for administrator invitations',async()=>{
+  it('invitations: creation is authorized and idempotent for owners and administrators',async()=>{
     const body={email:`${randomUUID()}@example.org`,displayName:'New teammate',role:'member',requestId:randomUUID()}
     await expect(account(member,{resource:'invitations',method:'POST',body})).rejects.toMatchObject({status:403})
     const created=await account<OrganizationInvitation>(owner,{resource:'invitations',method:'POST',body})
@@ -433,8 +471,30 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await account(owner,{resource:'invitations',method:'POST',body})).toMatchObject({id:created.id,version:1})
     await expect(account(owner,{resource:'invitations',method:'POST',body:{...body,role:'admin'}})).rejects.toMatchObject({status:409})
     const m=await accountMember(secondMember),admin=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'admin',status:'active',version:m.version,requestId:randomUUID()}})
-    await expect(account(secondMember,{resource:'invitations',method:'POST',body:{...body,email:'another@example.org',role:'admin',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
-    await account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:admin.version,requestId:randomUUID()}})
+    try {
+      const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
+      await repository.execute(identity,{operation:'register',displayName:'Administrator recipient'})
+      const inviteBody={email:identity.email,role:'admin',requestId:randomUUID()}
+      const invited=await account<OrganizationInvitation>(secondMember,{resource:'invitations',method:'POST',body:inviteBody})
+      expect(invited).toMatchObject({role:'admin',displayName:identity.email,status:'pending'})
+      expect(await account(secondMember,{resource:'invitations',method:'POST',body:inviteBody})).toMatchObject({id:invited.id,version:1})
+      await operator.query("UPDATE app.organization_invitations SET delivery_status='failed' WHERE id=$1",[invited.id])
+      const retried=await account<OrganizationInvitation>(secondMember,{resource:'invitations',method:'POST',invitationId:invited.id,action:'retry',body:{version:invited.version,requestId:randomUUID()}})
+      const queueClient=new pg.Client({connectionString})
+      try {
+        await queueClient.connect();await queueClient.query('SET ROLE "studiostack_dev_app"')
+        const claimed=await invitationQueueTask(queueClient,{action:'claim'})
+        expect('jobs' in claimed&&claimed.jobs?.some(job=>job.id===invited.id)).toBe(true)
+      } finally {await queueClient.end()}
+      expect(await directory({action:'list',identity})).toMatchObject({items:[expect.objectContaining({id:invited.id})]})
+      expect(await directory({action:'accept',identity,organizationId,invitationId:invited.id})).toEqual({organizationId})
+      expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({role:'admin',id:organizationId})]})
+      const revoked=await account<OrganizationInvitation>(secondMember,{resource:'invitations',method:'POST',body:{email:`${randomUUID()}@example.org`,role:'admin',requestId:randomUUID()}})
+      expect(await account(secondMember,{resource:'invitations',method:'POST',invitationId:revoked.id,action:'revoke',body:{version:revoked.version,requestId:randomUUID()}})).toMatchObject({status:'revoked'})
+      expect(retried.deliveryStatus).toBe('queued')
+    } finally {
+      await account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{role:'member',status:'active',version:admin.version,requestId:randomUUID()}})
+    }
   })
   it('invitations: only the verified recipient can accept; membership and audit commit once',async()=>{
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
@@ -809,6 +869,40 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await account(owner,{resource:'domains',method:'POST',domain,action:'remove',body:{version:2,requestId:randomUUID()}})).toEqual({domain,removed:true})
     expect((await operator.query("SELECT kind FROM app.organization_audit_events WHERE details->>'domain'=$1 ORDER BY created_at",[domain])).rows.map(r=>r.kind)).toEqual(['domain_added','domain_updated','domain_removed'])
   })
+  it('onboarding admin: reusable codes persist, replace atomically and remain admin only',async()=>{
+    const created=await account<JoinCode>(owner,{resource:'join-codes',method:'POST',body:{label:'Organization code',reusable:true,requestId:randomUUID()}})
+    const listed=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.find(c=>c.id===created.id)!
+    expect(listed.code).toBe(created.code)
+    await expect(account(member,{resource:'join-codes',method:'GET'})).rejects.toMatchObject({status:403})
+    await expect(account(owner,{resource:'join-codes',method:'POST',body:{label:'Duplicate',reusable:true,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
+    const nextRequest={resource:'join-codes',method:'POST',body:{label:'Replacement',reusable:true,replaces:created.id,requestId:randomUUID()}}
+    const replacement=await account<JoinCode>(owner,nextRequest)
+    expect(replacement.code).not.toBe(created.code)
+    expect((await account<JoinCode>(owner,nextRequest)).code).toBe(replacement.code)
+    const codes=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items
+    expect(codes.find(c=>c.id===created.id)?.revokedAt).toBeTruthy()
+    expect(codes.find(c=>c.id===created.id)).not.toHaveProperty('code')
+    expect(await directory({action:'join-code',identity:await newcomer(`old-code@${freshDomain()}`),code:created.code!})).toMatchObject({statusCode:404})
+    for(let i=0;i<2;i++)expect(await directory({action:'join-code',identity:await newcomer(`reusable-${i}@${freshDomain()}`),code:replacement.code!})).toEqual({organizationId})
+    await account(owner,{resource:'join-codes',method:'POST',codeId:replacement.id,action:'revoke',body:{version:replacement.version+2,requestId:randomUUID()}})
+  })
+
+  it('provisions the Agency reusable code once without embedding a credential',async()=>{
+    const migration=(await loadMigrations()).find(m=>m.name==='024_agency_reusable_join_code.sql')!
+    const original=(await operator.query('SELECT slug FROM app.organizations WHERE id=$1',[organizationId])).rows[0].slug
+    const joiner=await newcomer(`agency-seed@${freshDomain()}`)
+    await operator.query("UPDATE app.organizations SET slug='agency-uf' WHERE id=$1",[organizationId])
+    try {
+      await operator.query(migration.sql)
+      const first=(await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.find(c=>c.code)!
+      expect(first.code).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/)
+      await operator.query(migration.sql)
+      expect((await account<ApiPage<JoinCode>>(owner,{resource:'join-codes',method:'GET'})).items.filter(c=>c.code)).toHaveLength(1)
+      expect(await directory({action:'join-code',identity:joiner,code:first.code!})).toEqual({organizationId})
+      await account(owner,{resource:'join-codes',method:'POST',codeId:first.id,action:'revoke',body:{version:first.version+1,requestId:randomUUID()}})
+    } finally { await operator.query('UPDATE app.organizations SET slug=$2 WHERE id=$1',[organizationId,original]) }
+  })
+
   it('onboarding admin: join codes are shown once, never listed, and stop working when revoked',async()=>{
     await expect(account(member,{resource:'join-codes',method:'POST',body:{label:'Crew',requestId:randomUUID()}})).rejects.toMatchObject({status:403})
     await expect(account(owner,{resource:'join-codes',method:'POST',body:{label:'Crew',maxUses:0,requestId:randomUUID()}})).rejects.toMatchObject({status:400})

@@ -75,10 +75,13 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       return (await client.query<User>(`UPDATE app.users SET onboarded_at = COALESCE(onboarded_at, now()) WHERE id = $1 RETURNING ${userColumns}`, [user.id])).rows[0]
     }
     if (request.operation === 'organizations') {
-      const result = await client.query<QueryResultRow & { id: string }>(`SELECT o.id, o.slug, o.name, m.role FROM app.organizations o
+      const result = await client.query<QueryResultRow & { id: string; logoKey: string | null }>(`SELECT o.id, o.slug, o.name, m.role, o.logo_key AS "logoKey" FROM app.organizations o
         JOIN app.organization_memberships m ON m.organization_id = o.id WHERE m.user_id = $1 AND m.status = 'active'
         AND ($2::uuid IS NULL OR o.id > $2::uuid) ORDER BY o.id LIMIT $3`, [user.id, request.page.after, request.page.limit + 1])
-      return page(result.rows, request.page.limit)
+      // Logos are private photos; members get an hour-long link the browser may cache.
+      const rows = await Promise.all(result.rows.map(async ({ logoKey, ...organization }) => ({ ...organization,
+        logoUrl: logoKey && storage ? (await storage.signDownload(logoKey, { expiresIn: 3600, cacheable: true })).url : null })))
+      return page(rows, request.page.limit)
     }
 
     // Never authorize from an email, demo isAdmin flag, Cognito group, or request body.

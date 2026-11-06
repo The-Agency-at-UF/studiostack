@@ -37,10 +37,16 @@ describe('account administration inputs',()=>{
     expect(()=>addDomain({domain:'studio.example.edu',requestId})).toThrow()
     expect(createJoinCode({label:'Fall crew',requestId})).toEqual({label:'Fall crew',maxUses:null,expiresInDays:null,requestId})
     for(const extra of [{maxUses:0},{maxUses:1.5},{expiresInDays:366},{role:'admin'}])expect(()=>createJoinCode({label:'Crew',requestId,...extra})).toThrow()
+    expect(createJoinCode({label:'Agency',reusable:true,requestId})).toMatchObject({reusable:true})
+    for(const extra of [{reusable:'yes'},{reusable:true,maxUses:5},{reusable:true,expiresInDays:7},{replaces:requestId}])expect(()=>createJoinCode({label:'Agency',requestId,...extra})).toThrow()
     expect(publicEmailDomains.has('gmail.com')).toBe(true);expect(publicEmailDomains.has('ufl.edu')).toBe(false)
   })
   it('normalizes invitation email and excludes owner invitations',()=>{
     expect(inviteMember({email:' PERSON@Example.org ',displayName:'Person',role:'member',requestId}).email).toBe('person@example.org')
+    expect(inviteMember({email:' ADMIN@Example.org ',role:'admin',requestId})).toEqual({email:'admin@example.org',displayName:'admin@example.org',role:'admin',requestId})
+    const email=`${'a'.repeat(64)}@${'b'.repeat(60)}.example.org`
+    expect(inviteMember({email,role:'member',requestId}).displayName).toHaveLength(120)
+    expect(()=>inviteMember({email:'invalid',role:'admin',requestId})).toThrow()
     expect(()=>inviteMember({email:'a@example.org',displayName:'A',role:'owner',requestId})).toThrow()
   })
   it('rejects injected privileges and invalid versions',()=>{
@@ -54,5 +60,11 @@ describe('account administration inputs',()=>{
     expect(changeOrganization({name:'Studio',reservationDays:14,location:' Gainesville ',version,requestId})).toMatchObject({location:'Gainesville'})
     expect(changeOrganization({name:'Studio',reservationDays:14,location:'',version,requestId})).toMatchObject({location:null})
     expect(()=>changeOrganization({name:'Studio',reservationDays:14,location:'x'.repeat(81),version,requestId})).toThrow()
+  })
+  it('keeps, sets or removes the workspace logo only by photo id',()=>{
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId})).not.toHaveProperty('logoPhotoId')
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId,logoPhotoId:null}).logoPhotoId).toBeNull()
+    expect(changeOrganization({name:'Studio',reservationDays:14,version,requestId,logoPhotoId:requestId}).logoPhotoId).toBe(requestId)
+    expect(()=>changeOrganization({name:'Studio',reservationDays:14,version,requestId,logoPhotoId:'https://example.test/logo.png'})).toThrow()
   })
 })

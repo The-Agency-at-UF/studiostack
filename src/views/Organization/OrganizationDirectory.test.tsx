@@ -3,13 +3,13 @@ import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import OrganizationDirectory from './OrganizationDirectory'
 import {AppSessionProvider} from '../../context/AppSessionContext'
-const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),directory:vi.fn()}))
+const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),directory:vi.fn(),joinCodes:vi.fn()}))
 vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({accounts:()=>m}),DatabaseApiClientError:class extends Error{constructor(public status:number){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 const settings={id:'org',name:'The Agency at UF',slug:'agency',role:'owner',reservationDays:14,version:1}
 const future=new Date(Date.now()+86400000).toISOString()
 function view(){render(<AppSessionProvider value={{email:'person@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=>'token',selectedOrganizationId:'org'}}><OrganizationDirectory/></AppSessionProvider>)}
-beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings)
+beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.joinCodes.mockResolvedValue({items:[],nextCursor:null})
   m.members.mockResolvedValue({items:[
     {id:'a',displayName:'Sam Ellis',email:'sam@example.test',role:'admin',status:'active',version:1},
     {id:'o',displayName:'Morgan Lee',email:'morgan@example.test',role:'owner',status:'active',version:1},
@@ -49,7 +49,7 @@ describe('Organization directory',()=>{
     expect(await screen.findByText("You're a member")).toBeInTheDocument()
     expect(within(screen.getByRole('region',{name:'Admin'})).getByText('Morgan Lee')).toBeInTheDocument()
     expect(within(screen.getByRole('region',{name:'Members'})).getByText('Alex Rivera')).toBeInTheDocument()
-    expect(m.members).not.toHaveBeenCalled();expect(m.invitations).not.toHaveBeenCalled()
+    expect(m.joinCodes).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Create reusable code'})).not.toBeInTheDocument();expect(m.members).not.toHaveBeenCalled();expect(m.invitations).not.toHaveBeenCalled()
     expect(screen.queryByText(/@example\.test/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Filter by status')).not.toBeInTheDocument()
     expect(screen.queryByRole('region',{name:'Pending invitations'})).not.toBeInTheDocument()

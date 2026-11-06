@@ -5,10 +5,10 @@ export function versioned(value:Record<string,unknown>):VersionedRequest {
   if(!Number.isSafeInteger(value.version)||Number(value.version)<1)throw new ApiError(400,'A positive record version is required')
   return {version:Number(value.version),requestId:uuid(value.requestId)}
 }
-export function inviteMember(input:unknown):InviteMember {
+export function inviteMember(input:unknown):Required<InviteMember> {
   const v=object(input,['email','displayName','role','requestId']),email=text(v.email,254).toLowerCase()
   if(!emailPattern.test(email)||!['member','admin'].includes(String(v.role)))throw new ApiError(400,'A valid email and member/admin role are required')
-  return {email,displayName:text(v.displayName,120),role:v.role as InviteMember['role'],requestId:uuid(v.requestId)}
+  return {email,displayName:v.displayName===undefined?email.slice(0,120):text(v.displayName,120),role:v.role as InviteMember['role'],requestId:uuid(v.requestId)}
 }
 export function changeMember(input:unknown):ChangeMember {
   const v=object(input,['role','status','version','requestId'])
@@ -16,8 +16,8 @@ export function changeMember(input:unknown):ChangeMember {
   return {...versioned(v),role:v.role as ChangeMember['role'],status:v.status as ChangeMember['status']}
 }
 export function changeOrganization(input:unknown):ChangeOrganization {
-  const v=object(input,['name','reservationDays','location','version','requestId'])
+  const v=object(input,['name','reservationDays','location','logoPhotoId','version','requestId'])
   if(!Number.isInteger(v.reservationDays)||Number(v.reservationDays)<1||Number(v.reservationDays)>90)throw new ApiError(400,'Reservation length must be between 1 and 90 days')
-  // Location is optional; an empty value clears it and leaving it out keeps the current one.
-  return {...versioned(v),name:text(v.name,120),reservationDays:Number(v.reservationDays),...(v.location===undefined?{}:{location:v.location===null||v.location===''?null:text(v.location,80)})}
+  // Location and logo are optional; leaving either out keeps the current one, and an empty location or null logo clears it.
+  return {...versioned(v),name:text(v.name,120),reservationDays:Number(v.reservationDays),...(v.location===undefined?{}:{location:v.location===null||v.location===''?null:text(v.location,80)}),...(v.logoPhotoId===undefined?{}:{logoPhotoId:v.logoPhotoId===null?null:uuid(v.logoPhotoId)})}
 }
