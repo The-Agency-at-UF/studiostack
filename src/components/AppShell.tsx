@@ -11,17 +11,18 @@ import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, Aut
 import {restorePasswordSession,signOutPasswordSession} from '../auth/password'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
 import { invalidateCache } from '../api/cache'
-import type { ApiOrganization } from '../types/database-api'
+import type { ApiOrganization, ApiUser } from '../types/database-api'
 import type {SignedInUser} from '../auth/cognito'
 import type { LoginProvider } from '../auth/providers'
 
 type Mode = 'signed-out' | 'authenticated' | 'preview'
-type Boot = { mode: Mode; label: string; admin: boolean; organizations: ApiOrganization[]; expiresAt?: number; subject?:string }
+type Boot = { mode: Mode; label: string; admin: boolean; organizations: ApiOrganization[]; expiresAt?: number; subject?:string; onboarded?: boolean }
 async function loadAccount(user:SignedInUser):Promise<Boot>{
   const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken})
-  try{await api.me()}catch(error){if(!(error instanceof DatabaseApiClientError)||error.status!==404)throw error;await api.register(user.label.slice(0,120))}
+  let profile:ApiUser
+  try{profile=await api.me()}catch(error){if(!(error instanceof DatabaseApiClientError)||error.status!==404)throw error;profile=await api.register(user.label.slice(0,120))}
   const result=await api.organizations({limit:100})
-  return {mode:'authenticated',label:user.label,admin:['owner','admin'].includes(result.items[0]?.role),organizations:result.items,expiresAt:user.expiresAt,subject:user.subject}
+  return {mode:'authenticated',label:user.label,admin:['owner','admin'].includes(result.items[0]?.role),organizations:result.items,expiresAt:user.expiresAt,subject:user.subject,onboarded:profile.onboardedAt!==null}
 }
 function takeReturnPath(){const value=sessionStorage.getItem('studiostack.return');sessionStorage.removeItem('studiostack.return');if(!value||value.length>2048)return null;try{const url=new URL(value,window.location.origin);return url.origin===window.location.origin&&!url.pathname.startsWith('//')&&url.pathname!=='/login/'&&url.pathname!=='/login'?url.pathname+url.search+url.hash:null}catch{return null}}
 const BugReportPopup = dynamic(() => import('./BugReportPopup'), { ssr: false })
@@ -38,7 +39,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [bugReportOpen, setBugReportOpen] = useState(false), [featureRequestOpen, setFeatureRequestOpen] = useState(false)
   const [organizations, setOrganizations] = useState<ApiOrganization[]>([])
-  const [selectedOrganizationId,setSelectedOrganizationId]=useState(''), [subject,setSubject]=useState('')
+  const [selectedOrganizationId,setSelectedOrganizationId]=useState(''), [subject,setSubject]=useState(''), [onboarded,setOnboarded]=useState(true)
   const chooseOrganization=useCallback((id:string)=>{setSelectedOrganizationId(id);if(subject&&organizations.some(o=>o.id===id))try{localStorage.setItem('studiostack.organization.'+subject,id)}catch{/* Storage unavailable */}},[subject,organizations])
   const [ready, setReady] = useState(false), [busy, setBusy] = useState(false)
   const [authError, setAuthError] = useState(''), [configured, setConfigured] = useState(true)
@@ -80,7 +81,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();router.replace(target||'/')
       }
       if(result.subject){setSubject(result.subject);const saved=localStorage.getItem('studiostack.organization.'+result.subject);if(saved&&result.organizations.some(o=>o.id===saved))setSelectedOrganizationId(saved)}
-      setMode(result.mode); setEmail(result.label); setIsAdmin(result.admin); setOrganizations(result.organizations); setExpiresAt(result.expiresAt)
+      setOnboarded(result.onboarded!==false); setMode(result.mode); setEmail(result.label); setIsAdmin(result.admin); setOrganizations(result.organizations); setExpiresAt(result.expiresAt)
     }).catch((error:unknown) => {
       if (!active || bootedByUser.current) return
       const transient=error instanceof AuthenticationUnavailable||error instanceof TypeError||['NetworkError','TimeoutError'].includes((error as {name?:string})?.name??'')||(error instanceof DatabaseApiClientError&&[429,500,502,503,504].includes(error.status))
@@ -103,6 +104,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       router.replace('/login/')
     }
   }, [ready, mode, loginPage, router, pathname])
+  // New accounts, and accounts left without any organization, finish onboarding before the workspace.
+  const needsWelcome = mode === 'authenticated' && (!onboarded || organizations.length === 0)
+  useEffect(() => { if (ready && needsWelcome && !welcomePage) router.replace('/welcome/') }, [ready, needsWelcome, welcomePage, router])
 
   const logOut = useCallback(async () => {
     invalidateCache()
@@ -153,19 +157,20 @@ export default function AppShell({ children }: { children: ReactNode }) {
     invalidateCache()
     bootedByUser.current = true
     setBusy(true);setAuthError('')
-    try{const result=await loadAccount(user);setSubject(user.subject);const saved=localStorage.getItem('studiostack.organization.'+user.subject);setSelectedOrganizationId(saved&&result.organizations.some(o=>o.id===saved)?saved:'');setMode(result.mode);setEmail(result.label);setIsAdmin(result.admin);setOrganizations(result.organizations);setExpiresAt(result.expiresAt);setReady(true)
+    try{const result=await loadAccount(user);setSubject(user.subject);const saved=localStorage.getItem('studiostack.organization.'+user.subject);setSelectedOrganizationId(saved&&result.organizations.some(o=>o.id===saved)?saved:'');setOnboarded(result.onboarded!==false);setMode(result.mode);setEmail(result.label);setIsAdmin(result.admin);setOrganizations(result.organizations);setExpiresAt(result.expiresAt);setReady(true)
       try {
         localStorage.setItem('email', result.label)
         localStorage.setItem('isAdmin', String(result.admin))
       } catch { /* storage access error */ }
-      const destination=sessionStorage.getItem('studiostack-production-return');sessionStorage.removeItem('studiostack-production-return');const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();router.replace(target || '/')
+      const destination=sessionStorage.getItem('studiostack-production-return');sessionStorage.removeItem('studiostack-production-return');const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();router.replace(result.onboarded===false||!result.organizations.length?'/welcome/':target || '/')
     }catch{bootedByUser.current=false;clearSignIn();setMode('signed-out');setAuthError('Your account could not be loaded. Try signing in again.');throw new Error('Account unavailable')}finally{setBusy(false)}
   },[router])
   const refreshOrganizations=useCallback(async()=>{const result=await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken}).organizations({limit:100});setOrganizations(result.items)},[])
   const selectedOrganization=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0]
   const currentAdmin=mode==='authenticated'?['owner','admin'].includes(selectedOrganization?.role):isAdmin
-  const session = useMemo(() => ({ email, isAdmin:currentAdmin, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,completeSignIn,setAuthenticating:setBusy,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId:chooseOrganization,refreshOrganizations,
-    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization])
+  const markOnboarded=useCallback(()=>setOnboarded(true),[])
+  const session = useMemo(() => ({ email, isAdmin:currentAdmin,needsWelcome,markOnboarded, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,completeSignIn,setAuthenticating:setBusy,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId:chooseOrganization,refreshOrganizations,
+    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization,needsWelcome,markOnboarded])
 
   return <AppSessionProvider value={session}>
     {/* Keep the password form mounted while it owns a pending sign-in or challenge. */}
@@ -173,7 +178,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
       : mode === 'signed-out' ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : welcomePage ? children
-      : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || organizations.length > 0}>
+      : needsWelcome ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
+      : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || (onboarded && organizations.length > 0)}>
         <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
         <BugReportPopup showTrigger={false} userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} />
