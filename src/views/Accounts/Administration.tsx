@@ -52,7 +52,7 @@ function SettingsForm({settings,busy,run,logoUrl,uploadLogo}:{settings:Organizat
   const [logo,setLogo]=useState<File|null|undefined>(undefined),[preview,setPreview]=useState<string|null>(null)
   useEffect(()=>{if(!logo){setPreview(null);return}const url=URL.createObjectURL(logo);setPreview(url);return()=>URL.revokeObjectURL(url)},[logo])
   const shownLogo=logo===null?null:preview??(settings.logoPhotoId?logoUrl:null)
-  return <form className="administration-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),value={name:String(f.get('name')),reservationDays:Number(f.get('days')),version:settings.version},file=logo
+  return <form className="administration-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),value={name:String(f.get('name')),reservationDays:Number(f.get('days')),location:String(f.get('location')).trim()||null,version:settings.version},file=logo
     void run(JSON.stringify({...value,logo:file===undefined?'keep':file&&[file.name,file.size,file.lastModified]}),async(c,requestId)=>c.saveSettings({...value,...(file===undefined?{}:{logoPhotoId:file?await uploadLogo(file):null}),requestId}))}}>
     <fieldset className="administration-logo"><legend>Workspace logo</legend>
       <OrganizationLogo organization={{name:settings.name,logoUrl:shownLogo}}/>
@@ -60,7 +60,7 @@ function SettingsForm({settings,busy,run,logoUrl,uploadLogo}:{settings:Organizat
       {shownLogo&&<button type="button" className="administration-secondary" disabled={busy} onClick={()=>setLogo(null)}>Remove logo</button>}
       <small>{logo===undefined?'A square image works best. Members see it next to the workspace name.':logo?'New logo selected. Save settings to apply it.':'The logo will be removed when you save settings.'}</small>
     </fieldset>
-    <label>Organization name<input name="name" maxLength={120} defaultValue={settings.name} required/></label><label>Maximum reservation days<input name="days" type="number" min={1} max={90} defaultValue={settings.reservationDays} required/></label><button disabled={busy}>Save settings</button></form>
+    <label>Organization name<input name="name" maxLength={120} defaultValue={settings.name} required/></label><label>Location<input name="location" maxLength={80} defaultValue={settings.location??''} placeholder="Gainesville"/><small className="administration-hint">Shown under your name when people search for organizations.</small></label><label>Maximum reservation days<input name="days" type="number" min={1} max={90} defaultValue={settings.reservationDays} required/></label><button disabled={busy}>Save settings</button></form>
 }
 function MemberRow({member,owner,busy,save}:{member:ManagedMember;owner:boolean;busy:boolean;save:(role:ManagedMember['role'],status:'active'|'suspended')=>void}) {
   const [role,setRole]=useState(member.role),[status,setStatus]=useState(member.status==='suspended'?'suspended':'active')

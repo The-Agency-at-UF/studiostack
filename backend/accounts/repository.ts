@@ -13,7 +13,7 @@ const conflict=():never=>{throw new ApiError(409,'The record changed. Reload bef
 export async function dispatchAccounts(client:DatabaseClient,request:AccountRequest,context:Context) {
   const {organizationId,user}=context,{resource,method,page}=request
   let role=context.membership.role
-  async function settings(){return (await client.query('SELECT id,name,slug,reservation_days AS "reservationDays",logo_photo_id AS "logoPhotoId",version FROM app.organizations WHERE id=$1',[organizationId])).rows[0]}
+  async function settings(){return (await client.query('SELECT id,name,slug,reservation_days AS "reservationDays",location,logo_photo_id AS "logoPhotoId",version FROM app.organizations WHERE id=$1',[organizationId])).rows[0]}
   async function member(id:string){const row=(await client.query(`SELECT ${memberColumns} FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.user_id=$2`,[organizationId,id])).rows[0];if(!row)throw new ApiError(404,'Member not found');return row}
   if(method!=='GET') {
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`organization-admin:${organizationId}`])
@@ -50,8 +50,8 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
     const logoKey=v.logoPhotoId?(await client.query("SELECT object_key FROM app.photo_uploads WHERE organization_id=$1 AND id=$2 AND status='ready'",[organizationId,v.logoPhotoId])).rows[0]?.object_key:null
     if(v.logoPhotoId&&!logoKey)throw new ApiError(409,'Upload the logo again before saving')
     const logoChanged=v.logoPhotoId!==undefined&&v.logoPhotoId!==current.logoPhotoId
-    await client.query('UPDATE app.organizations SET name=$2,reservation_days=$3,logo_photo_id=CASE WHEN $4::boolean THEN $5::uuid ELSE logo_photo_id END,logo_key=CASE WHEN $4::boolean THEN $6::text ELSE logo_key END,version=version+1 WHERE id=$1',[organizationId,v.name,v.reservationDays,logoChanged,v.logoPhotoId??null,logoKey])
-    kind='organization_updated';details={name:v.name,reservationDays:v.reservationDays,...(logoChanged?{logo:v.logoPhotoId?'updated':'removed'}:{})}
+    await client.query('UPDATE app.organizations SET name=$2,reservation_days=$3,logo_photo_id=CASE WHEN $4::boolean THEN $5::uuid ELSE logo_photo_id END,logo_key=CASE WHEN $4::boolean THEN $6::text ELSE logo_key END,location=CASE WHEN $7::boolean THEN $8 ELSE location END,version=version+1 WHERE id=$1',[organizationId,v.name,v.reservationDays,logoChanged,v.logoPhotoId??null,logoKey,v.location!==undefined,v.location??null])
+    kind='organization_updated';details={name:v.name,reservationDays:v.reservationDays,...(logoChanged?{logo:v.logoPhotoId?'updated':'removed'}:{}),...(v.location!==undefined?{location:v.location}:{})}
   } else if(resource==='members') {
     const v=changeMember(request.body),current=await member(request.memberId!);targetId=current.id
     if(current.version!==v.version)conflict()

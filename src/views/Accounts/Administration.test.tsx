@@ -8,7 +8,7 @@ vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({accounts:()=>m}
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 const photos=vi.hoisted(()=>({upload:vi.fn()}))
 vi.mock('../../api/privatePhotos',()=>({uploadOrganizationPhoto:photos.upload}))
-const settings={id:'org',name:'Agency',slug:'agency',role:'owner',reservationDays:14,version:1}
+const settings={id:'org',name:'Agency',slug:'agency',role:'owner',reservationDays:14,location:null,logoPhotoId:null,version:1}
 function view(){render(<AppSessionProvider value={{email:'owner@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',selectedOrganizationId:'org',refreshOrganizations:m.refresh}}><Administration/></AppSessionProvider>)}
 beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.members.mockResolvedValue({items:[{id:'member',displayName:'Teammate',email:'member@example.test',role:'member',status:'active',version:2}],nextCursor:null});for(const name of ['invitations','activity','accessRequests','joinCodes','domains']as const)m[name].mockResolvedValue({items:[],nextCursor:null});m.invite.mockResolvedValue({});m.updateMember.mockResolvedValue({})})
 afterEach(cleanup)
@@ -67,6 +67,10 @@ describe('Real account administration',()=>{
     cleanup();vi.clearAllMocks();m.settings.mockResolvedValue({...settings,role:'admin'});view();expect(await screen.findByRole('heading',{name:'Join codes'})).toBeInTheDocument()
     expect(screen.queryByRole('heading',{name:'Workspace domains'})).not.toBeInTheDocument();expect(m.domains).not.toHaveBeenCalled()
   })
+  it('saves the organization location shown in onboarding search',async()=>{const user=userEvent.setup();m.saveSettings.mockResolvedValue({...settings,location:'Gainesville',version:2});view()
+    await user.type(await screen.findByLabelText(/^Location/),'  Gainesville ');await user.click(screen.getByRole('button',{name:'Save settings'}))
+    await waitFor(()=>expect(m.saveSettings).toHaveBeenCalledWith(expect.objectContaining({name:'Agency',reservationDays:14,location:'Gainesville',version:1})))
+  })
   it('shows service failures without substituting preview members',async()=>{m.members.mockRejectedValue(new Error('private details'));view();expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByText('Teammate')).not.toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()})
   it('uploads a new workspace logo when settings are saved and removes a saved one',async()=>{
     Object.assign(URL,{createObjectURL:vi.fn(()=>'blob:logo'),revokeObjectURL:vi.fn()})
@@ -77,7 +81,7 @@ describe('Real account administration',()=>{
     expect(screen.getByText('New logo selected. Save settings to apply it.')).toBeInTheDocument()
     expect(photos.upload).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button',{name:'Save settings'}))
-    await waitFor(()=>expect(m.saveSettings).toHaveBeenCalledWith({name:'Agency',reservationDays:14,version:1,logoPhotoId:'photo',requestId:expect.any(String)}))
+    await waitFor(()=>expect(m.saveSettings).toHaveBeenCalledWith({name:'Agency',reservationDays:14,location:null,version:1,logoPhotoId:'photo',requestId:expect.any(String)}))
     expect(photos.upload).toHaveBeenCalledWith(file,'org',expect.anything())
     cleanup();m.saveSettings.mockClear();photos.upload.mockClear();m.settings.mockResolvedValue({...settings,logoPhotoId:'photo'});m.saveSettings.mockResolvedValue({...settings,version:2})
     render(<AppSessionProvider value={{email:'owner@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',selectedOrganizationId:'org',organizations:[{id:'org',slug:'agency',name:'Agency',role:'owner',logoUrl:'https://cdn.example.test/logo.jpg'}],refreshOrganizations:m.refresh}}><Administration/></AppSessionProvider>)
