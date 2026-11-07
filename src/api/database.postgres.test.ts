@@ -10,7 +10,7 @@ import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '.
 import { outboxTask } from '../../backend/production/outbox'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
 import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
-import {invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
+import {invitationQueueRequest,invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
 import type {AccountRequest} from '../../backend/accounts/routes'
 import type {JoinCode,ManagedMember,OnboardingOverview,OrganizationInvitation,OrganizationSettings,OwnAccessRequest,PendingAccessRequest,WorkspaceDomain} from '../types/accounts'
 import type { ProductionRequest } from '../../backend/production/repository'
@@ -564,6 +564,17 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const job=jobs[0],ack={action:'ack' as const,organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome:'sent' as const}
     expect(await queue({...ack,leaseToken:randomUUID()})).toEqual({updated:false})
     expect(await queue(ack)).toEqual({updated:true});expect(await queue(ack)).toEqual({updated:false})
+  })
+  it('invitations: administrator deletion revokes only that email\'s pending invitations, and a dry run changes nothing',async()=>{
+    async function queue(request:InvitationQueueRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await invitationQueueTask(c,request)}finally{await c.end()}}
+    const email=`${randomUUID()}@example.org`,target=await invitation(email),other=await invitation()
+    const status=async(id:string)=>(await operator.query('SELECT status FROM app.organization_invitations WHERE id=$1',[id])).rows[0].status
+    expect(await queue(invitationQueueRequest({action:'revoke-email',email:email.toUpperCase(),apply:false}))).toEqual({pending:1,revoked:0})
+    expect(await status(target.id)).toBe('pending')
+    expect(await queue({action:'revoke-email',email,apply:true})).toEqual({pending:1,revoked:1})
+    expect([await status(target.id),await status(other.id)]).toEqual(['revoked','pending'])
+    expect(await queue({action:'revoke-email',email,apply:true})).toEqual({pending:0,revoked:0})
+    for(const bad of [{action:'revoke-email',email:'not-an-email',apply:true},{action:'revoke-email',email,apply:'yes'},{action:'revoke-email',email,apply:true,organizationId:randomUUID()}])expect(()=>invitationQueueRequest(bad)).toThrow()
   })
   it('equipment schema: a returned reservation must have a real return timestamp',async()=>{
     const item=await equipment(),reservation=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as ApiReservation
