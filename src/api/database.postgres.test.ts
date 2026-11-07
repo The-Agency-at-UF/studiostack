@@ -507,6 +507,31 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[expect.objectContaining({role:'admin',id:organizationId})]})
     expect((await operator.query("SELECT id FROM app.organization_audit_events WHERE target_id=$1 AND kind='invitation_accepted'",[created.id])).rows).toHaveLength(1)
   })
+  it('delete account: anonymizes the user, suspends memberships, keeps history, and repeats safely',async()=>{
+    const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
+    const user=await repository.execute(identity,{operation:'register',displayName:'Leaving soon'}) as ApiUser
+    const created=await invitation(identity.email)
+    expect(await directory({action:'accept',identity,organizationId,invitationId:created.id})).toEqual({organizationId})
+    const request={action:'delete-account' as const,identity:{issuer,subject:identity.subject,email:''}}
+    expect(await directory(request)).toEqual({deleted:true})
+    expect((await operator.query('SELECT email,display_name FROM app.users WHERE id=$1',[user.id])).rows[0]).toEqual({email:null,display_name:null})
+    expect((await operator.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,user.id])).rows[0]).toEqual({status:'suspended'})
+    expect((await operator.query("SELECT id FROM app.organization_audit_events WHERE organization_id=$1 AND actor_id=$2 AND kind='account_deleted'",[organizationId,user.id])).rows).toHaveLength(1)
+    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    expect(await directory(request)).toEqual({deleted:true})
+    expect((await operator.query("SELECT id FROM app.organization_audit_events WHERE actor_id=$1 AND kind='account_deleted'",[user.id])).rows).toHaveLength(1)
+    // Signing up again with the same email starts a new account instead of claiming the deleted one.
+    const again={issuer,subject:randomUUID(),email:identity.email}
+    const fresh=await repository.execute(again,{operation:'register',displayName:'Back again'}) as ApiUser
+    await directory({action:'list',identity:again})
+    expect(fresh.id).not.toBe(user.id)
+    expect((await operator.query('SELECT id FROM app.users WHERE email=$1',[identity.email])).rows).toEqual([{id:fresh.id}])
+    expect((await operator.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,user.id])).rows[0]).toEqual({status:'suspended'})
+  })
+  it('delete account: the last active owner must hand over ownership first',async()=>{
+    expect(await directory({action:'delete-account',identity:{issuer,subject:owner.subject,email:''}})).toMatchObject({statusCode:409})
+    expect(await repository.execute(owner,{operation:'me'})).toMatchObject({id:profiles.owner.id})
+  })
   it('invitations: revoked and expired invitations cannot grant access; retry is versioned',async()=>{
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`};await repository.execute(identity,{operation:'register',displayName:'Recipient'})
     const revoked=await invitation(identity.email)
