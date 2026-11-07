@@ -60,6 +60,22 @@ describe('verified invitation bridge and delivery',()=>{
       expect((await handleDirectory(event(body,routeKey),config,{getUser,store})).statusCode).toBeGreaterThanOrEqual(400)
     expect(store).not.toHaveBeenCalled()
   })
+  it('deletes StudioStack data before the Cognito user, without needing a verified email',async()=>{
+    const order:string[]=[],store=vi.fn(async()=>{order.push('store');return {deleted:true}}),remove=vi.fn(async()=>{order.push('cognito')})
+    const getUser=vi.fn().mockResolvedValue({UserAttributes:attributes.filter(a=>a.Name==='sub')})
+    expect((await handleDirectory(event({},'POST /account/delete'),config,{getUser,store,deleteUser:remove})).statusCode).toBe(200)
+    expect(store).toHaveBeenCalledExactlyOnceWith({action:'delete-account',identity:{issuer:config.issuer,subject:id,email:''}})
+    expect(remove).toHaveBeenCalledExactlyOnceWith('synthetic-token');expect(order).toEqual(['store','cognito'])
+  })
+  it('keeps the Cognito user when the database refuses the deletion or the subject does not match',async()=>{
+    const remove=vi.fn(),getUser=vi.fn().mockResolvedValue({UserAttributes:attributes})
+    const refused=await handleDirectory(event({},'POST /account/delete'),config,{getUser,store:vi.fn().mockResolvedValue({statusCode:409,error:'Make someone else an owner of Studio before deleting your account'}),deleteUser:remove})
+    expect(refused.statusCode).toBe(409);expect(JSON.parse(String(refused.body)).error).toMatch(/owner of Studio/)
+    const store=vi.fn()
+    expect((await handleDirectory(event({},'POST /account/delete'),config,{getUser:async()=>({UserAttributes:attributes.map(a=>a.Name==='sub'?{...a,Value:org}:a)}),store,deleteUser:remove})).statusCode).toBe(403)
+    expect((await handleDirectory(event({email:'x@example.org'},'POST /account/delete'),config,{getUser,store,deleteUser:remove})).statusCode).toBe(400)
+    expect(store).not.toHaveBeenCalled();expect(remove).not.toHaveBeenCalled()
+  })
   it.each([['TooManyRequestsException','retry'],['MessageRejected','failed'],['TimeoutError','uncertain']])('handles %s without blindly resending',async(name,outcome)=>{
     const job={id,organizationId:org,organizationName:'Studio',email:'a@example.org',displayName:'A',role:'member',attempts:1,leaseToken:id},store=vi.fn().mockResolvedValueOnce({jobs:[job]}).mockResolvedValue({updated:true}),send=vi.fn().mockRejectedValue(Object.assign(new Error('Synthetic'),{name}))
     await deliverInvitations({store,send});expect(send).toHaveBeenCalledTimes(1);expect(store).toHaveBeenLastCalledWith(expect.objectContaining({outcome,leaseToken:id}))
@@ -68,6 +84,6 @@ describe('verified invitation bridge and delivery',()=>{
     const template=accountInfrastructure({environment:'dev',artifactBucket:'studio-stack-photos-dev',artifactKey:'deployments/accounts/test.zip',pool:'us-east-2_test',client:'client',apiId:config.apiId,authorizerId:'auth',sender:'owner@example.org',webUrl:'https://studio.example.org'})
     const serialized=JSON.stringify(template);expect(serialized).toContain('cognito-idp:AdminCreateUser');expect(serialized).not.toMatch(/AdminSetUserPassword|AdminAddUserToGroup|studiostack-prod|NAT|secretsmanager:GetSecretValue/)
     const routes=Object.values(template.Resources).filter((r)=> (r as {Type:string}).Type==='AWS::ApiGatewayV2::Route') as {Properties:{AuthorizationType:string}}[]
-    expect(routes).toHaveLength(8);expect(routes.every(r=>r.Properties.AuthorizationType==='JWT')).toBe(true)
+    expect(routes).toHaveLength(9);expect(routes.every(r=>r.Properties.AuthorizationType==='JWT')).toBe(true)
   })
 })

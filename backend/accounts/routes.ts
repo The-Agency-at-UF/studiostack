@@ -25,6 +25,7 @@ export const directoryRoutes=[
   'GET /account/onboarding','POST /account/onboarding/domain-joins','POST /account/onboarding/code-joins',
   'POST /account/onboarding/access-requests','POST /account/onboarding/access-requests/{requestId}/withdraw',
   'POST /account/onboarding/searches',
+  'POST /account/delete',
 ]
 export function accountRequest(event:APIGatewayProxyEventV2WithJWTAuthorizer,body:()=>unknown):AccountRequest {
   const method=event.requestContext.http.method,resource=event.routeKey.split(' ')[1].slice(prefix.length).split('/')[1]

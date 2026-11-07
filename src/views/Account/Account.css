@@ -53,6 +53,13 @@
 .account-row + .account-row { border-top:1px solid var(--line); }
 .account-row div { display:flex; flex-direction:column; }
 .account-row div span { color:var(--muted); }
+.account-delete { flex-direction:column; align-items:stretch; background:var(--danger-soft); }
+.account-delete .ws-notice { margin:0; }
+.account-delete .ws-field input { background:var(--surface); }
+.account-row .account-delete-actions { display:flex; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; gap:var(--space-3); }
+.account-page .ws-button-danger-solid { background:var(--danger); border-color:var(--danger); color:var(--on-frame); }
+.account-page .ws-button-danger-solid:not(:disabled):hover { background:var(--danger); filter:brightness(.9); }
+.account-page .ws-button-danger-solid:disabled { opacity:.5; cursor:not-allowed; }
 
 @media (max-width: 767px) {
   .account-page { padding:var(--space-6) var(--space-4); }

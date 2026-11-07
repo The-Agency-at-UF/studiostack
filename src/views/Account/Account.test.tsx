@@ -2,14 +2,14 @@ import {cleanup,fireEvent,render,screen,within} from '@testing-library/react'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import Account from './Account'
 import {AppSessionProvider,type AppSession} from '../../context/AppSessionContext'
-const mocks=vi.hoisted(()=>({list:vi.fn(),accept:vi.fn(),code:vi.fn()}))
-vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({pendingInvitations:mocks.list,acceptInvitation:mocks.accept,joinByCode:mocks.code}),DatabaseApiClientError:class extends Error{constructor(public status:number){super()}}}))
+const mocks=vi.hoisted(()=>({list:vi.fn(),accept:vi.fn(),code:vi.fn(),remove:vi.fn()}))
+vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({pendingInvitations:mocks.list,acceptInvitation:mocks.accept,joinByCode:mocks.code,deleteAccount:mocks.remove}),DatabaseApiClientError:class extends Error{constructor(public status:number,public statusText?:string,public payload?:unknown){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 vi.mock('../Production/EmailVerification',()=>({default:()=><p>Email verification</p>}))
 const organizations=[{id:'agency',slug:'agency',name:'The Agency at UF',role:'member' as const},{id:'lab',slug:'lab',name:'Media Lab',role:'admin' as const,logoUrl:'https://cdn.example.test/lab.png'}]
-function renderAccount(overrides:Partial<AppSession>={}) {
+function renderAccount(overrides:Partial<AppSession>={},initialTab?:'security') {
   const session:AppSession={email:'roger@example.test',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=>'token',organizations,selectedOrganizationId:'agency',setSelectedOrganizationId:vi.fn(),refreshOrganizations:vi.fn().mockResolvedValue(undefined),signOut:vi.fn(),...overrides}
-  render(<AppSessionProvider value={session}><Account/></AppSessionProvider>)
+  render(<AppSessionProvider value={session}><Account initialTab={initialTab}/></AppSessionProvider>)
   return session
 }
 beforeEach(()=>{vi.clearAllMocks();mocks.list.mockResolvedValue({items:[]});mocks.accept.mockResolvedValue({organizationId:'studio'});mocks.code.mockResolvedValue({organizationId:'studio'})})
@@ -62,5 +62,42 @@ describe('Account page',()=>{
     renderAccount({mode:'preview',getAccessToken:undefined})
     expect(screen.getByText('Sign in to see invitations for your email.')).toBeInTheDocument()
     expect(mocks.list).not.toHaveBeenCalled()
+  })
+  it('deletes the account only after the email is retyped, then signs out',async()=>{
+    mocks.remove.mockResolvedValue({deleted:true})
+    const session=renderAccount({},'security')
+    fireEvent.click(screen.getByRole('button',{name:'Delete account'}))
+    const confirm=screen.getByRole('button',{name:'Delete account permanently'})
+    expect(confirm).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Type roger@example.test to confirm'),{target:{value:'someone@example.test'}})
+    expect(confirm).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Type roger@example.test to confirm'),{target:{value:' Roger@Example.test '}})
+    fireEvent.click(confirm)
+    await vi.waitFor(()=>expect(session.signOut).toHaveBeenCalledOnce())
+    expect(mocks.remove).toHaveBeenCalledOnce()
+  })
+  it('keeps the person signed in and explains when deletion fails',async()=>{
+    mocks.remove.mockRejectedValue(new Error('offline'))
+    const session=renderAccount({},'security')
+    fireEvent.click(screen.getByRole('button',{name:'Delete account'}))
+    fireEvent.change(screen.getByLabelText('Type roger@example.test to confirm'),{target:{value:'roger@example.test'}})
+    fireEvent.click(screen.getByRole('button',{name:'Delete account permanently'}))
+    expect(await screen.findByRole('alert')).toHaveTextContent('could not be deleted')
+    expect(session.signOut).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
+    expect(screen.queryByRole('button',{name:'Delete account permanently'})).not.toBeInTheDocument()
+  })
+  it('hides account deletion outside a real signed-in session',()=>{
+    renderAccount({mode:'preview' as AppSession['mode'],getAccessToken:undefined},'security')
+    expect(screen.queryByRole('button',{name:'Delete account'})).not.toBeInTheDocument()
+  })
+  it('shows why the server refused to delete the account',async()=>{
+    const {DatabaseApiClientError}=await import('../../api/database')
+    mocks.remove.mockRejectedValue(new DatabaseApiClientError(409,undefined,{error:'Make someone else an owner of Media Lab before deleting your account'}))
+    renderAccount({},'security')
+    fireEvent.click(screen.getByRole('button',{name:'Delete account'}))
+    fireEvent.change(screen.getByLabelText('Type roger@example.test to confirm'),{target:{value:'roger@example.test'}})
+    fireEvent.click(screen.getByRole('button',{name:'Delete account permanently'}))
+    expect(await screen.findByRole('alert')).toHaveTextContent('owner of Media Lab')
   })
 })

@@ -66,7 +66,34 @@ function SecurityTab() {
     <div className="account-card-heading"><h2 id="account-security-title">Sign-in and security</h2></div>
     <div className="account-row"><div><strong>Signed in as</strong><span>{session.email}</span></div>{session.mode==='authenticated'&&<span className="ws-status ws-status-success">Connected securely</span>}</div>
     <div className="account-row"><div><strong>This browser</strong><span>Sign out when you finish on a shared computer.</span></div><button type="button" className="ws-button ws-button-secondary" onClick={()=>void session.signOut?.()}>Sign out</button></div>
+    {session.mode==='authenticated'&&session.getAccessToken&&<DeleteAccount email={session.email} getAccessToken={session.getAccessToken} onDeleted={()=>void session.signOut?.()}/>}
   </section>
+}
+
+/** Permanently removes the signed-in account after the person retypes their email. */
+function DeleteAccount({email,getAccessToken,onDeleted}:{email:string;getAccessToken:()=>Promise<string>;onDeleted:()=>void}) {
+  const api=useMemo(()=>createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken}),[getAccessToken])
+  const [open,setOpen]=useState(false),[typed,setTyped]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const matches=typed.trim().toLowerCase()===email.trim().toLowerCase()&&email.trim()!==''
+  function close(){setOpen(false);setTyped('');setError('')}
+  async function remove(){
+    if(!matches)return
+    setBusy(true);setError('')
+    try{await api.deleteAccount();onDeleted()}
+    catch(e){const sent=e instanceof DatabaseApiClientError&&e.status===409?(e.payload as {error?:unknown}|undefined)?.error:undefined;setError(typeof sent==='string'?sent:'Your account could not be deleted right now. Try again.');setBusy(false)}
+  }
+  if(!open)return <div className="account-row"><div><strong>Delete account</strong><span>Remove your sign-in and leave every workspace. This cannot be undone.</span></div>
+    <button type="button" className="ws-button ws-button-secondary ws-button-danger" onClick={()=>setOpen(true)}>Delete account</button></div>
+  return <form className="account-row account-delete" noValidate aria-labelledby="account-delete-title" onSubmit={e=>{e.preventDefault();void remove()}}>
+    <div><strong id="account-delete-title">Delete your account?</strong>
+      <span>You will be signed out and removed from every workspace. Reservations and history you created stay with each workspace without your name or email. If you are the only owner of a workspace, make someone else an owner first.</span></div>
+    {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
+    <label className="ws-field">Type {email} to confirm<input type="email" value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy}/></label>
+    <div className="account-delete-actions">
+      <button type="button" className="ws-button ws-button-secondary" onClick={close} disabled={busy}>Cancel</button>
+      <button type="submit" className="ws-button ws-button-danger-solid" disabled={!matches||busy}>{busy?'Deleting…':'Delete account permanently'}</button>
+    </div>
+  </form>
 }
 
 function WorkspacesTab() {

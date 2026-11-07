@@ -102,6 +102,7 @@ export function createDatabaseApiClient(options: ClientOptions) {
     joinByCode:(code:string)=>request<{organizationId:string}>('/account/onboarding/code-joins','POST',{code}),
     requestAccess:(organizationId:string,message?:string)=>request<OwnAccessRequest>('/account/onboarding/access-requests','POST',message?{organizationId,message}:{organizationId}),
     searchOrganizations:(query:string)=>request<{items:OrganizationSearchResult[]}>('/account/onboarding/searches','POST',{query}),
+    deleteAccount:()=>request<{deleted:true}>('/account/delete','POST',{}),
     withdrawAccessRequest:(id:string,organizationId:string)=>request<{id:string;status:'withdrawn'}>(`/account/onboarding/access-requests/${encodeURIComponent(id)}/withdraw`,'POST',{organizationId}),
     alerts:(org:string)=>alertClient(scoped(org,resource=>'alerts'+resource)),
     reports:(org:string)=>reportClient(scoped(org,resource=>'equipment/reports'+(resource.startsWith('?')||!resource?resource:'/'+resource))),

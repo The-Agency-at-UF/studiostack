@@ -1,6 +1,6 @@
 import {assertRecipientAllowed} from '../email/feedback'
 import {deliverLeased} from '../email/delivery'
-import {AdminCreateUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
+import {AdminCreateUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,DeleteUserCommand,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
@@ -11,7 +11,7 @@ import type {InvitationJob,InvitationQueueRequest} from './queue'
 import {directoryRoutes} from './routes'
 import {emailPattern,userPoolPattern} from '../../src/types/patterns'
 type Attributes={Name?:string;Value?:string}[]
-export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>;signInState?(subject:string):Promise<'deleted'|'active'>}) {
+export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>;signInState?(subject:string):Promise<'deleted'|'active'>;deleteUser?(token:string):Promise<unknown>}) {
   try {
     const identity=trustedIdentity(event,config,Date.now())
     if(!directoryRoutes.includes(event.routeKey)||event.requestContext.http.method!==event.routeKey.split(' ')[0])throw new ApiError(404,'Account operation not found')
@@ -19,6 +19,18 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
     const token=(event.headers.authorization??event.headers.Authorization??'').match(/^Bearer ([^\s]+)$/)?.[1]
     if(!token)throw new ApiError(401,'Sign in again')
     const user=await deps.getUser(token),attrs=Object.fromEntries((user.UserAttributes??[]).map(a=>[a.Name,a.Value]))
+    if(event.routeKey==='POST /account/delete') {
+      if(attrs.sub!==identity.subject)throw new ApiError(403,'Sign in again')
+      if(!deps.deleteUser)throw new ApiError(503,'Account deletion is unavailable')
+      let body:unknown;try{body=JSON.parse(event.isBase64Encoded?Buffer.from(event.body??'','base64').toString():event.body??'')}catch{throw new ApiError(400,'Invalid account request')}
+      object(body,[])
+      // Clear StudioStack data first: once Cognito deletes the user this token stops working.
+      // The database step is idempotent, so a failed Cognito call can simply be retried.
+      const result=await deps.store({action:'delete-account',identity:{...identity,email:''}}) as {statusCode?:number;error?:string}
+      if(result.statusCode)return response(result.statusCode,{error:result.error})
+      await deps.deleteUser(token)
+      return response(200,{deleted:true})
+    }
     if(attrs.sub!==identity.subject||attrs.email_verified!=='true'||!attrs.email||!emailPattern.test(attrs.email))throw new ApiError(403,'Verify your sign-in email before accepting invitations')
     const input:DirectoryRequest={action:'list',identity:{...identity,email:attrs.email.toLowerCase()}}
     if(event.requestContext.http.method==='POST') {
@@ -56,7 +68,7 @@ export async function handler(event:Record<string,unknown>={}) {
   const lambda=new LambdaClient({region:'us-east-2',maxAttempts:1}),cognito=new CognitoIdentityProviderClient({region:'us-east-2',maxAttempts:1}),ses=new SESv2Client({region:'us-east-2',maxAttempts:1})
   async function invoke<T>(task:string,body:unknown):Promise<T>{const result=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task,...body as object}))}));if(result.FunctionError||!result.Payload)throw new Error('Private account operation failed');const value=JSON.parse(Buffer.from(result.Payload).toString());if(task==='account-invitation-queue'&&(!value||value.statusCode))throw new Error('Private invitation queue failed');return value as T}
   try {
-    if('requestContext'in event||'version'in event)return await handleDirectory(event as unknown as APIGatewayProxyEventV2WithJWTAuthorizer,apiConfiguration(),{getUser:token=>cognito.send(new GetUserCommand({AccessToken:token})),store:input=>invoke('account-directory',input),signInState:async subject=>((await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = ${JSON.stringify(subject)}`,Limit:1}))).Users??[]).length?'active':'deleted'})
+    if('requestContext'in event||'version'in event)return await handleDirectory(event as unknown as APIGatewayProxyEventV2WithJWTAuthorizer,apiConfiguration(),{getUser:token=>cognito.send(new GetUserCommand({AccessToken:token})),deleteUser:token=>cognito.send(new DeleteUserCommand({AccessToken:token})),store:input=>invoke('account-directory',input),signInState:async subject=>((await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = ${JSON.stringify(subject)}`,Limit:1}))).Users??[]).length?'active':'deleted'})
     let ready=false
     for(let attempt=0;attempt<2;attempt++) {
       const probe=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from('{}')})),value=probe.Payload?JSON.parse(Buffer.from(probe.Payload).toString()):null
