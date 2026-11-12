@@ -28,6 +28,12 @@
 .administration.workspace-surface { background:#fff; }
 .administration.workspace-surface header h1 { font-family:var(--font-ui);font-size:clamp(38px,4vw,58px);font-weight:800;line-height:.95;letter-spacing:-.055em; }
 @media(max-width:700px){.administration.workspace-surface header h1{font-size:36px}}
+/* The Organization settings page uses the shared Organization header instead of the page header above. */
+.administration.workspace-surface header.org-header { justify-content:flex-start;align-items:center;flex-direction:row;padding-bottom:0; }
+.administration.workspace-surface header.org-header h1 { font-size:var(--text-title);font-weight:var(--weight-bold);line-height:var(--line-heading);letter-spacing:normal; }
+.administration.workspace-surface header.org-header p { margin-top:var(--space-1); }
+.administration.workspace-surface header.org-header .org-header-eyebrow { margin:0 0 var(--space-1); }
+.administration .org-header-tabs { margin:var(--space-6) 0; }
 .administration .administration-secondary { background:transparent;color:var(--ink);border:1px solid var(--line-strong); }
 .administration .administration-secondary:hover { background:var(--line); }
 .administration-count { display:inline-block;min-width:22px;margin-left:10px;padding:2px 7px;border-radius:999px;background:var(--accent);color:white;font-size:12px;text-align:center;vertical-align:middle; }
@@ -36,7 +42,6 @@
 .administration-code small { flex-basis:100%;color:var(--muted); }
 
 .administration td button + button { margin-left:10px; }
-.administration-back { gap:var(--space-2);margin-bottom:var(--space-4); }
 .administration .administration-logo { flex-basis:100%; display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin:0; padding:0; border:0; }
 .administration .administration-logo legend { padding:0; margin-bottom:8px; font-size:13px; font-weight:600; }
 .administration .administration-logo .account-org-logo { width:56px; height:56px; font-size:var(--text-xl); }

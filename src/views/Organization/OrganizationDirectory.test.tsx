@@ -1,20 +1,21 @@
-import {cleanup,render,screen,within} from '@testing-library/react'
+import {cleanup,render,screen,waitFor,within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import OrganizationDirectory from './OrganizationDirectory'
 import {AppSessionProvider} from '../../context/AppSessionContext'
-const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),directory:vi.fn(),joinCodes:vi.fn()}))
+const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),directory:vi.fn(),joinCodes:vi.fn(),updateMember:vi.fn(),invite:vi.fn()}))
 vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({accounts:()=>m}),DatabaseApiClientError:class extends Error{constructor(public status:number){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 const settings={id:'org',name:'The Agency at UF',slug:'agency',role:'owner',reservationDays:14,version:1}
 const future=new Date(Date.now()+86400000).toISOString()
 function view(){render(<AppSessionProvider value={{email:'Morgan@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=>'token',selectedOrganizationId:'org'}}><OrganizationDirectory/></AppSessionProvider>)}
-beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.joinCodes.mockResolvedValue({items:[],nextCursor:null})
+beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.joinCodes.mockResolvedValue({items:[],nextCursor:null});m.updateMember.mockResolvedValue({});m.invite.mockResolvedValue({})
   m.members.mockResolvedValue({items:[
     {id:'a',displayName:'Sam Ellis',email:'sam@example.test',role:'admin',status:'active',version:1},
     {id:'o',displayName:'Morgan Lee',email:'morgan@example.test',role:'owner',status:'active',version:1},
-    {id:'m1',displayName:'Alex Rivera',email:'alex@example.test',role:'member',status:'active',version:1},
-    {id:'m2',displayName:'Casey Brooks',email:'casey@example.test',role:'member',status:'suspended',version:1},
+    {id:'o2',displayName:'Jamie Fox',email:'jamie@example.test',role:'owner',status:'active',version:4},
+    {id:'m1',displayName:'Alex Rivera',email:'alex@example.test',role:'member',status:'active',version:7},
+    {id:'m2',displayName:'Casey Brooks',email:'casey@example.test',role:'member',status:'suspended',version:2},
     {id:'m4',displayName:null,email:'pat@example.test',role:'member',status:'active',version:1},
     {id:'m3',displayName:'Taylor Chen',email:'taylor@example.test',role:'member',status:'invited',version:1},
   ],nextCursor:null})
@@ -26,17 +27,17 @@ describe('Organization directory',()=>{
   it('lists everyone in one table, owners then admins then members, with management details for admins',async()=>{
     view()
     const table=await screen.findByRole('table')
-    expect(names()).toEqual(['Morgan Lee','Sam Ellis','Alex Rivera','Casey Brooks','pat@example.test'])
-    expect(within(table).getByText('Owner')).toBeInTheDocument()
+    expect(names()).toEqual(['Jamie Fox','Morgan Lee','Sam Ellis','Alex Rivera','Casey Brooks','pat@example.test'])
+    expect(within(table).getAllByText('Owner')).toHaveLength(2)
     expect(within(table).getByText('alex@example.test')).toBeInTheDocument()
     expect(within(table).getByText('Suspended')).toBeInTheDocument()
     expect(within(table).getByText('No display name yet')).toBeInTheDocument()
     expect(within(table).getByText('(you)')).toBeInTheDocument()
     expect(within(table).queryByText('Taylor Chen')).not.toBeInTheDocument()
-    expect(screen.getByText("5 people · 2 admins · You're an owner")).toBeInTheDocument()
-    expect(within(screen.getByRole('region',{name:'Pending invitations'})).getByText('Taylor Chen')).toBeInTheDocument()
-    expect(screen.getByRole('link',{name:'Invite people'})).toHaveAttribute('href','/organization/settings')
-    expect(screen.getByRole('link',{name:'Invitations & settings'})).toHaveAttribute('href','/organization/settings')
+    expect(screen.getByText("6 people · 3 admins · You're an owner")).toBeInTheDocument()
+    expect(screen.getByRole('link',{name:'1 pending invitation'})).toHaveAttribute('href','/organization/settings#invitations')
+    expect(screen.getByRole('link',{name:'People'})).toHaveAttribute('aria-current','page')
+    expect(screen.getByRole('link',{name:'Access & settings'})).toHaveAttribute('href','/organization/settings')
     expect(m.directory).not.toHaveBeenCalled()
   })
   it('filters people by search, role and status',async()=>{
@@ -46,25 +47,81 @@ describe('Organization directory',()=>{
     expect(names()).toEqual(['Casey Brooks'])
     await user.selectOptions(screen.getByLabelText('Filter by status'),'all')
     await user.selectOptions(screen.getByLabelText('Filter by role'),'admins')
-    expect(names()).toEqual(['Morgan Lee','Sam Ellis'])
+    expect(names()).toEqual(['Jamie Fox','Morgan Lee','Sam Ellis'])
     await user.selectOptions(screen.getByLabelText('Filter by role'),'all')
     await user.type(screen.getByLabelText('Search people'),'alex@')
     expect(names()).toEqual(['Alex Rivera'])
-    expect(screen.getByText('Showing 1 of 5')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1 of 6')).toBeInTheDocument()
     await user.type(screen.getByLabelText('Search people'),'nobody')
     expect(screen.getByText('No one matches these filters.')).toBeInTheDocument()
+  })
+  it('changes a role from the People table and reloads the roster',async()=>{
+    const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('button',{name:'Make admin'}))
+    await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('m1',{role:'admin',status:'active',version:7,requestId:expect.any(String)}))
+    expect(await screen.findByText('Alex Rivera is now an admin.')).toBeInTheDocument()
+    expect(m.members).toHaveBeenCalledTimes(2)
+  })
+  it('confirms before suspending access and restores suspended people directly',async()=>{
+    const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('button',{name:'Suspend access'}))
+    expect(screen.getByRole('dialog')).toHaveTextContent('booking history is kept')
+    await user.click(screen.getByRole('button',{name:'Cancel'}));expect(m.updateMember).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('button',{name:'Suspend access'}))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Suspend access'}))
+    await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('m1',{role:'member',status:'suspended',version:7,requestId:expect.any(String)}))
+    m.updateMember.mockClear()
+    await user.click(await screen.findByRole('button',{name:'Manage Casey Brooks'}))
+    await user.click(screen.getByRole('button',{name:'Restore access'}))
+    await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('m2',{role:'member',status:'active',version:2,requestId:expect.any(String)}))
+  })
+  it('lets owners grant ownership only after confirming, and never manage themselves',async()=>{
+    const user=userEvent.setup();view();await screen.findByRole('table')
+    expect(screen.queryByRole('button',{name:'Manage Morgan Lee'})).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Manage Sam Ellis'}))
+    await user.click(screen.getByRole('button',{name:'Make owner'}))
+    expect(m.updateMember).not.toHaveBeenCalled()
+    await user.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Make owner'}))
+    await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('a',expect.objectContaining({role:'owner',status:'active'})))
+  })
+  it('keeps admins away from owners and from granting ownership',async()=>{
+    m.settings.mockResolvedValue({...settings,role:'admin'});const user=userEvent.setup();view();await screen.findByRole('table')
+    expect(screen.queryByRole('button',{name:'Manage Jamie Fox'})).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    expect(screen.queryByRole('button',{name:'Make owner'})).not.toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Make admin'})).toBeInTheDocument()
+  })
+  it('reports a failed change without hiding the roster',async()=>{
+    m.updateMember.mockRejectedValue(new Error('private details'));const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('button',{name:'Make admin'}))
+    expect(await screen.findByRole('alert')).toHaveTextContent('has not been confirmed')
+    expect(screen.getByRole('table')).toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()
+  })
+  it('invites people from the People page',async()=>{
+    const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Invite people'}))
+    await user.type(screen.getByLabelText('Email'),'new@example.test')
+    await user.selectOptions(screen.getByLabelText('Role'),'admin')
+    await user.click(screen.getByRole('button',{name:'Send invitation'}))
+    await waitFor(()=>expect(m.invite).toHaveBeenCalledWith({email:'new@example.test',role:'admin',requestId:expect.any(String)}))
+    expect(await screen.findByText('Invitation sent to new@example.test.')).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Send invitation'})).not.toBeInTheDocument()
   })
   it('shows members a read-only, names-only directory',async()=>{
     m.settings.mockResolvedValue({...settings,role:'member'});view()
     expect(await screen.findByText(/You're a member/)).toBeInTheDocument()
     expect(names()).toEqual(['Morgan Lee','Alex Rivera'])
     expect(screen.queryByRole('columnheader',{name:'Status'})).not.toBeInTheDocument()
-    expect(m.joinCodes).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Create reusable code'})).not.toBeInTheDocument();expect(m.members).not.toHaveBeenCalled();expect(m.invitations).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button',{name:/manage|invite/i})).not.toBeInTheDocument()
+    expect(m.joinCodes).not.toHaveBeenCalled();expect(m.members).not.toHaveBeenCalled();expect(m.invitations).not.toHaveBeenCalled()
     expect(screen.queryByText(/@example\.test/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Filter by status')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation',{name:'Organization sections'})).not.toBeInTheDocument()
-    expect(screen.queryByRole('region',{name:'Pending invitations'})).not.toBeInTheDocument()
-    expect(screen.queryByRole('link',{name:/invite|manage/i})).not.toBeInTheDocument()
+    expect(screen.queryByRole('link',{name:/invitation|settings/i})).not.toBeInTheDocument()
   })
   it('reports a failed read without showing a partial directory',async()=>{
     m.members.mockRejectedValue(new Error('private details'));view()
