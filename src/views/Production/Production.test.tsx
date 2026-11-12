@@ -24,7 +24,8 @@ describe('production workspace',()=>{
     render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production view="calendar" /></AppSessionProvider>)
     expect(screen.getByRole('heading',{level:1,name:'Production calendar'})).toBeInTheDocument()
     expect(screen.getByText('Calendar surface')).toBeInTheDocument()
-    expect(screen.getByRole('combobox',{name:'Client account'})).toBeInTheDocument()
+    expect(screen.getByRole('link',{name:'View briefs'})).toHaveAttribute('href',expect.stringMatching(/^\/production\/?$/))
+    expect(screen.getByRole('button',{name:'New brief'})).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:'Briefs'})).not.toBeInTheDocument()
   })
   it('finishes loading once with production caching enabled and keeps tabs usable',async()=>{
