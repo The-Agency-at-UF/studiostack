@@ -315,14 +315,25 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const withdrawn=await command(member,b,'withdraw');expect(withdrawn.status).toBe('withdrawn');expect(withdrawn.shootStartsAt).toBeNull()
     expect(await command(member,withdrawn,'reopen')).toMatchObject({status:'draft',submission:1})
   })
-  it('production: authors delete only never-submitted drafts, which are hidden rather than removed',async()=>{
+  it('production: authors and administrators delete inactive briefs, which are hidden rather than removed',async()=>{
     const b=await draft()
     await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:b.id})).rejects.toMatchObject({status:404})
     expect(await production(member,{resource:'briefs',method:'DELETE',briefId:b.id})).toEqual({id:b.id})
     await expect(production(member,{resource:'briefs',method:'GET',briefId:b.id})).rejects.toMatchObject({status:404})
     expect((await production(member,{resource:'briefs',method:'GET'}) as {items:ProductionBrief[]}).items.some(x=>x.id===b.id)).toBe(false)
     const submitted=await command(member,await draft(),'submit')
-    await expect(production(member,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:403})
+    await expect(production(member,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:409})
+    await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:403})
+    const withdrawn=await command(member,submitted,'withdraw')
+    expect(await production(owner,{resource:'briefs',method:'DELETE',briefId:withdrawn.id})).toEqual({id:withdrawn.id})
+    await expect(production(member,{resource:'briefs',method:'GET',briefId:withdrawn.id})).rejects.toMatchObject({status:404})
+  })
+  it('production: administrators edit another author’s draft, other members cannot',async()=>{
+    const b=await draft(),body={data:{...b.data,projectName:'Edited by owner'},version:b.version,requestId:randomUUID()}
+    expect(await production(owner,{resource:'briefs',method:'PATCH',briefId:b.id,body})).toMatchObject({version:b.version+1,data:{projectName:'Edited by owner'}})
+    const submitted=await command(member,await draft(),'submit')
+    await expect(production(secondMember,{resource:'briefs',method:'PATCH',briefId:submitted.id,body:{data:submitted.data,version:submitted.version,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    await expect(production(owner,{resource:'briefs',method:'PATCH',briefId:submitted.id,body:{data:submitted.data,version:submitted.version,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
   })
   it('production: only inactive briefs can be marked deleted',async()=>{
     const active=await command(member,await draft(),'submit')

@@ -15,11 +15,22 @@ it('lets the author delete a never-submitted draft by hiding it, never removing 
  expect(writes()).toEqual(['UPDATE app.production_briefs SET deleted_at = now(), updated_at = now() WHERE organization_id = $1 AND id = $2'])
 })
 it.each([
- ['another author’s draft',{ownerId:'someone-else'},'admin'],
- ['a submitted brief',{status:'submitted',submission:1},'member'],
- ['a reopened draft with review history',{status:'draft',submission:1},'member'],
-])('refuses to delete %s',async(_,brief,role)=>{
+ ['the author deletes a reopened draft with review history',{status:'draft',submission:1},'member'],
+ ['the author deletes a withdrawn brief',{status:'withdrawn',submission:1},'member'],
+ ['an admin deletes another author’s draft',{ownerId:'someone-else'},'admin'],
+ ['an owner deletes another author’s denied brief',{ownerId:'someone-else',status:'denied',submission:1},'owner'],
+])('hides the brief when %s',async(_,brief,role)=>{
  const {run,writes}=fixture(brief,role)
+ expect(await run()).toEqual({id})
+ expect(writes()).toHaveLength(1)
+})
+it('refuses another member’s brief',async()=>{
+ const {run,writes}=fixture({ownerId:'someone-else',status:'withdrawn',submission:1},'member')
  await expect(run()).rejects.toMatchObject({status:403})
+ expect(writes()).toEqual([])
+})
+it.each(['submitted','approved','changes_requested'])('asks to withdraw an active %s brief before deleting it',async status=>{
+ const {run,writes}=fixture({status,submission:1},'admin')
+ await expect(run()).rejects.toMatchObject({status:409,message:'Withdraw this brief before deleting it'})
  expect(writes()).toEqual([])
 })
