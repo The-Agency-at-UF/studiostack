@@ -16,8 +16,16 @@ describe('production workspace',()=>{
     render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
     expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument()
     expect(screen.getByRole('heading',{name:'Start with a brief'})).toBeInTheDocument()
-    await userEvent.setup().click(screen.getByRole('button',{name:'Production calendar'}))
+    expect(screen.queryByRole('button',{name:'Production calendar'})).not.toBeInTheDocument()
+  })
+  it('opens the production calendar on its own page without workspace tabs',async()=>{
+    setCached('production:cache-org',{briefs:[],clients:[],deliveries:[],access:{userId:'member',canReview:false,canAdminister:false,isExecutive:false}})
+    vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})))
+    render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production view="calendar" /></AppSessionProvider>)
+    expect(screen.getByRole('heading',{level:1,name:'Production calendar'})).toBeInTheDocument()
     expect(screen.getByText('Calendar surface')).toBeInTheDocument()
+    expect(screen.getByRole('combobox',{name:'Client account'})).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Briefs'})).not.toBeInTheDocument()
   })
   it('finishes loading once with production caching enabled and keeps tabs usable',async()=>{
     invalidateCache()
@@ -28,7 +36,7 @@ describe('production workspace',()=>{
     })
     vi.stubGlobal('fetch',fetcher)
     const view=render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
-    try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('button',{name:'Production calendar'}));expect(screen.getByText('Calendar surface')).toBeInTheDocument();expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
+    try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('button',{name:'Client accounts'}));expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
   })
 
   it('supports a complete edit-only draft and submission with conditional fields',async()=>{

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTour } from './tour/TourContext'
 import StudioStack from '../assets/StudioStack.png'
-import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineExclamationCircle, HiOutlineChartBar, HiOutlineBuildingOffice2, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb } from 'react-icons/hi2'
+import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineExclamationCircle, HiOutlineChartBar, HiOutlineBuildingOffice2, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb } from 'react-icons/hi2'
 import '../styles/shell.css'
 
 type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void }
@@ -38,10 +38,13 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
 
   const groups = [
     { name: 'Overview', links: [{ to: '/', label: 'Home', Icon: HiOutlineHome }, { to: '/alerts', label: 'Alerts', Icon: HiOutlineBell }] },
-    { name: 'Production', links: [{ to: '/production', label: 'Production', Icon: HiOutlineVideoCamera }] },
+    { name: 'Production', links: [
+      { to: '/production', label: 'Production', Icon: HiOutlineVideoCamera },
+      { to: '/production/calendar', label: 'Production calendar', Icon: HiOutlineCalendar },
+    ] },
     { name: 'Equipment', links: [
       { to: '/inventory', label: 'Inventory', Icon: HiOutlineArchiveBox },
-      { to: '/calendar', label: 'Gear calendar', Icon: HiOutlineCalendarDays },
+      { to: '/calendar', label: 'Equipment calendar', Icon: HiOutlineCalendarDays },
       { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'] },
       { to: '/reports', label: 'Reports', Icon: HiOutlineExclamationCircle, related: ['/create-report', '/report-summary'] },
     ] },
