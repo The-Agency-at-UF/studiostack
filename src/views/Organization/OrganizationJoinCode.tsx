@@ -39,20 +39,23 @@ export default function OrganizationJoinCode({ api, name }: { api: AccountClient
     try { await navigator.clipboard.writeText(code!.code!); if (current.current) setCopied(true) }
     catch { if (current.current) setError('Copy failed. Select the code and copy it manually.') }
   }
-  return <div className="org-directory-join-code" aria-labelledby="org-join-code-title">
-    <h3 id="org-join-code-title">Organization join code</h3>
-    <p>Share this code with your team to join {name} as members. It stays valid until replaced or revoked.</p>
-    {error && <Notice kind="error">{error}</Notice>}
-    {loading ? <p role="status">Loading join code…</p> : code?.code ? <>
-      <div className="org-directory-code-actions"><code aria-label="Organization join code">{code.code}</code>
+  return <section className="org-directory-card org-directory-join-code" aria-labelledby="org-join-code-title">
+    <div className="org-directory-join-row">
+      <div className="org-directory-join-value">
+        <h2 id="org-join-code-title">Join code</h2>
+        {loading ? <p role="status">Loading join code…</p> : code?.code && <code aria-label="Organization join code">{code.code}</code>}
+      </div>
+      {!loading && (code?.code ? <div className="org-directory-code-actions">
         <button className="ws-button" type="button" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy code'}</button>
         <button className="ws-button" type="button" disabled={busy} onClick={() => setConfirm(true)}>Replace code</button>
-      </div>
-      <span className="org-directory-copy-status" role="status">{copied ? 'Join code copied.' : ''}</span>
-      {confirm && <div className="org-directory-code-confirm"><p>Replacing this code stops the old code from working. Existing members keep their access.</p>
-        <div className="org-directory-code-actions"><button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={() => void create()}>{busy ? 'Replacing…' : 'Replace join code'}</button>
-          <button type="button" className="ws-button" disabled={busy} onClick={() => setConfirm(false)}>Cancel</button></div>
-      </div>}
-    </> : <button className="ws-button ws-button-primary" type="button" disabled={busy || loadFailed} onClick={() => void create()}>{busy ? 'Creating…' : 'Create reusable code'}</button>}
-  </div>
+      </div> : <button className="ws-button ws-button-primary" type="button" disabled={busy || loadFailed} onClick={() => void create()}>{busy ? 'Creating…' : 'Create reusable code'}</button>)}
+      <p className="org-directory-join-help">Anyone with this code and a verified email joins {name} as a member. It stays valid until replaced.</p>
+    </div>
+    <span className="org-directory-copy-status ws-sr-only" role="status">{copied ? 'Join code copied.' : ''}</span>
+    {error && <Notice kind="error">{error}</Notice>}
+    {confirm && <div className="org-directory-code-confirm"><p>Replacing this code stops the old code from working. Existing members keep their access.</p>
+      <div className="org-directory-code-actions"><button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={() => void create()}>{busy ? 'Replacing…' : 'Replace join code'}</button>
+        <button type="button" className="ws-button" disabled={busy} onClick={() => setConfirm(false)}>Cancel</button></div>
+    </div>}
+  </section>
 }
