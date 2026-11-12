@@ -145,7 +145,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   }
   const save = () => selected && run(client => client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))))
   const action = (command: Omit<BriefCommand, 'version' | 'requestId'>) => selected && run(client => client.action(selected.id, { ...command, version: selected.version, requestId: requestId(JSON.stringify({ id: selected.id, version: selected.version, command })) }))
-  const deletable = (brief: ProductionBrief) => brief.ownerId === access?.userId && brief.status === 'draft' && brief.submission === 0
+  const deletable = (brief: ProductionBrief) => (brief.ownerId === access?.userId || Boolean(access?.canAdminister)) && ['draft','denied','withdrawn'].includes(brief.status)
   const remove = (brief: ProductionBrief) => setPendingDelete(brief)
   const confirmDelete = async () => {
     if (!pendingDelete || busy) return
@@ -154,7 +154,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   }
   const update = (key: keyof BriefData, value: string | string[]) => { setForm(f => ({ ...f, [key]: value })); setDirty(true) }
   const updateField = (key: string, value: string) => { setForm(f => ({ ...f, fields: { ...f.fields, [key]: value } })); setDirty(true) }
-  const editable = selected?.ownerId === access?.userId && ['draft','changes_requested'].includes(selected?.status ?? '')
+  const editable = (selected?.ownerId === access?.userId || Boolean(access?.canAdminister)) && ['draft','changes_requested'].includes(selected?.status ?? '')
   const missing = submissionErrors(form)
   const byClient=briefs.filter(b=>!clientFilter||(b.data.clientAccountId??b.data.client)===clientFilter)
   const filtered = byClient.filter(b => (filter === 'all' || b.status === filter) && `${b.data.projectName} ${b.data.client} ${b.ownerName}`.toLowerCase().includes(query.toLowerCase())).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
