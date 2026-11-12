@@ -1,20 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { HiOutlineMagnifyingGlass, HiOutlinePlus } from 'react-icons/hi2'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
 import { EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion } from '../../components/workspace/WorkspaceUI'
+import ConfirmDialog from '../../components/workspace/ConfirmDialog'
+import type { AccountClient } from '../../api/accounts'
 import type { ApiPage } from '../../types/database-api'
-import type { OrganizationInvitation, OrganizationSettings } from '../../types/accounts'
+import type { OrganizationSettings } from '../../types/accounts'
 import './OrganizationDirectory.css'
+import OrganizationHeader from './OrganizationHeader'
 import OrganizationJoinCode from './OrganizationJoinCode'
 
 type Role = OrganizationSettings['role']
-// Members only ever receive id, name and role; email and status are filled in for owners and admins.
-interface Person { id: string; name: string; named: boolean; role: Role; email?: string; status?: 'active' | 'suspended' }
+type Status = 'active' | 'suspended'
+// Members only ever receive id, name and role; email, status and version are filled in for owners and admins.
+interface Person { id: string; name: string; named: boolean; role: Role; email?: string; status?: Status; version?: number }
 
 async function all<T>(read: (after?: string) => Promise<ApiPage<T>>) {
   const items: T[] = []
@@ -22,9 +26,12 @@ async function all<T>(read: (after?: string) => Promise<ApiPage<T>>) {
   do { const page = await read(after); items.push(...page.items); after = page.nextCursor ?? undefined } while (after)
   return items
 }
-const message = (error: unknown) => error instanceof DatabaseApiClientError && error.status === 401 ? 'Your session expired. Sign in again.'
-  : error instanceof DatabaseApiClientError && error.status === 403 ? 'Your account is not an active member of this organization.'
+const status = (error: unknown) => error instanceof DatabaseApiClientError ? error.status : 0
+const loadMessage = (error: unknown) => status(error) === 401 ? 'Your session expired. Sign in again.'
+  : status(error) === 403 ? 'Your account is not an active member of this organization.'
   : 'The organization directory is unavailable. Try again shortly.'
+const actionMessage = (error: unknown) => ({ 400: 'Check the details and try again.', 401: 'Your session expired. Sign in again.', 403: 'Your account cannot make this change.', 409: 'Someone else changed this person. Refresh and try again.' } as Record<number, string>)[status(error)]
+  ?? 'The service is unavailable. Your change has not been confirmed.'
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '?'
 const rank: Record<Role, number> = { owner: 0, admin: 1, member: 2 }
 const roleLabel: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }
@@ -35,35 +42,63 @@ export default function OrganizationDirectory() {
   const api = useMemo(() => org && session.getAccessToken ? createDatabaseApiClient({ baseUrl: authConfiguration().apiUrl, getAccessToken: session.getAccessToken }).accounts(org) : null, [org, session.getAccessToken])
   const [settings, setSettings] = useState<OrganizationSettings | null>(null)
   const [people, setPeople] = useState<Person[]>([])
-  const [invitations, setInvitations] = useState<OrganizationInvitation[]>([])
+  const [pendingInvitations, setPendingInvitations] = useState(0)
   const [loading, setLoading] = useState(true), [error, setError] = useState('')
+  const [busy, setBusy] = useState(false), [actionError, setActionError] = useState(''), [notice, setNotice] = useState('')
+  const [inviting, setInviting] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admins' | 'members'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
+  const generation = useRef(0)
+  // A retried change keeps its request ID so the server can recognize the repeat.
+  const mutation = useRef<{ key: string; id: string } | null>(null)
 
-  useEffect(() => {
-    let current = true
-    setSettings(null); setPeople([]); setInvitations([]); setError(''); setSearch(''); setRoleFilter('all'); setStatusFilter('all'); setLoading(true)
-    async function load() {
-      if (!api) return
-      const s = await api.settings()
-      if (['owner', 'admin'].includes(s.role)) {
-        const [members, rows] = await Promise.all([all(api.members), all(api.invitations)])
-        if (!current) return
-        setPeople(members.filter(m => m.status !== 'invited').map(m => ({ id: m.id, name: m.displayName ?? m.email ?? 'Team member', named: Boolean(m.displayName), role: m.role, email: m.email ?? undefined, status: m.status === 'suspended' ? 'suspended' : 'active' })))
-        setInvitations(rows.filter(i => i.status === 'pending' && Date.parse(i.expiresAt) > Date.now()))
-      } else {
-        const directory = await all(api.directory)
-        if (!current) return
-        setPeople(directory.map(m => ({ id: m.id, name: m.displayName, named: true, role: m.role })))
-      }
-      setSettings(s)
+  const load = useCallback(async () => {
+    if (!api) return
+    const g = generation.current, s = await api.settings()
+    if (['owner', 'admin'].includes(s.role)) {
+      const [members, rows] = await Promise.all([all(api.members), all(api.invitations)])
+      if (g !== generation.current) return
+      setPeople(members.filter(m => m.status !== 'invited').map(m => ({ id: m.id, name: m.displayName ?? m.email ?? 'Team member', named: Boolean(m.displayName), role: m.role, email: m.email ?? undefined, status: m.status === 'suspended' ? 'suspended' : 'active', version: m.version })))
+      setPendingInvitations(rows.filter(i => i.status === 'pending' && Date.parse(i.expiresAt) > Date.now()).length)
+    } else {
+      const directory = await all(api.directory)
+      if (g !== generation.current) return
+      setPeople(directory.map(m => ({ id: m.id, name: m.displayName, named: true, role: m.role })))
     }
-    load().catch(e => { if (current) setError(message(e)) }).finally(() => { if (current) setLoading(false) })
-    return () => { current = false }
+    setSettings(s)
   }, [api])
 
-  const manager = settings?.role === 'owner' || settings?.role === 'admin'
+  useEffect(() => {
+    const g = ++generation.current
+    setSettings(null); setPeople([]); setPendingInvitations(0); setError(''); setActionError(''); setNotice(''); setBusy(false); setInviting(false)
+    setSearch(''); setRoleFilter('all'); setStatusFilter('all'); setLoading(true)
+    load().catch(e => { if (g === generation.current) setError(loadMessage(e)) }).finally(() => { if (g === generation.current) setLoading(false) })
+    return () => { generation.current++ }
+  }, [load])
+
+  async function run(key: string, done: string, task: (client: AccountClient, requestId: string) => Promise<unknown>) {
+    if (!api || busy) return false
+    const g = generation.current
+    if (mutation.current?.key !== key) mutation.current = { key, id: crypto.randomUUID() }
+    setBusy(true); setActionError(''); setNotice('')
+    try {
+      await task(api, mutation.current.id)
+      if (g !== generation.current) return false
+      mutation.current = null
+      setNotice(done)
+      await load()
+      return true
+    } catch (e) { if (g === generation.current) setActionError(actionMessage(e)); return false }
+    finally { if (g === generation.current) setBusy(false) }
+  }
+  const change = (person: Person, role: Role, next: Status, done: string) => {
+    void run(JSON.stringify({ member: person.id, version: person.version, role, status: next }), done,
+      (client, requestId) => client.updateMember(person.id, { role, status: next, version: person.version!, requestId }))
+  }
+
+  const owner = settings?.role === 'owner'
+  const manager = owner || settings?.role === 'admin'
   const me = session.email?.trim().toLowerCase()
   const sorted = [...people].sort((a, b) => rank[a.role] - rank[b.role] || a.name.localeCompare(b.name))
   const adminCount = people.filter(p => p.role !== 'member').length
@@ -74,29 +109,26 @@ export default function OrganizationDirectory() {
   const filtered = query !== '' || roleFilter !== 'all' || statusFilter !== 'all'
 
   return <main className="org-directory workspace-surface">
-    <header className="org-directory-heading">
-      <span className="org-directory-monogram" aria-hidden="true">{settings ? initials(settings.name) : ''}</span>
-      <div className="org-directory-title">
-        <p className="org-directory-eyebrow">Organization</p>
-        <h1>{settings?.name ?? 'Your organization'}</h1>
-        {settings && <p>{people.length} {people.length === 1 ? 'person' : 'people'} · {plural(adminCount, 'admin')} · You&apos;re {settings.role === 'member' ? 'a member' : `an ${settings.role}`}</p>}
-      </div>
-      {manager && <Link className="ws-button ws-button-primary org-directory-invite" href="/organization/settings"><HiOutlinePlus aria-hidden="true" />Invite people</Link>}
-    </header>
-    {manager && <nav className="org-directory-tabs" aria-label="Organization sections">
-      <Link href="/organization" aria-current="page">People <span className="org-directory-tab-count">{people.length}</span></Link>
-      <Link href="/organization/settings">Invitations &amp; settings</Link>
-    </nav>}
+    <OrganizationHeader settings={settings} active="people"
+      summary={settings && <>{people.length} {people.length === 1 ? 'person' : 'people'} · {plural(adminCount, 'admin')} · You&apos;re {settings.role === 'member' ? 'a member' : `an ${settings.role}`}</>}
+      action={manager && <button type="button" className="ws-button ws-button-primary org-directory-invite" aria-expanded={inviting} aria-controls="org-invite" onClick={() => setInviting(open => !open)}><HiOutlinePlus aria-hidden="true" />Invite people</button>} />
     {error && <Notice kind="error">{error}</Notice>}
     {loading && <Skeleton label="Loading organization…" variant="row" count={4} />}
     {!org && !loading && <EmptyState title="Select an organization to continue." />}
     {settings && <>
+      {manager && inviting && <InviteForm busy={busy} onCancel={() => setInviting(false)} onInvite={async input => {
+        const sent = await run(JSON.stringify({ invite: input }), `Invitation sent to ${input.email}.`, (client, requestId) => client.invite({ ...input, requestId }))
+        if (sent) setInviting(false)
+        return sent
+      }} />}
       {manager && api && <OrganizationJoinCode key={org} api={api} name={settings.name} />}
       <section className="org-directory-card org-directory-people" aria-labelledby="org-people">
         <div className="org-directory-card-heading">
           <h2 id="org-people">People</h2>
-          <p>Owners and admins manage people and settings.</p>
+          <p>{owner ? 'Change anyone’s role or access from Manage.' : manager ? 'Owners and admins manage people. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
         </div>
+        {actionError && <Notice kind="error">{actionError}</Notice>}
+        {notice && <Notice kind="success">{notice}</Notice>}
         <div className="org-directory-filters">
           <label className="org-directory-search"><HiOutlineMagnifyingGlass aria-hidden="true" /><input aria-label="Search people" placeholder={manager ? 'Search by name or email' : 'Search by name'} value={search} onChange={event => setSearch(event.target.value)} /></label>
           <Select aria-label="Filter by role" value={roleFilter} onChange={event => setRoleFilter(event.target.value as typeof roleFilter)}>
@@ -108,9 +140,11 @@ export default function OrganizationDirectory() {
         </div>
         {visible.length ? <TableRegion label="People in this organization" className="org-directory-table">
           <table>
-            <thead><tr><th scope="col">Person</th><th scope="col">Role</th>{manager && <th scope="col">Status</th>}</tr></thead>
+            <thead><tr><th scope="col">Person</th><th scope="col">Role</th>{manager && <><th scope="col">Status</th><th scope="col"><span className="ws-sr-only">Manage</span></th></>}</tr></thead>
             <tbody>{visible.map(person => {
               const you = Boolean(me && person.email?.toLowerCase() === me)
+              // Owners manage everyone; admins manage everyone except owners. Nobody changes their own access here.
+              const manageable = manager && !you && (owner || person.role !== 'owner')
               return <tr key={person.id}>
                 <td><div className="org-directory-person">
                   <span className={`org-directory-avatar org-directory-avatar-${person.role}`} aria-hidden="true">{person.named ? initials(person.name) : '?'}</span>
@@ -120,28 +154,85 @@ export default function OrganizationDirectory() {
                   </div>
                 </div></td>
                 <td><StatusLabel tone={person.role === 'owner' ? 'accent' : 'neutral'}>{roleLabel[person.role]}</StatusLabel></td>
-                {manager && <td><span className={`org-directory-status org-directory-status-${person.status}`}>{person.status === 'suspended' ? 'Suspended' : 'Active'}</span></td>}
+                {manager && <>
+                  <td><span className={`org-directory-status org-directory-status-${person.status}`}>{person.status === 'suspended' ? 'Suspended' : 'Active'}</span></td>
+                  <td className="org-directory-manage-cell">{manageable && <PersonActions person={person} owner={owner} busy={busy} change={change} />}</td>
+                </>}
               </tr>
             })}</tbody>
           </table>
         </TableRegion> : <EmptyState title={filtered ? 'No one matches these filters.' : 'No one has joined yet.'} />}
         <div className="org-directory-footer">
-          {manager ? (invitations.length
-            ? <Link href="/organization/settings">{plural(invitations.length, 'pending invitation')}</Link>
+          {manager ? (pendingInvitations
+            ? <Link href="/organization/settings#invitations">{plural(pendingInvitations, 'pending invitation')}</Link>
             : <span>No pending invitations</span>) : <span />}
-          <span role="status">Showing {visible.length} of {people.length}</span>
+          <span>Showing {visible.length} of {people.length}</span>
         </div>
       </section>
-      {manager && invitations.length > 0 && <section className="org-directory-card" aria-labelledby="org-invitations">
-        <div className="org-directory-card-heading">
-          <h2 id="org-invitations">Pending invitations</h2>
-          <Link className="org-directory-action" href="/organization/settings">Manage invitations</Link>
-        </div>
-        <ul className="org-directory-list">{invitations.map(invitation => <li key={invitation.id}>
-          <span className="org-directory-avatar" aria-hidden="true">{initials(invitation.displayName)}</span>
-          <div><strong>{invitation.displayName}</strong><small>{invitation.email} · {invitation.role === 'admin' ? 'Admin' : 'Member'} · Expires {new Date(invitation.expiresAt).toLocaleDateString()}</small></div>
-        </li>)}</ul>
-      </section>}
     </>}
   </main>
+}
+
+function InviteForm({ busy, onCancel, onInvite }: { busy: boolean; onCancel: () => void; onInvite: (input: { email: string; role: 'member' | 'admin' }) => Promise<boolean> }) {
+  const [email, setEmail] = useState(''), [role, setRole] = useState<'member' | 'admin'>('member')
+  const field = useRef<HTMLInputElement>(null)
+  useEffect(() => { field.current?.focus() }, [])
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (busy || !email.trim()) return
+    void onInvite({ email: email.trim(), role })
+  }
+  return <section id="org-invite" className="org-directory-card org-directory-invite-card" aria-labelledby="org-invite-title">
+    <h2 id="org-invite-title">Invite people</h2>
+    <form className="org-directory-invite-form" onSubmit={submit}>
+      <label className="ws-field">Email<input ref={field} type="email" maxLength={254} required placeholder="name@school.edu" value={email} onChange={event => setEmail(event.target.value)} /></label>
+      <label className="ws-field">Role<Select value={role} onChange={event => setRole(event.target.value as typeof role)}><option value="member">Member</option><option value="admin">Admin</option></Select></label>
+      <div className="org-directory-invite-actions">
+        <button type="submit" className="ws-button ws-button-primary" disabled={busy}>{busy ? 'Sending…' : 'Send invitation'}</button>
+        <button type="button" className="ws-button" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+    <p className="org-directory-hint">Invitations expire after seven days. Track or revoke them under Access &amp; settings.</p>
+  </section>
+}
+
+type Change = (person: Person, role: Role, status: Status, done: string) => void
+function PersonActions({ person, owner, busy, change }: { person: Person; owner: boolean; busy: boolean; change: Change }) {
+  // The menu is placed against the window because the table scrolls and would clip it.
+  const [open, setOpen] = useState<{ top: number; right: number } | null>(null)
+  const [confirm, setConfirm] = useState<'suspend' | 'owner' | null>(null)
+  const wrapper = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: MouseEvent) => { if (!wrapper.current?.contains(event.target as Node)) setOpen(null) }
+    const close = () => setOpen(null)
+    document.addEventListener('mousedown', outside)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => { document.removeEventListener('mousedown', outside); window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close) }
+  }, [open])
+  function toggle() {
+    if (open) { setOpen(null); return }
+    const rect = trigger.current!.getBoundingClientRect()
+    setOpen({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) })
+  }
+  const roles = (['member', 'admin', ...(owner ? ['owner' as const] : [])] as Role[]).filter(role => role !== person.role)
+  const pick = (action: () => void) => { setOpen(null); action() }
+  return <div className="org-directory-manage" ref={wrapper} onKeyDown={event => { if (event.key === 'Escape' && open) { event.stopPropagation(); setOpen(null); trigger.current?.focus() } }}>
+    <button ref={trigger} type="button" className="ws-button" aria-expanded={Boolean(open)} aria-label={`Manage ${person.name}`} disabled={busy} onClick={toggle}>Manage</button>
+    {open && <div className="org-directory-manage-panel" style={{ top: open.top, right: open.right }}>
+      {roles.map(role => <button key={role} type="button" onClick={() => pick(() => role === 'owner' ? setConfirm('owner') : change(person, role, person.status!, `${person.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`))}>
+        {role === 'owner' ? 'Make owner' : role === 'admin' ? 'Make admin' : 'Make member'}
+      </button>)}
+      {person.status === 'suspended'
+        ? <button type="button" onClick={() => pick(() => change(person, person.role, 'active', `${person.name} has access again.`))}>Restore access</button>
+        : <button type="button" className="org-directory-manage-danger" onClick={() => pick(() => setConfirm('suspend'))}>Suspend access</button>}
+    </div>}
+    {confirm === 'suspend' && <ConfirmDialog title="Suspend access?" subject={person.name} confirmLabel="Suspend access"
+      description="This suspends their organization access and removes their production leadership permissions. Their booking history is kept. You can restore access later."
+      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, person.role, 'suspended', `${person.name}’s access is suspended.`) }} />}
+    {confirm === 'owner' && <ConfirmDialog title="Make this person an owner?" subject={person.name} confirmLabel="Make owner"
+      description="Owners can change anyone’s role or access, including other owners, and manage workspace domains."
+      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'owner', person.status!, `${person.name} is now an owner.`) }} />}
+  </div>
 }

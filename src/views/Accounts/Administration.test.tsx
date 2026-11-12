@@ -1,61 +1,42 @@
-import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {cleanup,render,screen,waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import Administration from './Administration'
 import {AppSessionProvider} from '../../context/AppSessionContext'
-const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),activity:vi.fn(),invite:vi.fn(),updateMember:vi.fn(),saveSettings:vi.fn(),refresh:vi.fn(),accessRequests:vi.fn(),joinCodes:vi.fn(),domains:vi.fn(),createJoinCode:vi.fn(),revokeJoinCode:vi.fn(),decideAccessRequest:vi.fn(),addDomain:vi.fn(),updateDomain:vi.fn(),removeDomain:vi.fn()}))
+const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),activity:vi.fn(),invite:vi.fn(),updateMember:vi.fn(),saveSettings:vi.fn(),refresh:vi.fn(),accessRequests:vi.fn(),joinCodes:vi.fn(),domains:vi.fn(),createJoinCode:vi.fn(),revokeJoinCode:vi.fn(),decideAccessRequest:vi.fn(),addDomain:vi.fn(),updateDomain:vi.fn(),removeDomain:vi.fn(),revokeInvitation:vi.fn()}))
 vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({accounts:()=>m}),DatabaseApiClientError:class extends Error{constructor(public status:number){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 const photos=vi.hoisted(()=>({upload:vi.fn()}))
 vi.mock('../../api/privatePhotos',()=>({uploadOrganizationPhoto:photos.upload}))
 const settings={id:'org',name:'Agency',slug:'agency',role:'owner',reservationDays:14,location:null,logoPhotoId:null,version:1}
+const future=new Date(Date.now()+86400000).toISOString()
 function view(){render(<AppSessionProvider value={{email:'owner@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',selectedOrganizationId:'org',refreshOrganizations:m.refresh}}><Administration/></AppSessionProvider>)}
-beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.members.mockResolvedValue({items:[{id:'member',displayName:'Teammate',email:'member@example.test',role:'member',status:'active',version:2}],nextCursor:null});for(const name of ['invitations','activity','accessRequests','joinCodes','domains']as const)m[name].mockResolvedValue({items:[],nextCursor:null});m.invite.mockResolvedValue({});m.updateMember.mockResolvedValue({})})
+const ready=()=>screen.findByRole('heading',{name:'Workspace settings'})
+beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);for(const name of ['invitations','activity','accessRequests','joinCodes','domains']as const)m[name].mockResolvedValue({items:[],nextCursor:null})})
 afterEach(cleanup)
-describe('Real account administration',()=>{
-  it('sends an invitation through the authenticated organization client',async()=>{const user=userEvent.setup();view();await screen.findByText('Teammate');expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();await user.type(screen.getByLabelText('Email'),'new@example.test');await user.click(screen.getByRole('button',{name:'Send invitation'}));await waitFor(()=>expect(m.invite).toHaveBeenCalledWith({email:'new@example.test',role:'member',requestId:expect.any(String)}));expect(m.refresh).toHaveBeenCalled()})
-  it('lets administrators invite administrators using only email',async()=>{
-    m.settings.mockResolvedValue({...settings,role:'admin'})
-    const user=userEvent.setup();view();await screen.findByText('Teammate')
-    await user.type(screen.getByLabelText('Email'),'admin@example.test')
-    await user.selectOptions(screen.getByLabelText('Role'),'admin')
-    await user.click(screen.getByRole('button',{name:'Send invitation'}))
-    await waitFor(()=>expect(m.invite).toHaveBeenCalledWith({email:'admin@example.test',role:'admin',requestId:expect.any(String)}))
+describe('Organization access and settings',()=>{
+  it('shares the Organization header and tabs and leaves people management to the People tab',async()=>{
+    view();await ready()
+    expect(screen.getByRole('heading',{level:1,name:'Agency'})).toBeInTheDocument()
+    expect(screen.getByRole('link',{name:'Access & settings'})).toHaveAttribute('aria-current','page')
+    expect(screen.getByRole('link',{name:'People'})).toHaveAttribute('href','/organization')
+    expect(screen.queryByRole('heading',{name:'Members'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Send invitation'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('link',{name:/back to organization/i})).not.toBeInTheDocument()
+    expect(m.members).not.toHaveBeenCalled()
   })
-  it.each(['member','admin'])('lets administrators edit a %s without granting ownership',async role=>{
-    m.settings.mockResolvedValue({...settings,role:'admin'})
-    m.members.mockResolvedValue({items:[{id:'member',displayName:'Teammate',role,status:'active',version:2}],nextCursor:null})
-    view();const select=await screen.findByLabelText('Role for Teammate');expect(select).toBeEnabled()
-    expect(select.querySelector('option[value="owner"]')).toBeNull()
-    const nextRole=role==='member'?'admin':'member'
-    fireEvent.change(select,{target:{value:nextRole}})
-    fireEvent.click(screen.getByRole('button',{name:'Save member'}))
-    await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('member',{role:nextRole,status:'active',version:2,requestId:expect.any(String)}))
+  it('revokes a pending invitation',async()=>{
+    m.invitations.mockResolvedValue({items:[{id:'i',email:'new@example.test',displayName:'New Person',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:3,createdAt:future}],nextCursor:null});m.revokeInvitation.mockResolvedValue({})
+    const user=userEvent.setup();view();expect(await screen.findByText('New Person')).toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Revoke invitation'}))
+    await waitFor(()=>expect(m.revokeInvitation).toHaveBeenCalledWith('i',expect.objectContaining({version:3})))
   })
-  it('protects owner accounts from administrators',async()=>{
-    m.settings.mockResolvedValue({...settings,role:'admin'})
-    m.members.mockResolvedValue({items:[{id:'owner',displayName:'Owner',role:'owner',status:'active',version:2}],nextCursor:null})
-    view();expect(await screen.findByLabelText('Role for Owner')).toBeDisabled()
-    expect(screen.getByLabelText('Status for Owner')).toBeDisabled()
-    expect(screen.getByRole('button',{name:'Save member'})).toBeDisabled()
-    expect(screen.queryByRole('button',{name:'Remove access for Owner'})).not.toBeInTheDocument()
-  })
-  it.each(['member','admin'])('confirms removal of a %s before suspending access',async role=>{
-    m.settings.mockResolvedValue({...settings,role:'admin'})
-    m.members.mockResolvedValue({items:[{id:'member',displayName:'Teammate',role,status:'active',version:2}],nextCursor:null})
-    const user=userEvent.setup();view();await screen.findByText('Teammate')
-    await user.click(screen.getByRole('button',{name:'Remove access for Teammate'}))
-    expect(screen.getByRole('dialog')).toHaveTextContent('booking history is kept')
-    expect(m.updateMember).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button',{name:'Cancel'}));expect(m.updateMember).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button',{name:'Remove access for Teammate'}))
-    await user.click(screen.getByRole('button',{name:'Remove access'}))
-    await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('member',{role,status:'suspended',version:2,requestId:expect.any(String)}))
-  })
-  it('shows a new join code once and approves a pending access request',async()=>{
+  it('shows a new join code once, hides the main reusable code, and approves a pending access request',async()=>{
+    m.joinCodes.mockResolvedValue({items:[{id:'main',label:'Agency join code',maxUses:null,uses:4,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-01T12:00:00Z',code:'MAIN1-CODE2'}],nextCursor:null})
     m.accessRequests.mockResolvedValue({items:[{id:'request',userId:'u',email:'asker@studio.example.edu',displayName:'Asker',message:'Fall crew',status:'pending',version:1,createdAt:'2026-10-30T12:00:00Z',decidedAt:null}],nextCursor:null})
     m.createJoinCode.mockResolvedValue({id:'code',label:'Spring crew',maxUses:5,uses:0,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-31T12:00:00Z',code:'ABCDE-FGHJK'});m.decideAccessRequest.mockResolvedValue({})
     const user=userEvent.setup();view();expect(await screen.findByLabelText('1 pending')).toBeInTheDocument();expect(screen.getByText('“Fall crew”')).toBeInTheDocument()
+    expect(screen.queryByText('Agency join code')).not.toBeInTheDocument();expect(screen.getByText('No active join codes.')).toBeInTheDocument()
     await user.type(screen.getByLabelText('Code label'),'Spring crew');await user.type(screen.getByLabelText('Maximum uses'),'5');await user.click(screen.getByRole('button',{name:'Create join code'}))
     expect(await screen.findByText('ABCDE-FGHJK')).toBeInTheDocument();expect(m.createJoinCode).toHaveBeenCalledWith(expect.objectContaining({label:'Spring crew',maxUses:5,expiresInDays:null,requestId:expect.any(String)}))
     await user.click(screen.getByRole('button',{name:'Approve Asker'}));await waitFor(()=>expect(m.decideAccessRequest).toHaveBeenCalledWith('request','approve',expect.objectContaining({version:1})))
@@ -71,11 +52,11 @@ describe('Real account administration',()=>{
     await user.type(await screen.findByLabelText(/^Location/),'  Gainesville ');await user.click(screen.getByRole('button',{name:'Save settings'}))
     await waitFor(()=>expect(m.saveSettings).toHaveBeenCalledWith(expect.objectContaining({name:'Agency',reservationDays:14,location:'Gainesville',version:1})))
   })
-  it('shows service failures without substituting preview members',async()=>{m.members.mockRejectedValue(new Error('private details'));view();expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByText('Teammate')).not.toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()})
+  it('shows service failures without showing partial settings',async()=>{m.invitations.mockRejectedValue(new Error('private details'));view();expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByText('private details')).not.toBeInTheDocument()})
   it('uploads a new workspace logo when settings are saved and removes a saved one',async()=>{
     Object.assign(URL,{createObjectURL:vi.fn(()=>'blob:logo'),revokeObjectURL:vi.fn()})
     photos.upload.mockResolvedValue({photoId:'photo'});m.saveSettings.mockResolvedValue({...settings,logoPhotoId:'photo',version:2})
-    const user=userEvent.setup();view();await screen.findByText('Teammate')
+    const user=userEvent.setup();view();await ready()
     const file=new File(['logo'],'logo.png',{type:'image/png'})
     await user.upload(screen.getByLabelText('Upload logo'),file)
     expect(screen.getByText('New logo selected. Save settings to apply it.')).toBeInTheDocument()
