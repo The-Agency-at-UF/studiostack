@@ -324,6 +324,12 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const submitted=await command(member,await draft(),'submit')
     await expect(production(member,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:403})
   })
+  it('production: only inactive briefs can be marked deleted',async()=>{
+    const active=await command(member,await draft(),'submit')
+    await expect(operator.query('UPDATE app.production_briefs SET deleted_at=now() WHERE id=$1',[active.id])).rejects.toMatchObject({code:'23514'})
+    const withdrawn=await command(member,active,'withdraw')
+    expect((await operator.query('UPDATE app.production_briefs SET deleted_at=now() WHERE id=$1',[withdrawn.id])).rowCount).toBe(1)
+  })
   it('production: attachment completion is owner-scoped and blocks premature submission',async()=>{
     let b=await draft();const attachmentId=randomUUID(),body={id:attachmentId,name:'Reference.pdf',contentType:'application/pdf',size:120}
     expect(await production(member,{resource:'attachments',method:'POST',briefId:b.id,body})).toMatchObject({id:attachmentId})
