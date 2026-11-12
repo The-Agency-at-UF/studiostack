@@ -151,3 +151,66 @@
   .production-print p { font-size: 12px; margin: 10px 0; }
 }
 .production-client-filter{display:grid;gap:8px;margin:16px 0;max-width:360px}.production-crew-person{display:grid;gap:10px;margin:12px 0}.production-crew-person label{display:flex;gap:8px;align-items:center}.production-crew-person input[type=text]{flex:1}
+
+/* Client accounts and Access & notifications */
+.production-page .production-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-6); padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
+.production-page .production-section-head > div { flex: 1 1 420px; min-width: 0; }
+.production-page .production-section-head h2 { margin: 0 0 var(--space-2); }
+.production-page .production-section-head p { margin: 0; max-width: 72ch; font-size: var(--text-sm); color: var(--muted); line-height: var(--line-body); }
+.production-page .production-count { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.production-page .production-section-head .production-count { margin: 0; }
+.production-page .production-inline-form fieldset { display: grid; grid-template-columns: minmax(0, 420px) auto; justify-content: start; align-items: end; gap: var(--space-2) var(--space-3); border: 0; padding: var(--space-5) 0; margin: 0; }
+.production-page .production-inline-form button { min-height: var(--control-height); }
+.production-page .production-inline-form input:not([type=checkbox]) { min-height: var(--control-height); }
+.production-client-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.production-client-list li { display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px; align-items: center; gap: var(--space-4); min-height: 56px; padding: var(--space-2) 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+.app-content#workspace-content .production-settings > .production-client-list > li:last-child,.production-page .production-client-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.production-client-list li > button { justify-self: end; }
+.production-client-name { font-weight: var(--weight-medium); overflow-wrap: anywhere; }
+.production-client-list li.is-archived .production-client-name { color: var(--muted); font-weight: var(--weight-regular); }
+.production-client-list li:not(:has(button)) { grid-template-columns: minmax(0, 1fr) 96px; }
+.production-client-list .ws-status { justify-self: start; }
+.production-clients-empty { margin: var(--space-5) 0 0; padding: var(--space-8) var(--space-6); border: 1px dashed var(--line-strong); border-radius: var(--radius-panel); text-align: center; font-size: var(--text-sm); color: var(--muted); }
+.production-clients-empty p { margin: 0 0 var(--space-1); font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
+.production-clients-empty span { display: block; max-width: 48ch; margin: 0 auto; line-height: var(--line-body); }
+.production-page .production-access > p.production-error,.production-page .production-clients > p.production-error { margin: var(--space-4) 0 0; }
+.production-loading { padding: var(--space-6) 0; }
+.production-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-6) 0 var(--space-3); }
+.production-roles > div { padding: var(--space-4); background: var(--surface-subtle); border-radius: var(--radius-panel); }
+.production-roles dt { font-size: var(--text-sm); font-weight: var(--weight-bold); margin-bottom: var(--space-1); }
+.production-roles dd { margin: 0; font-size: var(--text-xs); line-height: var(--line-body); color: var(--muted); }
+.production-page .production-settings .production-footnote { margin: 0; font-size: var(--text-xs); }
+.production-page .production-access fieldset { margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--line); }
+.production-page .production-access fieldset > legend { float: left; padding: 0; margin: 0 0 var(--space-3); line-height: var(--line-heading); }
+.production-page .production-team > .production-count { float: right; margin: 4px 0 var(--space-3) var(--space-4); }
+.production-page .production-access-table,.production-page .production-emails > p:first-of-type { clear: both; }
+.production-access-table { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-panel); }
+.production-page .production-access .production-table th,.production-page .production-access .production-table td { padding: var(--space-3) var(--space-4); }
+.production-page .production-access .production-table thead th { background: var(--surface-subtle); }
+.production-page .production-access .production-table thead th + th,.production-page .production-access .production-table td { width: 180px; text-align: center; }
+.production-page .production-access .production-table tbody tr:last-child > * { border-bottom: 0; }
+.app-content#workspace-content .production-access .production-table tbody tr:hover > *,.production-page .production-access .production-table tbody tr:hover { background: var(--surface-hover); }
+.app-content#workspace-content .production-access .production-table tbody th,.production-page .production-access .production-table tbody th { text-align: left; font-weight: var(--weight-regular); text-transform: none; letter-spacing: 0; color: var(--ink); white-space: normal; font-size: var(--text-sm); background: transparent; }
+.production-member { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.production-member-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-weight: var(--weight-medium); overflow-wrap: anywhere; }
+.production-member-email { font-size: var(--text-xs); color: var(--muted); overflow-wrap: anywhere; }
+.production-page label.production-check { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 44px; min-height: 44px; font-weight: var(--weight-regular); cursor: pointer; }
+.production-page .production-check input[type=checkbox] { width: 18px; height: 18px; }
+.production-page .production-check input:disabled { cursor: not-allowed; opacity: .55; }
+.production-check-note { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.production-page .production-emails p { max-width: 72ch; margin: var(--space-3) 0 0; }
+.production-page .production-settings-savebar { position: static; box-shadow: none; margin: var(--space-6) 0 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); font-size: var(--text-sm); color: var(--muted); }
+.production-page .production-settings-savebar.is-dirty { position: sticky; bottom: var(--space-3); border-color: var(--accent-light); color: var(--ink); box-shadow: var(--shadow-menu); }
+.production-page .production-settings-savebar button { min-height: var(--control-height); min-width: 132px; }
+@media (max-width: 760px) {
+  .production-page .production-inline-form fieldset { grid-template-columns: 1fr; }
+  .production-roles { grid-template-columns: 1fr; }
+  .production-client-list li { grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-3); }
+  .production-page .production-access .production-table thead th + th,.production-page .production-access .production-table td { width: 76px; }
+  .app-content#workspace-content .production-access .production-table thead th,.production-page .production-access .production-table thead th { white-space: normal; letter-spacing: .03em; line-height: 1.3; }
+  .production-member-name,.production-member-email { overflow-wrap: break-word; }
+  .production-page .production-access .production-table th,.production-page .production-access .production-table td { padding: var(--space-3) var(--space-2); }
+  .production-check-note { white-space: normal; max-width: 68px; text-align: center; }
+  .production-page .production-team > .production-count { float: none; margin: 0 0 var(--space-3); clear: both; }
+}
+@media print { .production-settings-savebar { display: none !important; } }

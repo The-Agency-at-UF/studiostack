@@ -1,5 +1,5 @@
 'use client'
-import { PageHeader, WorkspaceTabs, Field, TableRegion, DetailPanel, Select, Skeleton } from '../../components/workspace/WorkspaceUI'
+import { PageHeader, WorkspaceTabs, Field, TableRegion, DetailPanel, Select, Skeleton, StatusLabel } from '../../components/workspace/WorkspaceUI'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppSession } from '../../context/AppSessionContext'
@@ -233,13 +233,38 @@ function ReviewPanel({ brief, access, busy, dirty, missing, onAction }: { brief:
   </section>
 }
 function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: ProductionClient; loadMembers: () => Promise<ApiMember[]>; onSaved: () => Promise<void> }) {
-  const [settings,setSettings] = useState<ProductionSettings | null>(null), [members,setMembers] = useState<ApiMember[]>([]), [busy,setBusy] = useState(false), [message,setMessage] = useState(''), [error,setError] = useState('')
-  useEffect(() => { let active = true; Promise.all([api.settings(),loadMembers()]).then(([s,m]) => { if (active) { setSettings(s); setMembers(m) } }).catch(e => { if (active) setError(errorText(e)) }); return () => { active = false } }, [api,loadMembers])
-  return <section className="production-settings"><h2>Access & notifications</h2><p>Organization administrators manage access. Production Leads and administrators review briefs and assign shoot crews; members can see shared production and bookings; the Executive Leadership Team can read submitted briefs and decisions.</p>{error && <p role="alert" className="production-error">{error}</p>}{message && <p role="status">{message}</p>}{!settings ? <p>Loading settings…</p> : <form onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(async s => { setSettings(s); setMessage('Production access and notification settings saved.'); await onSaved() }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
-    <p>Owners and administrators include Production Lead permissions. Select Production Lead for active teammates who can review, approve, confirm dates, request changes, deny briefs and view organization booking names and equipment. This does not grant organization administration or permission to change other members’ equipment bookings.</p><fieldset disabled={busy}><legend>Team access</legend><table className="production-table"><thead><tr><th>Active member</th><th>Production Lead</th><th>Executive Leadership Team</th></tr></thead><tbody>{members.map(m => <tr key={m.id}><td>{m.displayName || m.email || m.id}<span>{m.email}</span></td>{(['reviewerIds','executiveIds'] as const).map(key => <td key={key}><input aria-label={`${key === 'reviewerIds' ? 'Production leadership' : 'Executive Leadership Team'}: ${m.displayName || m.email || m.id}`} type="checkbox" disabled={key==='reviewerIds'&&['owner','admin'].includes(m.role)} checked={settings[key].includes(m.id)||(key==='reviewerIds'&&['owner','admin'].includes(m.role))} onChange={e => setSettings(s => s ? { ...s, [key]: e.target.checked ? [...s[key],m.id] : s[key].filter(id => id !== m.id) } : s)} /></td>)}</tr>)}</tbody></table>{!members.length && <p>No active members are available.</p>}</fieldset>
-    <fieldset><legend>Decision emails</legend><p>Decisions notify the brief’s author and active Executive Leadership Team members at the verified email addresses on their sign-in accounts. No separate mailing list is needed. Sending starts after the system’s sender address is verified.</p></fieldset>
-    <p>Approval confirms proposed shoot dates. A month-only estimate needs concrete dates before approval. Equipment bookings are managed separately.</p><button className="production-primary" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button>
-  </form>}</section>
+  const [settings,setSettings] = useState<ProductionSettings | null>(null), [saved,setSaved] = useState<ProductionSettings | null>(null), [members,setMembers] = useState<ApiMember[]>([]), [busy,setBusy] = useState(false), [message,setMessage] = useState(''), [error,setError] = useState('')
+  useEffect(() => { let active = true; Promise.all([api.settings(),loadMembers()]).then(([s,m]) => { if (active) { setSettings(s); setSaved(s); setMembers(m) } }).catch(e => { if (active) setError(errorText(e)) }); return () => { active = false } }, [api,loadMembers])
+  const leadByRole = (m: ApiMember) => ['owner','admin'].includes(m.role)
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every(id => b.includes(id))
+  const dirty = !!settings && !!saved && (!same(settings.reviewerIds, saved.reviewerIds) || !same(settings.executiveIds, saved.executiveIds))
+  const leads = settings ? members.filter(m => leadByRole(m) || settings.reviewerIds.includes(m.id)).length : 0, executives = settings ? members.filter(m => settings.executiveIds.includes(m.id)).length : 0
+  const roleLabel = (m: ApiMember) => m.role === 'owner' ? 'Owner' : m.role === 'admin' ? 'Admin' : null
+  return <section className="production-settings production-access" aria-labelledby="production-access-title">
+    <div className="production-section-head"><div><h2 id="production-access-title">Access & notifications</h2><p>Organization administrators decide who leads production and who hears about decisions.</p></div></div>
+    {error && <p role="alert" className="production-error">{error}</p>}
+    {!settings ? <p className="production-loading" role="status">Loading settings…</p> : <form onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(async s => { setSettings(s); setSaved(s); setMessage('Production access and notification settings saved.'); await onSaved() }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
+      <dl className="production-roles" aria-label="What each role can do">
+        <div><dt>Production Lead</dt><dd>Reviews, approves, confirms dates, requests changes and denies briefs; assigns shoot crews and sees organization booking names and equipment. Owners and administrators always have it.</dd></div>
+        <div><dt>Executive Leadership Team</dt><dd>Reads submitted briefs and decisions, and receives decision emails.</dd></div>
+        <div><dt>Members</dt><dd>See shared production and bookings.</dd></div>
+      </dl>
+      <p className="production-footnote">Production Lead does not grant organization administration or permission to change other members’ equipment bookings.</p>
+      <fieldset disabled={busy} className="production-team">
+        <legend>Team access</legend>{members.length > 0 && <p className="production-count">{leads} Production {leads === 1 ? 'Lead' : 'Leads'} · {executives} on Executive Leadership</p>}
+        {members.length ? <div className="production-access-table"><table className="production-table"><thead><tr><th scope="col">Active member</th><th scope="col">Production Lead</th><th scope="col">Executive Leadership Team</th></tr></thead><tbody>{members.map(m => { const name = m.displayName || m.email || m.id, role = roleLabel(m); return <tr key={m.id}>
+          <th scope="row"><span className="production-member"><span className="production-member-name">{name}{role && <StatusLabel tone="accent">{role}</StatusLabel>}</span>{m.email && m.email !== name && <span className="production-member-email">{m.email}</span>}</span></th>
+          {(['reviewerIds','executiveIds'] as const).map(key => { const locked = key === 'reviewerIds' && leadByRole(m); return <td key={key}><label className="production-check"><input aria-label={`${key === 'reviewerIds' ? 'Production leadership' : 'Executive Leadership Team'}: ${name}`} type="checkbox" disabled={locked} checked={settings[key].includes(m.id) || locked} onChange={e => { setMessage(''); setSettings(s => s ? { ...s, [key]: e.target.checked ? [...s[key],m.id] : s[key].filter(id => id !== m.id) } : s) }} />{locked && <span className="production-check-note">Included with {role}</span>}</label></td> })}
+        </tr> })}</tbody></table></div> : <p className="production-clients-empty"><span>No active members are available.</span></p>}
+      </fieldset>
+      <fieldset className="production-emails">
+        <legend>Decision emails</legend>
+        <p>Each decision notifies the brief’s author and active Executive Leadership Team members at the verified email addresses on their sign-in accounts. No separate mailing list is needed. Sending starts after the system’s sender address is verified.</p>
+        <p>Approval confirms the proposed shoot dates. A month-only estimate needs concrete dates before approval. Equipment bookings are managed separately.</p>
+      </fieldset>
+      <div className={`production-savebar production-settings-savebar${dirty ? ' is-dirty' : ''}`}><span role="status">{message || (dirty ? 'Unsaved changes' : 'All changes saved')}</span><button type="submit" className="production-primary" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save settings'}</button></div>
+    </form>}
+  </section>
 }
 function DecisionFeed({ api, briefs, deliveries, access, preview, onOpen, onRefresh }: { api: ProductionClient; briefs: ProductionBrief[]; deliveries: Delivery[]; access: ProductionAccess; preview: boolean; onOpen: (id: string) => void; onRefresh: () => Promise<void> }) {
   const [events,setEvents] = useState<{ brief: ProductionBrief; event: BriefEvent }[]>([]), [error,setError] = useState(''), [busy,setBusy] = useState(false), [loading,setLoading] = useState(true)
