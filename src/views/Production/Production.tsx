@@ -39,7 +39,8 @@ function useProductionClient(organizationId: string, person: string) {
   }, [session.mode, session.getAccessToken, organizationId, person])
 }
 type CachedProduction = { briefs: ProductionBrief[]; access: ProductionAccess | null; clients: ClientAccount[]; deliveries: Delivery[] }
-export default function Production() {
+export default function Production({ view = 'workspace' }: { view?: 'workspace' | 'calendar' } = {}) {
+  const calendarPage = view === 'calendar'
   const session = useAppSession(), preview = session.mode === 'preview'
   const {organizations,selectedOrganizationId,setSelectedOrganizationId} = session
   const [organizationId, setOrganizationId] = useState(session.selectedOrganizationId??session.organizations?.[0]?.id ?? '')
@@ -53,7 +54,7 @@ export default function Production() {
   const cached = useMemo(() => getCached<CachedProduction>(cacheKey), [cacheKey])
   const [briefs, setBriefs] = useState<ProductionBrief[]>(cached?.briefs ?? []), [access, setAccess] = useState<ProductionAccess | null>(cached?.access ?? null)
   const [selected, setSelected] = useState<ProductionBrief | null>(null), [form, setForm] = useState<BriefData>(emptyBrief)
-  const [tab, setTab] = useState<'briefs' | 'calendar' | 'decisions' | 'settings' | 'clients'>('briefs')
+  const [tab, setTab] = useState<'briefs' | 'calendar' | 'decisions' | 'settings' | 'clients'>(calendarPage ? 'calendar' : 'briefs')
   const [clients,setClients]=useState<ClientAccount[]>(cached?.clients ?? []),[clientFilter,setClientFilter]=useState('')
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(!cached), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
@@ -166,14 +167,14 @@ export default function Production() {
   const selectView = (next: typeof tab) => { if (mayLeave()) { setTab(next); setSelected(null); setDirty(false); setSnapshot(null) } }
   return <main className="production-page">
     {pendingDelete && <ConfirmDialog title="Delete this brief?" subject={pendingDelete.data.projectName || 'Untitled brief'} description="This brief will be removed from your workspace. This action can’t be undone." confirmLabel="Delete brief" busy={busy} onCancel={() => setPendingDelete(null)} onConfirm={() => void confirmDelete()} />}
-    <PageHeader title="Briefs & production" context="Production workspace" description="Plan the work, review the brief, and confirm the shoot." actions={<><div className="production-context">
+    <PageHeader title={calendarPage ? 'Production calendar' : 'Briefs & production'} context={calendarPage ? 'Production schedule' : 'Production workspace'} description={calendarPage ? 'Shoots, pre-production, reviews, and delivery deadlines. Select an event to open its production brief.' : 'Plan the work, review the brief, and confirm the shoot.'} actions={<><div className="production-context">
       {preview ? <label>Preview as<Select value={person} disabled={busy} onChange={e => { if (mayLeave()) setPerson(e.target.value) }}>{previewPeople.map(p => <option value={p.id} key={p.id}>{p.displayName}</option>)}</Select></label> : <label>Organization<Select disabled={busy} value={organizationId} onChange={e => { if (mayLeave()) {setOrganizationId(e.target.value);session.setSelectedOrganizationId?.(e.target.value)} }}>{session.organizations?.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></label>}
     </div>{!selected&&tab==='briefs'&&<button className="production-primary" disabled={busy||!api||!access} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create'))) }}>New brief</button>}</>}/>
 
     {preview && <p className="production-info">Local preview. Changes stay in this browser; attachments and email delivery require sign-in.</p>}
     {!preview && session.getAccessToken && <EmailVerification getAccessToken={session.getAccessToken} />}
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
-    <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','calendar','clients', ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ clients:'Client accounts',briefs:'Briefs',calendar:'Production calendar',decisions:'Decisions & delivery',settings:'Access & notifications' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>
+    {!calendarPage && <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','clients', ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ clients:'Client accounts',briefs:'Briefs',decisions:'Decisions & delivery',settings:'Access & notifications' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>}
     <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={() => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() })) }}>Reload</button></p>}{notice && <p role="status">{notice}</p>}</div>
     {loading ? <Skeleton label="Loading production workspace…" variant="row" count={5} /> : !api ? null : !access ? (
       <div className="production-empty">
