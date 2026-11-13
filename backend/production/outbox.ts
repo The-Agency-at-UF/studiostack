@@ -1,6 +1,5 @@
-import { createDatabase, inTransaction, type DatabaseClient } from '../database/client'
+import { inTransaction, type DatabaseClient } from '../database/client'
 import { acknowledgeLease, claimLeases, type LeasedOutbox } from '../database/leased-outbox'
-import { databaseConfig } from '../database/config'
 import { object, uuid } from '../database/api-validation'
 export interface NotificationJob { id: string; organizationId: string; briefId: string; recipientSubject: string; recipientIssuer: string; payload: { projectName: string; client: string; decision: string; comment: string; section: string; version: number; deliveryDate: string; shootStartsAt: string | null; shootEndsAt: string | null; reviewer?: string }; leaseToken: string }
 export type OutboxRequest = { action: 'claim' } | { action: 'ack'; organizationId: string; id: string; leaseToken: string; outcome: 'sent' | 'retry' | 'failed' | 'uncertain' }
@@ -23,10 +22,4 @@ export async function outboxTask(client: DatabaseClient, request: OutboxRequest)
       job: (row, org, leaseToken) => ({ ...row, organizationId: org.id, leaseToken }) as NotificationJob,
     }) }
   })
-}
-/** IAM-only maintenance path. This export is never an API Gateway route. */
-export async function handler(input: unknown) {
-  if (process.env.PRODUCTION_OUTBOX_STORE !== 'yes') throw new Error('Outbox store is not enabled')
-  const request = parseOutboxRequest(input)
-  return createDatabase(databaseConfig()).withClient(client => outboxTask(client,request))
 }

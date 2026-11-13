@@ -4,7 +4,7 @@ export interface DirectoryMember { id:string; displayName:string; role:ApiOrgani
 export interface ManagedMember extends ApiMember { version:number }
 export interface OrganizationInvitation { id:string; email:string; displayName:string; role:'admin'|'member'; status:'pending'|'accepted'|'revoked'|'expired'; deliveryStatus:'queued'|'sending'|'sent'|'failed'|'uncertain'; attempts:number; expiresAt:string; version:number; createdAt:string }
 export interface PendingInvitation { id:string; organizationId:string; organizationName:string; role:'admin'|'member'; displayName?:string; expiresAt:string }
-export interface DomainMatch { organizationId:string; organizationName:string; autoJoin:boolean }
+interface DomainMatch { organizationId:string; organizationName:string; autoJoin:boolean }
 export interface OwnAccessRequest { id:string; organizationId:string; organizationName:string; status:'pending'|'denied'|'withdrawn'; createdAt:string; decidedAt:string|null }
 /** How the signed-in account can reach an organization found by search. */
 export type JoinPolicy = 'member' | 'open' | 'request' | 'pending' | 'invite'

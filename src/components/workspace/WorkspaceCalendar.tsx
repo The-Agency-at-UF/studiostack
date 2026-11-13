@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react'
 import type { CalendarOptions, DatesSetArg, DayCellContentArg, EventContentArg, EventMountArg } from '@fullcalendar/core'
 import { HiOutlineChevronLeft, HiOutlineChevronRight } from 'react-icons/hi2'
 
-export type CalendarView = { value: string; label: string }
+type CalendarView = { value: string; label: string }
 
 /** Event chip body: a status mark followed by the title, truncated on one line. */
 function calendarEventContent(arg: EventContentArg) {

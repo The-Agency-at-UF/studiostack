@@ -16,7 +16,7 @@ export function decisionEmail(job: NotificationJob, webUrl: string) {
     p.section ? `Section: ${p.section}` : '', p.comment ? `Comments: ${p.comment}` : '', `Target delivery: ${p.deliveryDate || 'Not set'}`, p.shootStartsAt ? `Confirmed shoot: ${p.shootStartsAt} to ${p.shootEndsAt} (end exclusive)` : '', '', `Open brief: ${url.href}`,
   ].filter(Boolean).join('\n') }
 }
-export interface NotificationDependencies { store(request: OutboxRequest): Promise<{ jobs?: NotificationJob[]; updated?: boolean }>; send(job: NotificationJob): Promise<void> }
+interface NotificationDependencies { store(request: OutboxRequest): Promise<{ jobs?: NotificationJob[]; updated?: boolean }>; send(job: NotificationJob): Promise<void> }
 type Attributes = { Name?: string; Value?: string }[]
 interface RecipientDirectory {
   find(subject: string): Promise<{ Username?: string; Attributes?: Attributes }[]>

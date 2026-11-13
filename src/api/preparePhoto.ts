@@ -1,9 +1,9 @@
 import { imageSize } from 'image-size'
 
 export const MAX_ORIGINAL_BYTES = 50 * 1024 * 1024
-export const MAX_DECODED_PIXELS = 50_000_000
+const MAX_DECODED_PIXELS = 50_000_000
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-export const MAX_PHOTO_EDGE = 2560
+const MAX_PHOTO_EDGE = 2560
 const heifTypes = new Set(['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1', 'avif'])
 const inputTypes = new Set(['jpg', 'png', 'webp', ...heifTypes])
 

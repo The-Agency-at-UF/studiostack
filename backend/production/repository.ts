@@ -8,7 +8,7 @@ import { submissionErrors, type BriefCommand, type BriefData, type ProductionBri
 import type { BriefStorage } from './storage'
 import { isAdmin, pageOf, requestHash } from '../database/repository-utils'
 export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; clientId?:string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
-export type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
+type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
 const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data || jsonb_build_object('clientAccountId', b.client_account_id) AS data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
 const deny = (message = 'You do not have permission for this action'): never => { throw new ApiError(403, message) }
 const conflict = (message = 'This brief changed. Reload it before saving.'): never => { throw new ApiError(409, message) }
