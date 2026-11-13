@@ -3,7 +3,7 @@ import {reportRoutes} from '../../backend/equipment/report-routes'
 import {equipmentRoutes} from '../../backend/equipment/routes'
 import { productionRoutes,agencyProductionRoutes,briefDeletionRoutes } from '../../backend/production/routes'
 import {accountRoutes,joinMethodRoutes,organizationDirectoryRoute} from '../../backend/accounts/routes'
-import { account, region } from './resources'
+import { account, region, devDailySweep } from './resources'
 import { databaseApiRoutes, privatePhotoRoutes, bugReportRoutes, onboardingRoutes, retiredRoutes, databaseApiScope, apiConfiguration } from '../../backend/database/api'
 
 /** Additive API stack: no new database, secret, VPC endpoint or execution role. */
@@ -37,7 +37,7 @@ export function databaseApiInfrastructure(env: Record<string, string | undefined
   Resources.ApiInvokePermission={Type:'AWS::Lambda::Permission',Properties:{FunctionName:functionName,Action:'lambda:InvokeFunction',Principal:'apigateway.amazonaws.com',SourceAccount:account,SourceArn:`arn:aws:execute-api:${region}:${account}:${config.apiId}/*/*/*`}}
   // Daily IAM-only maintenance call, never an API route. The database function
   // fixes what is purged, so the scheduled input carries only the task name.
-  Resources.RetentionSchedule={Type:'AWS::Events::Rule',Properties:{Name:`studiostack-${env.STUDIOSTACK_ENV}-database-retention`,ScheduleExpression:'rate(1 day)',State:'ENABLED',Targets:[{Id:'DatabaseRetention',Arn:functionArn,Input:JSON.stringify({task:'database-retention'}),RetryPolicy:{MaximumRetryAttempts:2,MaximumEventAgeInSeconds:3600}}]}}
+  Resources.RetentionSchedule={Type:'AWS::Events::Rule',Properties:{Name:`studiostack-${env.STUDIOSTACK_ENV}-database-retention`,ScheduleExpression:env.STUDIOSTACK_ENV==='dev'?devDailySweep:'rate(1 day)',State:'ENABLED',Targets:[{Id:'DatabaseRetention',Arn:functionArn,Input:JSON.stringify({task:'database-retention'}),RetryPolicy:{MaximumRetryAttempts:2,MaximumEventAgeInSeconds:3600}}]}}
   Resources.RetentionPermission={Type:'AWS::Lambda::Permission',Properties:{FunctionName:functionName,Action:'lambda:InvokeFunction',Principal:'events.amazonaws.com',SourceAccount:account,SourceArn:{'Fn::GetAtt':['RetentionSchedule','Arn']}}}
 
   return { AWSTemplateFormatVersion: '2010-09-09', Description: 'StudioStack JWT-protected database API routes', Resources,
