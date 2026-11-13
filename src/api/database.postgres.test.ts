@@ -564,16 +564,20 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await operator.query("UPDATE app.organization_invitations SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",[expired.id])
     expect(await directory({action:'accept',identity,organizationId,invitationId:expired.id})).toMatchObject({statusCode:404})
   })
-  it('invitations: acceptance preserves existing roles and never restores a suspended member',async()=>{
+  it('invitations: acceptance preserves existing roles and brings a removed member back with the invited role',async()=>{
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`},profile=await repository.execute(identity,{operation:'register',displayName:'Existing person'}) as ApiUser
     const created=await invitation(identity.email)
     await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'admin','active')",[organizationId,profile.id])
     expect(await directory({action:'accept',identity,organizationId,invitationId:created.id})).toEqual({organizationId})
     expect((await repository.execute(identity,{operation:'organizations',page:listPage}) as ApiPage<ApiOrganization>).items[0].role).toBe('admin')
     const nextIdentity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`},next=await repository.execute(nextIdentity,{operation:'register',displayName:'Suspended person'}) as ApiUser
-    const pending=await invitation(nextIdentity.email)
-    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','suspended')",[organizationId,next.id])
-    expect(await directory({action:'accept',identity:nextIdentity,organizationId,invitationId:pending.id})).toMatchObject({statusCode:409})
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'owner','suspended')",[organizationId,next.id])
+    // Removed people are invited like anyone else; active members are still managed in place.
+    const pending=await invitation(nextIdentity.email,'admin')
+    await expect(invitation(identity.email)).rejects.toMatchObject({status:409})
+    expect(await directory({action:'accept',identity:nextIdentity,organizationId,invitationId:pending.id})).toEqual({organizationId})
+    expect((await operator.query('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,next.id])).rows[0]).toEqual({role:'admin',status:'active'})
+    expect((await operator.query("SELECT details FROM app.organization_audit_events WHERE target_id=$1 AND kind='invitation_accepted'",[pending.id])).rows[0].details).toEqual({role:'admin',restored:true})
   })
   it('invitations: concurrent workers claim unique jobs and acknowledge only the current lease',async()=>{
     async function queue(request:InvitationQueueRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await invitationQueueTask(c,request)}finally{await c.end()}}
@@ -897,7 +901,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await directory({action:'join-code',identity,code})).toMatchObject({statusCode:429})
     expect(await directory({action:'join-code',identity:await newcomer(`other@${freshDomain()}`),code})).toMatchObject({statusCode:404})
   })
-  it('onboarding: a suspended member is never restored by domain or code',async()=>{
+  it('onboarding: a removed member comes back only by invitation, never by domain or code',async()=>{
     const domain=freshDomain(),code=freshCode(),identity={issuer,subject:'suspended',email:`suspended@${domain}`}
     await operator.query('INSERT INTO app.organization_domains(domain,organization_id,created_by) VALUES($1,$2,$3)',[domain,organizationId,profiles.owner.id])
     await operator.query("INSERT INTO app.organization_join_codes(organization_id,code_hash,label,created_by) VALUES($1,$2,'Open',$3)",[organizationId,joinCodeHash(code),profiles.owner.id])
