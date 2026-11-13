@@ -1,6 +1,9 @@
 // Existing resources are referenced, not recreated or imported into this stack.
 export const account = '423563856930'
 export const region = 'us-east-2'
+// Dev's scheduled sweeps share one daily time so idle dev Aurora wakes once a
+// day, not on every run. Log signals still deliver new work immediately.
+export const devDailySweep = 'cron(0 9 * * ? *)'
 export const vpc = 'vpc-0c566c49de9c91bda'
 export const subnets = ['subnet-0bb1005a604230bdc', 'subnet-0f6ccb58e6d1cfb26']
 export const environments = [

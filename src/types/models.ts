@@ -4,12 +4,12 @@ export interface Timestamp {
   toDate(): Date
 }
 
-export interface Equipment {
+interface Equipment {
   id: string
   name: string
 }
 
-export interface InventoryData {
+interface InventoryData {
   name: string
   category: string
   availability: string
@@ -18,7 +18,7 @@ export interface InventoryData {
   timestamp?: Timestamp
 }
 
-export interface ReservationData {
+interface ReservationData {
   name: string
   userEmail: string
   team: string
@@ -31,7 +31,7 @@ export interface ReservationData {
   overdueItems: (Equipment & { time: Timestamp })[]
 }
 
-export interface ReportData {
+interface ReportData {
   item: string
   itemId: string
   subject: string
@@ -43,7 +43,7 @@ export interface ReportData {
   resolvedOn?: Timestamp
 }
 
-export interface BugReportData {
+interface BugReportData {
   title: string
   description: string
   userEmail: string

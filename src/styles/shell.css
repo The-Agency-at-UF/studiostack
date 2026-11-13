@@ -2,6 +2,8 @@
 .ws-shell .site-header-inner { height:100%; min-height:0; padding:var(--space-6) var(--space-3) var(--space-3); display:flex; flex-direction:column; align-items:stretch; gap:0; }
 .ws-shell .brand-lockup { padding:var(--space-2) var(--space-3) var(--space-8); }
 .ws-shell .brand-lockup img { width:180px; height:auto; }
+/* Organization names can be up to 120 characters; clamp to two lines and expose the full name via title. */
+.ws-shell .brand-org-name { display:-webkit-box; max-width:180px; overflow:hidden; color:var(--on-frame); font-size:var(--text-xl); font-weight:var(--weight-bold); line-height:1.2; overflow-wrap:anywhere; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; }
 .ws-sidebar-body { display:flex; flex-direction:column; flex:1; min-height:0; }
 .ws-shell :is(.desktop-nav-links,.mobile-nav-links) { display:block; overflow-y:auto; flex:1; align-self:stretch; scrollbar-width:thin; scrollbar-color:var(--frame-line) var(--frame); }
 .ws-nav-group { margin:0 0 var(--space-5); }
@@ -34,6 +36,7 @@
   .ws-shell .site-header-inner { height:var(--header-height); padding:0 var(--space-4); flex-direction:row; align-items:center; justify-content:space-between; }
   .ws-shell .brand-lockup { padding:0; }
   .ws-shell .brand-lockup img { width:160px; }
+  .ws-shell .brand-org-name { max-width:160px; font-size:var(--text-lg); }
   .ws-menu-toggle { display:grid; place-items:center; width:var(--control-height); height:var(--control-height); color:var(--on-frame); background:transparent; border:0; border-radius:var(--radius-control); }
   .ws-menu-toggle svg,.drawer-close svg { width:24px; height:24px; }
   .ws-sidebar-body { display:none; }

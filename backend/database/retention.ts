@@ -1,7 +1,7 @@
 import { inTransaction, type DatabaseClient } from './client'
 import { object } from './api-validation'
 
-export interface RetentionResult { photoUploads: number; joinCodeAttempts: number; readAlerts: number }
+interface RetentionResult { photoUploads: number; joinCodeAttempts: number; readAlerts: number }
 /** IAM-only scheduled task. The database function fixes what is deleted and after how long. */
 export async function retentionTask(client: DatabaseClient, input: unknown): Promise<RetentionResult> {
   object(input, [])

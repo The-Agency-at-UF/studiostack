@@ -1,9 +1,9 @@
 import {account,region} from '../database/resources'
 import {webTargets,type WebEnvironment} from '../../scripts/publish-web'
 
-export const githubRepository='The-Agency-at-UF/studiostack'
-export const githubEnvironments:Record<WebEnvironment,string>={dev:'development',prod:'production'}
-export const deployRoleName=(environment:WebEnvironment)=>`studiostack-ci-${environment}-web`
+const githubRepository='The-Agency-at-UF/studiostack'
+const githubEnvironments:Record<WebEnvironment,string>={dev:'development',prod:'production'}
+const deployRoleName=(environment:WebEnvironment)=>`studiostack-ci-${environment}-web`
 const provider=`arn:aws:iam::${account}:oidc-provider/token.actions.githubusercontent.com`
 
 /** GitHub OIDC trust plus one publish-only role per environment. A role can be

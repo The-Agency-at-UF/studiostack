@@ -3,11 +3,11 @@ import type { CollectionData, Timestamp } from '../types/models'
 type CollectionName = keyof CollectionData
 type StoredFields = Record<string, unknown>
 type Database = typeof db
-export interface CollectionReference<K extends CollectionName = CollectionName> {
+interface CollectionReference<K extends CollectionName = CollectionName> {
   kind: 'collection'
   path: K
 }
-export interface DocumentReference<K extends CollectionName = CollectionName> {
+interface DocumentReference<K extends CollectionName = CollectionName> {
   kind: 'document'
   path: K
   id: string
@@ -17,7 +17,7 @@ export interface DocumentSnapshot<K extends CollectionName = CollectionName> {
   ref: DocumentReference<K>
   data(): CollectionData[K]
 }
-export interface QuerySnapshot<K extends CollectionName = CollectionName> {
+interface QuerySnapshot<K extends CollectionName = CollectionName> {
   docs: DocumentSnapshot<K>[]
 }
 /** Dates supplied by forms are normalized into timestamps at the store boundary. */
@@ -29,7 +29,7 @@ type WriteData<K extends CollectionName> = WriteValue<CollectionData[K]>
 const records = new Map<CollectionName, Map<string, StoredFields>>()
 export const db = Object.freeze({ kind: 'local-store' as const })
 
-export class LocalTimestamp implements Timestamp {
+class LocalTimestamp implements Timestamp {
   private readonly value: Date
   readonly seconds: number
   constructor(value: Date | string | number = new Date()) {

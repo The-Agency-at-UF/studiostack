@@ -8,7 +8,7 @@ import { submissionErrors, type BriefCommand, type BriefData, type ProductionBri
 import type { BriefStorage } from './storage'
 import { isAdmin, pageOf, requestHash } from '../database/repository-utils'
 export type ProductionRequest = { operation: 'production'; organizationId: string; resource: string; method: string; briefId?: string; clientId?:string; attachmentId?: string; deliveryId?: string; body?: unknown; page: Page }
-export type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
+type ProductionContext = { organizationId: string; user: { id: string; displayName?: string | null }; membership: { role: string } }
 const columns = `b.id, b.organization_id AS "organizationId", b.owner_id AS "ownerId", COALESCE(u.display_name, 'Team member') AS "ownerName", b.status, b.version, b.submission, b.data || jsonb_build_object('clientAccountId', b.client_account_id) AS data, b.shoot_starts_at AS "shootStartsAt", b.shoot_ends_at AS "shootEndsAt", b.created_at AS "createdAt", b.updated_at AS "updatedAt"`
 const deny = (message = 'You do not have permission for this action'): never => { throw new ApiError(403, message) }
 const conflict = (message = 'This brief changed. Reload it before saving.'): never => { throw new ApiError(409, message) }
@@ -20,6 +20,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const settings = (settingsRow ?? defaultSettings()) as ProductionSettings
   const reviewer = admin || settings.reviewerIds.includes(user.id), executive = settings.executiveIds.includes(user.id)
   const editable = (brief: ProductionBrief) => brief.ownerId === user.id && ['draft', 'changes_requested'].includes(brief.status)
+  // Owners and administrators may edit or delete any brief the author could; submitting stays with the author.
+  const manageable = (brief: ProductionBrief) => (admin || brief.ownerId === user.id) && ['draft', 'changes_requested'].includes(brief.status)
   const readable = (brief: ProductionBrief) => admin || brief.ownerId === user.id || brief.status !== 'draft'
   async function getBrief(lock = false): Promise<ProductionBrief> {
     const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.id = $2 AND b.deleted_at IS NULL ${lock ? 'FOR UPDATE OF b' : ''}`, [organizationId, request.briefId])
@@ -121,15 +123,16 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const brief = await getBrief(request.method !== 'GET')
   if (request.resource === 'briefs' && request.method === 'GET') return detail(brief)
   if (request.resource === 'briefs' && request.method === 'DELETE') {
-    // Only never-submitted drafts, which no reviewer has seen; the row is hidden, not removed.
-    if (brief.ownerId !== user.id || brief.status !== 'draft' || brief.submission > 0) deny('Only the author can delete a draft that was never submitted')
+    // The author, owners and administrators may delete; the row is hidden, not removed, so its history remains.
+    if (!admin && brief.ownerId !== user.id) deny('Only the author or an administrator can delete this brief')
+    if (!['draft', 'denied', 'withdrawn'].includes(brief.status)) conflict('Withdraw this brief before deleting it')
     await client.query('UPDATE app.production_briefs SET deleted_at = now(), updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id])
     return { id: brief.id }
   }
   if (request.resource === 'briefs' && request.method === 'PATCH') {
     const body = object(request.body, ['data', 'version', 'requestId']), data = briefData(body.data), expected = version(body.version), requestId = uuid(body.requestId), fingerprint = requestHash({ data, version: expected })
     if (await previousEvent(requestId, fingerprint)) return detail(brief)
-    if (!editable(brief)) deny('Only the author can edit a draft or a brief with requested changes')
+    if (!manageable(brief)) deny('Only the author or an administrator can edit a draft or a brief with requested changes')
     if (expected !== brief.version) conflict()
     await resolveClient(data,brief.data)
     brief.data = data; brief.version++
@@ -205,7 +208,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   if (request.resource === 'attachments') {
     if (!storage) throw new ApiError(503, 'Attachment storage is unavailable')
     if (request.method === 'POST' && !request.attachmentId) {
-      if (!editable(brief)) deny('Attachments can only be added by the author while editing')
+      if (!manageable(brief)) deny('Attachments can only be added by the author or an administrator while editing')
       const input = object(request.body, ['id', 'name', 'contentType', 'size']), id = uuid(input.id)
       if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 || Array.from(input.name).some(c => c.charCodeAt(0) < 32 || c === '/' || c === '\\')) throw new ApiError(400, 'Invalid attachment name')
       if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(String(input.contentType)) || !Number.isSafeInteger(input.size) || Number(input.size) < 1 || Number(input.size) > 20 * 1024 * 1024) throw new ApiError(400, 'Use a PDF, JPEG, PNG or WebP up to 20 MiB')
@@ -227,7 +230,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       }
       return storage.signDownload(attachment.object_key, attachment.name)
     }
-    if (!editable(brief) || attachment.uploaded_by !== user.id) deny()
+    if (!manageable(brief) || (!admin && attachment.uploaded_by !== user.id)) deny()
     if (request.method === 'DELETE') {
       await client.query("UPDATE app.production_attachments SET status = 'discarded' WHERE organization_id = $1 AND id = $2", [organizationId, attachment.id])
       brief.version++

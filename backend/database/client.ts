@@ -5,8 +5,8 @@ import pg from 'pg'
 import type { ClientConfig, QueryResult, QueryResultRow } from 'pg'
 import type { DatabaseConfig } from './config'
 
-export type CredentialPurpose = 'runtime' | 'maintenance'
-export interface DatabaseCredentials { username: string; password: string }
+type CredentialPurpose = 'runtime' | 'maintenance'
+interface DatabaseCredentials { username: string; password: string }
 export type DatabaseClient = Pick<pg.Client, 'connect' | 'query' | 'end'>
 export interface DatabaseDependencies {
   credentials(config: DatabaseConfig, refresh: boolean): Promise<DatabaseCredentials>

@@ -85,5 +85,6 @@ describe('verified invitation bridge and delivery',()=>{
     const serialized=JSON.stringify(template);expect(serialized).toContain('cognito-idp:AdminCreateUser');expect(serialized).not.toMatch(/AdminSetUserPassword|AdminAddUserToGroup|studiostack-prod|NAT|secretsmanager:GetSecretValue/)
     const routes=Object.values(template.Resources).filter((r)=> (r as {Type:string}).Type==='AWS::ApiGatewayV2::Route') as {Properties:{AuthorizationType:string}}[]
     expect(routes).toHaveLength(9);expect(routes.every(r=>r.Properties.AuthorizationType==='JWT')).toBe(true)
+    expect((template.Resources.Recovery as {Properties:{ScheduleExpression:string}}).Properties.ScheduleExpression).toBe('cron(0 9 * * ? *)')
   })
 })

@@ -1,10 +1,10 @@
-export type DeliveryOutcome = 'sent' | 'retry' | 'failed' | 'uncertain'
+type DeliveryOutcome = 'sent' | 'retry' | 'failed' | 'uncertain'
 /** SES rejections that are permanent for alert and production-decision mail. */
 export const rejectedSesErrors = ['MessageRejected','MailFromDomainNotVerifiedException','AccountSuspendedException','SendingPausedException','BadRequestException','UnverifiedRecipient','UserNotFoundException']
 
 /** Only explicit throttling is retried. Unknown transport outcomes may already have
  * delivered the email, so they need operator review to avoid duplicates. */
-export function failedOutcome(error: unknown, rejected: string[]): Exclude<DeliveryOutcome, 'sent'> {
+function failedOutcome(error: unknown, rejected: string[]): Exclude<DeliveryOutcome, 'sent'> {
   const name = (error as { name?: string }).name ?? ''
   return ['TooManyRequestsException','ThrottlingException','LimitExceededException'].includes(name) ? 'retry' : rejected.includes(name) ? 'failed' : 'uncertain'
 }

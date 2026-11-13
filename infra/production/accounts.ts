@@ -1,4 +1,4 @@
-import {account,region,functionArn,trust} from '../database/resources'
+import {account,region,functionArn,trust,devDailySweep} from '../database/resources'
 import {apiConfiguration,databaseApiScope} from '../../backend/database/api'
 import {directoryRoutes} from '../../backend/accounts/routes'
 import {emailPattern} from '../../src/types/patterns'
@@ -20,7 +20,7 @@ export function accountInfrastructure(input:{environment:'dev'|'prod';artifactBu
     Integration:{Type:'AWS::ApiGatewayV2::Integration',Properties:{ApiId:apiId,IntegrationType:'AWS_PROXY',IntegrationUri:arn,IntegrationMethod:'POST',PayloadFormatVersion:'2.0',TimeoutInMillis:29000}},
     SignalPermission:{Type:'AWS::Lambda::Permission',Properties:{FunctionName:{Ref:'Worker'},Action:'lambda:InvokeFunction',Principal:`logs.${region}.amazonaws.com`,SourceAccount:account,SourceArn:`arn:aws:logs:${region}:${account}:log-group:/aws/lambda/${backend}:*`}},
     Signal:{Type:'AWS::Logs::SubscriptionFilter',DependsOn:'SignalPermission',Properties:{DestinationArn:arn,FilterPattern:'{ $.type = "account-invitation-queued" }',LogGroupName:`/aws/lambda/${backend}`}},
-    Recovery:{Type:'AWS::Events::Rule',Properties:{Name:`${name}-recovery`,ScheduleExpression:env==='dev'?'rate(1 hour)':'rate(5 minutes)',State:'ENABLED',Targets:[{Id:'InviteDelivery',Arn:arn,RetryPolicy:{MaximumRetryAttempts:0,MaximumEventAgeInSeconds:300}}]}},
+    Recovery:{Type:'AWS::Events::Rule',Properties:{Name:`${name}-recovery`,ScheduleExpression:env==='dev'?devDailySweep:'rate(5 minutes)',State:'ENABLED',Targets:[{Id:'InviteDelivery',Arn:arn,RetryPolicy:{MaximumRetryAttempts:0,MaximumEventAgeInSeconds:300}}]}},
     RecoveryPermission:{Type:'AWS::Lambda::Permission',Properties:{FunctionName:{Ref:'Worker'},Action:'lambda:InvokeFunction',Principal:'events.amazonaws.com',SourceAccount:account,SourceArn:{'Fn::GetAtt':['Recovery','Arn']}}},
     ErrorAlarm:{Type:'AWS::CloudWatch::Alarm',Properties:{AlarmName:`${name}-errors`,Namespace:'AWS/Lambda',MetricName:'Errors',Dimensions:[{Name:'FunctionName',Value:name}],Statistic:'Sum',Period:300,EvaluationPeriods:1,Threshold:1,ComparisonOperator:'GreaterThanOrEqualToThreshold',TreatMissingData:'notBreaching'}},
   }

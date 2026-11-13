@@ -16,7 +16,7 @@ export function constraintError(error: unknown): ApiError | undefined {
 export function jsonResponse(statusCode: number, body: unknown, headers: Record<string, string> = {}) {
   return { statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers }, body: JSON.stringify(body) }
 }
-export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function uuid(value: unknown): string {
   if (typeof value !== 'string' || !uuidPattern.test(value)) throw new ApiError(400, 'A valid UUID is required')
   return value.toLowerCase()
