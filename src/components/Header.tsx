@@ -43,7 +43,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
       { to: '/production/calendar', label: 'Production calendar', Icon: HiOutlineCalendar },
     ] },
     { name: 'Equipment', links: [
-      { to: '/inventory', label: 'Inventory', Icon: HiOutlineArchiveBox },
+      { to: '/inventory', label: 'Equipment', Icon: HiOutlineArchiveBox },
       { to: '/calendar', label: 'Equipment calendar', Icon: HiOutlineCalendarDays },
       { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'] },
       { to: '/reports', label: 'Reports', Icon: HiOutlineExclamationCircle, related: ['/create-report', '/report-summary'] },

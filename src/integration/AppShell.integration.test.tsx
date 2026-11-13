@@ -12,7 +12,7 @@ describe('StudioStack application shell', () => {
     render(<Header isAdmin logOut={vi.fn()} />)
 
     expect(screen.getByAltText('StudioStack')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('href', '/inventory')
+    expect(screen.getByRole('link', { name: 'Equipment' })).toHaveAttribute('href', '/inventory')
     expect(screen.getByRole('link', { name: 'Statistics' })).toHaveAttribute('href', '/statistics')
   })
 })

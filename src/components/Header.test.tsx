@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('Header', () => {
-  it.each(['Home','Production','Production calendar','Equipment calendar','Reservations','Reports','Alerts','Inventory','Statistics','Organization'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
+  it.each(['Home','Production','Production calendar','Equipment calendar','Reservations','Reports','Alerts','Equipment','Statistics','Organization'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
     const user = userEvent.setup(); const logOut = vi.fn(); const view = render(<Header isAdmin logOut={logOut} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
     const link = screen.getByRole('link', { name }); const clicked = vi.fn(); link.addEventListener('click', clicked);
@@ -72,7 +72,7 @@ describe('Header', () => {
   it('shows common links for both roles', () => {
     render(<Header isAdmin={false} logOut={() => {}} />);
     expect(screen.getAllByText('Home')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Inventory')[0]).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Equipment' })).toHaveAttribute('href', '/inventory');
   });
 
   it('opens account actions, closes with Escape, and restores focus', async () => {
