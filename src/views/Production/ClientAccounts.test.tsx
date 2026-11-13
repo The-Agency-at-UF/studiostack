@@ -53,3 +53,22 @@ describe('DeletedClientAccounts',()=>{
     expect(screen.getByText('No deleted client accounts you can restore.')).toBeInTheDocument()
   })
 })
+describe('Optimistic client accounts',()=>{
+  it('lists a new client while it saves and takes it back out if saving fails',async()=>{
+    let fail!:(error:unknown)=>void;const createClient=vi.fn().mockReturnValue(new Promise((_,reject)=>{fail=reject}))
+    render(<ClientAccounts clients={clients} api={{createClient} as unknown as ProductionClient} canManage canDelete={()=>true} onRefresh={vi.fn().mockResolvedValue(undefined)}/>)
+    await userEvent.type(screen.getByLabelText('Client account name'),'Orientation');await userEvent.click(screen.getByRole('button',{name:'Add client account'}))
+    expect(within(screen.getByText('Orientation').closest('li')!).getByText('Saving…')).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Delete Orientation'})).not.toBeInTheDocument();expect(screen.getByLabelText('Client account name')).toHaveValue('')
+    fail(new Error('offline'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Client account could not be saved.')
+    expect(screen.queryByText('Orientation')).not.toBeInTheDocument();expect(screen.getByLabelText('Client account name')).toHaveValue('Orientation')
+  })
+  it('puts a deleted client back when the server rejects the delete',async()=>{
+    const updateClient=vi.fn().mockRejectedValue(new Error('offline'))
+    render(<ClientAccounts clients={clients} api={{updateClient} as unknown as ProductionClient} canManage canDelete={()=>true} onRefresh={vi.fn()}/>)
+    await userEvent.click(screen.getByRole('button',{name:'Delete Athletics'}));await userEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Delete client account'}))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('Athletics')).toBeInTheDocument();expect(screen.getByText('2 active')).toBeInTheDocument()
+  })
+})

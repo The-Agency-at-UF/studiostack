@@ -16,3 +16,14 @@ describe('Equipment report workspace',()=>{
  it('opens report links and displays the immutable discussion',async()=>{history.replaceState(null,'','/report-summary/?report=issue');m.activity.mockResolvedValue(page([{id:'event',kind:'report_comment',actorName:'Teammate',createdAt:report.createdAt,details:{message:'Repair in progress.'}}]));render(<LiveReports/>);expect(await screen.findByLabelText('Report details')).toBeInTheDocument();expect(await screen.findByText('Repair in progress.')).toBeInTheDocument()})
  it('does not show preview data when the API fails',async()=>{m.list.mockRejectedValue(new Error('secret'));render(<LiveReports/>);expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByRole('button',{name:'Broken mount'})).not.toBeInTheDocument()})
 })
+describe('Optimistic report comments',()=>{
+  it('shows a comment while it sends and restores the text if it fails',async()=>{
+    let fail!:(error:unknown)=>void;m.comment.mockReturnValue(new Promise((_,reject)=>{fail=reject}))
+    const u=userEvent.setup();render(<LiveReports/>);await u.click(await screen.findByRole('button',{name:'Broken mount'}))
+    await u.type(screen.getByLabelText('Add a comment'),'Replacement requested.');await u.click(screen.getByRole('button',{name:'Post comment'}))
+    expect(screen.getByText('Replacement requested.')).toBeInTheDocument();expect(screen.getByText(/Sending…/)).toBeInTheDocument();expect(screen.getByLabelText('Add a comment')).toHaveValue('')
+    fail(new Error('offline'))
+    await waitFor(()=>expect(screen.getByLabelText('Add a comment')).toHaveValue('Replacement requested.'))
+    expect(screen.queryByText(/Sending…/)).not.toBeInTheDocument()
+  })
+})

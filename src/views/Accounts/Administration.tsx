@@ -3,18 +3,16 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database'
 import {authConfiguration} from '../../auth/cognito'
 import {useAppSession} from '../../context/AppSessionContext'
-import type {AccountClient} from '../../api/accounts'
 import type {ApiPage} from '../../types/database-api'
 import type {JoinCode,OrganizationInvitation,OrganizationSettings,OrganizationActivity,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
 import {Skeleton} from '../../components/workspace/WorkspaceUI'
-import JoinMethods,{AccessRequests} from './JoinMethods'
+import JoinMethods,{AccessRequests,settled,type AdminLists,type Run} from './JoinMethods'
 import {uploadOrganizationPhoto} from '../../api/privatePhotos'
 import {OrganizationLogo} from '../Account/Account'
 import OrganizationHeader from '../Organization/OrganizationHeader'
 import './Administration.css'
 async function all<T>(read:(after?:string)=>Promise<ApiPage<T>>){const items:T[]=[];let after:string|undefined;do{const page=await read(after);items.push(...page.items);after=page.nextCursor??undefined}while(after);return items}
 const message=(error:unknown)=>error instanceof DatabaseApiClientError?({403:'Your account cannot manage this organization.',409:'The record changed or the action is unavailable. Refresh before trying again.',400:'Check the form values and active team members.',401:'Your session expired. Sign in again.'}[error.status]??'The service is unavailable. Your changes have not been confirmed.'):'The service is unavailable. Your changes have not been confirmed.'
-type Run=(key:string,task:(client:AccountClient,id:string)=>Promise<unknown>)=>Promise<unknown>
 
 const SECTIONS=[{id:'general',label:'General'},{id:'joining',label:'How people join'},{id:'invitations',label:'Invitations & requests'},{id:'activity',label:'Activity'}] as const
 const ACTIVITY:Record<string,string>={
@@ -43,7 +41,18 @@ export default function Administration() {
     if(g===generation.current){setInvitations(rows);setRequests(pending);setCodes(joinCodes);setDomains(owned);setActivity(events)}
   },[api])
   useEffect(()=>{const g=++generation.current;setSettings(null);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setNotice('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
-  async function run(key:string,task:(client:AccountClient,id:string)=>Promise<unknown>):Promise<unknown>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`;if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};setBusy(true);setError('');setNotice('');try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.');await session.refreshOrganizations?.();if(g===generation.current)await load();return result}catch(e){if(g===generation.current)setError(message(e))}finally{if(g===generation.current)setBusy(false)}}
+  const lists=():AdminLists=>({invitations,requests,codes,domains})
+  const put=(l:AdminLists)=>{setInvitations(l.invitations);setRequests(l.requests);setCodes(l.codes);setDomains(l.domains)}
+  /**
+   * Sends one administration change. With `optimistic`, the lists show the change at once, a rejected
+   * change puts them back, and the page reloads in the background instead of staying locked.
+   */
+  const run:Run=async(key,task,optimistic)=>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`,before=lists();if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};setBusy(true);setError('');setNotice('');if(optimistic)put(optimistic.apply(before))
+    const reload=async()=>{await session.refreshOrganizations?.();if(g===generation.current)await load()}
+    try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.')
+      if(optimistic){if(optimistic.settle)put(optimistic.settle(optimistic.apply(before),result));reload().catch(e=>{if(g===generation.current)setError(message(e))})}else await reload()
+      return result}
+    catch(e){if(g===generation.current){if(optimistic)put(before);setError(message(e))}}finally{if(g===generation.current)setBusy(false)}}
   const owner=settings?.role==='owner',admin=owner||settings?.role==='admin'
   const ready=!loading&&admin&&!!settings
   // Highlight the index entry for the section the reader has scrolled into; the last one once the page bottoms out.
@@ -82,7 +91,7 @@ export default function Administration() {
           <header className="administration-panel-header"><h2 id="invitations-title">Invitations &amp; requests</h2><p>People waiting on you. Send new invitations from People.</p></header>
           <AccessRequests busy={busy} run={run} requests={requests}/>
           {invitations.length>0&&<div className="administration-group">{requests.length>0&&<h3>Invitations</h3>}
-            <ul className="administration-list">{invitations.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role}</span><small>{i.status==='pending'&&!pending?'expired':i.status} · Email {i.deliveryStatus} · Expires {new Date(i.expiresAt).toLocaleDateString()}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}))}>Revoke invitation</button></div>}</li>})}</ul>
+            <ul className="administration-list">{invitations.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role}</span><small>{i.status==='pending'&&!pending?'expired':i.status} · Email {i.deliveryStatus} · Expires {new Date(i.expiresAt).toLocaleDateString()}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}),{apply:l=>({...l,invitations:l.invitations.map(v=>v.id===i.id?{...v,status:'revoked'}:v)}),settle:(l,saved)=>({...l,invitations:settled(l.invitations,'id',saved)})})}>Revoke invitation</button></div>}</li>})}</ul>
             <p className="administration-hint">Uncertain delivery may already have sent email. Check with the teammate before retrying.</p>
           </div>}
           {!requests.length&&!invitations.length&&<p className="administration-empty"><span>Nothing waiting. Access requests and open invitations show up here.</span></p>}
