@@ -23,7 +23,7 @@
 .ws-shell .account-trigger > svg:first-child { width:28px; height:28px; }
 .ws-shell .account-trigger > span { flex:1; min-width:0; font-size:var(--text-sm); }
 .ws-shell .account-trigger small { display:block; overflow:hidden; text-overflow:ellipsis; color:var(--on-frame-muted); font-size:var(--text-xs); white-space:nowrap; margin-top:var(--space-1); }
-.ws-shell .account-panel { top:auto; bottom:calc(100% + var(--space-2)); left:0; right:auto; width:280px; max-width:calc(100vw - var(--space-8)); padding:var(--space-2); background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:var(--radius-panel); box-shadow:var(--shadow-menu); }
+.ws-shell .account-panel { top:auto; bottom:calc(100% + var(--space-2)); left:0; right:auto; width:280px; max-width:calc(100vw - var(--space-8)); padding:var(--space-2); background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:var(--radius-panel); box-shadow:var(--shadow-menu); transform-origin:bottom left; }
 .ws-shell .account-identity { padding:var(--space-3); margin:0; border-bottom:1px solid var(--line); }
 .ws-shell .account-panel :is(a,button) { border-radius:var(--radius-control); font-size:var(--text-sm); }
 .ws-shell :is(a,button):focus-visible { outline:var(--focus-width) solid var(--accent-light); outline-offset:var(--focus-offset); }
@@ -46,7 +46,7 @@
   .ws-drawer-heading { display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-5); font-size:var(--text-base); }
   .drawer-close { display:grid; place-items:center; width:var(--control-height); height:var(--control-height); color:var(--on-frame); background:var(--frame-raised); border:0; border-radius:var(--radius-control); }
   .ws-shell .ws-nav-group { margin-bottom:var(--space-4); }
-  .ws-shell .account-panel { left:auto; right:0; }
+  .ws-shell .account-panel { left:auto; right:0; transform-origin:bottom right; }
   .app-content#workspace-content { margin-left:0; min-height:calc(100svh - var(--header-height)); }
 }
 @media(prefers-reduced-motion:reduce) { .ws-shell :is(a,button),.ws-shell .account-panel { transition:none; animation:none; } }

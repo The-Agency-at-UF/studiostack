@@ -37,7 +37,7 @@ interface LoginProps {
 }
 export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
   return <AuthLayout>
-        <span className="login-section-number">{authenticated ? 'Your account' : accessSection?.replace(/ \/ 01$/, '')??'Sign in'}</span>
+        <span className="login-section-number">{authenticated ? 'Your account' : accessSection??'Sign in'}</span>
         <h1 id="login-title">{authenticated ? 'You’re signed in.' : accessHeading??'Welcome back.'}</h1>
         <p className="login-description">{authenticated ? label : accessDescription??'Sign in to access your organization’s workspace.'}</p>
         {authenticated ? <>

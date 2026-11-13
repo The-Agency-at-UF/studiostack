@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { PageHeader, WorkspaceTabs, Field, TableRegion, DetailPanel, Select, Skeleton, StatusLabel } from '../../components/workspace/WorkspaceUI'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppSession } from '../../context/AppSessionContext'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
@@ -62,6 +63,8 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
   const [pendingDelete, setPendingDelete] = useState<ProductionBrief | null>(null)
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
+  // Counts successful saves; a new count replays the one-time "saved" pulse on the save bar.
+  const [savedPulse, setSavedPulse] = useState(0)
   const generation = useRef(0), mutation = useRef<{ key: string; id: string } | null>(null)
   const selection = useRef(0)
   const requestId = (key: string) => { if (mutation.current?.key !== key) mutation.current = { key, id: crypto.randomUUID() }; return mutation.current.id }
@@ -145,7 +148,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     try { const b = await task(api); if (g !== generation.current) return; if (b) accept(b); mutation.current = null; setNotice(done); invalidateCache(cacheKey); await refresh() }
     catch (e) { if (g === generation.current) setError(errorText(e)) } finally { if (g === generation.current) setBusy(false) }
   }
-  const save = () => selected && run(client => client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))))
+  const save = () => selected && run(async client => { const brief = await client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))); setSavedPulse(n => n + 1); return brief })
   const action = (command: Omit<BriefCommand, 'version' | 'requestId'>) => selected && run(client => client.action(selected.id, { ...command, version: selected.version, requestId: requestId(JSON.stringify({ id: selected.id, version: selected.version, command })) }))
   const deletable = (brief: ProductionBrief) => (brief.ownerId === access?.userId || Boolean(access?.canAdminister)) && ['draft','denied','withdrawn'].includes(brief.status)
   const remove = (brief: ProductionBrief) => setPendingDelete(brief)
@@ -200,7 +203,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
               {(['projectName','client','managers','supervisor','deliveryDate'] as const).map(key => <label key={key}>{({ projectName: 'Project name *', client: 'Client *', managers: 'Account / project managers *', supervisor: 'Production supervisor', deliveryDate: 'Target delivery date *' })[key]}<input maxLength={key === 'managers' ? 500 : 160} type={key === 'deliveryDate' ? 'date' : 'text'} readOnly={key==='client'&&Boolean(form.clientAccountId)} value={form[key]} onChange={e => update(key,e.target.value)} /></label>)}
             </div><div className="production-type-options"><span>Production type *</span>{productionTypes.map(t => <label key={t}><input type="checkbox" checked={form.productionTypes.includes(t)} onChange={e => update('productionTypes', e.target.checked ? [...form.productionTypes,t] : form.productionTypes.filter(v => v !== t))} />{t}</label>)}</div></fieldset>
             {visibleSections(form).map(s => <fieldset id={`brief-${s.title.toLowerCase().replaceAll(' ','-')}`} key={s.title} disabled={!editable || busy}><legend>{s.title}</legend><div className="production-fields">{s.fields.map(f => <label className={f.type === 'textarea' ? 'production-wide' : undefined} key={f.key}>{f.label}{f.required ? ' *' : ''}{f.type === 'textarea' ? <textarea rows={3} maxLength={6000} value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)} /> : f.type === 'select' ? <Select value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)}><option value="">Choose…</option>{f.options?.map(v => <option key={v}>{v}</option>)}</Select> : <input type={f.type ?? 'text'} maxLength={1000} value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)} />}</label>)}</div></fieldset>)}
-            {editable && <div className="production-savebar"><span>{dirty ? 'Unsaved changes' : 'All changes saved'}</span><button className="production-primary" disabled={busy || !dirty} type="submit">{busy ? 'Saving…' : 'Save draft'}</button></div>}
+            {editable && <div className="production-savebar"><SaveStatus pulse={dirty ? 0 : savedPulse} onSettled={() => setSavedPulse(0)}>{dirty ? 'Unsaved changes' : 'All changes saved'}</SaveStatus><button className="production-primary" disabled={busy || !dirty} type="submit">{busy ? 'Saving…' : 'Save draft'}</button></div>}
           </form>
           <div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview&&!preview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={assignments=>run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}))}/></div><article className="production-print"><h2>{selected.data.projectName || 'Production brief'}</h2><p>{selected.data.client} · {statusLabels[selected.status]} · Revision {selected.version}</p><p>Requested by {selected.ownerName} · Managers: {selected.data.managers} · Production supervisor: {selected.data.supervisor || 'Not assigned'}</p><p>Delivery: {selected.data.deliveryDate || 'Not set'} · Production: {selected.data.productionTypes.join(', ')}</p>{selected.shootStartsAt && <p>Confirmed shoot: {dateLabel(selected.shootStartsAt)} – {dateLabel(new Date(Date.parse(selected.shootEndsAt!) - 1).toISOString())}</p>}{visibleSections(selected.data).map(s => <section key={s.title}><h3>{s.title}</h3><dl>{s.fields.filter(f=>selected.data.fields[f.key]).map(f=><div key={f.key}><dt>{f.label}</dt><dd>{selected.data.fields[f.key]}</dd></div>)}</dl></section>)}</article>
           <section id="brief-attachments" className="production-attachments"><h3>Attachments</h3><p>Private PDFs and images, up to 20 MiB each. Asset and reference links can also be included in the brief.</p><ul>{selected.attachments.map(a => <li key={a.id}><span>{a.name} · {Math.ceil(a.size / 1024)} KB · {a.status}</span>{a.status === 'ready' ? <><button disabled={busy} onClick={() => void run(async client => { const download = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = download.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() })}>Download</button>{editable && <button disabled={busy || dirty} onClick={() => { if (window.confirm('Remove this attachment from the current brief? Submitted revisions retain their attachment history.')) void run(async client => { await client.discard(selected.id,a.id); return client.get(selected.id) }) }}>Remove attachment</button>}</> : editable && <><button disabled={busy} onClick={() => void run(client => client.complete(selected.id,a.id))}>Finish upload</button><button disabled={busy} onClick={() => void run(async client => { await client.discard(selected.id,a.id); return client.get(selected.id) })}>Remove attachment</button></>}</li>)}</ul>
@@ -234,6 +237,10 @@ function ReviewPanel({ brief, access, busy, dirty, missing, onAction }: { brief:
     {own && ['denied','withdrawn'].includes(brief.status) && <button disabled={busy} onClick={() => send('reopen')}>Reopen as draft</button>}
   </section>
 }
+/** Save-bar status text that pulses once after each successful save. */
+function SaveStatus({ pulse, onSettled, role, children }: { pulse: number; onSettled: () => void; role?: 'status'; children: ReactNode }) {
+  return <span key={pulse} role={role} className={pulse ? 'production-saved-pulse' : undefined} onAnimationEnd={onSettled}>{children}</span>
+}
 function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: ProductionClient; loadMembers: () => Promise<ApiMember[]>; onSaved: () => Promise<void> }) {
   const [settings,setSettings] = useState<ProductionSettings | null>(null), [saved,setSaved] = useState<ProductionSettings | null>(null), [members,setMembers] = useState<ApiMember[]>([]), [busy,setBusy] = useState(false), [message,setMessage] = useState(''), [error,setError] = useState('')
   useEffect(() => { let active = true; Promise.all([api.settings(),loadMembers()]).then(([s,m]) => { if (active) { setSettings(s); setSaved(s); setMembers(m) } }).catch(e => { if (active) setError(errorText(e)) }); return () => { active = false } }, [api,loadMembers])
@@ -241,11 +248,12 @@ function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: Production
   const same = (a: string[], b: string[]) => a.length === b.length && a.every(id => b.includes(id))
   const dirty = !!settings && !!saved && (!same(settings.reviewerIds, saved.reviewerIds) || !same(settings.executiveIds, saved.executiveIds))
   const leads = settings ? members.filter(m => leadByRole(m) || settings.reviewerIds.includes(m.id)).length : 0, executives = settings ? members.filter(m => settings.executiveIds.includes(m.id)).length : 0
+  const [savedPulse, setSavedPulse] = useState(0)
   const roleLabel = (m: ApiMember) => m.role === 'owner' ? 'Owner' : m.role === 'admin' ? 'Admin' : null
   return <section className="production-settings production-access" aria-labelledby="production-access-title">
     <div className="production-section-head"><div><h2 id="production-access-title">Access & notifications</h2><p>Organization administrators decide who leads production and who hears about decisions.</p></div></div>
     {error && <p role="alert" className="production-error">{error}</p>}
-    {!settings ? <p className="production-loading" role="status">Loading settings…</p> : <form onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(async s => { setSettings(s); setSaved(s); setMessage('Production access and notification settings saved.'); await onSaved() }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
+    {!settings ? <p className="production-loading" role="status">Loading settings…</p> : <form onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(async s => { setSettings(s); setSaved(s); setSavedPulse(n => n + 1); setMessage('Production access and notification settings saved.'); await onSaved() }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
       <dl className="production-roles" aria-label="What each role can do">
         <div><dt>Production Lead</dt><dd>Reviews, approves, confirms dates, requests changes and denies briefs; assigns shoot crews and sees organization booking names and equipment. Owners and administrators always have it.</dd></div>
         <div><dt>Executive Leadership Team</dt><dd>Reads submitted briefs and decisions, and receives decision emails.</dd></div>
@@ -264,7 +272,7 @@ function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: Production
         <p>Each decision notifies the brief’s author and active Executive Leadership Team members at the verified email addresses on their sign-in accounts. No separate mailing list is needed. Sending starts after the system’s sender address is verified.</p>
         <p>Approval confirms the proposed shoot dates. A month-only estimate needs concrete dates before approval. Equipment bookings are managed separately.</p>
       </fieldset>
-      <div className={`production-savebar production-settings-savebar${dirty ? ' is-dirty' : ''}`}><span role="status">{message || (dirty ? 'Unsaved changes' : 'All changes saved')}</span><button type="submit" className="production-primary" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save settings'}</button></div>
+      <div className={`production-savebar production-settings-savebar${dirty ? ' is-dirty' : ''}`}><SaveStatus role="status" pulse={dirty ? 0 : savedPulse} onSettled={() => setSavedPulse(0)}>{message || (dirty ? 'Unsaved changes' : 'All changes saved')}</SaveStatus><button type="submit" className="production-primary" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save settings'}</button></div>
     </form>}
   </section>
 }
