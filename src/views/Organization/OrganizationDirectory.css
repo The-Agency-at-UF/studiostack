@@ -27,7 +27,7 @@
 .org-person-section { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-3); padding-top:var(--space-5); }
 .org-person-section + .org-person-section { margin-top:var(--space-5); border-top:1px solid var(--line); }
 .org-person-section fieldset { width:100%; margin:0; padding:0; border:0; display:flex; flex-direction:column; gap:var(--space-2); }
-.org-person-section legend, .org-person-section h3 { margin:0 0 var(--space-1); padding:0; font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.org-person-section legend, .org-person-section h3 { margin:0 0 var(--space-1); padding:0; font-size:var(--text-xs); font-weight:var(--weight-bold); color:var(--muted); }
 .org-person-section p { margin:0; font-size:var(--text-sm); }
 .org-person-note { color:var(--muted); }
 .org-person-role { display:flex; align-items:flex-start; gap:var(--space-3); padding:var(--space-3); border:1px solid var(--line); border-radius:var(--radius-control); cursor:pointer; transition:border-color .15s, background .15s; }
@@ -50,7 +50,7 @@
 .org-directory-join-code { padding:var(--space-5) var(--space-6); }
 .org-directory-join-row { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) var(--space-6); }
 .org-directory-join-value { display:flex; flex-direction:column; gap:var(--space-1); }
-.org-directory-join-value h2 { margin:0; font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.org-directory-join-value h2 { margin:0; font-size:var(--text-xs); font-weight:var(--weight-bold); color:var(--muted); }
 .org-directory-join-value p { margin:0; font-size:var(--text-sm); color:var(--muted); }
 .org-directory-join-value code { font-size:var(--text-xl); font-weight:var(--weight-bold); letter-spacing:.08em; user-select:all; }
 .org-directory-join-help { flex:1 1 260px; margin:0; padding-left:var(--space-6); border-left:1px solid var(--line); color:var(--muted); font-size:var(--text-sm); }
@@ -66,7 +66,7 @@
 .org-directory-search svg { width:18px; height:18px; color:var(--muted); flex-shrink:0; }
 .org-directory-search input { flex:1; min-width:0; border:0; background:transparent; font-size:var(--text-sm); color:var(--ink); }
 .org-directory-table table { width:100%; border-collapse:collapse; font-size:var(--text-sm); }
-.org-directory-table th { text-align:left; padding:var(--space-3) var(--space-6); background:var(--surface-subtle); border-bottom:1px solid var(--line); color:var(--muted); font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.04em; text-transform:uppercase; }
+.org-directory-table th { text-align:left; padding:var(--space-3) var(--space-6); background:var(--surface-subtle); border-bottom:1px solid var(--line); color:var(--muted); font-size:var(--text-xs); font-weight:var(--weight-bold); }
 .org-directory-table td { padding:var(--space-3) var(--space-6); border-bottom:1px solid var(--line); vertical-align:middle; }
 .org-directory-table tbody tr:last-child td { border-bottom:0; }
 .org-directory-table tbody tr:hover td { background:var(--surface-hover); }

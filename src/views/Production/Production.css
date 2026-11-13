@@ -23,7 +23,7 @@
 .production-toolbar>.production-primary { margin-left: auto; min-width: 130px; display: flex; justify-content: space-between; gap: 16px; }
 .production-table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
 .production-table { border-collapse: collapse; text-align: left; width: 100%; font-size: 13px; }
-.production-table th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; font-weight: 650; padding: 16px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.production-table th { font-size: var(--text-xs); color: var(--muted); font-weight: 650; padding: 16px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .production-table td { padding: 18px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .production-table td:first-child { min-width: 200px; }
 .production-row-actions { display: flex; gap: 8px; justify-content: flex-end; }
