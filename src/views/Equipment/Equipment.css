@@ -143,3 +143,11 @@
 @media(max-width:1099px){.app-content#workspace-content .inventory-workspace .equipment-inspector{position:static;max-height:none;overflow:visible}}
 @media(max-width:640px){.inventory-result-count{width:100%;margin:0}.inventory-category{flex:1 1 100%}.app-content#workspace-content .inventory-workspace .inventory-table :is(th,td):nth-child(2){display:none}}
 @media(prefers-reduced-motion:reduce){.app-content#workspace-content .inventory-workspace .inventory-table tbody tr{transition:none}}
+/* A photo thumbnail leads each row; gear without a photo keeps the column aligned with a quiet placeholder. */
+.inventory-item { display:flex;align-items:center;gap:var(--space-3); }
+.inventory-item > div { min-width:0; }
+.inventory-thumb { flex:none;display:grid;place-items:center;width:44px;height:44px;overflow:hidden;border-radius:var(--radius-control);background:var(--surface-subtle);color:var(--line-strong); }
+.inventory-thumb img { width:100%;height:100%;object-fit:cover; }
+.inventory-thumb svg { width:20px;height:20px; }
+.app-content#workspace-content .inventory-workspace .inventory-table td:first-child { min-width:240px; }
+.app-content#workspace-content .inventory-workspace .inventory-table tr.is-selected .inventory-thumb { background:var(--surface); }
