@@ -1,6 +1,6 @@
 'use client'
 import {DetailPanel,Select,Skeleton,StatusLabel} from '../../components/workspace/WorkspaceUI'
-import {HiMagnifyingGlass,HiXMark} from 'react-icons/hi2'
+import {HiMagnifyingGlass,HiOutlineCamera,HiXMark} from 'react-icons/hi2'
 import type {EquipmentRecord} from '../../types/equipment'
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react'
 import type {FormEvent} from 'react'
@@ -74,7 +74,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
         {loading?<Skeleton label="Loading equipment…" variant="row" count={5}/>:filtered.length?<table>
           <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Condition</th><th scope="col">Status</th></tr></thead>
           <tbody className="ws-stagger">{filtered.map(i=>{const status=serviceStatus(i);return <tr key={i.id} className={i.id===selected?'is-selected':undefined} onClick={()=>inspect(i.id)}>
-            <td><button type="button" className="equipment-item-link" aria-current={i.id===selected?'true':undefined} onClick={e=>{e.stopPropagation();inspect(i.id)}}>{i.name}</button><small className="inventory-code">{i.equipmentCode}</small></td>
+            <td><div className="inventory-item"><PhotoThumbnail api={api} organizationId={organizationId} item={i}/><div><button type="button" className="equipment-item-link" aria-current={i.id===selected?'true':undefined} onClick={e=>{e.stopPropagation();inspect(i.id)}}>{i.name}</button><small className="inventory-code">{i.equipmentCode}</small></div></div></td>
             <td>{i.category}</td>
             <td><span className={`inventory-condition inventory-condition-${i.condition}`}>{capitalize(i.condition)}</span></td>
             <td><StatusLabel tone={status.tone}>{status.label}</StatusLabel></td>
@@ -104,6 +104,28 @@ function matchesView(item:EquipmentRecord,view:InventoryView){return view==='all
 function serviceStatus(item:EquipmentRecord):{label:string;tone:'neutral'|'accent'|'success'|'warning'}{if(item.checkedOut)return {label:'Checked out',tone:'accent'};if(item.status==='maintenance')return {label:'Maintenance',tone:'warning'};if(item.status==='retired')return {label:'Retired',tone:'neutral'};return {label:'Available',tone:'success'}}
 const capitalize=(value?:string|null)=>value?value.charAt(0).toUpperCase()+value.slice(1):"Not recorded"
 const plural=(count:number,noun:string)=>`${count} ${noun}${count===1?'':'s'}`
+/** Small list photo, fetched only once its row scrolls into view and shared with the inspector's photo cache. */
+function PhotoThumbnail({api,organizationId,item}:{api:DatabaseApi;organizationId:string;item:EquipmentRecord}) {
+  const cacheKey=`photo:${organizationId}:${item.id}`
+  const ref=useRef<HTMLSpanElement>(null)
+  const [url,setUrl]=useState(()=>{const cached=item.photoId?getCached<{url:string;expiresAt:number}>(cacheKey,3_600_000):null;return cached&&cached.expiresAt>Date.now()+10_000?cached.url:''})
+  const [visible,setVisible]=useState(false)
+  useEffect(()=>{
+    const node=ref.current
+    if(!item.photoId||url||!node)return
+    if(typeof IntersectionObserver==='undefined'){setVisible(true);return}
+    const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setVisible(true);observer.disconnect()}},{rootMargin:'200px'})
+    observer.observe(node)
+    return()=>observer.disconnect()
+  },[item.photoId,url])
+  useEffect(()=>{
+    if(!visible||!item.photoId||url)return
+    let active=true
+    api.photo(organizationId,item.id).then(result=>{if(!active)return;setCached(cacheKey,{url:result.url,expiresAt:Date.now()+(result.expiresIn??60)*1000});setUrl(result.url)}).catch(()=>{})
+    return()=>{active=false}
+  },[visible,item.photoId,item.id,url,api,organizationId,cacheKey])
+  return <span ref={ref} className="inventory-thumb" aria-hidden="true">{url?<img src={url} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={()=>{invalidateCache(cacheKey);setUrl('')}}/>:<HiOutlineCamera/>}</span>
+}
 function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organizationId:string;item:EquipmentRecord}) {
   const cacheKey = `photo:${organizationId}:${item.id}`
   const cached = useMemo(() => getCached<{ url: string; expiresAt: number }>(cacheKey, 3_600_000), [cacheKey])
