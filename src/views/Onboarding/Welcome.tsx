@@ -27,7 +27,7 @@ export default function Welcome({getAccessToken,onFinished,onSignOut}:{getAccess
   const finish=useCallback(async(organizationId:string)=>{await api.completeOnboarding();await onFinished(organizationId)},[api,onFinished])
   const index=steps.indexOf(step)
   return <AuthLayout className="welcome-page">
-    <span className="login-section-number">STEP {index+1} OF {steps.length}</span>
+    <span className="login-section-number">Step {index+1} of {steps.length}</span>
     <div className="welcome-progress" aria-hidden="true">{steps.map((s,i)=><span key={s} className={i<=index?'is-done':undefined}/>)}</div>
     <h1 id="login-title">{title}</h1>
     {step==='verify'?<p className="login-description">We sent a 6-digit code to <strong>{account?.email}</strong>.</p>:title===titles[step]&&<p className="login-description">{descriptions[step]}</p>}
