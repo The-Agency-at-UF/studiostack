@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import OrganizationDirectory from './OrganizationDirectory'
 import {AppSessionProvider} from '../../context/AppSessionContext'
+import {DatabaseApiClientError} from '../../api/database'
 const m=vi.hoisted(()=>({settings:vi.fn(),members:vi.fn(),invitations:vi.fn(),directory:vi.fn(),joinCodes:vi.fn(),updateMember:vi.fn(),invite:vi.fn()}))
 vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({accounts:()=>m}),DatabaseApiClientError:class extends Error{constructor(public status:number){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
@@ -22,6 +23,8 @@ beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.join
   m.invitations.mockResolvedValue({items:[{id:'i',email:'taylor@example.test',displayName:'Taylor Chen',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:1,createdAt:future}],nextCursor:null})
   m.directory.mockResolvedValue({items:[{id:'o',displayName:'Morgan Lee',role:'owner'},{id:'m1',displayName:'Alex Rivera',role:'member'}],nextCursor:null})})
 afterEach(cleanup)
+function deferred(){let resolve!:(v:unknown)=>void,reject!:(e:unknown)=>void;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject}}
+const suspendedCount=()=>within(screen.getByRole('table')).queryAllByText('Suspended').length
 const names=()=>within(screen.getByRole('table')).getAllByRole('row').slice(1).map(row=>row.querySelector('strong')?.firstChild?.textContent)
 describe('Organization directory',()=>{
   it('lists everyone in one table, owners then admins then members, with management details for admins',async()=>{
@@ -146,5 +149,41 @@ describe('Organization directory',()=>{
     expect(await screen.findByRole('alert')).toHaveTextContent('directory is unavailable')
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByText('private details')).not.toBeInTheDocument()
+  })
+})
+
+describe('Optimistic people controls',()=>{
+  it('shows a role change in the roster before the server confirms it',async()=>{
+    const d=deferred();m.updateMember.mockReturnValue(d.promise);const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('radio',{name:/^Admin/}))
+    await user.click(screen.getByRole('button',{name:'Save role'}))
+    expect(screen.getByText("6 people · 4 admins · You're an owner")).toBeInTheDocument()
+    expect(m.members).toHaveBeenCalledTimes(1)
+    d.resolve({})
+    expect(await screen.findByText('Alex Rivera is now an admin.')).toBeInTheDocument()
+    await waitFor(()=>expect(m.members).toHaveBeenCalledTimes(2))
+  })
+  it('shows suspended access at once and restores the roster when the server reports a conflict',async()=>{
+    const d=deferred();m.updateMember.mockReturnValue(d.promise);const user=userEvent.setup();view();await screen.findByRole('table')
+    expect(suspendedCount()).toBe(1)
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('button',{name:'Suspend access'}))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Suspend access'}))
+    expect(suspendedCount()).toBe(2)
+    d.reject(new DatabaseApiClientError(409))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Someone else changed this person')
+    expect(suspendedCount()).toBe(1)
+    expect(m.members).toHaveBeenCalledTimes(1)
+  })
+  it('restores the previous role when a role change fails',async()=>{
+    const d=deferred();m.updateMember.mockReturnValue(d.promise);const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
+    await user.click(screen.getByRole('radio',{name:/^Admin/}))
+    await user.click(screen.getByRole('button',{name:'Save role'}))
+    expect(screen.getByText("6 people · 4 admins · You're an owner")).toBeInTheDocument()
+    d.reject(new Error('private details'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('has not been confirmed')
+    expect(screen.getByText("6 people · 3 admins · You're an owner")).toBeInTheDocument()
   })
 })
