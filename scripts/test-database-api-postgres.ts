@@ -26,7 +26,7 @@ async function main() {
     const { stdout } = await execute('docker', ['inspect', name, '--format', '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}'])
     const port = stdout.trim()
     if (!/^\d+$/.test(port)) throw new Error('Unexpected test database port')
-    const result = await execute(resolve('node_modules/.bin/vitest'), ['run', 'src/api/database.postgres.test.ts'], {
+    const result = await execute(resolve('node_modules/.bin/vitest'), ['run', 'src/api/database.postgres.test.ts', 'src/api/database.rds-copy.postgres.test.ts'], {
       env: { ...process.env, DATABASE_API_TEST_URL: `postgresql://postgres:studiostack-test-only@127.0.0.1:${port}/studiostack_api_test` }, maxBuffer: 1024 * 1024,
     })
     console.log(result.stdout)

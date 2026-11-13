@@ -26,7 +26,8 @@ export function executionPolicy(functionName: string, secretArns: unknown[]) {
   }
 }
 
-export function infrastructure(masterSecrets: Record<'dev' | 'prod', string>, includeSetup: boolean | readonly ('dev' | 'prod')[], devPhotos?: { prefixListId: string }) {
+/** Each environment's maintenance master secret(s); during the RDS cutover prod lists both Aurora's and the new instance's. */
+export function infrastructure(masterSecrets: Record<'dev' | 'prod', string | readonly string[]>, includeSetup: boolean | readonly ('dev' | 'prod')[], devPhotos?: { prefixListId: string }) {
   const resources: Record<string, unknown> = {
     EndpointGroup: {
       Type: 'AWS::EC2::SecurityGroup', Properties: {

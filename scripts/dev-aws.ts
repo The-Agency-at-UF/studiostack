@@ -63,9 +63,9 @@ export async function waitFunction(name: string) {
   }
   throw new Error('Function update timed out')
 }
-export async function invoke<T>(name: string, payload: unknown): Promise<T> {
+export async function invoke<T>(name: string, payload: unknown, readTimeoutSeconds = 120): Promise<T> {
   const path = `${devDirectory}/${name}-response.json`
-  const result = await aws<{ FunctionError?: string }>('lambda', 'invoke', ['--function-name', name, '--payload', JSON.stringify(payload), '--cli-binary-format', 'raw-in-base64-out', '--cli-read-timeout', '120', path])
+  const result = await aws<{ FunctionError?: string }>('lambda', 'invoke', ['--function-name', name, '--payload', JSON.stringify(payload), '--cli-binary-format', 'raw-in-base64-out', '--cli-read-timeout', String(readTimeoutSeconds), path])
   const value = JSON.parse(await readFile(path, 'utf8'))
   if (result.FunctionError) {
     const detail = typeof value.errorMessage === 'string' && /^Database API schema setup unavailable \([A-Za-z0-9/]+\)$/.test(value.errorMessage) ? `: ${value.errorMessage}` : ''
