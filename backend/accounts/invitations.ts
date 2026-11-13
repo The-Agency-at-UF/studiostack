@@ -18,7 +18,8 @@ export async function dispatchInvitations(client:DatabaseClient,request:AccountR
   let id=request.invitationId,kind=''
   if(!id) {
     const v=inviteMember(request.body)
-    const existing=await client.query("SELECT 1 FROM app.users u JOIN app.organization_memberships m ON m.user_id=u.id WHERE m.organization_id=$1 AND lower(u.email)=$2 AND m.status IN ('active','suspended')",[org,v.email])
+    // A removed (suspended) person can be invited back; only current members are managed in place.
+    const existing=await client.query("SELECT 1 FROM app.users u JOIN app.organization_memberships m ON m.user_id=u.id WHERE m.organization_id=$1 AND lower(u.email)=$2 AND m.status='active'",[org,v.email])
     if(existing.rows.length)throw new ApiError(409,'Manage the existing organization member instead')
     await client.query("UPDATE app.organization_invitations SET status='expired',version=version+1 WHERE organization_id=$1 AND email=$2 AND status='pending' AND expires_at<=now()",[org,v.email])
     id=(await client.query('INSERT INTO app.organization_invitations(organization_id,email,display_name,role,created_by,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id',[org,v.email,v.displayName,v.role,actor.id,v.requestId,hash])).rows[0].id;kind='invitation_created'

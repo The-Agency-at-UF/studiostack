@@ -9,11 +9,11 @@ async function organizations(client:DatabaseClient,id?:string){return (await cli
 const scope=(client:DatabaseClient,org:string)=>client.query("SELECT set_config('app.organization_id',$1,true)",[org])
 const lock=(client:DatabaseClient,org:string)=>client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`organization-admin:${org}`])
 async function membership(client:DatabaseClient,org:string,user:string){return (await client.query('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[org,user])).rows[0] as {role:string;status:string}|undefined}
-/** Adds an active member once; an existing active membership is kept as-is and a suspended one is never restored. */
+/** Adds an active member once; an existing active membership is kept as-is. Someone removed from the organization comes back only by invitation. */
 async function join(client:DatabaseClient,org:string,user:string,kind:string,details:Record<string,unknown>) {
   const existing=await membership(client,org,user)
   if(existing?.status==='active')return false
-  if(existing)throw new ApiError(409,'Ask an administrator to restore the existing membership')
+  if(existing)throw new ApiError(409,'Ask an administrator to invite you back')
   await client.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[org,user])
   const id=randomUUID(),hash=createHash('sha256').update(`${kind}:${org}:${user}`).digest('hex')
   await client.query('INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,$3,$2,$4,$5,$6)',[org,user,kind,details,id,hash])

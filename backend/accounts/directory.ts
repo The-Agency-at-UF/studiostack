@@ -35,11 +35,14 @@ async function invitationTask(client:DatabaseClient,request:DirectoryRequest,use
       if(invitation.status!=='pending'||Date.parse(String(invitation.expires_at))<=Date.now()||invitation.inviter_status!=='active'||!['owner','admin'].includes(invitation.inviter_role))continue
       if(request.action!=='accept'){items.push({id:invitation.id,organizationId:org.id,organizationName:org.name,role:invitation.role,displayName:invitation.display_name,expiresAt:invitation.expires_at});continue}
       const existing=(await client.query('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[org.id,user.id])).rows[0]
-      if(existing&&existing.status!=='active')throw new ApiError(409,'Ask an administrator to restore the existing membership')
-      if(!existing)await client.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,$3,'active')",[org.id,user.id,invitation.role])
+      // Someone removed from the organization comes back with the invited role; their history is still theirs.
+      const restored=existing?.status==='suspended'
+      if(existing&&existing.status!=='active'&&!restored)throw new ApiError(409,'Ask an administrator to restore the existing membership')
+      if(restored)await client.query("UPDATE app.organization_memberships SET role=$3,status='active',version=version+1 WHERE organization_id=$1 AND user_id=$2",[org.id,user.id,invitation.role])
+      else if(!existing)await client.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,$3,'active')",[org.id,user.id,invitation.role])
       await client.query("UPDATE app.organization_invitations SET status='accepted',accepted_by=$3,accepted_at=now(),version=version+1 WHERE organization_id=$1 AND id=$2",[org.id,invitation.id,user.id])
       const hash=createHash('sha256').update(`accept:${invitation.id}:${user.id}`).digest('hex')
-      await client.query("INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,'invitation_accepted',$3,$4,$3,$5)",[org.id,user.id,invitation.id,{role:existing?.role??invitation.role},hash]);accepted={organizationId:org.id}
+      await client.query("INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,'invitation_accepted',$3,$4,$3,$5)",[org.id,user.id,invitation.id,{role:existing&&!restored?existing.role:invitation.role,...(restored?{restored:true}:{})},hash]);accepted={organizationId:org.id}
     }
   }
   if(request.action==='accept'&&!accepted)throw new ApiError(404,'Invitation is unavailable for this verified account')
