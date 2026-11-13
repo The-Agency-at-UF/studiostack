@@ -1,4 +1,4 @@
-import {cleanup,render,screen,waitFor} from '@testing-library/react'
+import {cleanup,render,screen,waitFor,within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import Administration from './Administration'
@@ -11,7 +11,7 @@ vi.mock('../../api/privatePhotos',()=>({uploadOrganizationPhoto:photos.upload}))
 const settings={id:'org',name:'Agency',slug:'agency',role:'owner',reservationDays:14,location:null,logoPhotoId:null,version:1}
 const future=new Date(Date.now()+86400000).toISOString()
 function view(){render(<AppSessionProvider value={{email:'owner@example.test',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',selectedOrganizationId:'org',refreshOrganizations:m.refresh}}><Administration/></AppSessionProvider>)}
-const ready=()=>screen.findByRole('heading',{name:'Workspace settings'})
+const ready=()=>screen.findByRole('heading',{name:'General'})
 beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);for(const name of ['invitations','activity','accessRequests','joinCodes','domains']as const)m[name].mockResolvedValue({items:[],nextCursor:null})})
 afterEach(cleanup)
 describe('Organization access and settings',()=>{
@@ -37,7 +37,7 @@ describe('Organization access and settings',()=>{
     m.createJoinCode.mockResolvedValue({id:'code',label:'Spring crew',maxUses:5,uses:0,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-31T12:00:00Z',code:'ABCDE-FGHJK'});m.decideAccessRequest.mockResolvedValue({})
     const user=userEvent.setup();view();expect(await screen.findByLabelText('1 pending')).toBeInTheDocument();expect(screen.getByText('“Fall crew”')).toBeInTheDocument()
     expect(screen.queryByText('Agency join code')).not.toBeInTheDocument();expect(screen.getByText('No active join codes.')).toBeInTheDocument()
-    await user.type(screen.getByLabelText('Code label'),'Spring crew');await user.type(screen.getByLabelText('Maximum uses'),'5');await user.click(screen.getByRole('button',{name:'Create join code'}))
+    await user.click(screen.getByRole('button',{name:'New join code'}));await user.type(screen.getByLabelText('Code label'),'Spring crew');await user.type(screen.getByLabelText('Maximum uses'),'5');await user.click(screen.getByRole('button',{name:'Create join code'}))
     expect(await screen.findByText('ABCDE-FGHJK')).toBeInTheDocument();expect(m.createJoinCode).toHaveBeenCalledWith(expect.objectContaining({label:'Spring crew',maxUses:5,expiresInDays:null,requestId:expect.any(String)}))
     await user.click(screen.getByRole('button',{name:'Approve Asker'}));await waitFor(()=>expect(m.decideAccessRequest).toHaveBeenCalledWith('request','approve',expect.objectContaining({version:1})))
   })
@@ -46,7 +46,29 @@ describe('Organization access and settings',()=>{
     const user=userEvent.setup();view();expect(await screen.findByText('studio.example.edu')).toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Require requests'}));await waitFor(()=>expect(m.updateDomain).toHaveBeenCalledWith('studio.example.edu',expect.objectContaining({autoJoin:false,version:2})))
     cleanup();vi.clearAllMocks();m.settings.mockResolvedValue({...settings,role:'admin'});view();expect(await screen.findByRole('heading',{name:'Join codes'})).toBeInTheDocument()
-    expect(screen.queryByRole('heading',{name:'Workspace domains'})).not.toBeInTheDocument();expect(m.domains).not.toHaveBeenCalled()
+    expect(screen.queryByRole('heading',{name:'Email domains'})).not.toBeInTheDocument();expect(m.domains).not.toHaveBeenCalled()
+  })
+  it('orders the sections and links each from the section index',async()=>{
+    view();await ready()
+    expect(screen.getAllByRole('heading',{level:2}).map(h=>h.textContent)).toEqual(['General','How people join','Invitations & requests','Activity'])
+    const index=screen.getByRole('navigation',{name:'Settings sections'})
+    for(const [name,href] of [['General','#general'],['How people join','#joining'],['Invitations & requests','#invitations'],['Activity','#activity']])expect(within(index).getByRole('link',{name})).toHaveAttribute('href',href)
+    expect(screen.getByText('Nothing waiting. Access requests and open invitations show up here.')).toBeInTheDocument()
+  })
+  it('marks unsaved settings and discards them',async()=>{
+    const user=userEvent.setup();view();await ready()
+    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();expect(screen.getByRole('button',{name:'Discard'})).toBeDisabled()
+    await user.type(screen.getByLabelText(/^Location/),'Gainesville');expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Discard'}))
+    expect(screen.getByLabelText(/^Location/)).toHaveValue('');expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();expect(m.saveSettings).not.toHaveBeenCalled()
+  })
+  it('describes activity in plain language, newest first, and expands past the first five',async()=>{
+    m.activity.mockResolvedValue({items:[...Array.from({length:6},(_,i)=>({id:`m${i}`,actorName:'Roger',kind:'member_updated',targetId:null,details:{},createdAt:`2026-11-0${i+1}T12:00:00Z`})),{id:'new',actorName:'Roger',kind:'organization_updated',targetId:null,details:{},createdAt:'2026-11-12T12:00:00Z'},{id:'odd',actorName:'Roger',kind:'something_new',targetId:null,details:{},createdAt:'2026-10-01T12:00:00Z'}],nextCursor:null})
+    const user=userEvent.setup();view();await ready()
+    const list=()=>within(screen.getByRole('region',{name:'Activity'})).getAllByRole('listitem')
+    expect(list()).toHaveLength(5);expect(list()[0]).toHaveTextContent('Updated organization settings')
+    await user.click(screen.getByRole('button',{name:'Show all 8'}))
+    expect(list()).toHaveLength(8);expect(list()[7]).toHaveTextContent('Something new')
   })
   it('saves the organization location shown in onboarding search',async()=>{const user=userEvent.setup();m.saveSettings.mockResolvedValue({...settings,location:'Gainesville',version:2});view()
     await user.type(await screen.findByLabelText(/^Location/),'  Gainesville ');await user.click(screen.getByRole('button',{name:'Save settings'}))
