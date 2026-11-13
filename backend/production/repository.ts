@@ -61,8 +61,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   const stored=({clientAccountId,...data}:BriefData)=>({data,clientAccountId:clientAccountId??null})
   async function resolveClient(data:BriefData,previous?:BriefData){
     if(!data.clientAccountId)return
-    const account=(await client.query('SELECT name,archived_at FROM app.client_accounts WHERE organization_id=$1 AND id=$2 FOR SHARE',[organizationId,data.clientAccountId])).rows[0]
-    if(!account||account.archived_at&&previous?.clientAccountId!==data.clientAccountId)throw new ApiError(400,'Choose an active client account in this organization')
+    const account=(await client.query('SELECT name,deleted_at FROM app.client_accounts WHERE organization_id=$1 AND id=$2 FOR SHARE',[organizationId,data.clientAccountId])).rows[0]
+    if(!account||account.deleted_at&&previous?.clientAccountId!==data.clientAccountId)throw new ApiError(400,'Choose an active client account in this organization')
     data.client=account.name
   }
   async function previousEvent(requestId: string, fingerprint: string) {
@@ -72,7 +72,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     return true
   }
   if(request.resource==='people'){if(!reviewer)deny();const result=await client.query("SELECT u.id,u.display_name AS \"displayName\",NULL AS email,m.role,m.status FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.status='active' AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT $3",[organizationId,request.page.after,request.page.limit+1]);return pageOf(result.rows,request.page.limit)}
-  if(request.resource==='clients')return dispatchClients(client,request,reviewer)
+  if(request.resource==='clients')return dispatchClients(client,request,{userId:user.id,canManage:reviewer,admin})
   if (request.resource === 'access') return { userId: user.id, canReview: reviewer, canAdminister: admin, isExecutive: executive, notificationsConfigured: settings.executiveIds.length > 0 && process.env.PRODUCTION_EMAIL_ENABLED === 'yes' }
   if (request.resource === 'settings') {
     if (!admin) deny('An organization administrator manages production access')

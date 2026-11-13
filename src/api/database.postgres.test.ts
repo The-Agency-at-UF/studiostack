@@ -259,6 +259,42 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await production(secondMember,{resource:'access',method:'GET'})).toMatchObject({canReview:true,canAdminister:false})
     expect(await production(owner,{resource:'access',method:'GET'})).toMatchObject({canReview:true,canAdminister:true})
   })
+  it('agency: owners, administrators and the creator delete and restore client accounts; bookings keep their link',async()=>{
+    type Client={id:string;name:string;version:number;createdBy:string|null;deletedAt:string|null}
+    const patch=(who:Identity,c:Client,deleted:boolean)=>production(who,{resource:'clients',method:'PATCH',clientId:c.id,body:{name:c.name,deleted,version:c.version}}) as Promise<Client>
+    // secondMember is Production leadership (previous test), not an administrator.
+    const mine=await production(secondMember,{resource:'clients',method:'POST',body:{name:'Lead-created client'}}) as Client
+    const owners=await production(owner,{resource:'clients',method:'POST',body:{name:'Owner-created client'}}) as Client
+    expect(mine).toMatchObject({createdBy:profiles[secondMember.subject].id,deletedAt:null})
+    const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(item),clientAccountId:mine.id}}) as ApiReservation
+    await expect(patch(member,mine,true)).rejects.toMatchObject({status:403})
+    await expect(patch(secondMember,owners,true)).rejects.toMatchObject({status:403})
+    const deleted=await patch(secondMember,mine,true)
+    expect(deleted.deletedAt).toBeTruthy()
+    expect((await operator.query('SELECT client_account_id,deleted_by FROM app.reservations r JOIN app.client_accounts c ON c.id=r.client_account_id WHERE r.id=$1',[r.id])).rows[0]).toEqual({client_account_id:mine.id,deleted_by:profiles[secondMember.subject].id})
+    const listed=await production(member,{resource:'clients',method:'GET'}) as ApiPage<Client>
+    expect(listed.items.find(c=>c.id===mine.id)).toMatchObject({deletedAt:expect.anything()})
+    await expect(repository.execute(member,{operation:'createReservation',organizationId,input:{...booking(await equipment()),clientAccountId:mine.id}})).rejects.toMatchObject({status:400})
+    await expect(production(owner,{resource:'clients',method:'POST',body:{name:'lead-created CLIENT'}})).rejects.toMatchObject({status:409})
+    await expect(patch(member,deleted,false)).rejects.toMatchObject({status:403})
+    const restored=await patch(secondMember,deleted,false)
+    expect(restored).toMatchObject({deletedAt:null,version:deleted.version+1})
+    await expect(patch(secondMember,deleted,true)).rejects.toMatchObject({status:409})
+    const byOwner=await patch(owner,restored,true)
+    expect(await patch(owner,byOwner,false)).toMatchObject({deletedAt:null})
+    // Accounts from before creators were recorded: only owners and administrators.
+    const legacy=(await operator.query('INSERT INTO app.client_accounts(organization_id,name) VALUES($1,$2) RETURNING id,name,version',[organizationId,'Legacy client'])).rows[0] as Client
+    await expect(patch(secondMember,legacy,true)).rejects.toMatchObject({status:403})
+    expect(await patch(owner,legacy,true)).toMatchObject({deletedAt:expect.anything()})
+    // Runtime never hard-deletes client accounts, so their bookings cannot lose the link.
+    await operator.query('SET ROLE "studiostack_dev_app"')
+    try{await expect(operator.query('DELETE FROM app.client_accounts WHERE id=$1',[legacy.id])).rejects.toThrow(/permission denied/)}finally{await operator.query('RESET ROLE')}
+  })
+  it('agency: migration 027 turns archived client accounts into deleted ones',async()=>{
+    const row=(await operator.query("INSERT INTO app.client_accounts(organization_id,name,archived_at) VALUES($1,'Archived before 027',now()) RETURNING id",[organizationId])).rows[0]
+    await operator.query((await loadMigrations()).find(m=>m.name==='027_client_account_delete.sql')!.sql.replace(/ALTER TABLE[\s\S]*?deleted_by uuid;/,''))
+    expect((await operator.query('SELECT deleted_at=archived_at AS same FROM app.client_accounts WHERE id=$1',[row.id])).rows[0]).toEqual({same:true})
+  })
   it('production: persists drafts, hides them from reviewers, and enforces tenant membership',async()=>{
     const b=await draft()
     expect(await production(member,{resource:'briefs',method:'GET',briefId:b.id})).toMatchObject({data:{projectName:'Example shoot'},version:1})

@@ -14,7 +14,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM ${role};
     REVOKE ALL ON SCHEMA app FROM ${role};
     GRANT SELECT,INSERT ON app.client_accounts,app.production_assignments TO ${role};
-    GRANT UPDATE(name,archived_at,version) ON app.client_accounts TO ${role};
+    GRANT UPDATE(name,deleted_at,deleted_by,version) ON app.client_accounts TO ${role};
     GRANT DELETE ON app.production_assignments TO ${role};
     GRANT SELECT,INSERT ON app.bug_reports TO ${role};
     GRANT UPDATE(email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at) ON app.bug_reports TO ${role};
