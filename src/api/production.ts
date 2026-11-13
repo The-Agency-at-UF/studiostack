@@ -7,7 +7,7 @@ export function productionClient(send: Send) {
     people:(after?:string)=>send<ApiPage<ApiMember>>(page('people',after)),
     clients:(after?:string)=>send<ApiPage<ClientAccount>>(page('clients',after)),
     createClient:(name:string)=>send<ClientAccount>('clients','POST',{name}),
-    updateClient:(id:string,input:{name:string;archived:boolean;version:number})=>send<ClientAccount>(`clients/${encodeURIComponent(id)}`,'PATCH',input),
+    updateClient:(id:string,input:{name:string;deleted:boolean;version:number})=>send<ClientAccount>(`clients/${encodeURIComponent(id)}`,'PATCH',input),
     assign:(briefId:string,input:{version:number;requestId:string;assignments:Pick<ProductionAssignment,'userId'|'role'>[]})=>send<ProductionBrief>(`briefs/${encodeURIComponent(briefId)}/crew`,'POST',input),
     access: () => send<ProductionAccess>('access'), settings: () => send<ProductionSettings>('settings'),
     saveSettings: (input: ProductionSettings) => send<ProductionSettings>('settings', 'PATCH', input),
