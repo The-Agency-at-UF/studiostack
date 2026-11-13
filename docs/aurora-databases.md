@@ -41,6 +41,8 @@ Actual local config files and certificate bundles are gitignored; example files 
 
 ## Application credentials and private connectivity
 
+`RDS_HOST` accepts the environment's Aurora cluster writer endpoint (`studiostack-{env}-db.cluster-…`) or, after the planned move to RDS for PostgreSQL, its instance endpoint (`studiostack-{env}-pg.…`). `RDS_AUTH` selects the login: `secret` (default) reads `RDS_SECRET_ARN` from Secrets Manager; `iam` signs a 15-minute RDS IAM auth token locally for `RDS_IAM_USER`, so no Secrets Manager call or VPC endpoint is needed. IAM login also needs `rds-db:connect` on the function role and `GRANT rds_iam` on the database user; those are separate deployment changes. A rejected or expired token (`28000`) is re-signed once before any SQL runs.
+
 Before deploying a database-backed API:
 
 - Restricted application logins and Secrets Manager secrets exist separately for dev/prod, with JSON fields `username` and `password`. Dev now has narrowly scoped application table/column grants; production still has CONNECT only. Normal requests have no superuser, role-management or schema-creation permissions.
