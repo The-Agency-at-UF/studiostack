@@ -2,9 +2,10 @@ import type { createDatabase } from '../database/client'
 import type { DatabaseConfig } from '../database/config'
 import { object } from '../database/api-validation'
 
-// Approved by Roger on 2026-10-31: the Gmail account owns The Agency at UF and the UF account becomes a member.
-export const approvedAgencyOwnerEmail = 'mckenzieroger83@gmail.com'
-export const approvedFormerOwnerEmail = 'rmckenzie1@ufl.edu'
+// Approved by Roger on 2026-11-13: the UF account owns The Agency at UF again. The Gmail account
+// (owner since the 2026-10-31 handover) stays an owner; it is only demoted if passed as formerOwner.
+export const approvedAgencyOwnerEmail = 'rmckenzie1@ufl.edu'
+export const approvedFormerOwnerEmail = 'mckenzieroger83@gmail.com'
 type Identity = { subject: string; email: string }
 const identity = (value: unknown, email: string): Identity => {
   const v = object(value, ['subject', 'email'])
