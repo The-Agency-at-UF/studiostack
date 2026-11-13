@@ -85,6 +85,12 @@ The initial schema stores Cognito **issuer + subject** as a unique identity, not
 
 Cognito platform groups and organization-local groups are different concepts. The dev HTTP API requires verified Cognito access-token context and authorizes the organization from trusted membership records. Browser-supplied IDs, demo admin flags and foreign keys alone are not authorization. Identity tables are not protected by RLS; migrations 002/003 add RLS to inventory, reservations, groups and photos as defense in depth. Invitations, role editing, onboarding and one database per institution remain future work. These two databases separate **development and production**, not institutions. The schema/routes are deployed only in dev.
 
+## Production move to RDS for PostgreSQL
+
+Production is moving from Aurora Serverless v2 (always on at 0.5 ACU) to a single-AZ RDS for PostgreSQL 17 `db.t4g.micro` instance, `studiostack-prod-pg`; dev stays on auto-pausing Aurora. `infra/database/rds-instance.ts` defines the instance: private, encrypted gp3 storage (20 GB, growing to 50 GB), 14-day backups, deletion protection with a final snapshot, IAM database authentication, and an RDS-managed master secret for maintenance only. Its parameter group enforces TLS and enables `pg_stat_statements`, `auto_explain` and a 500 ms slow-query log with bind parameters suppressed, exported to CloudWatch Logs for 14 days. The stack also grants `rds-db:connect` for `studiostack_prod_app` to the existing runtime role.
+
+`node --import=tsx scripts/deploy-rds-instance.ts` is a dry run. `--apply-prod` creates the instance (billed hourly from creation, about $14/month). Creating it does not move data or change what the app uses: the runtime keeps the Aurora endpoint until the separate cutover copies data, grants `rds_iam` and switches `RDS_HOST`/`RDS_AUTH`. `scripts/configure-operational-readiness.ts` alarms whichever prod databases exist, adding connection, CPU-credit and free-storage alarms for the instance.
+
 ## Serverless capacity and backups
 
 The creation plan used dev **0–1 ACU with a five-minute idle auto-pause**, and prod **0.5–2 ACUs**, keeping production awake. Verify the actual writer instance capacity settings in AWS before relying on them; the cluster-level engine mode alone does not identify Serverless v2 capacity.
