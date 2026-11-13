@@ -36,7 +36,8 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
     }
     if(!queries[resource])throw new ApiError(404,'Administration resource not found')
     const {rows}=await client.query(queries[resource],[organizationId,page.after,page.limit+1])
-    return pageOf(rows,page.limit)
+    // The server says which row is the caller; the browser never infers it from an email that may be missing.
+    return pageOf(resource==='members'?rows.map(row=>({...row,self:row.id===user.id})):rows,page.limit)
   }
   if(resource!=='members'&&resource!=='settings')throw new ApiError(404,'Administration resource not found')
   const input=resource==='members'?changeMember(request.body):changeOrganization(request.body)
@@ -53,6 +54,8 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
     await client.query('UPDATE app.organizations SET name=$2,reservation_days=$3,logo_photo_id=CASE WHEN $4::boolean THEN $5::uuid ELSE logo_photo_id END,logo_key=CASE WHEN $4::boolean THEN $6::text ELSE logo_key END,location=CASE WHEN $7::boolean THEN $8 ELSE location END,version=version+1 WHERE id=$1',[organizationId,v.name,v.reservationDays,logoChanged,v.logoPhotoId??null,logoKey,v.location!==undefined,v.location??null])
     kind='organization_updated';details={name:v.name,reservationDays:v.reservationDays,...(logoChanged?{logo:v.logoPhotoId?'updated':'removed'}:{}),...(v.location!==undefined?{location:v.location}:{})}
   } else if(resource==='members') {
+    // Nobody changes their own role or access; another owner or administrator does it for them.
+    if(request.memberId===user.id)throw new ApiError(403,'You cannot change your own role or access')
     const v=changeMember(request.body),current=await member(request.memberId!);targetId=current.id
     if(current.version!==v.version)conflict()
     if(current.status==='invited')throw new ApiError(409,'An invited person must accept their invitation first')

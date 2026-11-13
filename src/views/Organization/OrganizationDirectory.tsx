@@ -18,7 +18,7 @@ import OrganizationJoinCode from './OrganizationJoinCode'
 type Role = OrganizationSettings['role']
 type Status = 'active' | 'suspended'
 // Members only ever receive id, name and role; email, status and version are filled in for owners and admins.
-interface Person { id: string; name: string; named: boolean; role: Role; email?: string; status?: Status; version?: number }
+interface Person { id: string; name: string; named: boolean; role: Role; email?: string; status?: Status; version?: number; self?: boolean }
 
 async function all<T>(read: (after?: string) => Promise<ApiPage<T>>) {
   const items: T[] = []
@@ -60,7 +60,7 @@ export default function OrganizationDirectory() {
     if (['owner', 'admin'].includes(s.role)) {
       const [members, rows] = await Promise.all([all(api.members), all(api.invitations)])
       if (g !== generation.current) return
-      setPeople(members.filter(m => m.status !== 'invited').map(m => ({ id: m.id, name: m.displayName ?? m.email ?? 'Team member', named: Boolean(m.displayName), role: m.role, email: m.email ?? undefined, status: m.status === 'suspended' ? 'suspended' : 'active', version: m.version })))
+      setPeople(members.filter(m => m.status !== 'invited').map(m => ({ id: m.id, name: m.displayName ?? m.email ?? 'Team member', named: Boolean(m.displayName), role: m.role, email: m.email ?? undefined, status: m.status === 'suspended' ? 'suspended' : 'active', version: m.version, self: m.self })))
       setPendingInvitations(rows.filter(i => i.status === 'pending' && Date.parse(i.expiresAt) > Date.now()).length)
     } else {
       const directory = await all(api.directory)
@@ -116,7 +116,10 @@ export default function OrganizationDirectory() {
     && (roleFilter === 'all' || (roleFilter === 'admins') === (p.role !== 'member'))
     && (statusFilter === 'all' || p.status === statusFilter))
   // Owners manage everyone; admins manage everyone except owners. Nobody changes their own access here.
-  const isYou = (person: Person) => Boolean(me && person.email?.toLowerCase() === me)
+  // The server marks the caller's own row. An email can sit on an older duplicate account, so it is
+  // only a fallback for an API that does not send the mark yet.
+  const serverMarksSelf = people.some(person => person.self !== undefined)
+  const isYou = (person: Person) => serverMarksSelf ? person.self === true : Boolean(me && person.email?.toLowerCase() === me)
   const manageable = (person: Person) => manager && !isYou(person) && (owner || person.role !== 'owner')
   const selected = people.find(person => person.id === selectedId && manageable(person))
   const closePanel = () => {

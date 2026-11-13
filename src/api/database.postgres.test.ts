@@ -399,10 +399,12 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(account(outsider,{resource:'directory',method:'GET'})).rejects.toMatchObject({status:403})
     expect((await account<ApiPage<{id:string}>>(outsider,{resource:'directory',method:'GET',organizationId:otherOrganizationId})).items.map(m=>m.id)).toEqual([profiles.outsider.id])
   })
-  it('accounts: the final active owner cannot be demoted or suspended',async()=>{
+  it('accounts: nobody changes their own role or access, and only their own row is marked as theirs',async()=>{
     const m=await accountMember(owner)
-    for(const changes of [{role:'member',status:'active'},{role:'owner',status:'suspended'}])await expect(account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{...changes,version:m.version,requestId:randomUUID()}})).rejects.toMatchObject({status:409})
-    expect(await accountMember(owner)).toMatchObject({role:'owner',status:'active',version:m.version})
+    for(const changes of [{role:'member',status:'active'},{role:'owner',status:'suspended'},{role:'owner',status:'active'}])await expect(account(owner,{resource:'members',method:'PATCH',memberId:m.id,body:{...changes,version:m.version,requestId:randomUUID()}})).rejects.toMatchObject({status:403})
+    expect(await accountMember(owner)).toMatchObject({role:'owner',status:'active',version:m.version,self:true})
+    const others=(await account<ApiPage<ManagedMember>>(owner,{resource:'members',method:'GET'})).items.filter(item=>item.id!==m.id)
+    expect(others.length).toBeGreaterThan(0);expect(others.every(item=>item.self===false)).toBe(true)
   })
   it('accounts: role changes are versioned, idempotent and cannot be escalated by administrators',async()=>{
     const target=await accountMember(secondMember),requestId=randomUUID(),body={role:'admin',status:'active',version:target.version,requestId}
@@ -464,10 +466,10 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await save(null)).toMatchObject({logoPhotoId:null})
     expect(await logos(member)).toBeNull()
   })
-  it('accounts: concurrent owner demotions leave an active owner',async()=>{
+  it('accounts: two owners demoting each other at once leave an active owner',async()=>{
     const a=await accountMember(owner),b=await accountMember(secondMember)
     const promoted=await account<ManagedMember>(owner,{resource:'members',method:'PATCH',memberId:b.id,body:{role:'owner',status:'active',version:b.version,requestId:randomUUID()}})
-    const result=await Promise.allSettled([account(owner,{resource:'members',method:'PATCH',memberId:a.id,body:{role:'member',status:'active',version:a.version,requestId:randomUUID()}}),account(secondMember,{resource:'members',method:'PATCH',memberId:b.id,body:{role:'member',status:'active',version:promoted.version,requestId:randomUUID()}})])
+    const result=await Promise.allSettled([account(owner,{resource:'members',method:'PATCH',memberId:b.id,body:{role:'member',status:'active',version:promoted.version,requestId:randomUUID()}}),account(secondMember,{resource:'members',method:'PATCH',memberId:a.id,body:{role:'member',status:'active',version:a.version,requestId:randomUUID()}})])
     expect(result.filter(r=>r.status==='fulfilled')).toHaveLength(1)
     const owners=(await operator.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'",[organizationId])).rows;expect(owners).toHaveLength(1)
     const actor=owners[0].user_id===a.id?owner:secondMember
