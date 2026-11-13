@@ -1,18 +1,18 @@
-import {cleanup,fireEvent,render,screen,within} from '@testing-library/react'
+import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import Account from './Account'
 import {AppSessionProvider,type AppSession} from '../../context/AppSessionContext'
-const mocks=vi.hoisted(()=>({list:vi.fn(),accept:vi.fn(),code:vi.fn(),remove:vi.fn()}))
-vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({pendingInvitations:mocks.list,acceptInvitation:mocks.accept,joinByCode:mocks.code,deleteAccount:mocks.remove}),DatabaseApiClientError:class extends Error{constructor(public status:number,public statusText?:string,public payload?:unknown){super()}}}))
+const mocks=vi.hoisted(()=>({list:vi.fn(),accept:vi.fn(),code:vi.fn(),remove:vi.fn(),preferences:vi.fn(),update:vi.fn()}))
+vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({pendingInvitations:mocks.list,acceptInvitation:mocks.accept,joinByCode:mocks.code,deleteAccount:mocks.remove,alerts:()=>({preferences:mocks.preferences,updatePreferences:mocks.update})}),DatabaseApiClientError:class extends Error{constructor(public status:number,public statusText?:string,public payload?:unknown){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 vi.mock('../Production/EmailVerification',()=>({default:()=><p>Email verification</p>}))
 const organizations=[{id:'agency',slug:'agency',name:'The Agency at UF',role:'member' as const},{id:'lab',slug:'lab',name:'Media Lab',role:'admin' as const,logoUrl:'https://cdn.example.test/lab.png'}]
-function renderAccount(overrides:Partial<AppSession>={},initialTab?:'security') {
+function renderAccount(overrides:Partial<AppSession>={},initialTab?:'security'|'notifications') {
   const session:AppSession={email:'roger@example.test',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=>'token',organizations,selectedOrganizationId:'agency',setSelectedOrganizationId:vi.fn(),refreshOrganizations:vi.fn().mockResolvedValue(undefined),signOut:vi.fn(),...overrides}
   render(<AppSessionProvider value={session}><Account initialTab={initialTab}/></AppSessionProvider>)
   return session
 }
-beforeEach(()=>{vi.clearAllMocks();mocks.list.mockResolvedValue({items:[]});mocks.accept.mockResolvedValue({organizationId:'studio'});mocks.code.mockResolvedValue({organizationId:'studio'})})
+beforeEach(()=>{vi.clearAllMocks();mocks.list.mockResolvedValue({items:[]});mocks.accept.mockResolvedValue({organizationId:'studio'});mocks.code.mockResolvedValue({organizationId:'studio'});mocks.preferences.mockResolvedValue({equipmentEmail:false,version:0});mocks.update.mockResolvedValue({equipmentEmail:true,version:1})})
 afterEach(cleanup)
 describe('Account page',()=>{
   it('lists workspaces with logos or monograms and switches the current one',async()=>{
@@ -99,5 +99,38 @@ describe('Account page',()=>{
     fireEvent.change(screen.getByLabelText('Type roger@example.test to confirm'),{target:{value:'roger@example.test'}})
     fireEvent.click(screen.getByRole('button',{name:'Delete account permanently'}))
     expect(await screen.findByRole('alert')).toHaveTextContent('owner of Media Lab')
+  })
+})
+
+describe('Account notifications',()=>{
+  it('defaults equipment email off and saves an explicit opt-in for the current workspace',async()=>{
+    renderAccount({},'notifications')
+    const check=await screen.findByRole('checkbox',{name:'Email me about equipment alerts'})
+    await waitFor(()=>expect(check).toBeEnabled())
+    expect(check).not.toBeChecked()
+    expect(screen.getByText(/conflicts in The Agency at UF/)).toBeInTheDocument()
+    fireEvent.click(check)
+    await waitFor(()=>expect(mocks.update).toHaveBeenCalledWith({equipmentEmail:true,version:0}))
+    expect(await screen.findByRole('status')).toHaveTextContent('Equipment email enabled.')
+    expect(check).toBeChecked()
+  })
+  it('flips the preference at once and rolls it back when saving fails',async()=>{
+    let reject!:(e:unknown)=>void
+    mocks.update.mockReturnValue(new Promise((_,b)=>{reject=b}))
+    renderAccount({},'notifications')
+    const check=await screen.findByRole('checkbox',{name:'Email me about equipment alerts'})
+    await waitFor(()=>expect(check).toBeEnabled())
+    fireEvent.click(check)
+    expect(check).toBeChecked()
+    expect(check).toBeDisabled()
+    reject(new Error('private'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable')
+    expect(check).not.toBeChecked()
+    expect(check).toBeEnabled()
+  })
+  it('asks preview visitors to sign in instead of showing the toggle',()=>{
+    renderAccount({mode:'preview' as AppSession['mode'],getAccessToken:undefined},'notifications')
+    expect(screen.getByText(/Sign in and choose a workspace/)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 })

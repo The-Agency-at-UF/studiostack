@@ -6,10 +6,11 @@ import {useAppSession} from '../../context/AppSessionContext'
 import type {PendingInvitation} from '../../types/accounts'
 import type {ApiOrganization} from '../../types/database-api'
 import EmailVerification from '../Production/EmailVerification'
+import NotificationsTab from './Notifications'
 import './Account.css'
 
-type AccountTab='profile'|'workspaces'|'security'
-const tabs:{value:AccountTab;label:string}[]=[{value:'profile',label:'Profile'},{value:'workspaces',label:'Workspaces'},{value:'security',label:'Sign-in and security'}]
+type AccountTab='profile'|'workspaces'|'notifications'|'security'
+const tabs:{value:AccountTab;label:string}[]=[{value:'profile',label:'Profile'},{value:'workspaces',label:'Workspaces'},{value:'notifications',label:'Notifications'},{value:'security',label:'Sign-in and security'}]
 const roleLabel=(role:ApiOrganization['role'])=>role[0].toUpperCase()+role.slice(1)
 const initials=(email:string)=>(email.split('@')[0].match(/[a-z]+/gi)??['?']).slice(0,2).map(part=>part[0].toUpperCase()).join('')
 const minorWords=new Set(['the','a','an','of','at','and','for'])
@@ -43,6 +44,7 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
       <div className="account-content">
         {tab==='profile'&&<ProfileTab/>}
         {tab==='workspaces'&&<WorkspacesTab/>}
+        {tab==='notifications'&&<NotificationsTab/>}
         {tab==='security'&&<SecurityTab/>}
       </div>
     </div>

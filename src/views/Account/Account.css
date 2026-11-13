@@ -73,3 +73,5 @@
   .account-sections :is(hr,.account-signout-link) { display:none; }
   .account-card-heading,.account-card-body,.account-workspace,.account-row { padding-left:var(--space-4); padding-right:var(--space-4); }
 }
+.account-toggle { cursor:pointer; flex-wrap:nowrap; }
+.account-toggle input { flex:none; width:1.125rem; height:1.125rem; accent-color:var(--accent); }
