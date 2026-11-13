@@ -198,3 +198,7 @@
   .production-page .production-team > .production-count { float: none; margin: 0 0 var(--space-3); clear: both; }
 }
 @media print { .production-settings-savebar { display: none !important; } }
+/* One pulse confirms a save; the text settles back once it lands. */
+@keyframes production-saved-pulse { 50% { scale: 1.04; color: var(--success); } }
+.production-saved-pulse { display: inline-block; transform-origin: left center; animation: production-saved-pulse 400ms var(--ease-in-out); }
+@media (prefers-reduced-motion: reduce) { .production-saved-pulse { animation: none; } }
