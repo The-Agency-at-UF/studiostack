@@ -1,5 +1,6 @@
 import { bootstrapProductionAdmin } from '../production/bootstrap'
 import { handOverAgencyOwnership } from '../production/owner-handover'
+import { retireStaleAccount } from '../production/stale-account'
 import { createDatabase } from './client'
 import { databaseConfig } from './config'
 import { applyMigrations } from './migrations'
@@ -21,7 +22,7 @@ function rdsTarget(environment: string) {
 /** Package only. Deploy/invoke temporarily with reviewed maintenance access.
  * Never attach this entry point to HTTP API Gateway or leave it deployed.
  */
-export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | {action:'hand-over-agency-ownership';owner:unknown;formerOwner?:unknown} | RdsCutoverAction | Record<string, never> = {}) {
+export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | {action:'hand-over-agency-ownership';owner:unknown;formerOwner?:unknown} | {action:'retire-stale-account';current:unknown;staleSubject?:string;apply?:boolean} | RdsCutoverAction | Record<string, never> = {}) {
   let stage = 'configuration'
   try {
     const config = databaseConfig()
@@ -35,6 +36,10 @@ export async function handler(event: Parameters<typeof fixtures>[0] | {action:'b
     if ('action' in event && event.action === 'hand-over-agency-ownership') {
       stage = 'ownership'
       return await handOverAgencyOwnership(database,config,event)
+    }
+    if ('action' in event && event.action === 'retire-stale-account') {
+      stage = 'account-repair'
+      return await retireStaleAccount(database,config,event)
     }
     if ('action' in event && (event.action === 'rds-prepare' || event.action === 'rds-copy' || event.action === 'rds-verify')) {
       stage = event.action.replace('-', '')
