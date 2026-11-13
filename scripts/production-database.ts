@@ -26,4 +26,4 @@ export async function withProductionMaintenance<T>(operation:()=>Promise<T>){
   return await operation()
  }finally{await removeProductionMaintenance();await applyStack('studiostack-database-connections',infrastructure(shared.masterSecrets,false,{prefixListId:shared.prefixListId}));console.log('Temporary production maintenance access removed; runtime cannot read master secrets')}
 }
-export async function invokeProductionMaintenance<T>(payload:unknown):Promise<T>{for(let attempt=0;;attempt++){try{return await invoke<T>('studiostack-prod-database-setup',payload)}catch(error){if(!(error instanceof Error)||!/\((?:migrations|fixtures|bootstrap)\/secret\/AccessDenied[A-Za-z]+\)/.test(error.message)||attempt>=6)throw error;await pause(20000)}}}
+export async function invokeProductionMaintenance<T>(payload:unknown):Promise<T>{for(let attempt=0;;attempt++){try{return await invoke<T>('studiostack-prod-database-setup',payload)}catch(error){if(!(error instanceof Error)||!/\((?:migrations|fixtures|bootstrap|ownership)\/secret\/AccessDenied[A-Za-z]+\)/.test(error.message)||attempt>=6)throw error;await pause(20000)}}}
