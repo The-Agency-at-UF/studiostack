@@ -1,5 +1,8 @@
 import {account,region} from '../database/resources'
-export function operationsInfrastructure(email:string,concurrency:number){
+/** Which prod databases exist and need alarms; both during the Aurora to RDS cutover window. */
+export type ProductionDatabase='aurora'|'instance'
+export function operationsInfrastructure(email:string,concurrency:number,prodDatabases:readonly ProductionDatabase[]=['aurora']){
+ if(!prodDatabases.length)throw new Error('At least one production database required')
  if(email!=='rmckenzie1@ufl.edu'||!Number.isInteger(concurrency)||concurrency<1)throw new Error('Approved operational recipient and live capacity required')
  const topic=`arn:aws:sns:${region}:${account}:studiostack-operational-alerts`,Resources:Record<string,unknown>={
   Topic:{Type:'AWS::SNS::Topic',Properties:{TopicName:'studiostack-operational-alerts'}},
@@ -7,8 +10,15 @@ export function operationsInfrastructure(email:string,concurrency:number){
   Policy:{Type:'AWS::SNS::TopicPolicy',Properties:{Topics:[{Ref:'Topic'}],PolicyDocument:{Version:'2012-10-17',Statement:[{Effect:'Allow',Principal:{Service:'cloudwatch.amazonaws.com'},Action:'sns:Publish',Resource:topic,Condition:{StringEquals:{'AWS:SourceAccount':account},ArnLike:{'AWS:SourceArn':`arn:aws:cloudwatch:${region}:${account}:alarm:studiostack-*`}}}]}}},
   Budget:{Type:'AWS::Budgets::Budget',DeletionPolicy:'Retain',Properties:{Budget:{BudgetName:'StudioStack Monthly Infrastructure',BudgetLimit:{Amount:100,Unit:'USD'},TimeUnit:'MONTHLY',BudgetType:'COST'},NotificationsWithSubscribers:[{Notification:{NotificationType:'ACTUAL',ComparisonOperator:'GREATER_THAN',Threshold:80,ThresholdType:'PERCENTAGE'},Subscribers:[{SubscriptionType:'EMAIL',Address:email}]},{Notification:{NotificationType:'FORECASTED',ComparisonOperator:'GREATER_THAN',Threshold:100,ThresholdType:'PERCENTAGE'},Subscribers:[{SubscriptionType:'EMAIL',Address:email}]}],ResourceTags:[{Key:'ManagedBy',Value:'StudioStack'}]}},
  }
- function alarm(key:string,name:string,namespace:string,metric:string,dimensions:{Name:string;Value:string}[],threshold:number,period=300,evaluations=1,statistic='Sum'){Resources[key]={Type:'AWS::CloudWatch::Alarm',Properties:{AlarmName:name,Namespace:namespace,MetricName:metric,Dimensions:dimensions,Statistic:statistic,Period:period,EvaluationPeriods:evaluations,Threshold:threshold,ComparisonOperator:'GreaterThanOrEqualToThreshold',TreatMissingData:'notBreaching',AlarmActions:[topic],OKActions:[topic]}}}
- for(const env of ['dev','prod']){const api=env==='dev'?'vugf6fpl4k':'ixzikwz8n5';alarm(env+'ApiErrors',`studiostack-${env}-api-errors`,'AWS/ApiGateway','5xx',[{Name:'ApiId',Value:api}],3);alarm(env+'DatabaseErrors',`studiostack-${env}-database-errors`,'AWS/Lambda','Errors',[{Name:'FunctionName',Value:`studiostack-${env}-database`}],1);alarm(env+'Connections',`studiostack-${env}-database-connections`,'AWS/RDS','DatabaseConnections',[{Name:'DBClusterIdentifier',Value:`studiostack-${env}-db`}],4,300,2,'Maximum');alarm(env+'Throttles',`studiostack-${env}-database-throttles`,'AWS/Lambda','Throttles',[{Name:'FunctionName',Value:`studiostack-${env}-database`}],1)}
+ function alarm(key:string,name:string,namespace:string,metric:string,dimensions:{Name:string;Value:string}[],threshold:number,period=300,evaluations=1,statistic='Sum',comparison='GreaterThanOrEqualToThreshold'){Resources[key]={Type:'AWS::CloudWatch::Alarm',Properties:{AlarmName:name,Namespace:namespace,MetricName:metric,Dimensions:dimensions,Statistic:statistic,Period:period,EvaluationPeriods:evaluations,Threshold:threshold,ComparisonOperator:comparison,TreatMissingData:'notBreaching',AlarmActions:[topic],OKActions:[topic]}}}
+ for(const env of ['dev','prod']){const api=env==='dev'?'vugf6fpl4k':'ixzikwz8n5';alarm(env+'ApiErrors',`studiostack-${env}-api-errors`,'AWS/ApiGateway','5xx',[{Name:'ApiId',Value:api}],3);alarm(env+'DatabaseErrors',`studiostack-${env}-database-errors`,'AWS/Lambda','Errors',[{Name:'FunctionName',Value:`studiostack-${env}-database`}],1);if(env==='dev'||prodDatabases.includes('aurora'))alarm(env+'Connections',`studiostack-${env}-database-connections`,'AWS/RDS','DatabaseConnections',[{Name:'DBClusterIdentifier',Value:`studiostack-${env}-db`}],4,300,2,'Maximum');alarm(env+'Throttles',`studiostack-${env}-database-throttles`,'AWS/Lambda','Throttles',[{Name:'FunctionName',Value:`studiostack-${env}-database`}],1)}
+ if(prodDatabases.includes('instance')){
+  const instance=[{Name:'DBInstanceIdentifier',Value:'studiostack-prod-pg'}]
+  alarm('prodInstanceConnections','studiostack-prod-pg-connections','AWS/RDS','DatabaseConnections',instance,4,300,2,'Maximum')
+  // t4g runs in unlimited mode: an empty credit balance means surplus CPU charges, not throttling.
+  alarm('prodInstanceCpuCredits','studiostack-prod-pg-cpu-credits','AWS/RDS','CPUCreditBalance',instance,30,300,3,'Minimum','LessThanThreshold')
+  alarm('prodInstanceStorage','studiostack-prod-pg-free-storage','AWS/RDS','FreeStorageSpace',instance,2*1024**3,300,1,'Minimum','LessThanThreshold')
+ }
  alarm('AccountConcurrency','studiostack-account-concurrency','AWS/Lambda','ConcurrentExecutions',[],Math.max(1,Math.floor(concurrency*.8)),60,2,'Maximum')
  return {AWSTemplateFormatVersion:'2010-09-09',Description:'StudioStack operational alerts and independent account cost budget',Resources,Outputs:{TopicArn:{Value:{Ref:'Topic'}}}}
 }

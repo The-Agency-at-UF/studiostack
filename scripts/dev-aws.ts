@@ -31,7 +31,8 @@ export async function guardDevApply() {
   await mkdir(devDirectory, { recursive: true })
   if ((await aws<{ Account: string }>('sts', 'get-caller-identity')).Account !== account) throw new Error('Unexpected AWS account')
 }
-export async function applyStack(name: string, template: unknown) {
+/** `attempts` × 5 s is the wait for the stack; database instances need longer than the 15-minute default. */
+export async function applyStack(name: string, template: unknown, attempts = 180) {
   const file = `${devDirectory}/${name}.json`
   const body=JSON.stringify(template)
   if(Buffer.byteLength(body)>51200)throw new Error('CloudFormation template exceeds inline limit; use a private S3 template URL')
@@ -44,7 +45,7 @@ export async function applyStack(name: string, template: unknown) {
   }
   await aws('cloudformation', existing ? 'update-stack' : 'create-stack', ['--stack-name', name, '--template-body', `file://${file}`, '--capabilities', 'CAPABILITY_NAMED_IAM', '--tags', 'Key=ManagedBy,Value=StudioStack'])
   let last = ''
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < attempts; i++) {
     const { Stacks: [stack] } = await aws<{ Stacks: { StackStatus: string; Outputs?: { OutputKey: string; OutputValue: string }[] }[] }>('cloudformation', 'describe-stacks', ['--stack-name', name])
     if (last !== stack.StackStatus) { console.log(`${name}: ${stack.StackStatus}`); last = stack.StackStatus }
     if (['CREATE_COMPLETE', 'UPDATE_COMPLETE'].includes(last)) return Object.fromEntries((stack.Outputs ?? []).map(o => [o.OutputKey, o.OutputValue]))
