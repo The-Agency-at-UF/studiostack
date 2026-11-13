@@ -6,9 +6,9 @@ import StudioStack from '../assets/StudioStack.png'
 import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineExclamationCircle, HiOutlineChartBar, HiOutlineBuildingOffice2, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb } from 'react-icons/hi2'
 import '../styles/shell.css'
 
-type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string }
+type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null }
 
-export default function Header({ isAdmin, logOut, email, onReportBug, onRequestFeature, organizationName }: Props) {
+export default function Header({ isAdmin, logOut, email, onReportBug, onRequestFeature, organizationName, organizationLogoUrl }: Props) {
   const [isOpen, setOpen] = useState(false), [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null), accountTrigger = useRef<HTMLButtonElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null), menuTrigger = useRef<HTMLButtonElement>(null)
@@ -59,7 +59,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
   return <header className="site-header ws-shell">
     <a className="ws-skip-link" href="#workspace-content">Skip to workspace</a>
     <div className="site-header-inner">
-      <Link href="/" className="brand-lockup" onClick={closeMenus}>{organizationName ? <span className="brand-org-name" title={organizationName}>{organizationName}</span> : <img src={StudioStack.src ?? StudioStack} alt="StudioStack" />}</Link>
+      <Link href="/" className="brand-lockup" onClick={closeMenus}>{organizationName ? <>{organizationLogoUrl && <img className="brand-org-logo" src={organizationLogoUrl} alt="" />}<span className="brand-org-name" title={organizationName}>{organizationName}</span></> : <img src={StudioStack.src ?? StudioStack} alt="StudioStack" />}</Link>
       <button ref={menuTrigger} className="ws-menu-toggle" data-tour="menu-toggle" aria-label="Toggle navigation" aria-expanded={isOpen} aria-controls="workspace-navigation" onClick={() => { setOpen(open => !open); setAccountOpen(false) }}><HiOutlineBars3 aria-hidden="true" /></button>
       {isOpen && <button className="ws-drawer-backdrop" aria-label="Close navigation" tabIndex={-1} onClick={dismissDrawer} />}
       <div ref={drawerRef} id="workspace-navigation" className={`ws-sidebar-body ${isOpen ? 'is-open' : ''}`} role={isOpen ? 'dialog' : undefined} aria-modal={isOpen ? true : undefined} aria-label={isOpen ? 'Workspace navigation' : undefined} onKeyDown={event => {

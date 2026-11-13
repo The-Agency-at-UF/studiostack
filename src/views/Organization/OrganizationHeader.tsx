@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { OrganizationSettings } from '../../types/accounts'
+import { useAppSession } from '../../context/AppSessionContext'
 import './OrganizationHeader.css'
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '?'
@@ -10,9 +11,12 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(part =>
 /** One header and tab bar for every Organization page, so People and Settings read as one place. */
 export default function OrganizationHeader({ settings, summary, active, action }: { settings: OrganizationSettings | null; summary?: ReactNode; active: 'people' | 'settings'; action?: ReactNode }) {
   const manager = settings?.role === 'owner' || settings?.role === 'admin'
+  const session = useAppSession()
+  const selectedId = session.selectedOrganizationId ?? session.organizations?.[0]?.id
+  const logoUrl = settings?.logoPhotoId ? session.organizations?.find(org => org.id === selectedId)?.logoUrl : null
   return <>
     <header className="org-header">
-      <span className="org-header-monogram" aria-hidden="true">{settings ? initials(settings.name) : ''}</span>
+      {logoUrl ? <img className="org-header-monogram org-header-logo" src={logoUrl} alt="" /> : <span className="org-header-monogram" aria-hidden="true">{settings ? initials(settings.name) : ''}</span>}
       <div className="org-header-title">
         <p className="org-header-eyebrow">Organization</p>
         <h1>{settings?.name ?? 'Your organization'}</h1>

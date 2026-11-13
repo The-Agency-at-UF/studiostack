@@ -180,7 +180,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : welcomePage ? children
       : needsWelcome ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || (onboarded && organizations.length > 0)}>
-        <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} organizationName={mode === 'authenticated' ? selectedOrganization?.name : undefined} />
+        <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} organizationName={mode === 'authenticated' ? selectedOrganization?.name : undefined} organizationLogoUrl={mode === 'authenticated' ? selectedOrganization?.logoUrl : undefined} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
         <BugReportPopup showTrigger={false} userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} />
         <BugReportPopup showTrigger={false} kind="feature" userEmail={email} open={featureRequestOpen} onOpenChange={setFeatureRequestOpen} />
