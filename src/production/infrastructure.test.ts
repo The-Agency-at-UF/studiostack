@@ -11,6 +11,9 @@ describe('production notification deployment boundaries',()=>{
     expect(json).toContain('bug-report-queued');expect(template.Resources.Sender.Properties.Environment.Variables.FEEDBACK_EMAIL_TO).toBe('rmckenzie1@ufl.edu')
     expect(productionRoutes.some(r=>/outbox|claim|ack/.test(r))).toBe(false)
     expect(json).not.toContain('NAT');expect(json).not.toContain('secretsmanager:GetSecretValue')
+    // Dev sweeps once a day so idle dev Aurora is not woken hourly; prod keeps five minutes.
+    expect(template.Resources.Schedule.Properties.ScheduleExpression).toBe('cron(0 9 * * ? *)')
+    expect(productionNotificationInfrastructure({...input,environment:'prod',artifactBucket:'studio-stack-photos-prod'}).Resources.Schedule.Properties.ScheduleExpression).toBe('rate(5 minutes)')
   })
   it('rejects cross-environment artifacts and unrelated senders',()=>{
     expect(()=>productionNotificationInfrastructure({...input,artifactBucket:'studio-stack-photos-prod'})).toThrow()
