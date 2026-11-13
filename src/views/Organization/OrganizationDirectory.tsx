@@ -18,7 +18,7 @@ import OrganizationJoinCode from './OrganizationJoinCode'
 type Role = OrganizationSettings['role']
 type Status = 'active' | 'suspended'
 // Members only ever receive id, name and role; email, status and version are filled in for owners and admins.
-interface Person { id: string; name: string; named: boolean; role: Role; email?: string; status?: Status; version?: number; self?: boolean }
+interface Person { id: string; name: string; named: boolean; role: Role; email?: string; version?: number; self?: boolean }
 
 async function all<T>(read: (after?: string) => Promise<ApiPage<T>>) {
   const items: T[] = []
@@ -48,7 +48,6 @@ export default function OrganizationDirectory() {
   const [inviting, setInviting] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admins' | 'members'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const generation = useRef(0)
   // A retried change keeps its request ID so the server can recognize the repeat.
@@ -60,7 +59,8 @@ export default function OrganizationDirectory() {
     if (['owner', 'admin'].includes(s.role)) {
       const [members, rows] = await Promise.all([all(api.members), all(api.invitations)])
       if (g !== generation.current) return
-      setPeople(members.filter(m => m.status !== 'invited').map(m => ({ id: m.id, name: m.displayName ?? m.email ?? 'Team member', named: Boolean(m.displayName), role: m.role, email: m.email ?? undefined, status: m.status === 'suspended' ? 'suspended' : 'active', version: m.version, self: m.self })))
+      // Removed people keep their history on the server but are no longer part of the organization.
+      setPeople(members.filter(m => m.status === 'active').map(m => ({ id: m.id, name: m.displayName ?? m.email ?? 'Team member', named: Boolean(m.displayName), role: m.role, email: m.email ?? undefined, version: m.version, self: m.self })))
       setPendingInvitations(rows.filter(i => i.status === 'pending' && Date.parse(i.expiresAt) > Date.now()).length)
     } else {
       const directory = await all(api.directory)
@@ -73,7 +73,7 @@ export default function OrganizationDirectory() {
   useEffect(() => {
     const g = ++generation.current
     setSettings(null); setPeople([]); setPendingInvitations(0); setError(''); setActionError(''); setNotice(''); setBusy(false); setInviting(false)
-    setSearch(''); setRoleFilter('all'); setStatusFilter('all'); setSelectedId(null); setLoading(true)
+    setSearch(''); setRoleFilter('all'); setSelectedId(null); setLoading(true)
     load().catch(e => { if (g === generation.current) setError(loadMessage(e)) }).finally(() => { if (g === generation.current) setLoading(false) })
     return () => { generation.current++ }
   }, [load])
@@ -103,7 +103,8 @@ export default function OrganizationDirectory() {
   const change = (person: Person, role: Role, next: Status, done: string) => {
     void run(JSON.stringify({ member: person.id, version: person.version, role, status: next }), done,
       (client, requestId) => client.updateMember(person.id, { role, status: next, version: person.version!, requestId }),
-      list => list.map(p => p.id === person.id ? { ...p, role, status: next } : p))
+      // Removing someone takes them off the roster at once; the server keeps their history.
+      list => next === 'suspended' ? list.filter(p => p.id !== person.id) : list.map(p => p.id === person.id ? { ...p, role } : p))
   }
 
   const owner = settings?.role === 'owner'
@@ -113,8 +114,7 @@ export default function OrganizationDirectory() {
   const adminCount = people.filter(p => p.role !== 'member').length
   const query = search.trim().toLowerCase()
   const visible = sorted.filter(p => `${p.name} ${p.email ?? ''}`.toLowerCase().includes(query)
-    && (roleFilter === 'all' || (roleFilter === 'admins') === (p.role !== 'member'))
-    && (statusFilter === 'all' || p.status === statusFilter))
+    && (roleFilter === 'all' || (roleFilter === 'admins') === (p.role !== 'member')))
   // Owners manage everyone; admins manage everyone except owners. Nobody changes their own access here.
   // The server marks the caller's own row. An email can sit on an older duplicate account, so it is
   // only a fallback for an API that does not send the mark yet.
@@ -127,7 +127,7 @@ export default function OrganizationDirectory() {
     setSelectedId(null)
     if (id) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-manage="${id}"]`)?.focus())
   }
-  const filtered = query !== '' || roleFilter !== 'all' || statusFilter !== 'all'
+  const filtered = query !== '' || roleFilter !== 'all'
 
   return <main className="org-directory workspace-surface">
     <OrganizationHeader settings={settings} active="people"
@@ -147,7 +147,7 @@ export default function OrganizationDirectory() {
       <section className="org-directory-card org-directory-people" aria-labelledby="org-people">
         <div className="org-directory-card-heading">
           <h2 id="org-people">People</h2>
-          <p>{owner ? 'Change anyone’s role or access from Manage.' : manager ? 'Owners and admins manage people. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
+          <p>{owner ? 'Change anyone’s role or remove them from Manage.' : manager ? 'Owners and admins manage people. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
         </div>
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {notice && <Notice kind="success">{notice}</Notice>}
@@ -156,13 +156,10 @@ export default function OrganizationDirectory() {
           <Select aria-label="Filter by role" value={roleFilter} onChange={event => setRoleFilter(event.target.value as typeof roleFilter)}>
             <option value="all">All roles</option><option value="admins">Owners &amp; admins</option><option value="members">Members</option>
           </Select>
-          {manager && <Select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}>
-            <option value="all">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option>
-          </Select>}
         </div>
         {visible.length ? <TableRegion label="People in this organization" className="org-directory-table">
           <table>
-            <thead><tr><th scope="col">Person</th><th scope="col">Role</th>{manager && <><th scope="col">Status</th><th scope="col"><span className="ws-sr-only">Manage</span></th></>}</tr></thead>
+            <thead><tr><th scope="col">Person</th><th scope="col">Role</th>{manager && <th scope="col"><span className="ws-sr-only">Manage</span></th>}</tr></thead>
             <tbody>{visible.map(person => {
               const you = isYou(person), open = selected?.id === person.id
               return <tr key={person.id} className={open ? 'is-selected' : undefined}>
@@ -174,10 +171,7 @@ export default function OrganizationDirectory() {
                   </div>
                 </div></td>
                 <td><StatusLabel tone={person.role === 'owner' ? 'accent' : 'neutral'}>{roleLabel[person.role]}</StatusLabel></td>
-                {manager && <>
-                  <td><span className={`org-directory-status org-directory-status-${person.status}`}>{person.status === 'suspended' ? 'Suspended' : 'Active'}</span></td>
-                  <td className="org-directory-manage-cell">{manageable(person) && <button type="button" className="ws-button org-directory-manage" data-manage={person.id} aria-label={`Manage ${person.name}`} aria-expanded={open} aria-controls={open ? 'org-person-panel' : undefined} onClick={() => open ? closePanel() : setSelectedId(person.id)}>Manage</button>}</td>
-                </>}
+                {manager && <td className="org-directory-manage-cell">{manageable(person) && <button type="button" className="ws-button org-directory-manage" data-manage={person.id} aria-label={`Manage ${person.name}`} aria-expanded={open} aria-controls={open ? 'org-person-panel' : undefined} onClick={() => open ? closePanel() : setSelectedId(person.id)}>Manage</button>}</td>}
               </tr>
             })}</tbody>
           </table>
@@ -189,7 +183,7 @@ export default function OrganizationDirectory() {
           <span>Showing {visible.length} of {people.length}</span>
         </div>
       </section>
-      {selected && <PersonPanel key={selected.id} person={selected} owner={owner} busy={busy} change={change} onClose={closePanel} />}
+      {selected && <PersonPanel key={selected.id} person={selected} owner={owner} busy={busy} organization={settings.name} change={change} onClose={closePanel} />}
       </div>
     </>}
   </main>
@@ -224,20 +218,19 @@ const roleDetails: Record<Role, string> = {
   admin: 'Also manages people, equipment and settings.',
   owner: 'Full control, including other owners and workspace domains.',
 }
-function PersonPanel({ person, owner, busy, change, onClose }: { person: Person; owner: boolean; busy: boolean; change: Change; onClose: () => void }) {
+function PersonPanel({ person, owner, busy, organization, change, onClose }: { person: Person; owner: boolean; busy: boolean; organization: string; change: Change; onClose: () => void }) {
   // The draft belongs to the version it was made against, so a reload after saving shows the confirmed role.
   const [draft, setDraft] = useState<{ version?: number; role: Role } | null>(null)
-  const [confirm, setConfirm] = useState<'suspend' | 'owner' | null>(null)
+  const [confirm, setConfirm] = useState<'remove' | 'owner' | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { heading.current?.focus() }, [person.id])
   const role = draft && draft.version === person.version ? draft.role : person.role
   const roles: Role[] = owner ? ['member', 'admin', 'owner'] : ['member', 'admin']
-  const suspended = person.status === 'suspended'
   function save(event: FormEvent) {
     event.preventDefault()
     if (busy || role === person.role) return
     if (role === 'owner') setConfirm('owner')
-    else change(person, role, person.status!, `${person.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`)
+    else change(person, role, 'active', `${person.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`)
   }
   return <DetailPanel className="org-person-panel" label={`Manage ${person.name}`}>
     <div id="org-person-panel" onKeyDown={event => { if (event.key === 'Escape' && !confirm) { event.stopPropagation(); onClose() } }}>
@@ -260,20 +253,17 @@ function PersonPanel({ person, owner, busy, change, onClose }: { person: Person;
         </fieldset>
         <button type="submit" className="ws-button ws-button-primary" disabled={busy || role === person.role}>Save role</button>
       </form>
-      <section className="org-person-section" aria-labelledby="org-person-access">
-        <h3 id="org-person-access">Access</h3>
-        <p><span className={`org-directory-status org-directory-status-${person.status}`}>{suspended ? 'Suspended' : 'Active'}</span></p>
-        <p className="org-person-note">{suspended ? 'They can’t use this organization. Their booking history is kept.' : 'They can sign in, book gear and join productions.'}</p>
-        {suspended
-          ? <button type="button" className="ws-button" disabled={busy} onClick={() => change(person, person.role, 'active', `${person.name} has access again.`)}>Restore access</button>
-          : <button type="button" className="ws-button ws-button-danger" disabled={busy} onClick={() => setConfirm('suspend')}>Suspend access</button>}
+      <section className="org-person-section" aria-labelledby="org-person-remove">
+        <h3 id="org-person-remove">Remove from {organization}</h3>
+        <p className="org-person-note">They lose access to this organization. Their bookings and history are kept, and you can invite them back.</p>
+        <button type="button" className="ws-button ws-button-danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove from organization</button>
       </section>
     </div>
-    {confirm === 'suspend' && <ConfirmDialog title="Suspend access?" subject={person.name} confirmLabel="Suspend access"
-      description="This suspends their organization access and removes their production leadership permissions. Their booking history is kept. You can restore access later."
-      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, person.role, 'suspended', `${person.name}’s access is suspended.`) }} />}
+    {confirm === 'remove' && <ConfirmDialog title={`Remove from ${organization}?`} subject={person.name} confirmLabel="Remove"
+      description="They lose access to this organization and its productions right away. Their bookings and history are kept. To bring them back, send a new invitation."
+      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'member', 'suspended', `${person.name} was removed from ${organization}.`) }} />}
     {confirm === 'owner' && <ConfirmDialog title="Make this person an owner?" subject={person.name} confirmLabel="Make owner"
       description="Owners can change anyone’s role or access, including other owners, and manage workspace domains."
-      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'owner', person.status!, `${person.name} is now an owner.`) }} />}
+      onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'owner', 'active', `${person.name} is now an owner.`) }} />}
   </DetailPanel>
 }
