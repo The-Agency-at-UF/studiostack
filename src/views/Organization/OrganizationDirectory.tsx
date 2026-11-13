@@ -78,24 +78,32 @@ export default function OrganizationDirectory() {
     return () => { generation.current++ }
   }, [load])
 
-  async function run(key: string, done: string, task: (client: AccountClient, requestId: string) => Promise<unknown>) {
+  // `apply` shows the change in the roster before the server answers; a rejected change restores the previous roster.
+  async function run(key: string, done: string, task: (client: AccountClient, requestId: string) => Promise<unknown>, apply?: (list: Person[]) => Person[]) {
     if (!api || busy) return false
-    const g = generation.current
+    const g = generation.current, before = people
+    let saved = false
     if (mutation.current?.key !== key) mutation.current = { key, id: crypto.randomUUID() }
     setBusy(true); setActionError(''); setNotice('')
+    if (apply) setPeople(apply)
     try {
       await task(api, mutation.current.id)
+      saved = true
       if (g !== generation.current) return false
       mutation.current = null
       setNotice(done)
       await load()
       return true
-    } catch (e) { if (g === generation.current) setActionError(actionMessage(e)); return false }
+    } catch (e) {
+      if (g === generation.current) { if (apply && !saved) setPeople(before); setActionError(actionMessage(e)) }
+      return false
+    }
     finally { if (g === generation.current) setBusy(false) }
   }
   const change = (person: Person, role: Role, next: Status, done: string) => {
     void run(JSON.stringify({ member: person.id, version: person.version, role, status: next }), done,
-      (client, requestId) => client.updateMember(person.id, { role, status: next, version: person.version!, requestId }))
+      (client, requestId) => client.updateMember(person.id, { role, status: next, version: person.version!, requestId }),
+      list => list.map(p => p.id === person.id ? { ...p, role, status: next } : p))
   }
 
   const owner = settings?.role === 'owner'
