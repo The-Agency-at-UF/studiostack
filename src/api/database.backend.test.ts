@@ -43,6 +43,23 @@ describe('environment separation', () => {
   ])('rejects invalid or cross-environment configuration %j', override => {
     expect(() => databaseConfig({ ...env, ...override })).toThrow()
   })
+  it('accepts the selected environment\'s RDS instance endpoint', () => {
+    const instance = databaseConfig({ ...env, RDS_HOST: 'studiostack-dev-pg.abcdefghijkl.us-east-2.rds.amazonaws.com' })
+    expect(instance).toMatchObject({ endpoint: 'instance', databaseId: 'studiostack-dev-pg', authMode: 'secret' })
+    expect(config).toMatchObject({ endpoint: 'aurora', databaseId: 'studiostack-dev-db' })
+  })
+  it('uses IAM tokens for a named database user without needing a secret', () => {
+    const iam = databaseConfig({ ...env, RDS_AUTH: 'iam', RDS_SECRET_ARN: undefined, RDS_IAM_USER: 'studiostack_dev_app' })
+    expect(iam).toMatchObject({ authMode: 'iam', iamUser: 'studiostack_dev_app', secretArn: '' })
+  })
+  it.each([
+    { RDS_HOST: 'studiostack-prod-pg.abcdefghijkl.us-east-2.rds.amazonaws.com' },
+    { RDS_HOST: 'studiostack-dev-pg.abcdefghijkl.us-east-1.rds.amazonaws.com' },
+    { RDS_HOST: 'studiostack-dev-pg-replica.abcdefghijkl.us-east-2.rds.amazonaws.com' },
+    { RDS_AUTH: 'password' }, { RDS_AUTH: 'iam' }, { RDS_AUTH: 'iam', RDS_IAM_USER: 'bad name' },
+  ])('rejects invalid RDS instance or IAM configuration %j', override => {
+    expect(() => databaseConfig({ ...env, ...override })).toThrow()
+  })
   it('prevents browser usage', () => {
     vi.stubGlobal('window', {})
     try {
@@ -114,6 +131,21 @@ describe('backend database connections', () => {
     expect(fresh.query).toHaveBeenCalledTimes(1)
     expect(client.end).toHaveBeenCalledTimes(1)
     expect(fresh.end).toHaveBeenCalledTimes(1)
+  })
+  it('re-signs an expired IAM token once before executing any SQL', async () => {
+    const client = { connect: vi.fn().mockRejectedValueOnce({ code: '28000' }).mockResolvedValue(undefined), end: vi.fn().mockResolvedValue(undefined), query: vi.fn().mockResolvedValue({ rows: [] }) }
+    const deps = { credentials: vi.fn().mockResolvedValue(auth), certificate: vi.fn().mockResolvedValue(ca), client: vi.fn(() => client as unknown as DatabaseClient) } satisfies DatabaseDependencies
+    const iam = databaseConfig({ ...env, RDS_AUTH: 'iam', RDS_IAM_USER: 'studiostack_app' })
+    await createDatabase(iam, deps).query('SELECT 1')
+    expect(deps.credentials.mock.calls.map(call => call[1])).toEqual([false, true])
+    expect(client.query).toHaveBeenCalledTimes(1)
+  })
+  it('does not treat 28000 as a rotation signal for Secrets Manager logins', async () => {
+    const { client, database, deps } = fixture()
+    client.connect.mockRejectedValue({ code: '28000' })
+    await expect(database.query('SELECT 1')).rejects.toBeInstanceOf(DatabaseUnavailableError)
+    expect(deps.credentials).toHaveBeenCalledTimes(1)
+    expect(client.query).not.toHaveBeenCalled()
   })
   it('commits a transaction on the same connection', async () => {
     const { database, client } = fixture()

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager'
+import { Signer } from '@aws-sdk/rds-signer'
 import pg from 'pg'
 import type { ClientConfig, QueryResult, QueryResultRow } from 'pg'
 import type { DatabaseConfig } from './config'
@@ -28,7 +29,20 @@ export function parseCredentials(value: unknown): DatabaseCredentials {
 // Cache only in backend memory, never on disk or in the browser. Rotation is
 // refreshed every minute, and immediately if connecting returns invalid_password.
 const secrets = new Map<string, { credentials: DatabaseCredentials; expiresAt: number }>()
+// IAM auth tokens are valid for 15 minutes. They are signed locally with the
+// function's role credentials, so no network endpoint is needed to obtain one.
+const tokenLifetime = 10 * 60_000
+async function iamCredentials(config: DatabaseConfig, refresh: boolean): Promise<DatabaseCredentials> {
+  const key = `iam:${config.host}:${config.port}:${config.iamUser}`
+  const cached = secrets.get(key)
+  if (!refresh && cached && cached.expiresAt > Date.now()) return cached.credentials
+  const signer = new Signer({ hostname: config.host, port: config.port, username: config.iamUser, region: config.region })
+  const parsed = parseCredentials({ username: config.iamUser, password: await signer.getAuthToken() })
+  secrets.set(key, { credentials: parsed, expiresAt: Date.now() + tokenLifetime })
+  return parsed
+}
 async function credentials(config: DatabaseConfig, refresh: boolean): Promise<DatabaseCredentials> {
+  if (config.authMode === 'iam') return iamCredentials(config, refresh)
   const cached = secrets.get(config.secretArn)
   if (!refresh && cached && cached.expiresAt > Date.now()) return cached.credentials
   const service = new SecretsManagerClient({ region: config.region })
@@ -100,8 +114,9 @@ export function createDatabase(config: DatabaseConfig, deps: DatabaseDependencie
       client = deps.client(connectionOptions(config, auth, ca, purpose))
       try { await client.connect() } catch (error) {
         const code = (error as { code?: string })?.code
-        if (code === '28P01') {
-          // Retry ONLY establishment after password rotation. Never replay SQL or
+        // RDS reports a rejected or expired IAM token as 28000 (PAM authentication failed).
+        if (code === '28P01' || (config.authMode === 'iam' && code === '28000')) {
+          // Retry ONLY establishment after password rotation or IAM token expiry. Never replay SQL or
           // callbacks: retrying a write could duplicate a reservation or checkout.
           await client.end().catch(() => undefined)
           client = undefined
