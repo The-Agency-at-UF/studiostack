@@ -150,6 +150,7 @@
 .production-client-list li { display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px; align-items: center; gap: var(--space-4); min-height: 56px; padding: var(--space-2) 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
 .app-content#workspace-content .production-settings > .production-client-list > li:last-child,.production-page .production-client-list li:last-child { border-bottom: 0; padding-bottom: 0; }
 .production-client-list li > button { justify-self: end; }
+.production-client-list li.is-saving { opacity: .6; }
 .production-client-name { font-weight: var(--weight-medium); overflow-wrap: anywhere; }
 .production-client-list li.is-archived .production-client-name { color: var(--muted); font-weight: var(--weight-regular); }
 .production-client-list li:not(:has(button)) { grid-template-columns: minmax(0, 1fr) 96px; }
@@ -202,3 +203,4 @@
 @keyframes production-saved-pulse { 50% { scale: 1.04; color: var(--success); } }
 .production-saved-pulse { display: inline-block; transform-origin: left center; animation: production-saved-pulse 400ms var(--ease-in-out); }
 @media (prefers-reduced-motion: reduce) { .production-saved-pulse { animation: none; } }
+.production-history article.is-sending { opacity: .6; }

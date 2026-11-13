@@ -67,12 +67,15 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const [savedPulse, setSavedPulse] = useState(0)
   const generation = useRef(0), mutation = useRef<{ key: string; id: string } | null>(null)
   const selection = useRef(0)
+  // Refreshes can overlap now that saves no longer wait for them; only the newest one may update the page.
+  const refreshes = useRef(0)
   const requestId = (key: string) => { if (mutation.current?.key !== key) mutation.current = { key, id: crypto.randomUUID() }; return mutation.current.id }
   const refresh = useCallback(async () => {
     if (!api) return
-    const current = generation.current
+    const current = generation.current, sequence = ++refreshes.current
+    const stale = () => current !== generation.current || sequence !== refreshes.current
     const a = await api.access()
-    if (current !== generation.current) return
+    if (stale()) return
     setAccess(a)
 
     const [briefsRes, deliveriesRes, clientsRes] = await Promise.allSettled([
@@ -97,7 +100,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
       })()
     ])
 
-    if (current !== generation.current) return
+    if (stale()) return
     if (briefsRes.status === 'fulfilled') setBriefs(briefsRes.value)
     else setError(errorText(briefsRes.reason))
     if (deliveriesRes.status === 'fulfilled') setDeliveries(deliveriesRes.value)
@@ -141,20 +144,40 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     setError(''); setBusy(true)
     try { const b = await api.get(id); if (n === selection.current && g === generation.current) accept(b) } catch (e) { if (g === generation.current) setError(errorText(e)) } finally { if (g === generation.current) setBusy(false) }
   }
+  /**
+   * Shows the server's answer as soon as it arrives and reloads the workspace in the background,
+   * so the page unlocks without waiting for every brief, delivery and client to page in again.
+   * Resolves true once the change is saved.
+   */
   const run = async (task: (client: ProductionClient) => Promise<ProductionBrief | void>, done = 'Saved.') => {
-    if (!api || busy) return
+    if (!api || busy) return false
     const g = generation.current
     setBusy(true); setError(''); setNotice('')
-    try { const b = await task(api); if (g !== generation.current) return; if (b) accept(b); mutation.current = null; setNotice(done); invalidateCache(cacheKey); await refresh() }
-    catch (e) { if (g === generation.current) setError(errorText(e)) } finally { if (g === generation.current) setBusy(false) }
+    try {
+      const b = await task(api); if (g !== generation.current) return false
+      if (b) { accept(b); setBriefs(list => list.map(item => item.id === b.id ? b : item)) }
+      mutation.current = null; setNotice(done); invalidateCache(cacheKey)
+      refresh().catch(e => { if (g === generation.current) setError(errorText(e)) })
+      return true
+    }
+    catch (e) { if (g === generation.current) setError(errorText(e)); return false } finally { if (g === generation.current) setBusy(false) }
   }
   const save = () => selected && run(async client => { const brief = await client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))); setSavedPulse(n => n + 1); return brief })
-  const action = (command: Omit<BriefCommand, 'version' | 'requestId'>) => selected && run(client => client.action(selected.id, { ...command, version: selected.version, requestId: requestId(JSON.stringify({ id: selected.id, version: selected.version, command })) }))
+  const action = async (command: Omit<BriefCommand, 'version' | 'requestId'>) => {
+    if (!selected) return false
+    const brief = selected
+    // A comment has no side effects, so it joins the history at once; a failed send takes it back out.
+    const pending: BriefEvent | null = command.action === 'comment' && !busy ? { id: `pending:${crypto.randomUUID()}`, actorId: access?.userId ?? '', actorName: 'You', kind: 'comment', comment: command.comment ?? '', section: command.section ?? '', version: brief.version, createdAt: new Date().toISOString(), snapshot: null } : null
+    if (pending) setSelected(s => s?.id === brief.id ? { ...s, events: [...s.events, pending] } : s)
+    const saved = await run(client => client.action(brief.id, { ...command, version: brief.version, requestId: requestId(JSON.stringify({ id: brief.id, version: brief.version, command })) }))
+    if (pending && !saved) setSelected(s => s?.id === brief.id ? { ...s, events: s.events.filter(e => e.id !== pending.id) } : s)
+    return saved
+  }
   const deletable = (brief: ProductionBrief) => (brief.ownerId === access?.userId || Boolean(access?.canAdminister)) && ['draft','denied','withdrawn'].includes(brief.status)
   const remove = (brief: ProductionBrief) => setPendingDelete(brief)
   const confirmDelete = async () => {
     if (!pendingDelete || busy) return
-    await run(async client => { await client.remove(pendingDelete.id); setSelected(null); setDirty(false) }, 'Brief deleted.')
+    await run(async client => { await client.remove(pendingDelete.id); setBriefs(list => list.filter(b => b.id !== pendingDelete.id)); setSelected(null); setDirty(false) }, 'Brief deleted.')
     setPendingDelete(null)
   }
   const update = (key: keyof BriefData, value: string | string[]) => { setForm(f => ({ ...f, [key]: value })); setDirty(true) }
@@ -205,7 +228,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
             {visibleSections(form).map(s => <fieldset id={`brief-${s.title.toLowerCase().replaceAll(' ','-')}`} key={s.title} disabled={!editable || busy}><legend>{s.title}</legend><div className="production-fields">{s.fields.map(f => <label className={f.type === 'textarea' ? 'production-wide' : undefined} key={f.key}>{f.label}{f.required ? ' *' : ''}{f.type === 'textarea' ? <textarea rows={3} maxLength={6000} value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)} /> : f.type === 'select' ? <Select value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)}><option value="">Choose…</option>{f.options?.map(v => <option key={v}>{v}</option>)}</Select> : <input type={f.type ?? 'text'} maxLength={1000} value={form.fields[f.key] ?? ''} onChange={e => updateField(f.key,e.target.value)} />}</label>)}</div></fieldset>)}
             {editable && <div className="production-savebar"><SaveStatus pulse={dirty ? 0 : savedPulse} onSettled={() => setSavedPulse(0)}>{dirty ? 'Unsaved changes' : 'All changes saved'}</SaveStatus><button className="production-primary" disabled={busy || !dirty} type="submit">{busy ? 'Saving…' : 'Save draft'}</button></div>}
           </form>
-          <div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview&&!preview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={assignments=>run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}))}/></div><article className="production-print"><h2>{selected.data.projectName || 'Production brief'}</h2><p>{selected.data.client} · {statusLabels[selected.status]} · Revision {selected.version}</p><p>Requested by {selected.ownerName} · Managers: {selected.data.managers} · Production supervisor: {selected.data.supervisor || 'Not assigned'}</p><p>Delivery: {selected.data.deliveryDate || 'Not set'} · Production: {selected.data.productionTypes.join(', ')}</p>{selected.shootStartsAt && <p>Confirmed shoot: {dateLabel(selected.shootStartsAt)} – {dateLabel(new Date(Date.parse(selected.shootEndsAt!) - 1).toISOString())}</p>}{visibleSections(selected.data).map(s => <section key={s.title}><h3>{s.title}</h3><dl>{s.fields.filter(f=>selected.data.fields[f.key]).map(f=><div key={f.key}><dt>{f.label}</dt><dd>{selected.data.fields[f.key]}</dd></div>)}</dl></section>)}</article>
+          <div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview&&!preview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={async assignments=>{await run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}))}}/></div><article className="production-print"><h2>{selected.data.projectName || 'Production brief'}</h2><p>{selected.data.client} · {statusLabels[selected.status]} · Revision {selected.version}</p><p>Requested by {selected.ownerName} · Managers: {selected.data.managers} · Production supervisor: {selected.data.supervisor || 'Not assigned'}</p><p>Delivery: {selected.data.deliveryDate || 'Not set'} · Production: {selected.data.productionTypes.join(', ')}</p>{selected.shootStartsAt && <p>Confirmed shoot: {dateLabel(selected.shootStartsAt)} – {dateLabel(new Date(Date.parse(selected.shootEndsAt!) - 1).toISOString())}</p>}{visibleSections(selected.data).map(s => <section key={s.title}><h3>{s.title}</h3><dl>{s.fields.filter(f=>selected.data.fields[f.key]).map(f=><div key={f.key}><dt>{f.label}</dt><dd>{selected.data.fields[f.key]}</dd></div>)}</dl></section>)}</article>
           <section id="brief-attachments" className="production-attachments"><h3>Attachments</h3><p>Private PDFs and images, up to 20 MiB each. Asset and reference links can also be included in the brief.</p><ul>{selected.attachments.map(a => <li key={a.id}><span>{a.name} · {Math.ceil(a.size / 1024)} KB · {a.status}</span>{a.status === 'ready' ? <><button disabled={busy} onClick={() => void run(async client => { const download = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = download.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() })}>Download</button>{editable && <button disabled={busy || dirty} onClick={() => { if (window.confirm('Remove this attachment from the current brief? Submitted revisions retain their attachment history.')) void run(async client => { await client.discard(selected.id,a.id); return client.get(selected.id) }) }}>Remove attachment</button>}</> : editable && <><button disabled={busy} onClick={() => void run(client => client.complete(selected.id,a.id))}>Finish upload</button><button disabled={busy} onClick={() => void run(async client => { await client.discard(selected.id,a.id); return client.get(selected.id) })}>Remove attachment</button></>}</li>)}</ul>
             {editable && !preview && <label className="production-upload">Add attachment<input type="file" disabled={busy || dirty} accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; if (!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type) || file.size < 1 || file.size > 20 * 1024 * 1024) { setError('Use a PDF, JPEG, PNG or WebP up to 20 MiB.'); return }
               const id = crypto.randomUUID(); void run(async client => { const upload = await client.attach(selected.id, { id, name: file.name, contentType: file.type, size: file.size }); const body = new FormData(); Object.entries(upload.fields).forEach(([key,value]) => body.append(key,value)); body.append('file',file); const response = await fetch(upload.url, { method: 'POST', body, credentials: 'omit' }); if (!response.ok) throw new Error('Upload failed. Reload to discard the pending upload and try again.'); return client.complete(selected.id,id) })
@@ -213,18 +236,20 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
           </section>
         </div><DetailPanel className="production-inspector" label="Review and activity">
           <ReviewPanel brief={selected} access={access} busy={busy} dirty={dirty} missing={missing} onAction={action} />
-          <section className="production-history"><h3>Activity & revisions</h3>{[...selected.events].reverse().map(e => <article key={e.id}><div><strong>{e.kind.replaceAll('_',' ')}</strong><small>{new Date(e.createdAt).toLocaleString()}</small></div><p>{e.actorName}{e.section ? ` · ${e.section}` : ''}</p>{e.comment && <blockquote>{e.comment}</blockquote>}{e.snapshot && <button onClick={() => setSnapshot(e)}>View revision {e.version}</button>}</article>)}</section>
+          <section className="production-history"><h3>Activity & revisions</h3>{[...selected.events].reverse().map(e => { const sending = e.id.startsWith('pending:'); return <article key={e.id} className={sending ? 'is-sending' : undefined} aria-busy={sending || undefined}><div><strong>{e.kind.replaceAll('_',' ')}</strong><small>{sending ? 'Sending…' : new Date(e.createdAt).toLocaleString()}</small></div><p>{e.actorName}{e.section ? ` · ${e.section}` : ''}</p>{e.comment && <blockquote>{e.comment}</blockquote>}{e.snapshot && <button onClick={() => setSnapshot(e)}>View revision {e.version}</button>}</article> })}</section>
         </DetailPanel></div>
         {snapshot && <section className="production-snapshot" aria-label="Submission snapshot"><div><h3>Recorded revision {snapshot.version}</h3><button onClick={() => setSnapshot(null)}>Close snapshot</button></div><p>This preserves the brief at this point in its review history.</p><dl>{Object.entries(snapshot.snapshot!).filter(([k]) => !['fields','productionTypes'].includes(k)).map(([k,v]) => <div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>)}<div><dt>Production types</dt><dd>{snapshot.snapshot!.productionTypes.join(', ')}</dd></div>{briefSections.flatMap(s => s.fields).filter(f => snapshot.snapshot!.fields[f.key]).map(f => <div key={f.key}><dt>{f.label}</dt><dd>{snapshot.snapshot!.fields[f.key]}</dd></div>)}</dl>{snapshot.attachments?.map(a => <button key={a.id} disabled={busy} onClick={() => void run(async client => { const file = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = file.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() })}>Download {a.name}</button>)}</section>}
       </div>}
     </>}
   </main>
 }
-function ReviewPanel({ brief, access, busy, dirty, missing, onAction }: { brief: ProductionBrief; access: ProductionAccess; busy: boolean; dirty: boolean; missing: string[]; onAction: (command: Omit<BriefCommand,'version'|'requestId'>) => unknown }) {
+function ReviewPanel({ brief, access, busy, dirty, missing, onAction }: { brief: ProductionBrief; access: ProductionAccess; busy: boolean; dirty: boolean; missing: string[]; onAction: (command: Omit<BriefCommand,'version'|'requestId'>) => Promise<boolean> }) {
   const [comment,setComment] = useState(''), [section,setSection] = useState(''), [start,setStart] = useState(''), [end,setEnd] = useState('')
   useEffect(() => { setComment(''); setSection(''); setStart(''); setEnd('') }, [brief.id,brief.version])
   const own = brief.ownerId === access.userId, editable = own && ['draft','changes_requested'].includes(brief.status)
-  const send = (action: BriefCommand['action']) => onAction({ action, comment, section, ...(['approve','schedule'].includes(action) && (start || end) ? { shootStartsAt: start ? `${start}T00:00:00.000Z` : '', shootEndsAt: end ? new Date(Date.parse(end) + 86400_000).toISOString() : '' } : {}) })
+  // A comment clears the box straight away; the text comes back if it fails to send.
+  const postComment = async () => { const text = comment; setComment(''); if (!await onAction({ action: 'comment', comment: text, section })) setComment(c => c || text) }
+  const send = (action: BriefCommand['action']) => action === 'comment' ? postComment() : onAction({ action, comment, section, ...(['approve','schedule'].includes(action) && (start || end) ? { shootStartsAt: start ? `${start}T00:00:00.000Z` : '', shootEndsAt: end ? new Date(Date.parse(end) + 86400_000).toISOString() : '' } : {}) })
   return <section className="production-review"><h3>Review & scheduling</h3><p>{brief.shootStartsAt ? `Confirmed shoot: ${dateLabel(brief.shootStartsAt)} – ${dateLabel(new Date(Date.parse(brief.shootEndsAt!) - 1).toISOString())}` : 'Shoot dates become confirmed when Production approves the brief.'}</p>
     {!access.notificationsConfigured && <p className="production-warning">ELT decisions appear in this workspace. An administrator must assign ELT members, and the system’s email sender must be verified for automatic delivery.</p>}
     {editable && <><p>{missing.length ? `Before submitting: ${missing.join(', ')}.` : 'Required details are complete.'}</p><button className="production-primary" disabled={busy || dirty || missing.length > 0 || brief.attachments.some(a => a.status === 'pending')} onClick={() => send('submit')}>Submit for review</button>{dirty && <small>Save the draft before submitting.</small>}</>}
@@ -278,6 +303,10 @@ function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: Production
 }
 function DecisionFeed({ api, briefs, deliveries, access, preview, onOpen, onRefresh }: { api: ProductionClient; briefs: ProductionBrief[]; deliveries: Delivery[]; access: ProductionAccess; preview: boolean; onOpen: (id: string) => void; onRefresh: () => Promise<void> }) {
   const [events,setEvents] = useState<{ brief: ProductionBrief; event: BriefEvent }[]>([]), [error,setError] = useState(''), [busy,setBusy] = useState(false), [loading,setLoading] = useState(true)
+  // Retried deliveries read as queued until the outbox reloads; a rejected retry shows its real status again.
+  const [retried,setRetried] = useState<Set<string>>(() => new Set())
+  useEffect(() => { setRetried(new Set()) }, [deliveries])
+  const retry = (id: string) => { setBusy(true); setRetried(v => new Set(v).add(id)); api.retry(id).then(() => onRefresh()).catch(e => { setRetried(v => { const next = new Set(v); next.delete(id); return next }); setError(errorText(e)) }).finally(() => setBusy(false)) }
   useEffect(() => { let active = true; setLoading(true); Promise.all(briefs.map(b => api.get(b.id))).then(values => { if (active) setEvents(values.flatMap(brief => brief.events.filter(e => ['approved','denied','changes_requested','withdrawn','scheduled'].includes(e.kind)).map(event => ({ brief,event }))).sort((a,b) => b.event.createdAt.localeCompare(a.event.createdAt))) }).catch(e => { if (active) setError(errorText(e)) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [api,briefs])
-  return <section className="production-decisions"><h2>Executive Leadership Team decisions</h2><p>Review outcomes, reasons, and confirmed dates. {preview ? 'Preview sends no email.' : 'Email delivery is tracked separately from the saved decision.'}</p>{error && <p role="alert" className="production-error">{error}</p>}{loading && <p role="status">Loading decisions…</p>}{!loading && !events.length && <p className="production-empty">No decisions yet. Submitted briefs will appear here after leadership reviews them.</p>}{events.map(({brief,event}) => { const jobs = deliveries.filter(d => d.eventId === event.id); return <article className="production-decision" key={event.id}><div><button className="production-row-title" onClick={() => onOpen(brief.id)}>{event.snapshot?.projectName || brief.data.projectName}</button><span className={`production-status status-${event.kind === 'scheduled' ? 'approved' : event.kind}`}>{event.kind.replaceAll('_',' ')}</span></div>{event.shootStartsAt && <p>Confirmed shoot: {dateLabel(event.shootStartsAt)} – {dateLabel(new Date(Date.parse(event.shootEndsAt!) - 1).toISOString())}</p>}<p>{event.actorName} · {new Date(event.createdAt).toLocaleString()} · Revision {event.version}</p>{event.comment && <blockquote>{event.comment}</blockquote>}<p>{jobs.length ? jobs.map(d => `${d.status} (${d.attempts} attempt${d.attempts === 1 ? '' : 's'})`).join(' · ') : 'No email delivery was queued for this decision.'}</p>{access.canAdminister && jobs.filter(d => ['failed','uncertain'].includes(d.status)).map(d => <button key={d.id} disabled={busy} onClick={() => { if (!window.confirm('Retry this delivery? An uncertain delivery may already have reached its recipient.')) return; setBusy(true); api.retry(d.id).then(onRefresh).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>Retry {d.status} delivery</button>)}</article> })}</section>
+  return <section className="production-decisions"><h2>Executive Leadership Team decisions</h2><p>Review outcomes, reasons, and confirmed dates. {preview ? 'Preview sends no email.' : 'Email delivery is tracked separately from the saved decision.'}</p>{error && <p role="alert" className="production-error">{error}</p>}{loading && <p role="status">Loading decisions…</p>}{!loading && !events.length && <p className="production-empty">No decisions yet. Submitted briefs will appear here after leadership reviews them.</p>}{events.map(({brief,event}) => { const jobs = deliveries.filter(d => d.eventId === event.id).map(d => retried.has(d.id) ? { ...d, status: 'pending' as const } : d); return <article className="production-decision" key={event.id}><div><button className="production-row-title" onClick={() => onOpen(brief.id)}>{event.snapshot?.projectName || brief.data.projectName}</button><span className={`production-status status-${event.kind === 'scheduled' ? 'approved' : event.kind}`}>{event.kind.replaceAll('_',' ')}</span></div>{event.shootStartsAt && <p>Confirmed shoot: {dateLabel(event.shootStartsAt)} – {dateLabel(new Date(Date.parse(event.shootEndsAt!) - 1).toISOString())}</p>}<p>{event.actorName} · {new Date(event.createdAt).toLocaleString()} · Revision {event.version}</p>{event.comment && <blockquote>{event.comment}</blockquote>}<p>{jobs.length ? jobs.map(d => `${d.status} (${d.attempts} attempt${d.attempts === 1 ? '' : 's'})`).join(' · ') : 'No email delivery was queued for this decision.'}</p>{access.canAdminister && jobs.filter(d => ['failed','uncertain'].includes(d.status)).map(d => <button key={d.id} disabled={busy} onClick={() => { if (!window.confirm('Retry this delivery? An uncertain delivery may already have reached its recipient.')) return; retry(d.id) }}>Retry {d.status} delivery</button>)}</article> })}</section>
 }

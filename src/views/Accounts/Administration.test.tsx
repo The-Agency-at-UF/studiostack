@@ -94,3 +94,24 @@ describe('Organization access and settings',()=>{
     expect(photos.upload).not.toHaveBeenCalled()
   })
 })
+describe('Optimistic administration actions',()=>{
+  const asker={id:'request',userId:'u',email:'asker@studio.example.edu',displayName:'Asker',message:null,status:'pending',version:1,createdAt:'2026-10-30T12:00:00Z',decidedAt:null}
+  it('takes an access request off the list before the server answers',async()=>{
+    m.accessRequests.mockResolvedValue({items:[asker],nextCursor:null})
+    let answer!:(value:unknown)=>void;m.decideAccessRequest.mockReturnValue(new Promise(resolve=>{answer=resolve}))
+    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:'Approve Asker'}))
+    expect(screen.queryByRole('button',{name:'Approve Asker'})).not.toBeInTheDocument()
+    m.accessRequests.mockResolvedValue({items:[],nextCursor:null});answer({...asker,status:'approved',version:2})
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+    await waitFor(()=>expect(m.refresh).toHaveBeenCalled())
+  })
+  it('puts a revoked invitation back when the server rejects the change',async()=>{
+    m.invitations.mockResolvedValue({items:[{id:'i',email:'new@example.test',displayName:'New Person',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:3,createdAt:future}],nextCursor:null})
+    let fail!:(error:unknown)=>void;m.revokeInvitation.mockReturnValue(new Promise((_,reject)=>{fail=reject}))
+    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:'Revoke invitation'}))
+    expect(screen.queryByRole('button',{name:'Revoke invitation'})).not.toBeInTheDocument()
+    fail(new Error('offline'))
+    expect(await screen.findByText('The service is unavailable. Your changes have not been confirmed.')).toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Revoke invitation'})).toBeInTheDocument()
+  })
+})

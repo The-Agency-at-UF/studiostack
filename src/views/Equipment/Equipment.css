@@ -27,6 +27,7 @@
 .equipment-condition-row small,.equipment-history small { display:block;color:var(--muted);font-size:12px;margin-top:5px; }
 .equipment-condition-row textarea { border:1px solid var(--line-strong);padding:12px;min-height:88px;resize:vertical; }
 .equipment-history li { border-bottom:1px solid var(--line);padding:16px 0;font-size:13px; }
+.equipment-history li.is-sending { opacity:.6; }
 .equipment-history p { margin-top:12px; }
 .equipment-history p span { display:block;color:var(--muted);white-space:pre-wrap;margin-top:5px; }
 @media(max-width:850px){.equipment-handoff-layout{grid-template-columns:1fr}}
