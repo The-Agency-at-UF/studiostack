@@ -1,10 +1,12 @@
 import type { createDatabase } from '../database/client'
 import type { DatabaseConfig } from '../database/config'
+import { createHash, randomUUID } from 'node:crypto'
 import { object } from '../database/api-validation'
 
-// Approved by Roger on 2026-10-31: the Gmail account owns The Agency at UF and the UF account becomes a member.
-export const approvedAgencyOwnerEmail = 'mckenzieroger83@gmail.com'
-export const approvedFormerOwnerEmail = 'rmckenzie1@ufl.edu'
+// Approved by Roger on 2026-11-13: the UF account owns The Agency at UF again. The Gmail account
+// (owner since the 2026-10-31 handover) stays an owner; it is only demoted if passed as formerOwner.
+export const approvedAgencyOwnerEmail = 'rmckenzie1@ufl.edu'
+export const approvedFormerOwnerEmail = 'mckenzieroger83@gmail.com'
 type Identity = { subject: string; email: string }
 const identity = (value: unknown, email: string): Identity => {
   const v = object(value, ['subject', 'email'])
@@ -26,7 +28,11 @@ export async function handOverAgencyOwnership(database: ReturnType<typeof create
     // Registration happens on first sign-in; the new owner must have signed in to this environment once.
     if (!ownerId) throw new Error('New owner has not signed in yet')
     const membership = async (id: string) => (await client.query<{ role: string; status: string }>('SELECT role,status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2', [org.id, id])).rows[0]
-    const audit = (target: string, details: Record<string, unknown>) => client.query("INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details) VALUES($1,$2,'member_updated',$3,$4)", [org.id, ownerId, target, JSON.stringify({ ...details, source: 'maintenance' })])
+    // Each maintenance write is its own request; the hash fingerprints exactly what was recorded.
+    const audit = (target: string, details: Record<string, unknown>) => {
+      const body = JSON.stringify({ ...details, source: 'maintenance' })
+      return client.query("INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,'member_updated',$3,$4,$5,$6)", [org.id, ownerId, target, body, randomUUID(), createHash('sha256').update(`${target}:${body}`).digest('hex')])
+    }
 
     const before = await membership(ownerId)
     if (!before) await client.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'owner','active')", [org.id, ownerId])
