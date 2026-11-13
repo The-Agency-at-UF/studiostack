@@ -49,3 +49,70 @@
 .administration .administration-logo-pick:focus-within { outline:var(--focus-width) solid var(--accent); outline-offset:var(--focus-offset); }
 .administration .administration-logo-pick input { position:absolute; inset:0; opacity:0; cursor:pointer; padding:0; }
 .administration .administration-logo small { flex-basis:100%; color:var(--muted); }
+
+/* Access & settings: a sticky section index beside one card per section.
+   workspace-surface hides overflow, which would stop the index sticking; clip keeps the clipping without a scroll container. */
+.workspace-surface.administration-settings-page { overflow:clip; }
+.administration-layout { display:grid; grid-template-columns:216px minmax(0,1fr); gap:var(--space-8); align-items:start; }
+.administration-index { position:sticky; top:var(--space-6); display:grid; gap:2px; }
+.administration-index a { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); min-height:40px; padding:var(--space-2) var(--space-3); border-radius:var(--radius-control); color:var(--muted); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; transition:background var(--motion-fast),color var(--motion-fast); }
+.administration-index a:hover { color:var(--ink); background:var(--surface-tray); }
+.administration-index a[aria-current] { color:var(--ink); background:var(--surface); box-shadow:0 1px 2px #19171e14; }
+.administration-index .administration-count { margin-left:0; }
+.administration-sections { display:grid; gap:var(--space-6); min-width:0; }
+.administration-sections > section { scroll-margin-top:var(--space-6); }
+.administration-layout .administration-panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:var(--space-8); margin:0; }
+.administration-layout header.administration-panel-header { display:block; padding:0 0 var(--space-5); margin:0 0 var(--space-6); border-bottom:1px solid var(--line); }
+.app-content#workspace-content .administration .administration-panel-header { padding-bottom:var(--space-5); }
+.administration-layout header.administration-panel-header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:var(--space-4); }
+.administration-layout .administration-panel h2 { font-size:var(--text-lg); font-weight:var(--weight-bold); line-height:var(--line-heading); margin:0; }
+.administration-layout .administration-panel-header p { color:var(--muted); font-size:var(--text-sm); margin-top:var(--space-1); max-width:62ch; }
+.administration-group + .administration-group { margin-top:var(--space-8); }
+.administration-group h3 { font-size:var(--text-base); font-weight:var(--weight-bold); margin:0 0 var(--space-1); }
+.administration-lede { color:var(--muted); font-size:var(--text-sm); max-width:68ch; margin:0 0 var(--space-3); }
+.administration-layout .administration-list { list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:var(--radius-panel); }
+.administration-layout .administration-list li { padding:var(--space-3) var(--space-4); border-bottom:1px solid var(--line); font-size:var(--text-sm); }
+.administration-layout .administration-list li:last-child { border-bottom:0; }
+.administration-layout .administration-list strong { font-weight:var(--weight-medium); }
+.administration-layout .administration-activity time { font-variant-numeric:tabular-nums; }
+.administration-empty { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-3); min-height:56px; margin:0; padding:var(--space-2) var(--space-2) var(--space-2) var(--space-4); border:1px dashed var(--line-strong); border-radius:var(--radius-panel); color:var(--muted); font-size:var(--text-sm); }
+.administration-add { margin-top:var(--space-3); }
+.administration-inline-form { margin-top:var(--space-3); padding:var(--space-4); background:var(--surface-tray); border-radius:var(--radius-panel); }
+.administration-layout .administration-hint { margin-top:var(--space-3); }
+
+/* Button tones inside the settings sections. The workspace base styles every admin button, so these need its weight. */
+.app-content#workspace-content .administration .administration-layout button.administration-secondary { background:var(--surface); color:var(--ink); border-color:var(--line-strong); }
+.app-content#workspace-content .administration .administration-layout button.administration-quiet { background:transparent; border-color:transparent; color:var(--accent); }
+.app-content#workspace-content .administration .administration-layout button.administration-quiet:hover:not(:disabled) { background:var(--accent-soft); border-color:transparent; }
+.app-content#workspace-content .administration .administration-layout button.administration-danger { color:var(--danger); }
+.app-content#workspace-content .administration .administration-layout button.administration-danger:hover:not(:disabled) { background:var(--danger-soft); }
+
+/* General: logo across the top, then two columns of fields and a footer that tracks unsaved changes. */
+.administration-settings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-5) var(--space-6); max-width:760px; }
+.administration-settings > label { display:flex; flex-direction:column; gap:var(--space-2); }
+.administration-settings .administration-logo { grid-column:1/-1; flex-wrap:nowrap; }
+.administration-settings .administration-logo .account-org-logo { width:64px; height:64px; border-radius:var(--radius-card); }
+.administration-logo-controls { display:grid; gap:var(--space-2); }
+.administration-logo-controls small { color:var(--muted); font-size:var(--text-xs); }
+.administration-field-hint { color:var(--muted); font-size:var(--text-xs); font-weight:var(--weight-regular); }
+.administration-days { display:flex; align-items:center; gap:var(--space-3); color:var(--muted); font-weight:var(--weight-regular); }
+.administration-days input { width:112px; font-variant-numeric:tabular-nums; }
+.administration-form-footer { grid-column:1/-1; display:flex; justify-content:flex-end; align-items:center; gap:var(--space-3); padding-top:var(--space-5); border-top:1px solid var(--line); }
+.administration-dirty { display:inline-flex; align-items:center; gap:var(--space-2); margin-right:auto; color:var(--warning); font-size:var(--text-sm); font-weight:var(--weight-medium); }
+.administration-dirty::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; }
+
+@media(max-width:1023px){
+  .administration-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
+  .administration-index { position:static; display:flex; gap:var(--space-1); overflow-x:auto; padding-bottom:var(--space-1); }
+  .administration-index a { flex:none; }
+  /* Clear the fixed mobile top bar when jumping to a section. */
+  .administration-sections > section { scroll-margin-top:calc(var(--header-height) + var(--space-4)); }
+}
+@media(max-width:700px){
+  .administration-layout .administration-panel { padding:var(--space-5); }
+  .administration-settings { grid-template-columns:minmax(0,1fr); }
+  .administration-settings .administration-logo { flex-wrap:wrap; }
+  .administration-form-footer { flex-wrap:wrap; }
+  .administration-layout header.administration-panel-header-row { flex-direction:column; }
+}
+@media(prefers-reduced-motion:reduce){ .administration-index a { transition:none; } }
