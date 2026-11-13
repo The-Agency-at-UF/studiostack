@@ -135,8 +135,10 @@
   border: 1px solid var(--line);
   border-top: 3px solid var(--accent);
   box-shadow: 0 14px 32px rgba(16,16,16,.14);
-  animation: account-reveal .15s ease both;
+  transform-origin: top right;
+  animation: account-reveal var(--motion-enter) var(--ease-out) both;
 }
+.account-panel[data-closing] { animation: account-conceal var(--motion-exit) var(--ease-out) both; }
 .account-identity { padding: 14px 12px 18px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
 .account-identity strong { display: block; font-size: 15px; font-weight: 700; }
 .account-identity span { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
@@ -144,8 +146,9 @@
 .account-panel a:hover, .account-panel button:hover { color: var(--accent); background: rgba(var(--accent-rgb),.055); }
 .account-panel svg { width: 19px; height: 19px; flex-shrink: 0; }
 .account-panel .account-signout { margin-top: 6px; border-top: 1px solid var(--line); }
-@keyframes account-reveal { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .account-panel { animation: none; } .account-trigger, .account-trigger .account-chevron, .account-panel a, .account-panel button { transition: none; } }
+@keyframes account-reveal { from { opacity: 0; scale: .95; } }
+@keyframes account-conceal { to { opacity: 0; scale: .95; } }
+@media (prefers-reduced-motion: reduce) { .account-panel, .account-panel[data-closing] { animation: none; } .account-trigger, .account-trigger .account-chevron, .account-panel a, .account-panel button { transition: none; } }
 .mobile-nav-links { display: none; }
 
 .app-content {

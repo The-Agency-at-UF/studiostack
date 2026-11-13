@@ -12,9 +12,11 @@
   color: var(--ink);
   font-family: var(--font-ui);
   box-shadow: var(--shadow-tray);
-  animation: ws-confirm-in 150ms ease-out;
+  animation: ws-confirm-in var(--motion-enter) var(--ease-out);
 }
-.ws-confirm-dialog::backdrop { background: var(--overlay); animation: ws-confirm-backdrop-in 150ms ease-out; }
+.ws-confirm-dialog[data-closing] { animation: ws-confirm-out var(--motion-exit) var(--ease-out) both; }
+.ws-confirm-dialog[data-closing]::backdrop { animation: ws-confirm-backdrop-out var(--motion-exit) var(--ease-out) both; }
+.ws-confirm-dialog::backdrop { background: var(--overlay); animation: ws-confirm-backdrop-in var(--motion-enter) var(--ease-out); }
 .ws-confirm-content { padding: var(--space-6); }
 .ws-confirm-content h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); line-height: var(--line-heading); font-weight: var(--weight-bold); letter-spacing: -.02em; }
 .ws-confirm-content p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--line-body); overflow-wrap: anywhere; }
@@ -26,7 +28,9 @@
 .ws-confirm-actions .ws-confirm-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, black); }
 .ws-confirm-actions button:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--focus-offset); }
 .ws-confirm-actions button:disabled { opacity: .5; cursor: not-allowed; }
-@keyframes ws-confirm-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes ws-confirm-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ws-confirm-in { from { opacity: 0; scale: .96; } }
+@keyframes ws-confirm-out { to { opacity: 0; scale: .96; } }
+@keyframes ws-confirm-backdrop-in { from { opacity: 0; } }
+@keyframes ws-confirm-backdrop-out { to { opacity: 0; } }
 @media (max-width: 480px) { .ws-confirm-actions button { flex: 1; } }
-@media (prefers-reduced-motion: reduce) { .ws-confirm-dialog, .ws-confirm-dialog::backdrop { animation: none; } .ws-confirm-actions button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ws-confirm-dialog, .ws-confirm-dialog::backdrop, .ws-confirm-dialog[data-closing], .ws-confirm-dialog[data-closing]::backdrop { animation: none; } .ws-confirm-actions button { transition: none; } }

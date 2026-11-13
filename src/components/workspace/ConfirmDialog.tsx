@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { closeWithExit } from './closeWithExit'
 import './ConfirmDialog.css'
 
 type ConfirmDialogProps = {
@@ -17,6 +18,7 @@ export default function ConfirmDialog({ title, description, subject, confirmLabe
   const dialog = useRef<HTMLDialogElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
   const id = useId()
+  const dismiss = () => closeWithExit(dialog.current, onCancel)
 
   useEffect(() => {
     const element = dialog.current!
@@ -29,14 +31,14 @@ export default function ConfirmDialog({ title, description, subject, confirmLabe
     }
   }, [])
 
-  return createPortal(<dialog ref={dialog} className="ws-confirm-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} aria-busy={busy} onCancel={event => { event.preventDefault(); if (!busy) onCancel() }}>
+  return createPortal(<dialog ref={dialog} className="ws-confirm-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} aria-busy={busy} onCancel={event => { event.preventDefault(); if (!busy) dismiss() }}>
     <div className="ws-confirm-content">
       <h2 id={`${id}-title`}>{title}</h2>
       {subject && <p className="ws-confirm-subject">{subject}</p>}
       <p id={`${id}-description`}>{description}</p>
     </div>
     <div className="ws-confirm-actions">
-      <button ref={cancel} type="button" disabled={busy} onClick={onCancel}>Cancel</button>
+      <button ref={cancel} type="button" disabled={busy} onClick={dismiss}>Cancel</button>
       <button type="button" className="ws-confirm-destructive" disabled={busy} onClick={onConfirm}>{busy ? 'Deleting…' : confirmLabel}</button>
     </div>
   </dialog>, document.body)
