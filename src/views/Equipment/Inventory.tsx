@@ -1,5 +1,6 @@
 'use client'
-import {DetailPanel,Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import {DetailPanel,Select,Skeleton,StatusLabel} from '../../components/workspace/WorkspaceUI'
+import {HiMagnifyingGlass,HiXMark} from 'react-icons/hi2'
 import type {EquipmentRecord} from '../../types/equipment'
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react'
 import type {FormEvent} from 'react'
@@ -39,24 +40,69 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
       .finally(()=>{if(active)setLoading(false)})
     return()=>{active=false}
   },[api,organizationId,cacheKey,cached])
-  const [view,setView]=useState('all')
-  const current=items.find(i=>i.id===selected),filtered=items.filter(i=>(view==='all'||view==='out'&&i.checkedOut||view==='ready'&&!i.checkedOut&&i.status==='available'||view==='service'&&i.status==='maintenance')&&(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(query.toLowerCase()))
-  return <main className="administration workspace-surface inventory-workspace"><header><div><p className="administration-eyebrow">Equipment workspace</p><h1>Equipment</h1><p>{items.length} items · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div><div className="administration-actions"><button onClick={()=>{setError('');void load().catch(e=>setError(equipmentError(e)))}}>Refresh</button><button onClick={()=>setScanning(true)}>Scan equipment</button>{admin&&<button className="ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}>Add item</button>}</div></header>
-    {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading equipment…" variant="row" count={5}/>}
+  const [view,setView]=useState<InventoryView>('all')
+  const [refreshing,setRefreshing]=useState(false)
+  const current=items.find(i=>i.id===selected)
+  const counts=useMemo(()=>Object.fromEntries(inventoryViews.map(([id])=>[id,items.filter(i=>matchesView(i,id)).length])) as Record<InventoryView,number>,[items])
+  const needle=query.trim().toLowerCase()
+  const filtered=items.filter(i=>matchesView(i,view)&&(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(needle))
+  const filtering=Boolean(needle||category)
+  const closeDetails=()=>{setSelected(null);setAdding(false);setAdded('')}
+  const inspect=(id:string)=>{setSelected(id);setAdding(false);setAdded('')}
+  const refresh=async()=>{setError('');setRefreshing(true);try{await load()}catch(e){setError(equipmentError(e))}finally{setRefreshing(false)}}
+  return <main className="administration workspace-surface inventory-workspace">
+    <header>
+      <div><h1>Equipment</h1><p className="inventory-summary">{plural(items.length,'item')} · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div>
+      <div className="administration-actions">
+        <button type="button" onClick={()=>void refresh()} disabled={refreshing} aria-busy={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button>
+        <button type="button" onClick={()=>setScanning(true)}>Scan equipment</button>
+        {admin&&<button type="button" className="ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}>Add item</button>}
+      </div>
+    </header>
+    {error&&<p role="alert" className="inventory-error">{error}</p>}
     {scanning&&<ScanHandoff api={api} organizationId={organizationId} items={items} admin={admin} onClose={()=>setScanning(false)} onAdd={code=>{setScanning(false);setAddCode(code);setAdded('');setAdding(true);setSelected(null)}} onSaved={async()=>{for(const key of ['fulfillment','reservations','inventory','dashboard','reports'])invalidateCache(`${key}:${organizationId}`);await load().catch(e=>setError(equipmentError(e)))}}/>}
-<nav className="production-tabs" aria-label="Equipment views">{[['all','All production equipment'],['ready','Available'],['out','Checked out'],['service','Maintenance']].map(([id,label])=><button key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav>
-    <div className="administration-form"><label>Search equipment<input type="search" value={query} onChange={e=>setQuery(e.target.value)}/></label><label>Category<Select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</Select></label></div>
-    {!loading&&!error&&!filtered.length&&<p className="equipment-empty">No matching equipment. {admin?'Add an item to get started.':''}</p>}
-    <div className="equipment-layout"><section className="administration-table"><table><thead><tr><th>Item</th><th>Category</th><th>Condition</th><th>Service status</th></tr></thead><tbody className="ws-stagger">{filtered.map(i=><tr key={i.id}><td><button className="equipment-item-link" onClick={()=>{setSelected(i.id);setAdding(false);setAdded('')}}>{i.name}</button><small>{i.equipmentCode}</small></td><td>{i.category}</td><td>{i.condition}</td><td>{i.checkedOut?'Checked out':i.status}</td></tr>)}</tbody></table></section>
-      {(current||adding)&&<DetailPanel className="equipment-inspector" label="Equipment details"><button className="equipment-item-link" onClick={()=>{setSelected(null);setAdding(false);setAdded('')}}>Close details</button><h2>{current?.name??'Add equipment'}</h2>
+    <nav className="production-tabs inventory-tabs" aria-label="Equipment views">{inventoryViews.map(([id,label])=><button type="button" key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}{!loading&&<span className="inventory-tab-count"><span className="ws-sr-only">, </span>{counts[id]}</span>}</button>)}</nav>
+    <div className="inventory-toolbar">
+      <label className="inventory-search"><span className="ws-sr-only">Search equipment</span><HiMagnifyingGlass aria-hidden="true"/><input type="search" placeholder="Search by name or code" value={query} onChange={e=>setQuery(e.target.value)}/></label>
+      <label className="inventory-category"><span className="ws-sr-only">Category</span><Select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</Select></label>
+      {!loading&&<p className="inventory-result-count" aria-live="polite">{filtering?`${filtered.length} of ${plural(counts[view],'item')}`:plural(filtered.length,'item')}</p>}
+      {filtering&&<button type="button" className="inventory-clear" onClick={()=>{setQuery('');setCategory('')}}>Clear filters</button>}
+    </div>
+    <div className="equipment-layout">
+      <section className="administration-table inventory-table" aria-label="Equipment list">
+        {loading?<Skeleton label="Loading equipment…" variant="row" count={5}/>:filtered.length?<table>
+          <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Condition</th><th scope="col">Status</th></tr></thead>
+          <tbody className="ws-stagger">{filtered.map(i=>{const status=serviceStatus(i);return <tr key={i.id} className={i.id===selected?'is-selected':undefined} onClick={()=>inspect(i.id)}>
+            <td><button type="button" className="equipment-item-link" aria-current={i.id===selected?'true':undefined} onClick={e=>{e.stopPropagation();inspect(i.id)}}>{i.name}</button><small className="inventory-code">{i.equipmentCode}</small></td>
+            <td>{i.category}</td>
+            <td><span className={`inventory-condition inventory-condition-${i.condition}`}>{capitalize(i.condition)}</span></td>
+            <td><StatusLabel tone={status.tone}>{status.label}</StatusLabel></td>
+          </tr>})}</tbody>
+        </table>:!error&&<div className="inventory-empty">
+          {items.length?<><p>No equipment matches these filters.</p>{filtering?<button type="button" onClick={()=>{setQuery('');setCategory('')}}>Clear filters</button>:<button type="button" onClick={()=>setView('all')}>Show all equipment</button>}</>
+          :<><p>No equipment yet.</p><span>{admin?'Add an item or scan an existing label to start tracking gear.':'An administrator can add equipment for this organization.'}</span></>}
+        </div>}
+      </section>
+      {(current||adding)&&<DetailPanel className="equipment-inspector" label="Equipment details">
+        <div className="inventory-inspector-head">
+          <div><h2>{current?.name??'Add equipment'}</h2>{current&&<p>{current.equipmentCode} · {current.category}</p>}</div>
+          <button type="button" className="inventory-close" aria-label="Close details" onClick={closeDetails}><HiXMark aria-hidden="true"/></button>
+        </div>
+        {current&&<dl className="inventory-facts"><div><dt>Status</dt><dd><StatusLabel tone={serviceStatus(current).tone}>{serviceStatus(current).label}</StatusLabel></dd></div><div><dt>Condition</dt><dd className={`inventory-condition inventory-condition-${current.condition}`}>{capitalize(current.condition)}</dd></div></dl>}
         {current?.photoId&&<PrivatePhoto key={`${current.id}:${current.photoId}`} api={api} organizationId={organizationId} item={current}/>}
-        {current&&added===current.id&&<p role="status">{current.name} added. Download its QR label and attach it so it can be scanned at pickup and return.</p>}
-        {current&&<details open={added===current.id}><summary>Equipment QR label</summary><QRCodeGenerator equipmentID={current.equipmentCode}/></details>}
-        {admin&&<ItemEditor key={current?.id??'new:'+addCode} api={api} organizationId={organizationId} item={current} initialCode={addCode} onSaved={async item=>{if(!current)setAdded(item.id);setAdding(false);setSelected(item.id);invalidateCache(`photo:${organizationId}:${item.id}`);invalidateCache(`inventory:${organizationId}`);invalidateCache('dashboard:');await load()}}/>}
+        {current&&added===current.id&&<p role="status" className="inventory-added">{current.name} added. Download its QR label and attach it so it can be scanned at pickup and return.</p>}
+        {current&&<details className="inventory-label" open={added===current.id}><summary>Equipment QR label</summary><QRCodeGenerator equipmentID={current.equipmentCode}/></details>}
+        {admin&&<>{current&&<h3 className="inventory-editor-heading">Edit details</h3>}<ItemEditor key={current?.id??'new:'+addCode} api={api} organizationId={organizationId} item={current} initialCode={addCode} onSaved={async item=>{if(!current)setAdded(item.id);setAdding(false);setSelected(item.id);invalidateCache(`photo:${organizationId}:${item.id}`);invalidateCache(`inventory:${organizationId}`);invalidateCache('dashboard:');await load()}}/></>}
       </DetailPanel>}
     </div>
   </main>
 }
+type InventoryView='all'|'ready'|'out'|'service'
+const inventoryViews:[InventoryView,string][]=[['all','All equipment'],['ready','Available'],['out','Checked out'],['service','Maintenance']]
+function matchesView(item:EquipmentRecord,view:InventoryView){return view==='all'||view==='out'&&item.checkedOut||view==='ready'&&!item.checkedOut&&item.status==='available'||view==='service'&&item.status==='maintenance'}
+function serviceStatus(item:EquipmentRecord):{label:string;tone:'neutral'|'accent'|'success'|'warning'}{if(item.checkedOut)return {label:'Checked out',tone:'accent'};if(item.status==='maintenance')return {label:'Maintenance',tone:'warning'};if(item.status==='retired')return {label:'Retired',tone:'neutral'};return {label:'Available',tone:'success'}}
+const capitalize=(value?:string|null)=>value?value.charAt(0).toUpperCase()+value.slice(1):"Not recorded"
+const plural=(count:number,noun:string)=>`${count} ${noun}${count===1?'':'s'}`
 function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organizationId:string;item:EquipmentRecord}) {
   const cacheKey = `photo:${organizationId}:${item.id}`
   const cached = useMemo(() => getCached<{ url: string; expiresAt: number }>(cacheKey, 3_600_000), [cacheKey])
