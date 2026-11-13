@@ -97,6 +97,18 @@ describe('Organization directory',()=>{
     await user.click(screen.getByRole('button',{name:'Restore access'}))
     await waitFor(()=>expect(m.updateMember).toHaveBeenCalledWith('m2',{role:'member',status:'active',version:2,requestId:expect.any(String)}))
   })
+  it('trusts the server over a stale account that still holds your email',async()=>{
+    m.members.mockResolvedValueOnce({items:[
+      {id:'o',displayName:'Roger',email:null,role:'owner',status:'active',version:1,self:true},
+      {id:'old',displayName:'Old Morgan',email:'morgan@example.test',role:'owner',status:'active',version:1,self:false},
+      {id:'m1',displayName:'Alex Rivera',email:'alex@example.test',role:'member',status:'active',version:7,self:false},
+    ],nextCursor:null})
+    view();const table=await screen.findByRole('table')
+    expect(within(table).getAllByText('(you)')).toHaveLength(1)
+    expect(within(within(table).getByText('(you)').closest('tr')!).getByText('Roger')).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Manage Roger'})).not.toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Manage Old Morgan'})).toBeInTheDocument()
+  })
   it('lets owners grant ownership only after confirming, and never manage themselves',async()=>{
     const user=userEvent.setup();view();await screen.findByRole('table')
     expect(screen.queryByRole('button',{name:'Manage Morgan Lee'})).not.toBeInTheDocument()

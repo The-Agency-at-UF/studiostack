@@ -1,7 +1,7 @@
 import type { ApiMember, ApiOrganization } from './database-api'
 export interface OrganizationSettings { id:string; name:string; slug:string; reservationDays:number; location:string|null; logoPhotoId:string|null; version:number; role:ApiOrganization['role'] }
 export interface DirectoryMember { id:string; displayName:string; role:ApiOrganization['role'] }
-export interface ManagedMember extends ApiMember { version:number }
+export interface ManagedMember extends ApiMember { version:number; self?:boolean }
 export interface OrganizationInvitation { id:string; email:string; displayName:string; role:'admin'|'member'; status:'pending'|'accepted'|'revoked'|'expired'; deliveryStatus:'queued'|'sending'|'sent'|'failed'|'uncertain'; attempts:number; expiresAt:string; version:number; createdAt:string }
 export interface PendingInvitation { id:string; organizationId:string; organizationName:string; role:'admin'|'member'; displayName?:string; expiresAt:string }
 interface DomainMatch { organizationId:string; organizationName:string; autoJoin:boolean }
