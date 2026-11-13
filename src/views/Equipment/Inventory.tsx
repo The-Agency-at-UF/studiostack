@@ -9,6 +9,7 @@ import {uploadOrganizationPhoto} from '../../api/privatePhotos'
 import QRCodeGenerator from '../../components/QRCodeGenerator'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
 import ScanHandoff from './ScanHandoff'
+import {generatedEquipmentCode} from './equipmentCode'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
@@ -86,7 +87,6 @@ function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organizationId:
   return error&&!url?<p>Private photo is unavailable. Refresh to try again.</p>:url?<img className="equipment-photo" src={url} alt={item.name} referrerPolicy="no-referrer" onError={()=>{invalidateCache(cacheKey);setUrl('');setError(true)}}/>:<p role="status">Loading private photo…</p>
 }
 /** Suggests a label code for gear that has no QR label yet, such as LIG-7K2Q for a light. */
-export function generatedEquipmentCode(category:EquipmentCategory,random=()=>Math.random()){const prefix=category.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase(),alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return `${prefix}-${Array.from({length:4},()=>alphabet[Math.floor(random()*alphabet.length)]).join('')}`}
 function ItemEditor({api,organizationId,item,initialCode='',onSaved}:{api:DatabaseApi;organizationId:string;item?:EquipmentRecord;initialCode?:string;onSaved:(item:EquipmentRecord)=>Promise<void>}) {
   const [code,setCode]=useState(item?.equipmentCode??initialCode),[name,setName]=useState(item?.name??''),[category,setCategory]=useState<EquipmentCategory>(item?.category??'Camera & Accessories'),[status,setStatus]=useState<EquipmentStatus>(item?.status??'available'),[photo,setPhoto]=useState<File|null>(null),[removePhoto,setRemovePhoto]=useState(false),[scan,setScan]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const uploaded=useRef<{file:File;photoId:string}|null>(null)

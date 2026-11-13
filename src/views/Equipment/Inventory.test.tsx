@@ -2,7 +2,8 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import {setCached,invalidateCache} from '../../api/cache'
-import LiveInventory,{generatedEquipmentCode} from './Inventory'
+import LiveInventory from './Inventory'
+import {generatedEquipmentCode} from './equipmentCode'
 const mocks=vi.hoisted(()=>({inventory:vi.fn(),createEquipment:vi.fn(),updateEquipment:vi.fn(),photo:vi.fn()}))
 vi.mock('./live',async()=>({...await vi.importActual('./live'),useLiveOrganization:()=>({api:mocks,organization:{id:'org',name:'Studio'},admin:true})}))
 vi.mock('../../components/EquipmentQrScanner',()=>({default:({onCode}:{onCode:(value:string)=>boolean})=><button type="button" onClick={()=>onCode('NEW-1')}>Scan new label</button>}))
