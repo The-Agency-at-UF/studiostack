@@ -21,6 +21,13 @@ body {
 
 button, input, textarea, select { font: inherit; }
 
+/* Headings break into even lines and paragraphs avoid a lone last word. */
+h1, h2, h3 { text-wrap: balance; }
+p, li, dd { text-wrap: pretty; }
+
+/* Dates and figures line up in columns. */
+table, time { font-variant-numeric: tabular-nums; }
+
 input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); }
 
 button, a { -webkit-tap-highlight-color: transparent; }

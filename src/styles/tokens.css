@@ -59,6 +59,13 @@
   --header-height: 64px;
   --workspace-max: 1440px;
   --motion-fast: 150ms;
+  --motion-press: 100ms;
+  --motion-enter: 200ms;
+  --motion-exit: 160ms;
+  --motion-page: 240ms;
+  --stagger: 30ms;
+  --ease-out: cubic-bezier(.22,1,.36,1);
+  --ease-in-out: cubic-bezier(.65,0,.35,1);
   --focus-width: 2px;
   --focus-offset: 3px;
   --shadow-menu: 0 8px 32px #19171e1a;

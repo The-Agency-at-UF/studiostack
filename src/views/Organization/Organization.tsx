@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineXMark } from 'react-icons/hi2'
 import { Select } from '../../components/workspace/WorkspaceUI'
+import { closeWithExit } from '../../components/workspace/closeWithExit'
 import { emailPattern } from '../../types/patterns'
 
 type Role = 'Administrator' | 'Member'
@@ -44,9 +45,10 @@ function PreviewDialog({ title, children, close }: { title: string; children: Re
       trigger.current?.focus()
     }
   }, [])
-  return <dialog ref={ref} className="org-dialog" aria-labelledby="org-dialog-title" onCancel={close} onClose={close}>
+  const dismiss = () => closeWithExit(ref.current, close)
+  return <dialog ref={ref} className="org-dialog" aria-labelledby="org-dialog-title" onCancel={event => { event.preventDefault(); dismiss() }} onClose={close}>
     <div className="org-dialog-heading"><h2 id="org-dialog-title">{title}</h2>
-      <button type="button" onClick={close} aria-label="Close dialog"><HiOutlineXMark /></button></div>
+      <button type="button" onClick={dismiss} aria-label="Close dialog"><HiOutlineXMark /></button></div>
     {children}
   </dialog>
 }

@@ -1,7 +1,6 @@
 /* Workspace calendars: the production and equipment calendar pages share this card,
    toolbar, month grid, event chips, legend and side panel. */
 .ws-calendar-page { color:var(--ink); }
-.ws-calendar-page .ws-context { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#6b5583; font-weight:var(--weight-medium); }
 .app-content#workspace-content .ws-calendar-page .ws-page-header h1 { font-size:30px; line-height:var(--line-heading); font-weight:var(--weight-bold); letter-spacing:-.8px; margin:0; }
 .ws-calendar-page .ws-page-header .ws-description { max-width:640px; margin-top:10px; }
 .ws-calendar-page .ws-page-header { align-items:flex-end; flex-wrap:wrap; }

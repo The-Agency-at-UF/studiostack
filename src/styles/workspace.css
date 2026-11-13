@@ -16,7 +16,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) :is(input,textarea):disabled { color:var(--muted); background:var(--surface-subtle); border-color:var(--line); }
 .app-content#workspace-content :is(.administration,.production-page) label { font-size:var(--text-sm); font-weight:var(--weight-medium); gap:var(--space-2); }
 .app-content#workspace-content :is(.administration,.production-page) input[type=checkbox] { width:18px; height:18px; accent-color:var(--accent); }
-.app-content#workspace-content :is(.administration,.production-page) button { min-height:var(--control-height); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); padding:var(--space-2) var(--space-4); font-weight:var(--weight-medium); cursor:pointer; transition:background var(--motion-fast),border-color var(--motion-fast); }
+.app-content#workspace-content :is(.administration,.production-page) button { min-height:var(--control-height); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); padding:var(--space-2) var(--space-4); font-weight:var(--weight-medium); cursor:pointer; transition:background var(--motion-fast),border-color var(--motion-fast),scale var(--motion-press) var(--ease-out); }
 .app-content#workspace-content :is(.administration,.production-page) button:hover:not(:disabled) { background:var(--surface-hover); border-color:var(--accent-light); transform:none; }
 .app-content#workspace-content :is(.administration,.production-page) button:disabled { opacity:.55; cursor:not-allowed; }
 .app-content#workspace-content :is(.administration,.production-page) :is(.production-primary,button[type=submit],.ws-button-primary) { background:var(--accent); color:var(--on-frame); border-color:var(--accent); }
@@ -29,7 +29,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .ws-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-6); margin-bottom:var(--space-6); }
 .ws-page-header .ws-description { font-size:var(--text-sm); color:var(--muted); margin:var(--space-2) 0 0; }
 .ws-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; }
-.ws-button { display:inline-flex; justify-content:center; align-items:center; min-height:var(--control-height); padding:var(--space-2) var(--space-4); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; cursor:pointer; transition:background var(--motion-fast); }
+.ws-button { display:inline-flex; justify-content:center; align-items:center; min-height:var(--control-height); padding:var(--space-2) var(--space-4); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; cursor:pointer; transition:background var(--motion-fast),scale var(--motion-press) var(--ease-out); }
 .ws-button:hover { background:var(--surface-hover); }
 .ws-button.ws-button-primary { color:var(--on-frame); background:var(--accent); border-color:var(--accent); }
 .ws-button.ws-button-primary:hover { background:var(--accent-hover); }
@@ -39,7 +39,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .ws-notice-success { background:var(--success-soft); color:var(--success); }
 /* Notices and inline feedback drop gently into place instead of appearing abruptly. */
 @keyframes ws-notice-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
-:is(.ws-notice,.org-notice,.production-feedback > *) { animation:ws-notice-in .3s cubic-bezier(.22,1,.36,1) both; }
+:is(.ws-notice,.org-notice,.production-feedback > *) { animation:ws-notice-in var(--motion-page) var(--ease-out) both; }
 @media(prefers-reduced-motion:reduce) { :is(.ws-notice,.org-notice,.production-feedback > *) { animation:none; } }
 .ws-preview-note { font-size:var(--text-xs); color:var(--muted); padding:var(--space-3) var(--space-4); background:var(--surface-subtle); border-radius:var(--radius-control); margin-bottom:var(--space-5); }
 .ws-queue-columns { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-8); }
@@ -181,6 +181,8 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .login-page .login-brand-center > p { font-size:var(--text-lg); margin-top:var(--space-4); }
   .login-page .login-form-area { padding:var(--space-8) 0; }
 }
+/* Press feedback: controls shrink slightly while held, and settle back on release. */
+:is(.ws-button,.ws-confirm-actions button,.welcome-primary,.login-primary,.org-primary,.header-cta,.administration button,.production-page button):active:not(:disabled) { scale:.97; }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .ws-button { transition:none; } }
 @media print {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page,.ws-calendar-page) { min-height:0; padding:0; max-width:none; }
@@ -220,9 +222,9 @@ body { min-width:0; }
 @supports (appearance: base-select) {
   .ws-select,.ws-select::picker(select) { appearance:base-select; }
   .ws-select { display:inline-flex; align-items:center; gap:var(--space-2); padding-right:var(--space-3); background-image:none; }
-  .ws-select::picker-icon { content:""; margin-left:auto; width:12px; height:12px; background:var(--ws-chevron) center / 12px no-repeat; transition:rotate .2s cubic-bezier(.22,1,.36,1); }
+  .ws-select::picker-icon { content:""; margin-left:auto; width:12px; height:12px; background:var(--ws-chevron) center / 12px no-repeat; transition:rotate var(--motion-enter) var(--ease-out); }
   .ws-select:open::picker-icon { rotate:180deg; }
-  .ws-select::picker(select) { margin-block:var(--space-1); padding:var(--space-1); border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); box-shadow:0 12px 32px rgba(25,23,30,.12),0 2px 6px rgba(25,23,30,.06); opacity:0; translate:0 -4px; transition:opacity .16s ease,translate .22s cubic-bezier(.22,1,.36,1),overlay .22s allow-discrete,display .22s allow-discrete; }
+  .ws-select::picker(select) { margin-block:var(--space-1); padding:var(--space-1); border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); box-shadow:0 12px 32px rgba(25,23,30,.12),0 2px 6px rgba(25,23,30,.06); opacity:0; translate:0 -4px; transition:opacity .16s ease,translate var(--motion-enter) var(--ease-out),overlay .22s allow-discrete,display .22s allow-discrete; }
   .ws-select:open::picker(select) { opacity:1; translate:0 0; }
   @starting-style { .ws-select:open::picker(select) { opacity:0; translate:0 -4px; } }
   .ws-select option { font-weight:var(--weight-regular); gap:var(--space-2); padding:var(--space-2) var(--space-3); border-radius:calc(var(--radius-control) - 2px); color:var(--ink); font-size:var(--text-sm); }
@@ -236,16 +238,16 @@ body { min-width:0; }
 /* Loaded content settles into place; loading text waits briefly so fast loads never flash it. */
 @keyframes ws-enter { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 @keyframes ws-fade { from { opacity:0; } to { opacity:1; } }
-.ws-enter,.ws-stagger > * { animation:ws-enter .42s cubic-bezier(.22,1,.36,1) both; }
-.ws-stagger > :nth-child(2) { animation-delay:50ms; }
-.ws-stagger > :nth-child(3) { animation-delay:100ms; }
-.ws-stagger > :nth-child(4) { animation-delay:150ms; }
-.ws-stagger > :nth-child(5) { animation-delay:200ms; }
-.ws-stagger > :nth-child(n+6) { animation-delay:250ms; }
+.ws-enter,.ws-stagger > * { animation:ws-enter var(--motion-page) var(--ease-out) both; }
+.ws-stagger > :nth-child(2) { animation-delay:var(--stagger); }
+.ws-stagger > :nth-child(3) { animation-delay:calc(var(--stagger) * 2); }
+.ws-stagger > :nth-child(4) { animation-delay:calc(var(--stagger) * 3); }
+.ws-stagger > :nth-child(5) { animation-delay:calc(var(--stagger) * 4); }
+.ws-stagger > :nth-child(n+6) { animation-delay:calc(var(--stagger) * 5); }
 .ws-loading-delayed { animation:ws-fade .25s ease .2s both; }
 /* Every page eases in when its tab opens, and so do sub-views, detail panels and organization sections. */
 @keyframes ws-page-enter { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
-.app-content#workspace-content > *,:is(.production-settings,.production-decisions,.production-calendar,.production-review,.org-section,.org-section-heading,.org-directory-section,.ws-detail-panel,.equipment-handoff-layout) { animation:ws-page-enter .36s cubic-bezier(.22,1,.36,1) both; }
+.app-content#workspace-content > *,:is(.production-settings,.production-decisions,.production-calendar,.production-review,.org-section,.org-section-heading,.org-directory-section,.ws-detail-panel,.equipment-handoff-layout) { animation:ws-page-enter var(--motion-page) var(--ease-out) both; }
 @media(prefers-reduced-motion:reduce) { .ws-enter,.ws-stagger > *,.ws-loading-delayed,.app-content#workspace-content > *,:is(.production-settings,.production-decisions,.production-calendar,.production-review,.org-section,.org-section-heading,.org-directory-section,.ws-detail-panel,.equipment-handoff-layout) { animation:none; } }
 
 /* Skeletons hold the shape of loading content with a slow shimmer. */

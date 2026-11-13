@@ -4,22 +4,25 @@ import { usePathname } from 'next/navigation'
 import { useTour } from './tour/TourContext'
 import StudioStack from '../assets/StudioStack.png'
 import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineExclamationCircle, HiOutlineChartBar, HiOutlineBuildingOffice2, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb } from 'react-icons/hi2'
+import { closeWithExit } from './workspace/closeWithExit'
 import '../styles/shell.css'
 
 type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null }
 
 export default function Header({ isAdmin, logOut, email, onReportBug, onRequestFeature, organizationName, organizationLogoUrl }: Props) {
   const [isOpen, setOpen] = useState(false), [accountOpen, setAccountOpen] = useState(false)
-  const accountRef = useRef<HTMLDivElement>(null), accountTrigger = useRef<HTMLButtonElement>(null)
+  const accountRef = useRef<HTMLDivElement>(null), accountTrigger = useRef<HTMLButtonElement>(null), accountPanel = useRef<HTMLDivElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null), menuTrigger = useRef<HTMLButtonElement>(null)
   const pathname = usePathname(), tour = useTour()
   const dismissDrawer = () => { setOpen(false); menuTrigger.current?.focus() }
+  // The account menu plays its exit before unmounting; navigation from inside it closes at once.
+  const closeAccount = () => closeWithExit(accountPanel.current, () => setAccountOpen(false))
 
   useEffect(() => {
     if (!accountOpen) return
     accountRef.current?.querySelector<HTMLAnchorElement>('.account-panel a')?.focus()
     const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !accountRef.current?.contains(event.target)) setAccountOpen(false)
+      if (event.target instanceof Node && !accountRef.current?.contains(event.target)) closeAccount()
     }
     document.addEventListener('pointerdown', outside)
     return () => document.removeEventListener('pointerdown', outside)
@@ -82,10 +85,10 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
         <div className="header-actions">
           <Link href="/create-reservation" className="header-cta" data-tour="book-gear" onClick={closeMenus}>Book gear <HiOutlineArrowUpRight aria-hidden="true" /></Link>
           <div className="account-menu" ref={accountRef} data-tour="account" onKeyDown={event => {
-            if (event.key === 'Escape' && accountOpen) { event.stopPropagation(); setAccountOpen(false); accountTrigger.current?.focus() }
-          }} onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false) }}>
-            <button ref={accountTrigger} className="account-trigger" aria-label="Account" aria-expanded={accountOpen} aria-controls="account-panel" onClick={() => setAccountOpen(open => !open)}><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>
-            {accountOpen && <div id="account-panel" className="account-panel">
+            if (event.key === 'Escape' && accountOpen) { event.stopPropagation(); closeAccount(); accountTrigger.current?.focus() }
+          }} onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) closeAccount() }}>
+            <button ref={accountTrigger} className="account-trigger" aria-label="Account" aria-expanded={accountOpen} aria-controls="account-panel" onClick={() => accountOpen ? closeAccount() : setAccountOpen(true)}><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>
+            {accountOpen && <div ref={accountPanel} id="account-panel" className="account-panel">
               <div className="account-identity"><strong>Your account</strong></div>
               <Link href="/account" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account & workspaces</Link>
               <Link href="/reservations" onClick={closeMenus}><HiOutlineCalendarDays aria-hidden="true" />My reservations</Link>

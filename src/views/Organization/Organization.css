@@ -19,8 +19,8 @@
 .org-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 32px 20px; }
 .org-workspace h3 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.025em; }
 .org-section-heading p, .org-section > p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-.org-primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 13px 18px; min-height: 44px; border: 0; background: var(--accent); color: white; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .18s, transform .18s; }
-.org-primary:hover { background: var(--ink); transform: translateY(-1px); }
+.org-primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 13px 18px; min-height: 44px; border: 0; background: var(--accent); color: white; font-size: 12px; font-weight: 700; cursor: pointer; transition: background var(--motion-fast) var(--ease-out), scale var(--motion-press) var(--ease-out); }
+.org-primary:hover { background: var(--ink); }
 .org-primary svg { width: 18px; height: 18px; }
 .org-filters { padding: 0 32px 22px; display: flex; gap: 16px; }
 .org-search { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); padding: 0 14px; flex: 1; background: white; }
@@ -65,7 +65,11 @@
 .org-sso { padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; }
 .org-sso strong { float: right; font-weight: 500; color: var(--muted); }
 .org-sso p { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
-.org-dialog { position: fixed; inset: 0; width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; margin: auto; padding: 28px; border: 1px solid var(--line); border-top: 4px solid var(--accent); background: var(--paper-light); color: var(--ink); animation: workspace-modal-in .26s cubic-bezier(.34,1.3,.64,1) both; }
+.org-dialog { position: fixed; inset: 0; width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; margin: auto; padding: 28px; border: 1px solid var(--line); border-top: 4px solid var(--accent); background: var(--paper-light); color: var(--ink); animation: workspace-modal-in var(--motion-enter) var(--ease-out) both; }
+.org-dialog[data-closing] { animation: org-dialog-out var(--motion-exit) var(--ease-out) both; }
+.org-dialog[data-closing]::backdrop { animation: org-backdrop-out var(--motion-exit) var(--ease-out) both; }
+@keyframes org-dialog-out { to { opacity: 0; transform: translateY(8px) scale(.96); } }
+@keyframes org-backdrop-out { to { opacity: 0; } }
 .org-dialog::backdrop { background: rgba(16,16,16,.6); backdrop-filter: blur(3px); animation: workspace-backdrop-in .2s ease both; }
 .org-dialog-heading { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .org-dialog-heading h2 { font-family: var(--font-ui); margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.04em; }
@@ -95,6 +99,6 @@
   .org-dialog-actions { flex-wrap: wrap; gap: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .org-heading, .org-dialog, .org-dialog::backdrop, .org-notice { animation: none; }
+  .org-heading, .org-dialog, .org-dialog::backdrop, .org-dialog[data-closing], .org-dialog[data-closing]::backdrop, .org-notice { animation: none; }
   .org-primary, .org-tabs button, .org-table tbody tr { transition: none; }
 }
