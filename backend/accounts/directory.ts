@@ -3,8 +3,8 @@ import {inTransaction,type DatabaseClient} from '../database/client'
 import {ApiError,object,text,uuid} from '../database/api-validation'
 import {onboardingTask} from './onboarding'
 import {emailPattern} from '../../src/types/patterns'
-export const directoryActions=['list','accept','overview','join-domain','join-code','request-access','withdraw-request','search','delete-account'] as const
-export interface PreviousSignIn {subject:string;state:'deleted'|'active'}
+const directoryActions=['list','accept','overview','join-domain','join-code','request-access','withdraw-request','search','delete-account'] as const
+interface PreviousSignIn {subject:string;state:'deleted'|'active'}
 export interface DirectoryRequest {action:typeof directoryActions[number];identity:{issuer:string;subject:string;email:string};previousSignIn?:PreviousSignIn;invitationId?:string;organizationId?:string;code?:string;message?:string;requestId?:string;query?:string}
 /** Returned instead of a result when another sign-in's account holds the verified email. */
 export interface AccountClaim {statusCode:409;error:string;accountClaim:{previousSubject:string}}

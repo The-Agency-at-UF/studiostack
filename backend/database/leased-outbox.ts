@@ -3,7 +3,7 @@ import type { DatabaseClient } from './client'
 
 /** One email outbox table: its status column, waiting status, delivery timestamp and feedback link. */
 export interface LeasedOutbox { table: string; status: string; pending: string; deliveredAt: string; feedbackColumn: string; suppressedOutcome: string }
-export interface LeaseAck { organizationId: string; id: string; leaseToken: string; outcome: string }
+interface LeaseAck { organizationId: string; id: string; leaseToken: string; outcome: string }
 export const setOrganization = (client: DatabaseClient, organizationId: string) => client.query("SELECT set_config('app.organization_id',$1,true)", [organizationId])
 
 /** Records a send outcome for a still-held lease; bounce/complaint feedback overrides it. */
@@ -17,7 +17,7 @@ export async function acknowledgeLease(client: DatabaseClient, outbox: LeasedOut
   return { updated: result.rows.length === 1 }
 }
 
-export interface ClaimSteps<Org, Job> {
+interface ClaimSteps<Org, Job> {
   organizations: string
   /** Runs in each organization before expired leases are released. */
   prepare?: (org: Org) => Promise<unknown>

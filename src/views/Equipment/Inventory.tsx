@@ -57,7 +57,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
     </div>
   </main>
 }
-export function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organizationId:string;item:EquipmentRecord}) {
+function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organizationId:string;item:EquipmentRecord}) {
   const cacheKey = `photo:${organizationId}:${item.id}`
   const cached = useMemo(() => getCached<{ url: string; expiresAt: number }>(cacheKey, 3_600_000), [cacheKey])
   const validCachedUrl = cached && cached.expiresAt > Date.now() + 10_000 ? cached.url : null

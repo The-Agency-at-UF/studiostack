@@ -6,7 +6,7 @@ import {ConditionForm} from './Fulfillment'
 import {reservationLabel} from './Reservations'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
 import {agencyCampus} from '../../types/campus'
-export type ScannedHandoff={kind:'checkout'|'return';reservation:EquipmentReservation}|{kind:'none';reason:string}
+type ScannedHandoff={kind:'checkout'|'return';reservation:EquipmentReservation}|{kind:'none';reason:string}
 /** Picks the reservation a scanned item belongs to: its open checkout when it is out, otherwise the earliest pickup that is open now. */
 export function handoffFor(item:EquipmentRecord,reservations:EquipmentReservation[],now:number):ScannedHandoff{
   const mine=reservations.filter(r=>r.status==='confirmed'&&r.equipmentIds.includes(item.id))

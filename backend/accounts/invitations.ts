@@ -3,7 +3,7 @@ import {ApiError,object} from '../database/api-validation'
 import {inviteMember,versioned} from './validation'
 import type {AccountRequest} from './routes'
 import {pageOf,requestHash} from '../database/repository-utils'
-export const invitationColumns='id,email,display_name AS "displayName",role,status,delivery_status AS "deliveryStatus",attempts,expires_at AS "expiresAt",version,created_at AS "createdAt"'
+const invitationColumns='id,email,display_name AS "displayName",role,status,delivery_status AS "deliveryStatus",attempts,expires_at AS "expiresAt",version,created_at AS "createdAt"'
 export async function dispatchInvitations(client:DatabaseClient,request:AccountRequest,actor:{id:string;role:string}) {
   const org=request.organizationId
   const get=async(id:string)=>{const v=(await client.query(`SELECT ${invitationColumns} FROM app.organization_invitations WHERE organization_id=$1 AND id=$2`,[org,id])).rows[0];if(!v)throw new ApiError(404,'Invitation not found');return v}

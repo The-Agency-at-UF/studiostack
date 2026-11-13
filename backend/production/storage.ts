@@ -2,7 +2,7 @@ import { S3Client, HeadObjectCommand, GetObjectCommand, CopyObjectCommand } from
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { ApiError } from '../database/api-validation'
-export interface StoredAttachment { key: string; size: number; contentType: string }
+interface StoredAttachment { key: string; size: number; contentType: string }
 export interface BriefStorage {
   signUpload(input: StoredAttachment): Promise<{ url: string; fields: Record<string, string> }>
   verify(input: StoredAttachment): Promise<void>

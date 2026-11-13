@@ -9,7 +9,7 @@ import type {EquipmentRecord,EquipmentReservation,EquipmentAvailability} from '.
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
-export const localTime=(iso:string)=>{const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
+const localTime=(iso:string)=>{const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 export const reservationLabel=(r:EquipmentReservation)=>r.status==='cancelled'?'Cancelled':r.fulfillmentStatus==='checked_out'?'Checked out':r.fulfillmentStatus==='returned'?'Returned':'Reserved'
 const dateLabel=(iso:string)=>new Date(iso).toLocaleString()
 type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[]; clients: ClientAccount[] }

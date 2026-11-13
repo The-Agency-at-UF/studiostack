@@ -8,7 +8,7 @@ import type {ApiOrganization} from '../../types/database-api'
 import EmailVerification from '../Production/EmailVerification'
 import './Account.css'
 
-export type AccountTab='profile'|'workspaces'|'security'
+type AccountTab='profile'|'workspaces'|'security'
 const tabs:{value:AccountTab;label:string}[]=[{value:'profile',label:'Profile'},{value:'workspaces',label:'Workspaces'},{value:'security',label:'Sign-in and security'}]
 const roleLabel=(role:ApiOrganization['role'])=>role[0].toUpperCase()+role.slice(1)
 const initials=(email:string)=>(email.split('@')[0].match(/[a-z]+/gi)??['?']).slice(0,2).map(part=>part[0].toUpperCase()).join('')

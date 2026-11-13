@@ -16,7 +16,7 @@ const providerButtons = [
   { id: 'saml', label: 'Institutional SSO', Icon: HiOutlineBuildingOffice2 },
 ] as const
 
-export interface LoginProps {
+interface LoginProps {
   onSignIn: (provider?: LoginProvider) => void | Promise<void>
   providers?: LoginProviderOption[]
   onSignOut?: () => void | Promise<void>

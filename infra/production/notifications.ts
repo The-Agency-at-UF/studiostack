@@ -1,8 +1,8 @@
 import { account, region, functionArn, trust } from '../database/resources'
 import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 /** Where bug reports are emailed unless a deployment overrides it. */
-export const defaultFeedbackRecipient = 'rmckenzie1@ufl.edu'
-export interface NotificationStackOptions { environment: 'dev' | 'prod'; artifactBucket: string; artifactKey: string; sender: string; identity: string; webUrl: string; userPoolId: string; enabled?: boolean; configurationSet?:string; feedbackRecipient?: string }
+const defaultFeedbackRecipient = 'rmckenzie1@ufl.edu'
+interface NotificationStackOptions { environment: 'dev' | 'prod'; artifactBucket: string; artifactKey: string; sender: string; identity: string; webUrl: string; userPoolId: string; enabled?: boolean; configurationSet?:string; feedbackRecipient?: string }
 export function productionNotificationInfrastructure(input: NotificationStackOptions) {
   const { environment: env, artifactBucket, artifactKey, sender, identity, webUrl, userPoolId, feedbackRecipient = defaultFeedbackRecipient } = input
   if (!emailPattern.test(feedbackRecipient)) throw new Error('Feedback recipient must be an email address')
