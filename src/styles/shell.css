@@ -3,6 +3,7 @@
 .ws-shell .brand-lockup { padding:var(--space-2) var(--space-3) var(--space-8); }
 .ws-shell .brand-lockup img { width:180px; height:auto; }
 /* Organization names can be up to 120 characters; clamp to two lines and expose the full name via title. */
+.ws-shell .brand-lockup img.brand-org-logo { width:40px; height:40px; flex-shrink:0; object-fit:cover; border-radius:var(--radius-control); }
 .ws-shell .brand-org-name { display:-webkit-box; max-width:180px; overflow:hidden; color:var(--on-frame); font-size:var(--text-xl); font-weight:var(--weight-bold); line-height:1.2; overflow-wrap:anywhere; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; }
 .ws-sidebar-body { display:flex; flex-direction:column; flex:1; min-height:0; }
 .ws-shell :is(.desktop-nav-links,.mobile-nav-links) { display:block; overflow-y:auto; flex:1; align-self:stretch; scrollbar-width:thin; scrollbar-color:var(--frame-line) var(--frame); }

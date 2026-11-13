@@ -46,6 +46,12 @@ describe('Header', () => {
     expect(screen.queryByAltText('StudioStack')).not.toBeInTheDocument();
   });
 
+  it('shows the workspace logo beside the organization name', () => {
+    const { container } = render(<Header isAdmin={false} logOut={() => {}} organizationName="The Agency at UF" organizationLogoUrl="https://example.test/logo.png" />);
+    expect(container.querySelector('.brand-lockup img.brand-org-logo')).toHaveAttribute('src', 'https://example.test/logo.png');
+    expect(screen.getByText('The Agency at UF')).toBeInTheDocument();
+  });
+
   it('shows Admin-only links when isAdmin is true', () => {
     render(<Header isAdmin={true} logOut={() => {}} />);
     // These should only be visible for admins
