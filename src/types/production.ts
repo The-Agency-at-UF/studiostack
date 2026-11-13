@@ -1,10 +1,10 @@
 export const productionTypes = ['Photography', 'Videography', 'Video Editing', 'Motion Graphics'] as const
-export type ProductionType = typeof productionTypes[number]
+type ProductionType = typeof productionTypes[number]
 export const briefStatuses = ['draft', 'submitted', 'changes_requested', 'approved', 'denied', 'withdrawn'] as const
-export type BriefStatus = typeof briefStatuses[number]
+type BriefStatus = typeof briefStatuses[number]
 export const statusLabels: Record<BriefStatus, string> = { draft: 'Draft', submitted: 'In review', changes_requested: 'Changes requested', approved: 'Approved', denied: 'Denied', withdrawn: 'Withdrawn' }
-export type Field = { key: string; label: string; type?: 'textarea' | 'date' | 'url' | 'select'; options?: string[]; required?: boolean }
-export type Section = { title: string; scope?: 'onsite' | 'post'; fields: Field[] }
+type Field = { key: string; label: string; type?: 'textarea' | 'date' | 'url' | 'select'; options?: string[]; required?: boolean }
+type Section = { title: string; scope?: 'onsite' | 'post'; fields: Field[] }
 export const briefSections: Section[] = [
   { title: 'Project overview', fields: [
     { key: 'summary', label: 'Project summary', type: 'textarea', required: true }, { key: 'objective', label: 'Primary objective', type: 'textarea', required: true },
@@ -47,11 +47,11 @@ export interface ClientAccount {id:string;name:string;version:number;archivedAt:
 export interface ProductionAssignment {userId:string;name:string;role:string}
 export interface BriefData { clientAccountId?:string|null; projectName: string; client: string; managers: string; supervisor: string; deliveryDate: string; productionTypes: ProductionType[]; fields: Record<string, string> }
 export interface BriefEvent { id: string; actorId: string; actorName: string; kind: string; comment: string; section: string; version: number; createdAt: string; snapshot: BriefData | null; attachments?: BriefAttachment[]; shootStartsAt?: string | null; shootEndsAt?: string | null }
-export interface BriefAttachment { id: string; name: string; contentType: string; size: number; status: 'pending' | 'ready'; uploadedBy: string }
+interface BriefAttachment { id: string; name: string; contentType: string; size: number; status: 'pending' | 'ready'; uploadedBy: string }
 export interface ProductionBrief { crew?:ProductionAssignment[]; id: string; organizationId: string; ownerId: string; ownerName: string; status: BriefStatus; version: number; submission: number; data: BriefData; shootStartsAt: string | null; shootEndsAt: string | null; createdAt: string; updatedAt: string; events: BriefEvent[]; attachments: BriefAttachment[] }
 export interface ProductionSettings { version: number; reviewerIds: string[]; executiveIds: string[]; approvalConfirmsDates: boolean }
 export interface ProductionAccess { userId: string; canReview: boolean; canAdminister: boolean; isExecutive: boolean; notificationsConfigured: boolean }
-export type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'comment' | 'withdraw' | 'reopen' | 'schedule'
+type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'comment' | 'withdraw' | 'reopen' | 'schedule'
 export interface BriefCommand { action: BriefAction; version: number; requestId: string; comment?: string; section?: string; shootStartsAt?: string; shootEndsAt?: string }
 export interface Delivery { id: string; briefId: string; eventId: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'uncertain'; attempts: number; createdAt: string; sentAt: string | null }
 export const emptyBrief = (): BriefData => ({ projectName: '', client: '', managers: '', supervisor: '', deliveryDate: '', productionTypes: [], fields: {} })

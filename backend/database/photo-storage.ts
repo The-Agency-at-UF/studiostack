@@ -6,7 +6,7 @@ import sharp from 'sharp'
 import { ApiError } from './api-validation'
 
 export interface PendingPhoto { id: string; organizationId: string; stagingKey: string; contentType: 'image/jpeg' | 'image/webp'; inputSize: number }
-export interface StoredPhoto { key: string; width: number; height: number; size: number; sha256: string }
+interface StoredPhoto { key: string; width: number; height: number; size: number; sha256: string }
 export interface PhotoStorage {
   signUpload(photo: PendingPhoto): Promise<{ url: string; fields: Record<string, string> }>
   finalize(photo: PendingPhoto): Promise<StoredPhoto>

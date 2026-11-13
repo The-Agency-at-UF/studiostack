@@ -315,7 +315,7 @@ describe('validation, additive infrastructure and least-privilege grants', () =>
   })
   it('schedules the retention task daily through EventBridge only',()=>{
     const {Resources}=databaseApiInfrastructure({ STUDIOSTACK_ENV: 'dev', DATABASE_API_ID: config.apiId, COGNITO_USER_POOL_ID: 'us-east-2_example', COGNITO_APP_CLIENT_ID: config.clientId }) as unknown as {Resources:Record<string,{Type:string;Properties:Record<string,unknown>}>}
-    expect(Resources.RetentionSchedule).toMatchObject({Type:'AWS::Events::Rule',Properties:{ScheduleExpression:'rate(1 day)',State:'ENABLED',Targets:[{Arn:expect.stringMatching(/:function:studiostack-dev-database$/),Input:'{"task":"database-retention"}'}]}})
+    expect(Resources.RetentionSchedule).toMatchObject({Type:'AWS::Events::Rule',Properties:{ScheduleExpression:'cron(0 9 * * ? *)',State:'ENABLED',Targets:[{Arn:expect.stringMatching(/:function:studiostack-dev-database$/),Input:'{"task":"database-retention"}'}]}})
     expect(Resources.RetentionPermission).toMatchObject({Type:'AWS::Lambda::Permission',Properties:{FunctionName:'studiostack-dev-database',Principal:'events.amazonaws.com',SourceArn:{'Fn::GetAtt':['RetentionSchedule','Arn']}}})
   })
   it('validates the signed-in bug report and strips unknown fields',async()=>{

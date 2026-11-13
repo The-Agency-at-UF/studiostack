@@ -3,7 +3,7 @@ import type { TourStep } from './Spotlight'
 export type TourId = 'workspace'
 /** Tour progress lives in this browser, per account, like the remembered organization choice. */
 export const tourStorageKey = (owner: string) => 'studiostack.tour.' + owner
-export type TourContextValues = { isAdmin: boolean }
+type TourContextValues = { isAdmin: boolean }
 
 /** Steps whose anchors are hidden (the sidebar on mobile, the menu button on desktop) are skipped by the spotlight. */
 export const tours: Record<TourId, (context: TourContextValues) => TourStep[]> = {

@@ -38,6 +38,14 @@ describe('Header', () => {
     expect(screen.queryByText(/Admin access|Student access/)).not.toBeInTheDocument();
   });
 
+  it('shows the organization name in place of the logo', () => {
+    render(<Header isAdmin={false} logOut={() => {}} organizationName="The Agency at UF" />);
+    const name = screen.getByText('The Agency at UF');
+    expect(name).toHaveAttribute('title', 'The Agency at UF');
+    expect(name.closest('a')).toHaveAttribute('href', '/');
+    expect(screen.queryByAltText('StudioStack')).not.toBeInTheDocument();
+  });
+
   it('shows Admin-only links when isAdmin is true', () => {
     render(<Header isAdmin={true} logOut={() => {}} />);
     // These should only be visible for admins

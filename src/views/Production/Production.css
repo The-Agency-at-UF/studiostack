@@ -80,18 +80,6 @@
 .production-settings { max-width: 900px; }
 .production-settings h2,.production-decisions h2,.production-calendar h2 { font-size: 24px; font-weight: 650; letter-spacing: -.03em; margin: 0 0 12px; }
 .production-settings fieldset>label { max-width: 600px; }
-.production-calendar { padding: 20px 0; }
-.production-calendar-options { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
-.production-calendar-options h2 { margin-right: auto; }
-.production-calendar-options label { flex-direction: row; align-items: center; }
-.production-calendar .fc { margin-top: 24px; background: var(--surface); padding: 22px; border: 1px solid #ded7e6; border-radius: 6px; }
-.production-calendar .fc-toolbar-title { font-size: 22px; font-weight: 650; }
-.production-calendar .fc .fc-button { background: #f2ecfd; color: #43266b; border-color: #ded1f7; box-shadow: none; }
-.production-calendar .fc .fc-button-active { background: var(--accent) !important; color: white !important; }
-.production-calendar .fc-event { cursor: pointer; padding: 3px 5px; font-size: 11px; }
-.production-unscheduled { padding: 24px 0; }
-.production-unscheduled h3 { font-weight: 600; margin-bottom: 12px; }
-.production-unscheduled button { display: block; margin-top: 8px; }
 .production-decision { padding: 24px 0; border-bottom: 1px solid var(--line); }
 .production-decision>div { display: flex; align-items: center; gap: 16px; }
 .production-decision>p { font-size: 12px; color: var(--muted); margin: 10px 0; }
@@ -113,9 +101,6 @@
   .production-search { flex-basis: 100%; max-width: none; }
   .production-toolbar>.production-primary { margin-left: 0; }
   .production-table th,.production-table td { padding: 14px 10px; }
-  .production-calendar .fc { padding: 10px; }
-  .production-calendar .fc-toolbar { gap: 12px; flex-direction: column; }
-  .production-calendar .fc-toolbar-title { font-size: 20px; }
   .production-detail-header button:last-child { margin-left: 0; }
   .production-settings .production-table { font-size: 11px; }
   .production-settings .production-table td:first-child { min-width: 100px; }
