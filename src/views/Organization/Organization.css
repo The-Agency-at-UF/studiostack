@@ -19,8 +19,8 @@
 .org-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 32px 20px; }
 .org-workspace h3 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.025em; }
 .org-section-heading p, .org-section > p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-.org-primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 13px 18px; min-height: 44px; border: 0; background: var(--accent); color: white; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .18s, transform .18s; }
-.org-primary:hover { background: var(--ink); transform: translateY(-1px); }
+.org-primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 13px 18px; min-height: 44px; border: 0; background: var(--accent); color: white; font-size: 12px; font-weight: 700; cursor: pointer; transition: background var(--motion-fast) var(--ease-out), scale var(--motion-press) var(--ease-out); }
+.org-primary:hover { background: var(--ink); }
 .org-primary svg { width: 18px; height: 18px; }
 .org-filters { padding: 0 32px 22px; display: flex; gap: 16px; }
 .org-search { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); padding: 0 14px; flex: 1; background: white; }

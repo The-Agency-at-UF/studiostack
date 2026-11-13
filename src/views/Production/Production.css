@@ -4,9 +4,8 @@
 .production-page textarea { resize: vertical; min-height: 90px; }
 .production-page input:focus-visible,.production-page textarea:focus-visible,.production-page button:focus-visible { outline: 3px solid var(--accent-light); outline-offset: 3px; }
 .production-page input:disabled,.production-page textarea:disabled { color: #393340; opacity: 1; background: var(--surface-subtle); border-color: transparent; }
-.production-page button { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 9px 13px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--ink); transition: background .15s,border-color .15s,transform .15s; min-height: 40px; }
+.production-page button { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 9px 13px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--ink); transition: background var(--motion-fast),border-color var(--motion-fast),scale var(--motion-press) var(--ease-out); min-height: 40px; }
 .production-page button:hover:not(:disabled) { background: #eee7fc; border-color: var(--accent-light); }
-.production-page button:active:not(:disabled) { transform: translateY(1px); }
 .production-page button:disabled { opacity: .5; cursor: not-allowed; }
 .production-page .production-primary { background: var(--accent); color: white; border-color: var(--accent); }
 .production-page .production-primary:hover:not(:disabled) { background: #4200ae; color: white; }
