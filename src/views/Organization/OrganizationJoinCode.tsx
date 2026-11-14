@@ -49,7 +49,7 @@ export default function OrganizationJoinCode({ api, name }: { api: AccountClient
         <button className="ws-button" type="button" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy code'}</button>
         <button className="ws-button" type="button" disabled={busy} onClick={() => setConfirm(true)}>Replace code</button>
       </div> : <button className="ws-button ws-button-primary" type="button" disabled={busy || loadFailed} onClick={() => void create()}>{busy ? 'Creating…' : 'Create reusable code'}</button>)}
-      <p className="org-directory-join-help">Anyone with this code and a verified email joins {name} as a member. It stays valid until replaced.</p>
+      <p className="org-directory-join-help">Anyone with this code and a verified email joins {name} as a member. It stays valid until replaced. Codes with a use limit or expiry are in Access & settings.</p>
     </div>
     <span className="org-directory-copy-status ws-sr-only" role="status">{copied ? 'Join code copied.' : ''}</span>
     {error && <Notice kind="error">{error}</Notice>}
