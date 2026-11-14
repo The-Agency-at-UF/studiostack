@@ -5,7 +5,6 @@
 .org-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; padding: 40px 0 32px; animation: rise-in .3s ease both; }
 .org-heading h1 { margin: 0; font-family: var(--font-ui); font-size: clamp(36px, 4.6vw, 66px); letter-spacing: -.055em; line-height: 1.08; font-weight: 800; }
 .org-heading p:not(.eyebrow) { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
-.org-switcher { display: grid; gap: 8px; min-width: 240px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .org-workspace { background: var(--paper-light); border: 1px solid var(--line); border-top: 4px solid var(--accent); }
 .org-identity { padding: 28px 32px; display: flex; align-items: center; gap: 18px; }
 .org-monogram { width: 52px; height: 52px; display: grid; place-items: center; color: white; background: var(--ink); font-family: var(--font-ui); font-size: 20px; font-weight: 800; flex-shrink: 0; }
@@ -82,7 +81,6 @@
 .org-error { font-size: 13px; border-left: 3px solid #a32c2c; color: #a32c2c; padding-left: 12px; }
 @media (max-width: 780px) {
   .org-heading { align-items: stretch; flex-direction: column; padding-top: 28px; }
-  .org-switcher { min-width: 0; }
   .org-identity { flex-wrap: wrap; padding: 24px 20px; }
   .org-counts { margin: 0; width: 100%; padding-top: 8px; gap: 18px; }
   .org-tabs { padding: 0 20px; gap: 20px; }
