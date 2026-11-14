@@ -61,11 +61,11 @@ describe('StudioStack sign-in', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign out of this account' }))
     expect(onSignOut).toHaveBeenCalledOnce()
   })
-  it('selects only a workspace returned by the backend',()=>{const choose=vi.fn();render(<LogIn onSignIn={vi.fn()} authenticated onSelectOrganization={choose} organizations={[{id:'one',slug:'one',name:'First',role:'member'},{id:'two',slug:'two',name:'Second',role:'member'}]}/>);fireEvent.change(screen.getByRole('combobox',{name:'Your workspace'}),{target:{value:'two'}});expect(choose).toHaveBeenCalledWith('two')})
+  it('shows the current workspace and links to the account page to switch',()=>{render(<LogIn onSignIn={vi.fn()} authenticated selectedOrganizationId="two" organizations={[{id:'one',slug:'one',name:'First',role:'member'},{id:'two',slug:'two',name:'Second',role:'admin'}]}/>);expect(screen.queryByRole('combobox')).not.toBeInTheDocument();expect(screen.getByText('Second · admin')).toBeInTheDocument();expect(screen.getByRole('link',{name:'Switch workspace'})).toHaveAttribute('href','/account')})
   it('displays memberships and roles returned by the backend', () => {
     render(<LogIn onSignIn={vi.fn()} authenticated organizations={[{ id: 'org', slug: 'studio', name: 'Invited studio', role: 'member' }]} />)
-    expect(screen.getByRole('option',{name:'Invited studio · member'})).toBeInTheDocument()
-    expect(screen.getByRole('combobox',{name:'Your workspace'})).toHaveValue('org')
+    expect(screen.getByText('Invited studio · member')).toBeInTheDocument()
+    expect(screen.queryByRole('link',{name:'Switch workspace'})).not.toBeInTheDocument()
   })
   it('opens live Production after sign-in', () => {
     render(<LogIn onSignIn={vi.fn()} authenticated organizations={[{ id: 'org', slug: 'studio', name: 'Real studio', role: 'owner' }]} />)
