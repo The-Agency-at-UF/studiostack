@@ -35,10 +35,13 @@ export default function Administration() {
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [allActivity,setAllActivity]=useState(false),[current,setCurrent]=useState<string>('general')
   const generation=useRef(0),mutation=useRef<{key:string;id:string}|null>(null)
-  const load=useCallback(async()=>{if(!api)return;const g=generation.current,s=await api.settings();if(g!==generation.current)return;setSettings(s)
+  // Background reloads can overlap; only the newest one, started after the latest change, may update the page.
+  const loads=useRef(0)
+  const load=useCallback(async()=>{if(!api)return;const g=generation.current,sequence=++loads.current,stale=()=>g!==generation.current||sequence!==loads.current
+    const s=await api.settings();if(stale())return;setSettings(s)
     if(!['admin','owner'].includes(s.role))return
     const [rows,pending,joinCodes,owned,events]=await Promise.all([all(api.invitations),all(api.accessRequests),all(api.joinCodes),s.role==='owner'?all(api.domains):Promise.resolve([]),all(api.activity)])
-    if(g===generation.current){setInvitations(rows);setRequests(pending);setCodes(joinCodes);setDomains(owned);setActivity(events)}
+    if(!stale()){setInvitations(rows);setRequests(pending);setCodes(joinCodes);setDomains(owned);setActivity(events)}
   },[api])
   useEffect(()=>{const g=++generation.current;setSettings(null);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setNotice('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
   const lists=():AdminLists=>({invitations,requests,codes,domains})
@@ -47,7 +50,7 @@ export default function Administration() {
    * Sends one administration change. With `optimistic`, the lists show the change at once, a rejected
    * change puts them back, and the page reloads in the background instead of staying locked.
    */
-  const run:Run=async(key,task,optimistic)=>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`,before=lists();if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};setBusy(true);setError('');setNotice('');if(optimistic)put(optimistic.apply(before))
+  const run:Run=async(key,task,optimistic)=>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`,before=lists();if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};loads.current++;setBusy(true);setError('');setNotice('');if(optimistic)put(optimistic.apply(before))
     const reload=async()=>{await session.refreshOrganizations?.();if(g===generation.current)await load()}
     try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.')
       if(optimistic){if(optimistic.settle)put(optimistic.settle(optimistic.apply(before),result));reload().catch(e=>{if(g===generation.current)setError(message(e))})}else await reload()
