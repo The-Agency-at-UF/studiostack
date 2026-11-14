@@ -114,4 +114,21 @@ describe('Optimistic administration actions',()=>{
     expect(await screen.findByText('The service is unavailable. Your changes have not been confirmed.')).toBeInTheDocument()
     expect(screen.getByRole('button',{name:'Revoke invitation'})).toBeInTheDocument()
   })
+  it('ignores an older background reload that answers after a newer change',async()=>{
+    const invitation={id:'i',email:'new@example.test',displayName:'New Person',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:3,createdAt:future}
+    m.invitations.mockResolvedValue({items:[invitation],nextCursor:null})
+    let late!:(value:unknown)=>void
+    m.accessRequests.mockResolvedValueOnce({items:[asker],nextCursor:null}).mockReturnValueOnce(new Promise(resolve=>{late=resolve})).mockResolvedValue({items:[],nextCursor:null})
+    m.revokeInvitation.mockResolvedValue({...invitation,status:'revoked',version:4});m.decideAccessRequest.mockResolvedValue({...asker,status:'approved',version:2})
+    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:'Revoke invitation'}))
+    // The revoke's reload is still paging when the next change is made.
+    await waitFor(()=>expect(m.accessRequests).toHaveBeenCalledTimes(2))
+    m.invitations.mockResolvedValue({items:[{...invitation,status:'revoked',version:4}],nextCursor:null})
+    await user.click(screen.getByRole('button',{name:'Approve Asker'}))
+    await waitFor(()=>expect(m.accessRequests).toHaveBeenCalledTimes(3))
+    late({items:[asker],nextCursor:null})
+    await waitFor(()=>expect(m.activity).toHaveBeenCalledTimes(3))
+    await new Promise(resolve=>setTimeout(resolve,0))
+    expect(screen.queryByRole('button',{name:'Approve Asker'})).not.toBeInTheDocument()
+  })
 })
