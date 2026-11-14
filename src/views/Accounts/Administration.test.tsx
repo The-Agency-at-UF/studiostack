@@ -31,12 +31,13 @@ describe('Organization access and settings',()=>{
     await user.click(screen.getByRole('button',{name:'Revoke invitation'}))
     await waitFor(()=>expect(m.revokeInvitation).toHaveBeenCalledWith('i',expect.objectContaining({version:3})))
   })
-  it('shows a new join code once, hides the main reusable code, and approves a pending access request',async()=>{
+  it('lists the main code beside a new one-time code, and approves a pending access request',async()=>{
     m.joinCodes.mockResolvedValue({items:[{id:'main',label:'Agency join code',maxUses:null,uses:4,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-01T12:00:00Z',code:'MAIN1-CODE2'}],nextCursor:null})
     m.accessRequests.mockResolvedValue({items:[{id:'request',userId:'u',email:'asker@studio.example.edu',displayName:'Asker',message:'Fall crew',status:'pending',version:1,createdAt:'2026-10-30T12:00:00Z',decidedAt:null}],nextCursor:null})
     m.createJoinCode.mockResolvedValue({id:'code',label:'Spring crew',maxUses:5,uses:0,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-31T12:00:00Z',code:'ABCDE-FGHJK'});m.decideAccessRequest.mockResolvedValue({})
     const user=userEvent.setup();view();expect(await screen.findByLabelText('1 pending')).toBeInTheDocument();expect(screen.getByText('“Fall crew”')).toBeInTheDocument()
-    expect(screen.queryByText('Agency join code')).not.toBeInTheDocument();expect(screen.getByText('No active join codes.')).toBeInTheDocument()
+    expect(screen.getByText('MAIN1-CODE2')).toBeInTheDocument();expect(screen.getByText(/4 used · No use limit or expiry/)).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:/Revoke/})).not.toBeInTheDocument();expect(screen.queryByText('No active join codes.')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'New join code'}));await user.type(screen.getByLabelText('Code label'),'Spring crew');await user.type(screen.getByLabelText('Maximum uses'),'5');await user.click(screen.getByRole('button',{name:'Create join code'}))
     expect(await screen.findByText('ABCDE-FGHJK')).toBeInTheDocument();expect(m.createJoinCode).toHaveBeenCalledWith(expect.objectContaining({label:'Spring crew',maxUses:5,expiresInDays:null,requestId:expect.any(String)}))
     await user.click(screen.getByRole('button',{name:'Approve Asker'}));await waitFor(()=>expect(m.decideAccessRequest).toHaveBeenCalledWith('request','approve',expect.objectContaining({version:1})))

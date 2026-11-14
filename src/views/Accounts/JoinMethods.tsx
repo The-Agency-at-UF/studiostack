@@ -27,8 +27,11 @@ export function AccessRequests({busy,run,requests}:{busy:boolean;run:Run;request
 export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolean;busy:boolean;run:Run;codes:JoinCode[];domains:WorkspaceDomain[]}) {
   const [shown,setShown]=useState<{label:string;code:string}|null>(null)
   const [adding,setAdding]=useState<'code'|'domain'|null>(null)
-  // The reusable organization code (the only one whose value is returned) is managed on the People tab.
+  const [copied,setCopied]=useState('')
+  // The main code is the one reusable code whose value the server keeps; it is replaced from People, never revoked here.
+  const main=codes.find(c=>c.code&&!c.revokedAt)
   const active=codes.filter(c=>!c.code&&!c.revokedAt&&(!c.expiresAt||Date.parse(c.expiresAt)>Date.now()))
+  const copy=(code:string)=>void navigator.clipboard?.writeText(code).then(()=>setCopied(code),()=>{})
   async function createCode(form:HTMLFormElement){
     const f=new FormData(form),uses=String(f.get('uses')),days=String(f.get('days')),input={label:String(f.get('label')),maxUses:uses?Number(uses):null,expiresInDays:days?Number(days):null}
     const created=await run(JSON.stringify({code:input}),(c,requestId)=>c.createJoinCode({...input,requestId})) as JoinCode|undefined
@@ -47,12 +50,15 @@ export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolea
         :<div className={domains.length?'administration-add':'administration-empty'}>{!domains.length&&<span>No domains yet.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>setAdding('domain')}>Add a domain</button></div>}
     </div>}
     <div className="administration-group"><h3>Join codes</h3>
-      <p className="administration-lede">Your main join code is on People. Create extra codes here when you want a use limit or an expiry date. Anyone with a code and a verified email joins as a member.</p>
-      {shown&&<div className="administration-code" role="status"><span>{shown.label}</span><code>{shown.code}</code><button type="button" className="administration-secondary" onClick={()=>void navigator.clipboard?.writeText(shown.code)}>Copy code</button><small>Copy it now. This code is not shown again.</small></div>}
-      {active.length>0&&<ul className="administration-list">{active.map(c=><li key={c.id}><div><strong>{c.label}</strong><span>{c.uses}{c.maxUses?` of ${c.maxUses}`:''} used{c.expiresAt?` · Expires ${new Date(c.expiresAt).toLocaleDateString()}`:''}</span></div><button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke-code:${c.id}:${c.version}`,(cl,requestId)=>cl.revokeJoinCode(c.id,{version:c.version,requestId}),{apply:l=>({...l,codes:l.codes.map(v=>v.id===c.id?{...v,revokedAt:new Date().toISOString()}:v)}),settle:(l,saved)=>({...l,codes:settled(l.codes,'id',saved)})})}>Revoke {c.label}</button></li>)}</ul>}
+      <p className="administration-lede">Anyone with a code and a verified email joins as a member. The main code never expires and is always shown here and on People. Extra codes can have a use limit or an expiry date, and are shown once when you create them.</p>
+      {shown&&<div className="administration-code" role="status"><strong>New code: {shown.label}</strong><code>{shown.code}</code><button type="button" className="administration-secondary" onClick={()=>copy(shown.code)}>{copied===shown.code?'Copied':'Copy code'}</button><small>Copy it now. This code is not shown again.</small></div>}
+      {(main||active.length>0)&&<ul className="administration-list">
+        {main&&<li key={main.id}><div><strong>Main code <code className="administration-code-value">{main.code}</code></strong><span>{main.uses} used · No use limit or expiry · Replace it from People</span></div><button type="button" className="administration-secondary" onClick={()=>copy(main.code!)}>{copied===main.code?'Copied':'Copy code'}</button></li>}
+        {active.map(c=><li key={c.id}><div><strong>{c.label}</strong><span>{c.uses}{c.maxUses?` of ${c.maxUses}`:''} used{c.expiresAt?` · Expires ${new Date(c.expiresAt).toLocaleDateString()}`:''}</span></div><button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke-code:${c.id}:${c.version}`,(cl,requestId)=>cl.revokeJoinCode(c.id,{version:c.version,requestId}),{apply:l=>({...l,codes:l.codes.map(v=>v.id===c.id?{...v,revokedAt:new Date().toISOString()}:v)}),settle:(l,saved)=>({...l,codes:settled(l.codes,'id',saved)})})}>Revoke {c.label}</button></li>)}
+      </ul>}
       {adding==='code'
         ?<form className="administration-form administration-inline-form" onSubmit={e=>{e.preventDefault();void createCode(e.currentTarget)}}><label>Code label<input name="label" maxLength={80} placeholder="Spring crew" required autoFocus/></label><label>Maximum uses<input name="uses" type="number" min={1} max={10000} placeholder="Unlimited"/></label><label>Expires after (days)<input name="days" type="number" min={1} max={365} placeholder="Never"/></label><div className="administration-actions"><button disabled={busy}>Create join code</button><button type="button" className="administration-quiet" onClick={()=>setAdding(null)}>Cancel</button></div></form>
-        :<div className={active.length?'administration-add':'administration-empty'}>{!active.length&&<span>No active join codes.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>{setShown(null);setAdding('code')}}>New join code</button></div>}
+        :<div className={main||active.length?'administration-add':'administration-empty'}>{!main&&!active.length&&<span>No active join codes.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>{setShown(null);setAdding('code')}}>New join code</button></div>}
     </div>
   </>
 }
