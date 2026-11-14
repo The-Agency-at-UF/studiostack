@@ -34,6 +34,7 @@
 .equipment-report-description { white-space:pre-wrap;font-size:13px;margin:16px 0;overflow-wrap:anywhere; }
 .equipment-report-inspector h3 { font-weight:600;margin:18px 0 12px;font-size:14px; }
 .equipment-report-inspector textarea { border:1px solid var(--line-strong);padding:12px;min-height:100px;resize:vertical; }
+.equipment-report-inspector .equipment-photo { display:block;width:100%;aspect-ratio:4/3;max-height:none;object-fit:cover;margin:var(--space-4) 0;border-radius:var(--radius-panel);background:var(--surface-subtle); }
 .equipment-layout:has(.equipment-report-inspector) { grid-template-columns:minmax(0,1fr) minmax(300px,460px); }
 @media(max-width:850px){.equipment-layout:has(.equipment-report-inspector){grid-template-columns:1fr}}
 
