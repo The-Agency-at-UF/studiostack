@@ -252,9 +252,10 @@ body { min-width:0; }
 
 /* Skeletons hold the shape of loading content with a slow shimmer. */
 .ws-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-@keyframes ws-shimmer { from { background-position:100% 0; } to { background-position:-100% 0; } }
+@keyframes ws-shimmer { from { transform:translateX(-100%); } to { transform:translateX(100%); } }
 .ws-skeleton { display:grid; gap:var(--space-3); padding:var(--space-4) 0; }
-.ws-skeleton-block { display:block; border-radius:var(--radius-control); background:linear-gradient(90deg,var(--surface-subtle) 25%,var(--line) 50%,var(--surface-subtle) 75%) 0 0 / 200% 100%; animation:ws-shimmer 1.6s ease-in-out infinite; }
+.ws-skeleton-block { position:relative; display:block; overflow:hidden; border-radius:var(--radius-control); background:var(--surface-subtle); }
+.ws-skeleton-block::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,var(--line),transparent); transform:translateX(-100%); animation:ws-shimmer 1.6s ease-in-out infinite; }
 .ws-skeleton-text .ws-skeleton-block { height:14px; }
 .ws-skeleton-text .ws-skeleton-block:nth-of-type(3n) { width:72%; }
 .ws-skeleton-text .ws-skeleton-block:nth-of-type(3n+1) { width:48%; }
@@ -262,4 +263,4 @@ body { min-width:0; }
 .ws-skeleton-row .ws-skeleton-block { height:var(--control-height); }
 .ws-skeleton-tile { grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
 .ws-skeleton-tile .ws-skeleton-block { height:88px; }
-@media(prefers-reduced-motion:reduce) { .ws-skeleton-block { animation:none; } }
+@media(prefers-reduced-motion:reduce) { .ws-skeleton-block::after { animation:none; } }

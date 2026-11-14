@@ -2,6 +2,7 @@
 .tour-backdrop { position:absolute; inset:0; background:var(--overlay); }
 .tour-spotlight { position:fixed; border-radius:var(--radius-panel); box-shadow:0 0 0 2px var(--accent-light),0 0 0 9999px var(--overlay); transition:top var(--motion-enter) var(--ease-in-out),left var(--motion-enter) var(--ease-in-out),width var(--motion-enter) var(--ease-in-out),height var(--motion-enter) var(--ease-in-out); pointer-events:none; }
 .tour-card { position:fixed; width:min(360px,calc(100vw - var(--space-8))); padding:var(--space-5); background:var(--surface); color:var(--ink); border-radius:var(--radius-panel); box-shadow:var(--shadow-menu); transition:top var(--motion-enter) var(--ease-in-out),left var(--motion-enter) var(--ease-in-out); }
+.tour-layer[data-tracking] :is(.tour-spotlight,.tour-card) { transition:none; }
 .tour-layer[data-centered] .tour-card { top:50%; left:50%; transform:translate(-50%,-50%); }
 .tour-card:focus { outline:none; }
 .tour-card-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-2); }

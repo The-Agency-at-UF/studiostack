@@ -21,6 +21,19 @@ const steps: TourStep[] = [
 function Anchors() { return <><div data-tour="sidebar" data-hidden="1">Sidebar</div><button data-tour="menu">Menu</button></> }
 
 describe('Spotlight', () => {
+  it('follows scrolling at once but glides when the step changes', async () => {
+    const user = userEvent.setup()
+    render(<><Anchors /><Spotlight steps={steps} onFinish={vi.fn()} onSkip={vi.fn()} /></>)
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    const layer = () => document.querySelector('.tour-layer')
+    expect(layer()).not.toHaveAttribute('data-tracking')
+    fireEvent.scroll(window)
+    expect(layer()).toHaveAttribute('data-tracking')
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(layer()).not.toHaveAttribute('data-tracking')
+  })
+
   it('walks visible steps, skips missing anchors and finishes', async () => {
     const user = userEvent.setup(), onFinish = vi.fn(), onSkip = vi.fn()
     render(<><Anchors /><Spotlight steps={steps} onFinish={onFinish} onSkip={onSkip} /></>)

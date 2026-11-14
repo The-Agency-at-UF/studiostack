@@ -8,7 +8,7 @@ import '../../styles/tour.css'
 
 export type TourStep = { id: string; target?: string | string[]; title: string; body: string }
 type Props = { steps: TourStep[]; onFinish: () => void; onSkip: () => void }
-type Box = { top: number; left: number; width: number; height: number }
+type Box = { top: number; left: number; width: number; height: number; tracking?: boolean }
 
 const GAP = 12, MARGIN = 16, PAD = 6
 const visible = (element: Element) => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0 }
@@ -46,18 +46,20 @@ export default function Spotlight({ steps, onFinish, onSkip }: Props) {
     if (!step) return
     const element = findTarget(step.target)
     element?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-    const measure = () => {
+    // Moving between steps glides; following a scroll or resize must not trail behind the page.
+    const measure = (tracking = false) => {
       if (cardRef.current) setCardSize({ width: cardRef.current.offsetWidth || 360, height: cardRef.current.offsetHeight || 220 })
       if (!element) return setBox(null)
       const rect = element.getBoundingClientRect()
-      setBox({ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 })
+      setBox({ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2, tracking })
     }
     measure()
     cardRef.current?.querySelector<HTMLElement>('.tour-next')?.focus()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    const follow = () => measure(true)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => measure())
     if (element) observer?.observe(element)
-    window.addEventListener('resize', measure); window.addEventListener('scroll', measure, true)
-    return () => { observer?.disconnect(); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true) }
+    window.addEventListener('resize', follow); window.addEventListener('scroll', follow, true)
+    return () => { observer?.disconnect(); window.removeEventListener('resize', follow); window.removeEventListener('scroll', follow, true) }
   }, [step])
 
   if (!step) return null
@@ -73,8 +75,8 @@ export default function Spotlight({ steps, onFinish, onSkip }: Props) {
     }
   }
 
-  return createPortal(<div className="tour-layer" data-centered={box ? undefined : ''}>
-    {box ? <div className="tour-spotlight" style={box} aria-hidden="true" /> : <div className="tour-backdrop" aria-hidden="true" />}
+  return createPortal(<div className="tour-layer" data-centered={box ? undefined : ''} data-tracking={box?.tracking ? '' : undefined}>
+    {box ? <div className="tour-spotlight" style={{ top: box.top, left: box.left, width: box.width, height: box.height }} aria-hidden="true" /> : <div className="tour-backdrop" aria-hidden="true" />}
     <div ref={cardRef} className="tour-card" style={cardPosition(box, cardSize)} role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-body" tabIndex={-1} onKeyDown={onKeyDown}>
       <div className="tour-card-heading">
         <span className="tour-progress">Step {shown.indexOf(step) + 1} of {shown.length}</span>
