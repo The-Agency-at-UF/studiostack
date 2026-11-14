@@ -8,7 +8,7 @@ import Link from 'next/link'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentAvailability,EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {getCached,setCached} from '../../api/cache'
-import {Button,Field,PageHeader,Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import {Button,Field,PageHeader,Select} from '../../components/workspace/WorkspaceUI'
 import {WorkspaceCalendar} from '../../components/workspace/WorkspaceCalendar'
 import {usePickedDay} from '../../components/workspace/usePickedDay'
 import './Equipment.css'
@@ -81,7 +81,7 @@ function CalendarWorkspace({api,org}:{api:DatabaseApi;org:string}){
    <ul className="ws-calendar-legend" aria-label="Legend">{(['reserved','checked-out','overdue'] as Status[]).map(s=><li key={s}><span className={`ws-swatch ws-swatch--${s}`} aria-hidden="true"/>{statusLabel[s]}</li>)}</ul>
   </div>
   {item&&<p className="administration-hint">Current condition: {item.condition} · {item.status}{item.checkedOut?' · Currently checked out':''}</p>}
-  {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading equipment calendar…"/>}
+  {error&&<p role="alert">{error}</p>}{loading&&<p className="ws-sr-only" role="status">Loading equipment calendar…</p>}
   <div className="ws-calendar-layout">
    <WorkspaceCalendar label="Equipment bookings" viewChoices={views} dateClick={day.dateClick} dayCellClassNames={day.dayCellClassNames} plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialDate={initialView?.date} initialView={initialView?.view ?? 'dayGridMonth'} datesSet={dates} events={events} dayMaxEvents eventClick={arg=>setSelected(arg.event.id)} editable={false}/>
    <aside className="ws-calendar-aside" aria-label="Booking details">
