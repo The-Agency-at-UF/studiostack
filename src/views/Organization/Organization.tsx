@@ -14,20 +14,14 @@ interface OrganizationData { name: string; initials: string; members: Member[]; 
 type DialogState = { type: 'invite' } | { type: 'role' | 'status'; member: Member } | null
 
 // Fictional, in-memory preview data. Never used as authentication or authorization.
-function initialOrganizations(): Record<string, OrganizationData> {
-  return {
-    uf: { name: 'The Agency at UF', initials: 'UF', reservationDays: 7, activity: [], members: [
-      { id: 'uf-1', name: 'Morgan Lee', email: 'morgan@example.com', role: 'Administrator', status: 'Active' },
-      { id: 'uf-2', name: 'Alex Rivera', email: 'alex@example.com', role: 'Member', status: 'Active' },
-      { id: 'uf-3', name: 'Jamie Park', email: 'jamie@example.com', role: 'Member', status: 'Active' },
-      { id: 'uf-4', name: 'Taylor Chen', email: 'taylor@example.com', role: 'Member', status: 'Invited' },
-      { id: 'uf-5', name: 'Casey Brooks', email: 'casey@example.com', role: 'Member', status: 'Suspended' },
-    ] },
-    northline: { name: 'Northline Studio', initials: 'NS', reservationDays: 5, activity: [], members: [
-      { id: 'ns-1', name: 'Sam Ellis', email: 'sam@example.com', role: 'Administrator', status: 'Active' },
-      { id: 'ns-2', name: 'Robin Avery', email: 'robin@example.com', role: 'Member', status: 'Active' },
-    ] },
-  }
+function initialOrganization(): OrganizationData {
+  return { name: 'The Agency at UF', initials: 'UF', reservationDays: 7, activity: [], members: [
+    { id: 'uf-1', name: 'Morgan Lee', email: 'morgan@example.com', role: 'Administrator', status: 'Active' },
+    { id: 'uf-2', name: 'Alex Rivera', email: 'alex@example.com', role: 'Member', status: 'Active' },
+    { id: 'uf-3', name: 'Jamie Park', email: 'jamie@example.com', role: 'Member', status: 'Active' },
+    { id: 'uf-4', name: 'Taylor Chen', email: 'taylor@example.com', role: 'Member', status: 'Invited' },
+    { id: 'uf-5', name: 'Casey Brooks', email: 'casey@example.com', role: 'Member', status: 'Suspended' },
+  ] }
 }
 
 function PreviewDialog({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
@@ -54,15 +48,13 @@ function PreviewDialog({ title, children, close }: { title: string; children: Re
 }
 
 export default function Organization({ isAdmin, initialTab = 'members' }: { isAdmin: boolean; initialTab?: 'members' | 'activity' | 'settings' }) {
-  const [organizations, setOrganizations] = useState(initialOrganizations)
-  const [organizationId, setOrganizationId] = useState('uf')
+  const [org, setOrg] = useState(initialOrganization)
   const [tab, setTab] = useState<'members' | 'activity' | 'settings'>(initialTab)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All statuses')
   const [dialog, setDialog] = useState<DialogState>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const org = organizations[organizationId]
   const active = org.members.filter(member => member.status === 'Active')
   const invited = org.members.filter(member => member.status === 'Invited')
   const visibleMembers = org.members.filter(member =>
@@ -72,7 +64,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   const visibleRegular = visibleMembers.filter(member => member.role === 'Member')
 
   function update(next: OrganizationData, activity: string) {
-    setOrganizations(previous => ({ ...previous, [organizationId]: { ...next, activity: [activity, ...org.activity] } }))
+    setOrg({ ...next, activity: [activity, ...org.activity] })
     setNotice(activity)
   }
   function openDialog(next: DialogState) { setError(''); setDialog(next) }
@@ -104,12 +96,9 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   if (!isAdmin) return <main className="organization-page"><h1>Organization administration</h1><p>You must be an admin to preview this workspace.</p></main>
 
   return <main className="organization-page">
-    <div className="org-preview"><span>UI preview</span><p>Fictional organizations and users. Changes reset on refresh; no emails, AWS changes, or real permissions.</p></div>
+    <div className="org-preview"><span>UI preview</span><p>A fictional organization and users. Changes reset on refresh; no emails, AWS changes, or real permissions.</p></div>
     <header className="org-heading">
       <div><p className="eyebrow">Organization administration</p><h1>Your organization.</h1><p>People, access, and policies. One workspace, your team.</p></div>
-      <label className="org-switcher">Preview organization<Select aria-label="Preview organization" value={organizationId} onChange={event => {
-        setOrganizationId(event.target.value); setSearch(''); setStatusFilter('All statuses'); setNotice(''); setDialog(null)
-      }}>{Object.entries(organizations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</Select></label>
     </header>
     <section className="org-workspace" aria-label={org.name}>
       <div className="org-identity"><span className="org-monogram" aria-hidden="true">{org.initials}</span>
@@ -146,7 +135,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         {org.activity.length ? <ol className="org-activity">{org.activity.map((item, index) => <li key={`${index}-${item}`}><span>{String(org.activity.length - index).padStart(2, '0')}</span>{item}</li>)}</ol> : <div className="org-empty">No preview changes yet. Invite a member or update a role to see activity here.</div>}
       </div>}
       {tab === 'settings' && <div className="org-section"><h3>Organization settings</h3><p>Preview preferences only. Backend enforcement and institutional SSO are not connected.</p>
-        <form key={organizationId} className="org-settings" onSubmit={event => {
+        <form className="org-settings" onSubmit={event => {
           event.preventDefault(); const data = new FormData(event.currentTarget); const name = String(data.get('organizationName') ?? '').trim(); const days = Number(data.get('days'))
           if (!name || !Number.isInteger(days) || days < 1 || days > 30) return
           update({ ...org, name, reservationDays: days }, 'Organization settings saved for this preview only.')
@@ -169,7 +158,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
       </form> : dialog.type === 'role' ? <form className="org-dialog-form" onSubmit={event => {
         event.preventDefault(); const role: Role = new FormData(event.currentTarget).get('role') === 'Administrator' ? 'Administrator' : 'Member'
         changeMember(dialog.member, { role }, `${dialog.member.name}'s preview role changed to ${role.toLowerCase()}.`)
-      }}><p>{dialog.member.name}&apos;s role in {org.name}. Other organizations are unaffected.</p>
+      }}><p>{dialog.member.name}&apos;s role in {org.name}.</p>
         <label>Organization role<Select name="role" defaultValue={dialog.member.role} data-autofocus><option>Member</option><option>Administrator</option></Select></label>
         <div className="org-dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" type="submit">Save role</button></div>
       </form> : <div className="org-dialog-form"><p>{dialog.member.status === 'Invited' ? 'Remove this preview invitation' : dialog.member.status === 'Suspended' ? 'Restore this preview membership' : 'Suspend this preview membership'} for {dialog.member.name} in {org.name}? This does not delete their identity or affect another organization.</p>
