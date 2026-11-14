@@ -49,6 +49,17 @@ describe('Account page',()=>{
     expect(await screen.findByText(/That join code is not valid/)).toBeInTheDocument()
     expect(session.refreshOrganizations).not.toHaveBeenCalled()
   })
+  it('tells a removed member that a join code cannot bring them back',async()=>{
+    const {DatabaseApiClientError}=await import('../../api/database')
+    const session=renderAccount()
+    await screen.findByText(/No pending invitations/)
+    mocks.code.mockRejectedValue(new (DatabaseApiClientError as unknown as new(status:number)=>Error)(409))
+    fireEvent.change(screen.getByRole('textbox',{name:'Have a join code?'}),{target:{value:'K5K67-A0EHQ'}})
+    fireEvent.click(screen.getByRole('button',{name:'Join workspace'}))
+    expect(await screen.findByText(/You were removed from this workspace/)).toBeInTheDocument()
+    expect(screen.queryByText(/could not be checked/)).not.toBeInTheDocument()
+    expect(session.refreshOrganizations).not.toHaveBeenCalled()
+  })
   it('switches sections and signs out from the section menu',()=>{
     const session=renderAccount()
     const sections=screen.getByRole('navigation',{name:'Account sections'})

@@ -7,6 +7,8 @@ type Api=ReturnType<typeof createDatabaseApiClient>
 const tags:Record<JoinPolicy,string>={open:'Open',request:'Request access',pending:'Pending',invite:'Invite only',member:'Joined'}
 const initials=(name:string)=>name.split(/\s+/).filter(w=>/^[\p{L}\p{N}]/u.test(w)).slice(0,2).map(w=>w[0].toUpperCase()).join('')
 const failure=(e:unknown,fallback:string)=>e instanceof DatabaseApiClientError&&e.status===429?(fallback.startsWith('That join code')?'Too many join code attempts. Try again in an hour.':'Too many searches. Try again in an hour.'):fallback
+/** A removed member's code is real but cannot let them back in; only an invitation can. */
+const codeFailure=(e:unknown)=>e instanceof DatabaseApiClientError&&e.status===409?'You were removed from this workspace, so a join code can’t add you back. Ask an administrator to invite you.':failure(e,'That join code isn’t valid. Check it with your administrator.')
 /** Finds the account's organization by search, invitation or join code, and requests access where an administrator decides. */
 export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;onJoined:(organizationId:string)=>Promise<void>;onBack?:()=>void;onTitle:(title:string)=>void}) {
   const [overview,setOverview]=useState<OnboardingOverview|null>(null),[query,setQuery]=useState(''),[results,setResults]=useState<OrganizationSearchResult[]|null>(null)
@@ -56,7 +58,7 @@ export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;
       <button type="button" className="login-text-action" disabled={busy} onClick={()=>void act(async()=>{await api.withdrawAccessRequest(r.id,r.organizationId);await load();if(query.trim().length>=2)await search(query.trim())},'The request could not be withdrawn. Refresh and try again.')}>Withdraw<span className="login-sr-only"> request to {r.organizationName}</span></button></li>)}</ul>}
     <div className="login-divider"><span>or</span></div>
     <form className="login-password-form welcome-code-join" noValidate onSubmit={e=>{e.preventDefault();if(!code.trim()){setCodeError('Enter the join code from your administrator.');return}
-      setBusy(true);setCodeError('');api.joinByCode(code).then(r=>onJoined(r.organizationId)).catch(e=>setCodeError(failure(e,'That join code isn’t valid. Check it with your administrator.'))).finally(()=>setBusy(false))}}>
+      setBusy(true);setCodeError('');api.joinByCode(code).then(r=>onJoined(r.organizationId)).catch(e=>setCodeError(codeFailure(e))).finally(()=>setBusy(false))}}>
       <label>Join code<input value={code} onChange={e=>{setCode(e.target.value);setCodeError('')}} placeholder="ABCDE-FGHJK" maxLength={32} autoComplete="off" spellCheck={false} aria-invalid={Boolean(codeError)}/></label>
       <button className="welcome-secondary" disabled={busy}>Join with code</button>
       {codeError&&<p className="login-error" role="alert">{codeError}</p>}

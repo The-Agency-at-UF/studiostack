@@ -129,7 +129,7 @@ function JoinWorkspace({getAccessToken,onJoined}:{getAccessToken:()=>Promise<str
     if(!code.trim()){setCodeError('Enter the join code from your workspace administrator.');return}
     setBusy(true);setError('');setStatus('');setCodeError('')
     try{const {organizationId}=await api.joinByCode(code.trim());setCode('');setStatus('You joined the workspace.');await onJoined(organizationId)}
-    catch(e){if(e instanceof DatabaseApiClientError&&[400,404].includes(e.status))setCodeError('That join code is not valid. Check it with your workspace administrator.');else setError(e instanceof DatabaseApiClientError&&e.status===429?'Too many join code attempts. Try again in an hour.':'Join codes could not be checked right now. Try again.')}
+    catch(e){if(e instanceof DatabaseApiClientError&&[400,404].includes(e.status))setCodeError('That join code is not valid. Check it with your workspace administrator.');else if(e instanceof DatabaseApiClientError&&e.status===409)setCodeError('You were removed from this workspace, so a join code can’t add you back. Ask an administrator to invite you.');else setError(e instanceof DatabaseApiClientError&&e.status===429?'Too many join code attempts. Try again in an hour.':'Join codes could not be checked right now. Try again.')}
     finally{setBusy(false)}
   }
   return <section className="account-card" aria-labelledby="account-join-title">
