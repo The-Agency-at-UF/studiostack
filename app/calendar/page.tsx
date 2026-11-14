@@ -1,8 +1,9 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { Skeleton } from '../../src/components/workspace/WorkspaceUI'
+// While the calendar code downloads, only announce loading: a visible stand-in page would enter, then be
+// replaced by the real page entering again.
 const Calendar = dynamic(() => import('../../src/views/Equipment/Calendar'), {
   ssr: false,
-  loading: () => <main className="administration"><h1>Equipment calendar</h1><Skeleton label="Loading equipment calendar…" /></main>,
+  loading: () => <p className="ws-sr-only" role="status">Loading equipment calendar…</p>,
 })
 export default function CalendarPage(){return <Calendar/>}

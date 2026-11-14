@@ -45,8 +45,9 @@ function FulfillmentWorkspace({api,organizationId}:{api:DatabaseApi;organization
     setRows(value=>value.map(r=>r.id===row.id?row:r));setNotice(row.fulfillmentStatus==='returned'?(damaged?'Equipment returned. A damage report was created and damaged items were placed in maintenance.':'Equipment returned.'):'Equipment checked out.');try{const value=await load();setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items})}catch(e){setError(equipmentError(e))}
   }
   return <main className="administration workspace-surface"><header><div><p className="administration-eyebrow">Equipment handoff</p><h1>Pickup & return</h1><p>Record the condition of every item at pickup and return.</p></div><button disabled={loading} onClick={()=>void refresh()}>Refresh</button></header>
-    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<Skeleton label="Loading equipment handoffs…" variant="row" count={3}/>}
+    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
     <label className="equipment-booking-select">Reservation<Select value={selected} onChange={e=>{setSelected(e.target.value);setNotice('')}}><option value="">Choose a reservation</option>{[...rows].sort((a,b)=>Date.parse(b.startsAt)-Date.parse(a.startsAt)).map(r=><option key={r.id} value={r.id}>{r.name} · {reservationLabel(r)}</option>)}</Select></label>
+    {loading&&!rows.length&&<Skeleton label="Loading equipment handoffs…" variant="row" count={3}/>}
     {!loading&&!rows.length&&<p>No reservations yet. <Link href="/create-reservation/">Book equipment</Link> to get started.</p>}
     {current&&!loading&&<div className="equipment-handoff-layout"><section><h2>{current.name}</h2><p>{reservationLabel(current)} · {new Date(current.startsAt).toLocaleString()} to {new Date(current.endsAt).toLocaleString()}</p>
       {current.checkedOutAt&&<p className="administration-hint">Picked up {new Date(current.checkedOutAt).toLocaleString()}</p>}{current.returnedAt&&<p className="administration-hint">Returned {new Date(current.returnedAt).toLocaleString()}</p>}

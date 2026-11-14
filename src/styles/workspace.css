@@ -235,15 +235,16 @@ body { min-width:0; }
 }
 @media(max-width:767px) { .ws-select,.ws-select option { font-size:var(--text-base); } }
 @media(prefers-reduced-motion:reduce) { .ws-select::picker(select),.ws-select::picker-icon { transition:none; } }
-/* Loaded content settles into place; loading text waits briefly so fast loads never flash it. */
-@keyframes ws-enter { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+/* The page is the only thing that moves. Content arriving inside it, often after a skeleton on an
+   uncached load, fades in place so a late response never pops up or stacks a second rise. */
 @keyframes ws-fade { from { opacity:0; } to { opacity:1; } }
-.ws-enter,.ws-stagger > * { animation:ws-enter var(--motion-page) var(--ease-out) both; }
+.ws-enter,.ws-stagger > * { animation:ws-fade var(--motion-page) var(--ease-out) both; }
 .ws-stagger > :nth-child(2) { animation-delay:var(--stagger); }
 .ws-stagger > :nth-child(3) { animation-delay:calc(var(--stagger) * 2); }
 .ws-stagger > :nth-child(4) { animation-delay:calc(var(--stagger) * 3); }
 .ws-stagger > :nth-child(5) { animation-delay:calc(var(--stagger) * 4); }
 .ws-stagger > :nth-child(n+6) { animation-delay:calc(var(--stagger) * 5); }
+/* Loading placeholders wait briefly so fast loads never flash them. */
 .ws-loading-delayed { animation:ws-fade .25s ease .2s both; }
 /* Every page eases in when its tab opens, and so do sub-views, detail panels and organization sections. */
 @keyframes ws-page-enter { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }

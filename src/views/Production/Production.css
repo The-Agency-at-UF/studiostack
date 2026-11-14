@@ -159,7 +159,6 @@
 .production-clients-empty p { margin: 0 0 var(--space-1); font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
 .production-clients-empty span { display: block; max-width: 48ch; margin: 0 auto; line-height: var(--line-body); }
 .production-page .production-access > p.production-error,.production-page .production-clients > p.production-error { margin: var(--space-4) 0 0; }
-.production-loading { padding: var(--space-6) 0; }
 .production-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-6) 0 var(--space-3); }
 .production-roles > div { padding: var(--space-4); background: var(--surface-subtle); border-radius: var(--radius-panel); }
 .production-roles dt { font-size: var(--text-sm); font-weight: var(--weight-bold); margin-bottom: var(--space-1); }
