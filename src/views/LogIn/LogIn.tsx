@@ -7,7 +7,6 @@ import { FcGoogle } from 'react-icons/fc'
 import { SiApple } from 'react-icons/si'
 import type { ApiOrganization } from '../../types/database-api'
 import type { LoginProvider, LoginProviderOption } from '../../auth/providers'
-import { Select } from '../../components/workspace/WorkspaceUI'
 import AuthLayout from './AuthLayout'
 
 const providerButtons = [
@@ -27,7 +26,6 @@ interface LoginProps {
   label?: string
   organizations?: ApiOrganization[]
   selectedOrganizationId?: string
-  onSelectOrganization?: (id:string)=>void
   accountActions?:ReactNode
   accountSignIn?:ReactNode
   hideUnavailableProviders?:boolean
@@ -35,7 +33,7 @@ interface LoginProps {
   accessHeading?:string
   accessDescription?:string
 }
-export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,onSelectOrganization,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
+export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
   return <AuthLayout>
         <span className="login-section-number">{authenticated ? 'Your account' : accessSection??'Sign in'}</span>
         <h1 id="login-title">{authenticated ? 'You’re signed in.' : accessHeading??'Welcome back.'}</h1>
@@ -44,7 +42,8 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
           <div className="login-connected"><HiOutlineCheckCircle aria-hidden="true" /><span>Account connected securely</span></div>
           {organizations.length>0&&<div className="login-memberships">
             <h2>Your workspaces</h2>
-            <label className="login-workspace-picker">Your workspace<Select value={organizations.some(org=>org.id===selectedOrganizationId)?selectedOrganizationId:organizations[0].id} onChange={event=>onSelectOrganization?.(event.target.value)}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name} · {org.role}</option>)}</Select></label>
+            {(()=>{const current=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0];return <p className="login-workspace-current">{current.name} · {current.role}</p>})()}
+            {organizations.length>1&&<Link className="login-text-action" href="/account/">Switch workspace</Link>}
           </div>}
           {accountActions}
           {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}

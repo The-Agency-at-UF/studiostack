@@ -396,8 +396,7 @@
 .login-account-switch { margin:0;color:var(--muted);font-size:12px; }
 .login-account-switch .login-text-action { margin:0 0 0 4px; }
 
-.login-workspace-picker { display:grid; gap:9px; margin:16px 0; font-size:13px; font-weight:600; }
-.login-workspace-picker .ws-select { width:100%; }
+.login-workspace-current { margin:12px 0 4px; font-size:14px; font-weight:600; }
 .account-invitations .login-primary { justify-content:center; padding:14px 18px; color:white; text-align:center; margin:12px 0; }
 .account-invitations button:disabled { cursor:not-allowed; }
 
