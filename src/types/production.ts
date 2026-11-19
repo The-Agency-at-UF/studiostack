@@ -62,3 +62,4 @@ export function submissionErrors(data: BriefData): string[] {
   for (const section of visibleSections(data)) for (const field of section.fields) if (field.required && !data.fields[field.key]?.trim()) errors.push(field.label)
   return errors
 }
+export const sectionId = (title: string) => `brief-${title.toLowerCase().replaceAll(' ', '-')}`
