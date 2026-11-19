@@ -1,14 +1,18 @@
 import type { ApiMember,ApiPage } from '../types/database-api'
-import type { ClientAccount,ProductionAssignment,ProductionBrief, BriefData, BriefCommand, ProductionSettings, ProductionAccess, Delivery } from '../types/production'
+import type { ProductionIdea,IdeaInput,AttachmentCategory,ClientAccount,ProductionAssignment,ProductionBrief, BriefData, BriefCommand, ProductionSettings, ProductionAccess, Delivery } from '../types/production'
 import { pageQuery, type Send } from './scoped'
 export function productionClient(send: Send) {
   const page = (resource: string, after?: string) => resource + pageQuery(after)
   return {
+    ideas:(after?:string)=>send<ApiPage<ProductionIdea>>(page('ideas',after)),
+    createIdea:(input:IdeaInput & {id:string})=>send<ProductionIdea>('ideas','POST',input),
+    updateIdea:(id:string,input:IdeaInput & {version:number;status:ProductionIdea['status']})=>send<ProductionIdea>(`ideas/${encodeURIComponent(id)}`,'PATCH',input),
     people:(after?:string)=>send<ApiPage<ApiMember>>(page('people',after)),
     clients:(after?:string)=>send<ApiPage<ClientAccount>>(page('clients',after)),
     createClient:(name:string)=>send<ClientAccount>('clients','POST',{name}),
-    updateClient:(id:string,input:{name:string;deleted:boolean;version:number})=>send<ClientAccount>(`clients/${encodeURIComponent(id)}`,'PATCH',input),
-    assign:(briefId:string,input:{version:number;requestId:string;assignments:Pick<ProductionAssignment,'userId'|'role'>[]})=>send<ProductionBrief>(`briefs/${encodeURIComponent(briefId)}/crew`,'POST',input),
+    updateClient:(id:string,input:{name:string;deleted:boolean;version:number;logoPhotoId?:string|null})=>send<ClientAccount>(`clients/${encodeURIComponent(id)}`,'PATCH',input),
+    clientLogo:(id:string)=>send<{url:string;expiresIn:number}>(`clients/${encodeURIComponent(id)}/logo`),
+    assign:(briefId:string,input:{version:number;requestId:string;assignments:Pick<ProductionAssignment,'userId'|'role'|'crewRequestId'>[]})=>send<ProductionBrief>(`briefs/${encodeURIComponent(briefId)}/crew`,'POST',input),
     access: () => send<ProductionAccess>('access'), settings: () => send<ProductionSettings>('settings'),
     saveSettings: (input: ProductionSettings) => send<ProductionSettings>('settings', 'PATCH', input),
     list: (after?: string) => send<ApiPage<ProductionBrief>>(page('briefs', after)),
@@ -19,7 +23,7 @@ export function productionClient(send: Send) {
     action: (id: string, command: BriefCommand) => send<ProductionBrief>(`briefs/${encodeURIComponent(id)}/actions`, 'POST', command),
     deliveries: (after?: string) => send<ApiPage<Delivery>>(page('deliveries', after)),
     retry: (id: string) => send<{ id: string }>(`deliveries/${encodeURIComponent(id)}/retry`, 'POST', {}),
-    attach: (briefId: string, input: { id: string; name: string; contentType: string; size: number }) => send<{ id: string; url: string; fields: Record<string, string> }>(`briefs/${encodeURIComponent(briefId)}/attachments`, 'POST', input),
+    attach: (briefId: string, input: { id: string; name: string; contentType: string; size: number; category?: AttachmentCategory }) => send<{ id: string; url: string; fields: Record<string, string> }>(`briefs/${encodeURIComponent(briefId)}/attachments`, 'POST', input),
     complete: (briefId: string, id: string) => send<ProductionBrief>(`briefs/${encodeURIComponent(briefId)}/attachments/${encodeURIComponent(id)}/complete`, 'POST', {}),
     discard: (briefId: string, id: string) => send<{ id: string }>(`briefs/${encodeURIComponent(briefId)}/attachments/${encodeURIComponent(id)}`, 'DELETE'),
     download: (briefId: string, id: string) => send<{ url: string; expiresIn: number }>(`briefs/${encodeURIComponent(briefId)}/attachments/${encodeURIComponent(id)}`),

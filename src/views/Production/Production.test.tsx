@@ -59,7 +59,7 @@ describe('production workspace',()=>{
     await user.click(screen.getByRole('button',{name:'Save draft'}));expect(await screen.findByText('All changes saved')).toHaveClass('production-saved-pulse')
     await step('Review & submit');expect(screen.getByText('Required details are complete.')).toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Submit for review'}));await waitFor(()=>expect(screen.queryByRole('button',{name:'Submit for review'})).not.toBeInTheDocument())
-    expect(screen.getByText('In review',{selector:'.production-status'})).toBeInTheDocument();expect(screen.getByRole('button',{name:/View revision/})).toBeInTheDocument()
+    expect(screen.getByText('In review',{selector:'.production-status'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:/View revision/})).not.toBeInTheDocument()
   })
   it('lets the author delete a never-submitted draft from the brief list',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
@@ -85,7 +85,7 @@ describe('production workspace',()=>{
     await user.click(screen.getByRole('button',{name:'Approve & confirm dates'}));await screen.findByText(/^Confirmed shoot:/,{selector:'.production-review p'})
     expect(screen.getByText('Approved',{selector:'.production-status'})).toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Decisions & delivery'}));await screen.findByRole('heading',{name:'Executive Leadership Team decisions'})
-    expect(await screen.findByText('No email delivery was queued for this decision.')).toBeInTheDocument()
+    expect(await screen.findByText('sent (1 attempt) · sent (1 attempt)')).toBeInTheDocument()
   })
   it('exposes access settings only to administrators and persists reviewer selection',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})

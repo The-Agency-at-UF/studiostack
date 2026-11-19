@@ -15,6 +15,8 @@ export interface AppSession {
   setIsAdmin: Dispatch<SetStateAction<boolean>>
   mode?: 'signed-out' | 'authenticated' | 'preview'
   signIn?: (provider?: LoginProvider) => Promise<void>
+  previewPersonId?:string
+  setPreviewPersonId?:(id:string)=>void
   openPreview?: () => void
   signOut?: () => void | Promise<void>
   busy?: boolean

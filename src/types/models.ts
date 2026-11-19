@@ -9,7 +9,8 @@ interface Equipment {
   name: string
 }
 
-interface InventoryData {
+export interface InventoryData {
+  colorTag?: import('./database-api').EquipmentColor | null
   name: string
   category: string
   availability: string
