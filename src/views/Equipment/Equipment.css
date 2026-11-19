@@ -153,3 +153,16 @@
 .inventory-thumb svg { width:20px;height:20px; }
 .app-content#workspace-content .inventory-workspace .inventory-table td:first-child { min-width:240px; }
 .app-content#workspace-content .inventory-workspace .inventory-table tr.is-selected .inventory-thumb { background:var(--surface); }
+.equipment-overdue-badge { display:inline-flex; align-items:center; justify-content:center; min-width:var(--space-6); min-height:var(--space-6); padding:var(--space-1); border-radius:var(--radius-control); background:var(--danger); color:var(--on-frame); font-size:var(--text-sm); font-weight:var(--weight-medium); }
+.equipment-color { display:inline-flex; align-items:center; gap:var(--space-2); text-transform:capitalize; }
+.equipment-color::before { content:''; width:var(--space-3); height:var(--space-3); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--equipment-color); }
+.equipment-color-red { --equipment-color:var(--gear-red); }
+.equipment-color-orange { --equipment-color:var(--gear-orange); }
+.equipment-color-yellow { --equipment-color:var(--gear-yellow); }
+.equipment-color-green { --equipment-color:var(--gear-green); }
+.equipment-color-blue { --equipment-color:var(--gear-blue); }
+.equipment-color-purple { --equipment-color:var(--gear-purple); }
+.equipment-color-black { --equipment-color:var(--gear-black); }
+.equipment-color-white { --equipment-color:var(--gear-white); }
+.equipment-calendar-filters { display:flex; flex-wrap:wrap; gap:var(--space-4); margin-block:var(--space-4); }
+.equipment-calendar-filters label { display:flex; align-items:center; gap:var(--space-2); min-height:var(--control-height); }

@@ -72,3 +72,13 @@
   --shadow-card: 0 1px 2px #19171e14, 0 4px 8px #19171e0a, 0 16px 32px -4px #19171e24;
   --shadow-tray: 0 2px 4px #19171e0f, 0 24px 48px -12px #19171e2e;
 }
+:root {
+  --gear-red: #a32135;
+  --gear-orange: #a84314;
+  --gear-yellow: #78520d;
+  --gear-green: #23613e;
+  --gear-blue: #215a9c;
+  --gear-purple: #7138b8;
+  --gear-black: #19171e;
+  --gear-white: #ffffff;
+}
