@@ -32,8 +32,10 @@ interface LoginProps {
   accessSection?:string
   accessHeading?:string
   accessDescription?:string
+  /** Opens the local preview workspace. Passed only in development builds. */
+  onPreview?:()=>void
 }
-export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription }: LoginProps) {
+export default function LogIn({ onSignIn, onSignOut, providers = [], busy = false, error, configured = true, authenticated = false, label, organizations = [],selectedOrganizationId,accountActions,accountSignIn,hideUnavailableProviders=false,accessSection,accessHeading,accessDescription,onPreview }: LoginProps) {
   return <AuthLayout>
         <span className="login-section-number">{authenticated ? 'Your account' : accessSection??'Sign in'}</span>
         <h1 id="login-title">{authenticated ? 'You’re signed in.' : accessHeading??'Welcome back.'}</h1>
@@ -74,6 +76,7 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
           {error && <p className="login-error" role="alert">{error}</p>}
           {busy && <p className="login-security-note" role="status">Connecting to secure sign-in. Please wait.</p>}
           <p className="login-password-note"><HiOutlineLockClosed aria-hidden="true" />Your password stays with the sign-in provider.</p></>}
+          {onPreview&&<button type="button" className="login-text-action" onClick={onPreview}>Skip sign-in · open local preview (development only)</button>}
         </>}
   </AuthLayout>
 }
