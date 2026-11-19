@@ -94,7 +94,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     const canReadOrganizationBookings = async () => membership.role !== 'member' ||
       (await client.query('SELECT 1 FROM app.production_settings WHERE organization_id=$1 AND $2::uuid=ANY(reviewer_ids)',[organizationId,user.id])).rows.length > 0
 
-    if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage)
+    if (request.operation === 'production') return dispatchProduction(client, request, { organizationId, user, membership }, briefStorage, storage)
     if(request.operation==='alerts')return dispatchAlerts(client,request,{organizationId,user})
     if(request.operation==='reports')return dispatchReports(client,request,{organizationId,user,membership})
     if (request.operation === 'equipment')return dispatchEquipment(client,request,{organizationId,user,membership},now)
