@@ -41,6 +41,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
 
   const groups = [
     { name: 'Overview', links: [{ to: '/', label: 'Home', Icon: HiOutlineHome }, { to: '/alerts', label: 'Alerts', Icon: HiOutlineBell }] },
+    { name: 'Help', links: [{to:'/get-started',label:'Get Started',Icon:HiOutlineLightBulb},{to:'/resources',label:'Resources',Icon:HiOutlineClipboardDocumentList}] },
     { name: 'Production', links: [
       { to: '/production', label: 'Production', Icon: HiOutlineVideoCamera },
       { to: '/production/calendar', label: 'Production calendar', Icon: HiOutlineCalendar },

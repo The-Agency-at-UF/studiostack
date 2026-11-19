@@ -1,0 +1,8 @@
+import {HiOutlineArrowDownTray,HiOutlineArrowTopRightOnSquare} from 'react-icons/hi2'
+const httpsLink = (value:string|undefined) => { try { const url=new URL(value??''); return url.protocol==='https:'&&!url.username&&!url.password?url.href:null } catch { return null } }
+const productionResources = [
+  {name:'Official production template 1',url:httpsLink(process.env.NEXT_PUBLIC_RELEASE_TEMPLATE_URL??'https://uflorida.sharepoint.com/:w:/t/TheAgencyatUF77/cQp-o-PPdMhZTYsNovvxWorQEgUChmLkdrcsSROm3a-HJ-hUqA'),description:'Download the official production paperwork from SharePoint.'},
+  {name:'Official production template 2',url:httpsLink(process.env.NEXT_PUBLIC_LOCATION_TEMPLATE_URL??'https://uflorida.sharepoint.com/:w:/t/TheAgencyatUF77/cQrMkK8K20WsR7sbcHwbJDhBEgUCOfJky8150n63hOYMAh42XA'),description:'Download the official production paperwork from SharePoint.'},
+  {name:'Canva production-brief guide',url:httpsLink(process.env.NEXT_PUBLIC_CANVA_BRIEF_GUIDE_URL??'https://www.canva.com/design/DAHYHRt2YEk/braegSYtFQh3E4oJXH_-RQ/edit'),description:'Use the guide while preparing your creative brief.'},
+]
+export function ResourceLinks({compact=false}:{compact?:boolean}={}){return <ul className={`production-resource-list${compact?' production-resource-links-compact':''}`}>{productionResources.map(r=><li key={r.name}>{r.url?<a href={r.url} target="_blank" rel="noopener noreferrer">{compact&&(r.url.includes('canva.com')?<HiOutlineArrowTopRightOnSquare aria-hidden="true"/>:<HiOutlineArrowDownTray aria-hidden="true"/>)}{r.name}{!compact?' · Open / download':''}</a>:<strong>{r.name}</strong>}{(!compact||!r.url)&&<p>{r.description}{!r.url?' The official link has not been supplied yet. Contact your organization administrator.':''}</p>}</li>)}</ul>}
