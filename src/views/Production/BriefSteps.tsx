@@ -30,17 +30,20 @@ export default function BriefSteps({ form, clients, onChange, onClientAccount, d
   const missing = steps.flatMap(s => s.missing.map(label => ({ label, step: s })))
   // Steps the person has left (or every step, once they reach Review or try to submit) show their empty required fields in red.
   const [checked, setChecked] = useState<Set<string>>(() => new Set()), [attempted, setAttempted] = useState(false)
+  // Steps the person actually opened. Only these earn a ✓, so jumping ahead never marks unseen steps done.
+  const [visited, setVisited] = useState<Set<string>>(() => new Set(['request']))
   const heading = useRef<HTMLHeadingElement>(null), moved = useRef(false), summary = useRef<HTMLDivElement>(null)
   // A conditional section can disappear when production types change; fall back to the step that now holds its place.
   useEffect(() => { if (step.id !== stepId) setStepId(step.id) }, [step.id, stepId])
   useEffect(() => { if (attempted) summary.current?.focus() }, [attempted])
   useEffect(() => { if (moved.current) { heading.current?.focus(); heading.current?.scrollIntoView?.({ block: 'nearest' }) } }, [stepId])
-  const go = (id: string) => { if(disabled)return; moved.current = true; setChecked(c => new Set([...c, step.id, ...(id === 'brief-review' ? steps.map(s => s.id) : [])])); setStepId(id) }
+  const go = (id: string) => { if(disabled)return; moved.current = true; setChecked(c => new Set([...c, step.id, ...(id === 'brief-review' ? steps.map(s => s.id) : [])])); setVisited(v => new Set([...v, id])); setStepId(id) }
   const shows = (id: string) => checked.has(id)
+  const done = (s: Step, i: number) => i !== index && s.id !== 'brief-review' && visited.has(s.id) && !s.missing.length
   const blocker = missing.length ? `Fill in ${missing.length === 1 ? 'the required detail' : `all ${missing.length} required details`} before submitting.` : dirty ? 'Save the draft before submitting.' : submitBlocked ? 'Wait for attachments to finish uploading before submitting.' : ''
   const submit = () => { if (blocker) { setAttempted(true); setChecked(new Set(steps.map(s => s.id))); summary.current?.focus(); return } onSubmit() }
   return <div className="production-steps">
-    <nav aria-label="Brief steps"><ol style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>{steps.map((s, i) => <li key={s.id}><button type="button" disabled={disabled} aria-current={i === index ? 'step' : undefined} className={shows(s.id) && s.missing.length ? 'has-error' : i < index && !s.missing.length ? 'is-complete' : undefined} onClick={() => go(s.id)}><b aria-hidden="true">{shows(s.id) && s.missing.length ? '!' : i < index && !s.missing.length ? '✓' : i + 1}</b><span className="production-step-name">{s.title}{s.missing.length > 0 && (shows(s.id) ? <small><span className="sr-only"> · </span>{s.missing.length} missing</small> : <span className="sr-only"> · {s.missing.length} required left</span>)}</span></button></li>)}</ol></nav>
+    <nav aria-label="Brief steps"><ol style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>{steps.map((s, i) => <li key={s.id}><button type="button" disabled={disabled} aria-current={i === index ? 'step' : undefined} className={shows(s.id) && s.missing.length ? 'has-error' : done(s, i) ? 'is-complete' : undefined} onClick={() => go(s.id)}><b aria-hidden="true">{shows(s.id) && s.missing.length ? '!' : done(s, i) ? '✓' : i + 1}</b><span className="production-step-name">{s.title}{s.missing.length > 0 && (shows(s.id) ? <small><span className="sr-only"> · </span>{s.missing.length} missing</small> : <span className="sr-only"> · {s.missing.length} missing</span>)}</span></button></li>)}</ol></nav>
     <section className="production-step" aria-labelledby="brief-step-title">
       <header><p>Step {index + 1} of {steps.length}</p><h3 id="brief-step-title" ref={heading} tabIndex={-1}>{step.title === 'Basics' ? 'Start with the basics' : step.title}</h3><p>{step.intro}</p></header>
       {shows(step.id) && step.missing.length > 0 && step.id !== 'brief-review' && <p className="production-step-notice"><HiExclamationCircle aria-hidden="true" /><span><strong>{step.missing.length === 1 ? '1 required field is empty.' : `${step.missing.length} required fields are empty.`}</strong> You can keep going and fill {step.missing.length === 1 ? 'it' : 'them'} in before you submit.</span></p>}
@@ -48,14 +51,14 @@ export default function BriefSteps({ form, clients, onChange, onClientAccount, d
       {step.section && renderSection(step.section,shows(step.id))}
       <fieldset hidden={step.id!=='brief-crew-requests'} disabled={disabled||step.id!=='brief-crew-requests'} aria-label="Crew requests">{crewRequests}</fieldset>
       <fieldset hidden={step.section?.title!=='Timeline'} disabled={disabled||step.section?.title!=='Timeline'} aria-label="Shoot date proposals">{scheduling}</fieldset>
-      {step.id === 'brief-review' && <div className="production-step-review">{attempted && blocker && <div className="production-error-summary" id="brief-submit-blocker" role="alert" tabIndex={-1} ref={summary}><HiExclamationCircle aria-hidden="true" />{blocker}</div>}{missing.length ? <><p><strong>Still needed · {missing.length}</strong></p><ul>{missing.map(m => <li key={m.step.id + m.label}><span>{m.label}</span><button type="button" className="production-link-button" aria-label={`Go to ${m.label} in ${m.step.title}`} onClick={() => go(m.step.id)}>{m.step.title} →</button></li>)}</ul></> : <p><strong>Required details are complete.</strong></p>}{dirty && !attempted && <p>Save the draft before submitting.</p>}<p>Shoot dates are confirmed when Production approves the brief.</p>{reviewNotes}</div>}
+      {step.id === 'brief-review' && <div className="production-step-review">{attempted && blocker && <div className="production-error-summary" id="brief-submit-blocker" role="alert" tabIndex={-1} ref={summary}><HiExclamationCircle aria-hidden="true" />{blocker}</div>}{missing.length ? <><p><strong>Still needed · {missing.length}</strong></p><ul>{missing.map(m => <li key={m.step.id + m.label}><span>{m.label}</span><button type="button" className="production-link-button" aria-label={`Go to ${m.label} in ${m.step.title}`} onClick={() => go(m.step.id)}>{m.step.title} →</button></li>)}</ul></> : <p><strong>Required details are complete.</strong></p>}{dirty && !attempted && <p>Save the draft before submitting.</p>}{!canSubmit && <p id="brief-submit-owner"><strong>Only the person who created this brief can submit it.</strong></p>}<p>Shoot dates are confirmed when Production approves the brief.</p>{reviewNotes}</div>}
     </section>
     <div className="production-savebar">
       {saveStatus}
       <div>
         <button type="button" disabled={disabled||!previous} onClick={() => previous && go(previous.id)}>Back</button>
         <button type="submit" disabled={disabled || !dirty}>{disabled ? 'Saving…' : 'Save draft'}</button>
-        {next ? <button type="button" className="production-primary" disabled={disabled} onClick={() => go(next.id)}>Next: {next.title}</button> : canSubmit && <button type="button" className="production-primary" disabled={disabled} aria-describedby={attempted && blocker ? 'brief-submit-blocker' : undefined} onClick={submit}>Submit for review</button>}
+        {next ? <button type="button" className="production-primary" disabled={disabled} onClick={() => go(next.id)}>Next: {next.title}</button> : canSubmit ? <button type="button" className="production-primary" disabled={disabled} aria-describedby={attempted && blocker ? 'brief-submit-blocker' : undefined} onClick={submit}>Submit for review</button> : <button type="button" className="production-primary" disabled aria-describedby="brief-submit-owner">Submit for review</button>}
       </div>
     </div>
   </div>
