@@ -3,6 +3,7 @@ import {useState} from 'react'
 import type {AccountClient} from '../../api/accounts'
 import type {JoinCode,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
 import {Select} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 import type {OrganizationInvitation} from '../../types/accounts'
 /** The lists an administration action can change before the server confirms it. */
 export type AdminLists={invitations:OrganizationInvitation[];requests:PendingAccessRequest[];codes:JoinCode[];domains:WorkspaceDomain[]}
@@ -25,13 +26,15 @@ export function AccessRequests({busy,run,requests}:{busy:boolean;run:Run;request
 
 /** Self-service ways into the workspace: verified email domains and limited join codes. */
 export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolean;busy:boolean;run:Run;codes:JoinCode[];domains:WorkspaceDomain[]}) {
+  const toast=useToast()
   const [shown,setShown]=useState<{label:string;code:string}|null>(null)
   const [adding,setAdding]=useState<'code'|'domain'|null>(null)
   const [copied,setCopied]=useState('')
   // The main code is the one reusable code whose value the server keeps; it is replaced from People, never revoked here.
   const main=codes.find(c=>c.code&&!c.revokedAt)
   const active=codes.filter(c=>!c.code&&!c.revokedAt&&(!c.expiresAt||Date.parse(c.expiresAt)>Date.now()))
-  const copy=(code:string)=>void navigator.clipboard?.writeText(code).then(()=>setCopied(code),()=>{})
+  const copyFailed=()=>toast.error('Copy failed. Select the code and copy it manually.',{id:'join-code-copy'})
+  const copy=(code:string)=>{if(!navigator.clipboard)return copyFailed();void navigator.clipboard.writeText(code).then(()=>{setCopied(code);toast.success('Join code copied.',{id:'join-code-copy'})},copyFailed)}
   async function createCode(form:HTMLFormElement){
     const f=new FormData(form),uses=String(f.get('uses')),days=String(f.get('days')),input={label:String(f.get('label')),maxUses:uses?Number(uses):null,expiresInDays:days?Number(days):null}
     const created=await run(JSON.stringify({code:input}),(c,requestId)=>c.createJoinCode({...input,requestId})) as JoinCode|undefined

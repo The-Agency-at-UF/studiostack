@@ -103,7 +103,7 @@ describe('Optimistic administration actions',()=>{
     const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:'Approve Asker'}))
     expect(screen.queryByRole('button',{name:'Approve Asker'})).not.toBeInTheDocument()
     m.accessRequests.mockResolvedValue({items:[],nextCursor:null});answer({...asker,status:'approved',version:2})
-    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Access request approved.')).toBeInTheDocument()
     await waitFor(()=>expect(m.refresh).toHaveBeenCalled())
   })
   it('puts a revoked invitation back when the server rejects the change',async()=>{

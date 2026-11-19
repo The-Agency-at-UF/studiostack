@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { AccountClient } from '../../api/accounts'
 import type { JoinCode } from '../../types/accounts'
 import { Notice } from '../../components/workspace/WorkspaceUI'
+import { useToast } from '../../components/workspace/Toast'
 
 export default function OrganizationJoinCode({ api, name }: { api: AccountClient; name: string }) {
+  const toast = useToast()
   const [code, setCode] = useState<JoinCode | null>(null)
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -31,12 +33,12 @@ export default function OrganizationJoinCode({ api, name }: { api: AccountClient
     request.current ??= crypto.randomUUID()
     try {
       const created = await api.createJoinCode({ label: `${name} join code`.slice(0, 80), reusable: true, ...(code ? { replaces: code.id } : {}), requestId: request.current })
-      if (current.current) { setCode(created); setConfirm(false); request.current = null }
+      if (current.current) { setCode(created); setConfirm(false); request.current = null; toast.success(code ? 'Join code replaced. The old code no longer works.' : 'Join code created.', { id: 'join-code' }) }
     } catch { if (current.current) setError('The join code could not be saved. Try again, or refresh if another admin changed it.') }
     finally { if (current.current) setBusy(false) }
   }
   async function copy() {
-    try { await navigator.clipboard.writeText(code!.code!); if (current.current) setCopied(true) }
+    try { await navigator.clipboard.writeText(code!.code!); if (current.current) { setCopied(true); toast.success('Join code copied.', { id: 'join-code' }) } }
     catch { if (current.current) setError('Copy failed. Select the code and copy it manually.') }
   }
   return <section className="org-directory-card org-directory-join-code" aria-labelledby="org-join-code-title">
@@ -51,7 +53,6 @@ export default function OrganizationJoinCode({ api, name }: { api: AccountClient
       </div> : <button className="ws-button ws-button-primary" type="button" disabled={busy || loadFailed} onClick={() => void create()}>{busy ? 'Creating…' : 'Create reusable code'}</button>)}
       <p className="org-directory-join-help">Anyone with this code and a verified email joins {name} as a member. It stays valid until replaced. Codes with a use limit or expiry are in Access & settings.</p>
     </div>
-    <span className="org-directory-copy-status ws-sr-only" role="status">{copied ? 'Join code copied.' : ''}</span>
     {error && <Notice kind="error">{error}</Notice>}
     {confirm && <div className="org-directory-code-confirm"><p>Replacing this code stops the old code from working. Existing members keep their access.</p>
       <div className="org-directory-code-actions"><button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={() => void create()}>{busy ? 'Replacing…' : 'Replace join code'}</button>
