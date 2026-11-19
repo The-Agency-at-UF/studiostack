@@ -11,3 +11,12 @@ describe('Production crew permissions',()=>{
  it('shows assigned crew to a member without offering assignment controls',()=>{const load=vi.fn();render(<ProductionCrew brief={{...brief,crew:[{userId:'alex',name:'Alex',role:'Producer'}]}} canAssign={false} disabled={false} loadMembers={load} onAssign={vi.fn()}/>);expect(screen.getByText('Alex · Producer')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Save crew assignments'})).not.toBeInTheDocument();expect(load).not.toHaveBeenCalled()})
  it('requires an approved and dated shoot before showing assignment controls',()=>{render(<ProductionCrew brief={{...brief,status:'submitted'}} canAssign disabled={false} loadMembers={vi.fn().mockResolvedValue(people)} onAssign={vi.fn()}/>);expect(screen.getByText('Awaiting approval')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Save crew assignments'})).not.toBeInTheDocument()})
 })
+
+it('replaces stale legacy assignments when requested positions are introduced',async()=>{
+ const user=userEvent.setup(),save=vi.fn().mockResolvedValue(undefined),request={id:'request',role:'Videographer' as const,startsAt:'2026-12-01T09:00:00Z',endsAt:'2026-12-01T11:00:00Z',location:'Studio'}
+ render(<ProductionCrew brief={{...brief,data:{...emptyBrief(),crewRequests:[request]},crew:[{userId:'alex',name:'Alex',role:'Camera operator'}]}} canAssign disabled={false} loadMembers={vi.fn().mockResolvedValue(people)} onAssign={save}/>)
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Save crew assignments'})).toBeEnabled())
+ await user.selectOptions(screen.getByRole('combobox',{name:'Assign Videographer request'}),'alex')
+ await user.click(screen.getByRole('button',{name:'Save crew assignments'}))
+ expect(save).toHaveBeenCalledWith([{userId:'alex',role:'Videographer',crewRequestId:'request'}])
+})

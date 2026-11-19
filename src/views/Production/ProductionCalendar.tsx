@@ -2,6 +2,7 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { useState, type ReactNode } from 'react'
+import {softHoldsFor} from '../../production/readiness'
 import {getCached,setCached} from '../../api/cache'
 import { statusLabels, type ProductionBrief } from '../../types/production'
 import { usePickedDay } from '../../components/workspace/usePickedDay'
@@ -10,9 +11,9 @@ import { Button } from '../../components/workspace/WorkspaceUI'
 
 type Kind = 'shoot' | 'tentative' | 'milestone'
 type Entry = { id: string; brief: ProductionBrief; kind: Kind; title: string; badge: string; when: string; start: string; end?: string }
-const milestoneFields = [['deliveryDate','Delivery'],['preProduction','Pre-production'],['roughCut','Rough cut'],['internalReview','Internal review'],['firstRevisions','Revisions'],['clientReview','Client review'],['secondRevisions','Client revisions'],['finalApproval','Final approval']] as const
+const milestoneFields = [['conceptReview','Concept review'],['locationConfirmed','Location confirmed'],['paperworkDue','Signed paperwork due'],['assetsDue','Brand assets due'],['deliveryDate','Delivery'],['preProduction','Pre-production'],['roughCut','Rough cut'],['internalReview','Internal review'],['firstRevisions','Revisions'],['clientReview','Client review'],['secondRevisions','Client revisions'],['finalApproval','Final approval']] as const
 const views = [{ value: 'dayGridMonth', label: 'Month' }, { value: 'timeGridWeek', label: 'Week' }]
-const kindLabel: Record<Kind, string> = { shoot: 'Confirmed shoot', tentative: 'Tentative shoot', milestone: 'Milestone' }
+const kindLabel: Record<Kind, string> = { shoot: 'Confirmed shoot', tentative: 'Unconfirmed soft hold', milestone: 'Milestone' }
 // Brief dates are calendar days stored in UTC; format them without shifting into the viewer's zone.
 const day = (value: string | number, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) => new Date(value).toLocaleDateString(undefined, { ...options, timeZone: 'UTC' })
 const short = (value: string | number) => day(value, { month: 'short', day: 'numeric' })
@@ -24,7 +25,7 @@ function entries(brief: ProductionBrief, tentative: boolean, milestones: boolean
   if (['denied','withdrawn','draft'].includes(brief.status)) return []
   const name = brief.data.projectName || 'Untitled brief', items: Entry[] = []
   if (brief.shootStartsAt) items.push({ id: `${brief.id}:shoot`, brief, kind: 'shoot', title: name, badge: kindLabel.shoot, when: range(brief.shootStartsAt, Date.parse(brief.shootEndsAt!) - 1), start: brief.shootStartsAt, end: brief.shootEndsAt! })
-  else if (tentative && brief.data.fields.proposedStart) items.push({ id: `${brief.id}:proposed`, brief, kind: 'tentative', title: `${name} · tentative`, badge: kindLabel.tentative, when: range(brief.data.fields.proposedStart, brief.data.fields.proposedEnd || brief.data.fields.proposedStart), start: brief.data.fields.proposedStart, end: new Date(Date.parse(brief.data.fields.proposedEnd || brief.data.fields.proposedStart) + 86400_000).toISOString().slice(0,10) })
+  else if(tentative)for(const hold of softHoldsFor(brief))items.push({id:`${brief.id}:${hold.id}`,brief,kind:'tentative',title:`${name} · unconfirmed`,badge:'Unconfirmed soft hold',when:range(hold.startsAt,Date.parse(hold.endsAt)-1),start:hold.startsAt,end:hold.endsAt})
   if (milestones) for (const [key,label] of milestoneFields) { const date = milestoneDate(brief, key); if (date) items.push({ id: `${brief.id}:${key}`, brief, kind: 'milestone', title: `${name} · ${label}`, badge: `Milestone · ${label}`, when: day(date), start: date }) }
   return items
 }
@@ -35,18 +36,19 @@ function shootSummary(brief: ProductionBrief) {
   return brief.data.fields.shootEstimate ? `Estimate: ${brief.data.fields.shootEstimate}` : 'Not scheduled'
 }
 
-export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default', filter }: { briefs: ProductionBrief[]; onOpen: (id: string) => void; viewKey?: string; filter?: ReactNode }) {
+export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default', filter, showSoftHoldsByDefault=false }: { briefs: ProductionBrief[]; onOpen: (id: string) => void; viewKey?: string; filter?: ReactNode;showSoftHoldsByDefault?:boolean }) {
   const [initial] = useState(()=>getCached<{date:string;view:string}>(`production-calendar-view:${viewKey}`,86_400_000))
-  const [tentative,setTentative] = useState(true), [milestones,setMilestones] = useState(true), [selected,setSelected] = useState('')
+  const [confirmed,setConfirmed]=useState(true), [tentative,setTentative] = useState(showSoftHoldsByDefault), [milestones,setMilestones] = useState(true), [selected,setSelected] = useState('')
   const pickedDay = usePickedDay({ utc: true })
-  const all = briefs.flatMap(b => entries(b, tentative, milestones)), current = all.find(e => e.id === selected)
+  const all = briefs.flatMap(b => entries(b, tentative, milestones)).filter(e=>e.kind!=='shoot'||confirmed), current = all.find(e => e.id === selected)
   const events = all.map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, allDay: true, classNames: ['ws-event', `ws-event--${e.kind}`, ...(e.id === selected ? ['is-selected'] : [])], extendedProps: { label: `${e.badge}: ${e.title}, ${e.when}` } }))
-  const unscheduled = briefs.filter(b => !['draft','denied','withdrawn'].includes(b.status) && !b.shootStartsAt && !b.data.fields.proposedStart && b.data.productionTypes.some(t=>['Photography','Videography'].includes(t)))
+  const unscheduled = briefs.filter(b => !['draft','denied','withdrawn'].includes(b.status) && !b.shootStartsAt && softHoldsFor(b).length===0 && b.data.productionTypes.some(t=>['Photography','Videography'].includes(t)))
   return <section className="production-calendar">
     <div className="ws-calendar-filters">
       <div className="ws-calendar-filters-group">{filter}
         <div className="ws-calendar-toggles" role="group" aria-label="Show on calendar">
-          <label className="ws-check-chip"><input type="checkbox" checked={tentative} onChange={e=>setTentative(e.target.checked)} />Tentative shoots</label>
+          <label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Show confirmed shoots (green)</label>
+          <label className="ws-check-chip"><input type="checkbox" checked={tentative} onChange={e=>setTentative(e.target.checked)} />Show soft holds (red)</label>
           <label className="ws-check-chip"><input type="checkbox" checked={milestones} onChange={e=>setMilestones(e.target.checked)} />Milestones</label>
         </div>
       </div>

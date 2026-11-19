@@ -30,13 +30,13 @@ it('shows a selected event in the side panel and opens its brief from there',asy
 })
 it('styles each kind of event and hides tentative shoots and milestones on request',async()=>{
   const user=userEvent.setup()
-  render(<ProductionCalendar briefs={briefs} onOpen={vi.fn()}/>)
+  render(<ProductionCalendar briefs={briefs} onOpen={vi.fn()} showSoftHoldsByDefault/>)
   expect(screen.getByRole('button',{name:'Recruitment film'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--shoot'))
-  expect(screen.getByRole('button',{name:'Alumni portraits · tentative'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--tentative'))
+  expect(screen.getByRole('button',{name:'Alumni portraits · unconfirmed'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--tentative'))
   expect(screen.getByRole('button',{name:'Recruitment film · Delivery'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--milestone'))
-  await user.click(screen.getByRole('checkbox',{name:'Tentative shoots'}))
+  await user.click(screen.getByRole('checkbox',{name:'Show soft holds (red)'}))
   await user.click(screen.getByRole('checkbox',{name:'Milestones'}))
-  expect(screen.queryByRole('button',{name:'Alumni portraits · tentative'})).not.toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:'Alumni portraits · unconfirmed'})).not.toBeInTheDocument()
   expect(screen.queryByRole('button',{name:'Recruitment film · Delivery'})).not.toBeInTheDocument()
 })
 it('lists photo and video briefs that still need a shoot date',async()=>{
