@@ -24,10 +24,8 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) .production-danger { color:var(--danger); border-color:var(--danger); background:var(--surface); }
 .app-content#workspace-content :is(.administration,.production-page) header { align-items:flex-start; padding-bottom:var(--space-6); gap:var(--space-6); }
 :is(.org-heading) { margin:0 0 var(--space-6); padding:0; }
-:is(.administration-eyebrow,.ws-context) { font-size:var(--text-xs); text-transform:none; letter-spacing:normal; font-weight:var(--weight-medium); color:var(--muted); margin:0 0 var(--space-2); }
 :is(.ws-page-header) p:last-child { margin-top:var(--space-2); }
 .ws-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-6); margin-bottom:var(--space-6); }
-.ws-page-header .ws-description { font-size:var(--text-sm); color:var(--muted); margin:var(--space-2) 0 0; }
 .ws-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; }
 .ws-button { display:inline-flex; justify-content:center; align-items:center; min-height:var(--control-height); padding:var(--space-2) var(--space-5); border:1px solid var(--line-strong); border-radius:var(--radius-pill); background:var(--surface); color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; cursor:pointer; transition:background var(--motion-fast),scale var(--motion-press) var(--ease-out); }
 .ws-button:hover { background:var(--surface-hover); }
@@ -229,7 +227,6 @@ body { min-width:0; }
 .production-type-options label,.administration .administration-checkbox { min-height:var(--control-height); }
 .app-content#workspace-content .administration .equipment-item-link { border:0; background:transparent; color:var(--accent); padding:0; text-align:left; }
 .app-content#workspace-content .administration .equipment-item-link:hover { background:transparent; text-decoration:underline; }
-.app-content#workspace-content :is(.administration-eyebrow,.org-heading>.eyebrow) { color:var(--muted); font-size:var(--text-xs); text-transform:none; letter-spacing:normal; }
 
 /* Themed select. Chromium also themes the open menu (customizable select); other browsers keep their system menu. */
 .ws-select { --ws-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23625d6d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E"); appearance:none; min-height:var(--control-height); max-width:100%; padding:var(--space-2) var(--space-10) var(--space-2) var(--space-4); border:1px solid var(--line-strong); border-radius:var(--radius-pill); background:var(--surface) var(--ws-chevron) no-repeat right var(--space-3) center / 12px; color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-regular); line-height:var(--line-body); cursor:pointer; transition:border-color var(--motion-fast) ease; }

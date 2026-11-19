@@ -99,7 +99,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   return <main className="organization-page">
     <div className="org-preview"><span>UI preview</span><p>A fictional organization and users. Changes reset on refresh; no emails, AWS changes, or real permissions.</p></div>
     <header className="org-heading">
-      <div><p className="eyebrow">Organization administration</p><h1>Your organization.</h1><p>People, access, and policies. One workspace, your team.</p></div>
+      <div><h1>Your organization.</h1></div>
     </header>
     <section className="org-workspace" aria-label={org.name}>
       <div className="org-identity"><span className="org-monogram" aria-hidden="true">{org.initials}</span>

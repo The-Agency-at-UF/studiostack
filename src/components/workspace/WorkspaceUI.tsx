@@ -1,8 +1,8 @@
 import { TabPill } from './TabPill'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 
-export function PageHeader({ title, context, description, actions }: { title: string; context?: string; description?: string; actions?: ReactNode }) {
-  return <header className="ws-page-header"><div>{context && <p className="ws-context">{context}</p>}<h1>{title}</h1>{description && <p className="ws-description">{description}</p>}</div>{actions && <div className="ws-actions">{actions}</div>}</header>
+export function PageHeader({ title, actions }: { title: string; actions?: ReactNode }) {
+  return <header className="ws-page-header"><div><h1>{title}</h1></div>{actions && <div className="ws-actions">{actions}</div>}</header>
 }
 export function Button({ variant = 'secondary', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' }) {
   return <button type="button" className={`ws-button ws-button-${variant} ${className}`} {...props} />

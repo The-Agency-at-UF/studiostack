@@ -64,7 +64,6 @@ export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default'
         </section>}
       </aside>
     </div>
-    {!events.length && <p className="production-empty">{(()=>{const drafts=briefs.filter(b=>b.status==='draft'&&(b.data.deliveryDate||b.data.fields.proposedStart)).length;return drafts?`Nothing scheduled yet. ${drafts===1?'1 draft brief has':`${drafts} draft briefs have`} dates — they appear here once submitted.`:'Nothing scheduled yet. Dates from submitted and approved briefs appear here.'})()}</p>}
   </section>
 }
 
