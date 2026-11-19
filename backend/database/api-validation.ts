@@ -1,4 +1,4 @@
-import { equipmentCategories } from '../../src/types/database-api'
+import { equipmentCategories, equipmentColors } from '../../src/types/database-api'
 import type { CreateEquipment, UpdateEquipment, CreateReservation, CreatePhotoUpload, FeedbackKind } from '../../src/types/database-api'
 
 export class ApiError extends Error {
@@ -35,17 +35,23 @@ function category(value: unknown): CreateEquipment['category'] {
   if (!equipmentCategories.includes(value as CreateEquipment['category'])) throw new ApiError(400, 'Invalid equipment category')
   return value as CreateEquipment['category']
 }
+function colorTag(value: unknown) {
+  if (value === null) return null
+  if (!equipmentColors.includes(value as typeof equipmentColors[number])) throw new ApiError(400, 'Choose a valid equipment color')
+  return value as typeof equipmentColors[number]
+}
 export function createEquipment(value: unknown): CreateEquipment {
-  const body = object(value, ['equipmentCode', 'name', 'category', 'photoId'])
+  const body = object(value, ['equipmentCode', 'name', 'category', 'photoId', 'colorTag'])
   const equipmentCode = text(body.equipmentCode, 128)
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(equipmentCode)) throw new ApiError(400, 'Invalid equipment code')
-  return { equipmentCode, name: text(body.name, 120), category: category(body.category), ...(body.photoId !== undefined ? { photoId: uuid(body.photoId) } : {}) }
+  return { ...(body.colorTag !== undefined ? {colorTag: colorTag(body.colorTag)} : {}), equipmentCode, name: text(body.name, 120), category: category(body.category), ...(body.photoId !== undefined ? { photoId: uuid(body.photoId) } : {}) }
 }
 export function updateEquipment(value: unknown): UpdateEquipment {
-  const body = object(value, ['name', 'category', 'status', 'photoId'])
+  const body = object(value, ['name', 'category', 'status', 'photoId', 'colorTag'])
   if (!Object.keys(body).length) throw new ApiError(400, 'At least one field is required')
   if (body.status !== undefined && !['available', 'maintenance', 'retired'].includes(String(body.status))) throw new ApiError(400, 'Invalid equipment status')
   return {
+    ...(body.colorTag !== undefined ? {colorTag: colorTag(body.colorTag)} : {}),
     ...(body.name !== undefined ? { name: text(body.name, 120) } : {}),
     ...(body.category !== undefined ? { category: category(body.category) } : {}),
     ...(body.status !== undefined ? { status: body.status as UpdateEquipment['status'] } : {}),

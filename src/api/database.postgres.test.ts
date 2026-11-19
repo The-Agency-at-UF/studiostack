@@ -157,7 +157,8 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const ownList = await repository.execute(secondMember, { operation: 'reservations', organizationId, page: listPage }) as ApiPage<ApiReservation>
     expect(ownList.items.every(reservation => reservation.userId === profiles[secondMember.subject].id)).toBe(true)
     expect(await repository.execute(owner, { operation: 'cancelReservation', organizationId, reservationId: result.id })).toMatchObject({ status: 'cancelled' })
-    expect(await repository.execute(member, { operation: 'reservation', organizationId, reservationId: result.id })).toMatchObject({ status: 'cancelled' })
+    await expect(repository.execute(member, { operation: 'reservation', organizationId, reservationId: result.id })).rejects.toMatchObject({status:404})
+    expect(await repository.execute(owner, { operation: 'reservation', organizationId, reservationId: result.id })).toMatchObject({ status: 'cancelled' })
     expect(await repository.execute(secondMember, { operation: 'createReservation', organizationId, input: booking(item) })).toMatchObject({ status: 'confirmed' })
   })
   it('refuses to retire an item with a future confirmed reservation', async () => {
@@ -667,8 +668,11 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('equipment: overdue physical checkout prevents another borrower taking the same item',async()=>{
     const item=await equipment(),r=await nearBooking(item);await workflow(member,r.id,'checkout',{version:r.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
     await operator.query("UPDATE app.reservations SET starts_at=now()-interval '1 hour',ends_at=now()-interval '1 second' WHERE id=$1",[r.id])
-    const next=await nearBooking(item,secondMember)
-    await expect(workflow(secondMember,next.id,'checkout',{version:next.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})).rejects.toMatchObject({status:409})
+    await expect(nearBooking(item,secondMember)).rejects.toMatchObject({status:409})
+    const fresh=await equipment();await expect(nearBooking(fresh,member)).rejects.toMatchObject({status:409})
+    const out=await repository.execute(owner,{operation:'reservation',organizationId,reservationId:r.id}) as EquipmentReservation
+    await workflow(member,r.id,'return',{version:out.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
+    expect(await nearBooking(fresh,member)).toMatchObject({status:'confirmed'})
   })
   it('equipment: edits and extensions preserve versions and reject conflicting bookings',async()=>{
     const item=await equipment(),r=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(item)}) as EquipmentReservation
@@ -1167,4 +1171,20 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect((await directory({action:'overview',identity:outsider}) as OnboardingOverview).domainMatches).toEqual([])
     await operator.query("DELETE FROM app.organization_domains WHERE domain='ufl.edu'")
   })
+  it('planning: overdue members are locked, admins bypass the personal lock and returns restore booking',async()=>{
+    const late={issuer,subject:randomUUID(),email:null},profile=await repository.execute(late,{operation:'register',displayName:'Late borrower'}) as ApiUser
+    await operator.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[organizationId,profile.id])
+    const item=await equipment(),fresh=await equipment(),r=await nearBooking(item,late)
+    const out=await workflow(late,r.id,'checkout',{version:r.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
+    await operator.query("UPDATE app.reservations SET starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' WHERE id=$1",[r.id])
+    await expect(nearBooking(fresh,late)).rejects.toMatchObject({status:409})
+    const adminItem=await equipment(),adminOld=await nearBooking(adminItem,owner)
+    const adminOut=await workflow(owner,adminOld.id,'checkout',{version:adminOld.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:adminItem.id,condition:'good'}]})
+    await operator.query("UPDATE app.reservations SET starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' WHERE id=$1",[adminOld.id])
+    expect(await nearBooking(fresh,owner)).toMatchObject({status:'confirmed'})
+    await workflow(late,r.id,'return',{version:out.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
+    await workflow(owner,adminOld.id,'return',{version:adminOut.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:adminItem.id,condition:'good'}]})
+    expect(await nearBooking(await equipment(),late)).toMatchObject({status:'confirmed'})
+  })
+
 })
