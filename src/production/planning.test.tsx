@@ -37,10 +37,10 @@ describe('production planning policies',()=>{
 describe('planning surfaces',()=>{
  it('defaults soft holds off for members, on for leadership and keeps both toggleable',async()=>{
   const user=userEvent.setup(),b=brief(),view=render(<ProductionCalendar briefs={[b]} onOpen={vi.fn()} showSoftHoldsByDefault={false}/>)
-  expect(screen.getByRole('checkbox',{name:'Show soft holds (red)'})).not.toBeChecked();expect(screen.queryByText(/Test shoot · unconfirmed/)).not.toBeInTheDocument()
-  await user.click(screen.getByRole('checkbox',{name:'Show soft holds (red)'}));expect(screen.getByText(/Test shoot · unconfirmed/)).toBeInTheDocument()
+  expect(screen.getByRole('checkbox',{name:'Soft holds (unconfirmed)'})).not.toBeChecked();expect(screen.queryByText(/Test shoot · unconfirmed/)).not.toBeInTheDocument()
+  await user.click(screen.getByRole('checkbox',{name:'Soft holds (unconfirmed)'}));expect(screen.getByText(/Test shoot · unconfirmed/)).toBeInTheDocument()
   view.unmount();render(<ProductionCalendar briefs={[b]} onOpen={vi.fn()} showSoftHoldsByDefault/>)
-  expect(screen.getByRole('checkbox',{name:'Show soft holds (red)'})).toBeChecked()
+  expect(screen.getByRole('checkbox',{name:'Soft holds (unconfirmed)'})).toBeChecked()
  })
  it('keeps pre-production milestones and treats explicit soft holds as scheduled proposals',()=>{const b=brief();b.data.fields={conceptReview:'2026-11-18',locationConfirmed:'2026-11-19',paperworkDue:'2026-11-20',assetsDue:'2026-11-21'};render(<ProductionCalendar briefs={[b]} onOpen={vi.fn()} showSoftHoldsByDefault/>);for(const name of ['Concept review','Location confirmed','Signed paperwork due','Brand assets due'])expect(screen.getByText(`Test shoot · ${name}`)).toBeInTheDocument();expect(screen.queryByLabelText('Awaiting shoot dates')).not.toBeInTheDocument()})
  it('routes drag-and-drop files to the named category and rejects mismatched creative formats',async()=>{

@@ -34,7 +34,7 @@ it('styles each kind of event and hides tentative shoots and milestones on reque
   expect(screen.getByRole('button',{name:'Recruitment film'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--shoot'))
   expect(screen.getByRole('button',{name:'Alumni portraits · unconfirmed'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--tentative'))
   expect(screen.getByRole('button',{name:'Recruitment film · Delivery'})).toHaveAttribute('data-kind',expect.stringContaining('ws-event--milestone'))
-  await user.click(screen.getByRole('checkbox',{name:'Show soft holds (red)'}))
+  await user.click(screen.getByRole('checkbox',{name:'Soft holds (unconfirmed)'}))
   await user.click(screen.getByRole('checkbox',{name:'Milestones'}))
   expect(screen.queryByRole('button',{name:'Alumni portraits · unconfirmed'})).not.toBeInTheDocument()
   expect(screen.queryByRole('button',{name:'Recruitment film · Delivery'})).not.toBeInTheDocument()
