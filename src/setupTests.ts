@@ -38,3 +38,18 @@ vi.mock('./data/localStore', async (importOriginal) => {
     serverTimestamp: vi.fn(actual.serverTimestamp),
   };
 });
+
+// The app shell mounts a ToastProvider; give every rendered view one too, nested inside any wrapper a test passes.
+vi.mock('@testing-library/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@testing-library/react')>();
+  const { createElement } = await import('react');
+  const { ToastProvider } = await import('./components/workspace/Toast');
+  type Wrapper = import('react').JSXElementConstructor<{ children: import('react').ReactNode }>;
+  const withToasts = (Inner?: Wrapper): Wrapper => ({ children }) =>
+    createElement(ToastProvider, null, Inner ? createElement(Inner, null, children) : children);
+  return {
+    ...actual,
+    render: ((ui: Parameters<typeof actual.render>[0], options?: Parameters<typeof actual.render>[1]) =>
+      actual.render(ui, { ...options, wrapper: withToasts(options?.wrapper as Wrapper | undefined) })) as typeof actual.render,
+  };
+});
