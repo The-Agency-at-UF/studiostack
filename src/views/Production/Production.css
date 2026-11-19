@@ -169,7 +169,7 @@
 }
 .production-client-filter{display:grid;gap:8px;margin:16px 0;max-width:360px}.production-crew-person{display:grid;gap:10px;margin:12px 0}.production-crew-person label{display:flex;gap:8px;align-items:center}.production-crew-person input[type=text]{flex:1}
 
-/* Client accounts and Access & notifications */
+/* Client accounts and Production roles */
 .production-page .production-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-6); padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
 .production-page .production-section-head > div { flex: 1 1 420px; min-width: 0; }
 .production-page .production-section-head h2 { margin: 0 0 var(--space-2); }
