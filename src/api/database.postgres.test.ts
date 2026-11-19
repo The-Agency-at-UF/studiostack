@@ -1262,5 +1262,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await workflow(owner,adminOld.id,'return',{version:adminOut.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:adminItem.id,condition:'good'}]})
     expect(await nearBooking(await equipment(),late)).toMatchObject({status:'confirmed'})
   })
+  it('planning: readiness flags reach submitters and admins, retain denial reasons and hide member activity',async()=>{
+    let b=await command(member,await draft(),'submit');const hold={id:randomUUID(),startsAt:new Date(Date.now()+86400000).toISOString(),endsAt:new Date(Date.now()+90000000).toISOString()}
+    b=await production(member,{resource:'actions',method:'POST',briefId:b.id,body:{action:'propose_dates',version:b.version,requestId:randomUUID(),softHolds:[hold]}}) as ProductionBrief
+    for(const identity of [member,owner])expect((await alerts<ApiPage<AppAlert>>(identity)).items.some(a=>a.kind==='production_readiness'&&a.targetPath.endsWith(b.id))).toBe(true)
+    const denied=await command(owner,b,'deny','Please provide location permission before resubmitting.')
+    const own=await production(member,{resource:'briefs',method:'GET',briefId:b.id}) as ProductionBrief
+    expect(own.events).toEqual([expect.objectContaining({kind:'denied',comment:'Please provide location permission before resubmitting.',snapshot:null})])
+    expect((await operator.query("SELECT payload FROM app.production_outbox WHERE brief_id=$1 AND recipient_id=$2",[denied.id,profiles.member.id])).rows).toEqual([expect.objectContaining({payload:expect.objectContaining({decision:'denied',comment:'Please provide location permission before resubmitting.'})})])
+  })
 
 })
