@@ -10,15 +10,16 @@ import type {EquipmentRecord,EquipmentReservation,EquipmentAvailability} from '.
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import {equipmentCategories,type EquipmentCategory} from '../../types/database-api'
 import {generatedEquipmentCode} from './equipmentCode'
+import {defaultPickup,isMissed} from '../../equipment/reservationTiming'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 import './Reservations.css'
 
 const HOUR=3600000,DAY=86400000
 const localTime=(iso:string)=>{const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
-export const reservationLabel=(r:EquipmentReservation)=>r.status==='cancelled'?'Cancelled':r.fulfillmentStatus==='checked_out'?'Checked out':r.fulfillmentStatus==='returned'?'Returned':'Reserved'
+export const reservationLabel=(r:EquipmentReservation)=>r.status==='cancelled'?'Cancelled':r.fulfillmentStatus==='checked_out'?'Checked out':r.fulfillmentStatus==='returned'?'Returned':isMissed(r)?'Missed pickup':'Reserved'
 const isOverdue=(r:EquipmentReservation)=>r.status==='confirmed'&&r.fulfillmentStatus==='checked_out'&&Date.parse(r.endsAt)<Date.now()
-const statusTone=(r:EquipmentReservation)=>isOverdue(r)?'overdue':r.status==='cancelled'?'cancelled':r.fulfillmentStatus==='checked_out'?'out':r.fulfillmentStatus==='returned'?'returned':'reserved'
+const statusTone=(r:EquipmentReservation)=>isOverdue(r)?'overdue':r.status==='cancelled'?'cancelled':r.fulfillmentStatus==='checked_out'?'out':r.fulfillmentStatus==='returned'?'returned':isMissed(r)?'cancelled':'reserved'
 const statusText=(r:EquipmentReservation)=>isOverdue(r)?'Overdue':reservationLabel(r)
 const timeLabel=(iso:string)=>new Date(iso).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})
 const dateLabel=(iso:string)=>new Date(iso).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})
@@ -28,10 +29,10 @@ function dayHeading(iso:string){const d=new Date(iso),today=new Date(),diff=Math
 function lengthLabel(ms:number){if(!Number.isFinite(ms)||ms<=0)return '—';const days=Math.floor(ms/DAY),hours=Math.round((ms%DAY)/HOUR);return [days&&`${days} day${days>1?'s':''}`,hours&&`${hours} hour${hours>1?'s':''}`].filter(Boolean).join(' ')||'Under an hour'}
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`
 
-type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[]; clients: ClientAccount[]; canAddClients: boolean }
+type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[]; clients: ClientAccount[]; canAddClients: boolean; reported?: string[] }
 type Tab='upcoming'|'out'|'history'
 type View={name:'list'}|{name:'detail';id:string}|{name:'new'}|{name:'edit';id:string}
-const tabOf=(r:EquipmentReservation):Tab=>r.status==='cancelled'||r.fulfillmentStatus==='returned'?'history':r.fulfillmentStatus==='checked_out'?'out':'upcoming'
+const tabOf=(r:EquipmentReservation):Tab=>r.status==='cancelled'||r.fulfillmentStatus==='returned'||isMissed(r)?'history':r.fulfillmentStatus==='checked_out'?'out':'upcoming'
 
 export default function LiveReservations({create=false}:{create?:boolean}){const context=useLiveOrganization();return context?<ReservationWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id} admin={context.admin} create={create}/>:<main className="administration"><h1>Reservations</h1><p>Select an active organization in your account to reserve equipment.</p></main>}
 
@@ -43,6 +44,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const [maxDays,setMaxDays]=useState(cached?.settings.reservationDays ?? 7)
   const [clients,setClients]=useState<ClientAccount[]>(cached?.clients ?? [])
   const [canAddClients,setCanAddClients]=useState(cached?.canAddClients ?? false)
+  const [reported,setReported]=useState<string[]>(cached?.reported ?? [])
   const [view,setView]=useState<View>(create?{name:'new'}:{name:'list'})
   const [tab,setTab]=useState<Tab>('upcoming')
   const [clientFilter,setClientFilter]=useState('')
@@ -53,12 +55,13 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
   const load=useCallback(async()=>{
-    const [settingsRes, itemsRes, bookingsRes, clientsRes, accessRes] = await Promise.allSettled([
+    const [settingsRes, itemsRes, bookingsRes, clientsRes, accessRes, reportsRes] = await Promise.allSettled([
       api.accounts(organizationId).settings(),
       allPages(after=>api.inventory(organizationId,{limit:100,after})),
       allPages(after=>api.reservations(organizationId,{limit:100,after})),
       allPages(after=>api.production(organizationId).clients(after)),
-      api.production(organizationId).access()
+      api.production(organizationId).access(),
+      allPages(after=>api.reports(organizationId).list(after))
     ])
     if (bookingsRes.status === 'rejected') throw bookingsRes.reason
     if (itemsRes.status === 'rejected') throw itemsRes.reason
@@ -68,12 +71,15 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
       bookings: bookingsRes.status === 'fulfilled' ? bookingsRes.value : [],
       clients: clientsRes.status === 'fulfilled' ? clientsRes.value : [],
       // Production leads and administrators add client accounts; the server enforces the same rule.
-      canAddClients: accessRes.status === 'fulfilled' && accessRes.value.canReview
+      canAddClients: accessRes.status === 'fulfilled' && accessRes.value.canReview,
+      // Items with an unresolved damage report, flagged in the booking picker.
+      reported: reportsRes.status === 'fulfilled' ? [...new Set(reportsRes.value.filter(r=>r.status!=='resolved').map(r=>r.equipmentId))] : []
     }
   },[api,organizationId])
   const accept=useCallback((value:Awaited<ReturnType<typeof load>>)=>{
     setClients(value.clients)
     setCanAddClients(value.canAddClients)
+    setReported(value.reported??[])
     setRows(value.bookings)
     setInventory(value.items)
     setMaxDays(value.settings.reservationDays)
@@ -96,7 +102,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const messages=<>{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}{notice&&<p className="rsv-message" role="status">{notice}</p>}</>
   if(view.name==='new'&&(!locked||loading)||view.name==='edit'&&current){
     const reservation=view.name==='edit'?current:undefined
-    return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} onClientAdded={clientAdded} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
+    return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} canAddEquipment={admin} reported={reported} onClientAdded={clientAdded} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
   }
   if(view.name==='detail'&&current) return <main className="rsv"><div className="rsv-column">
     <button type="button" className="rsv-back" onClick={()=>open({name:'list'})}><Chevron dir="left"/>Reservations</button>
@@ -112,17 +118,17 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const days=[...new Set(shown.map(r=>new Date(anchor(r)).toDateString()))]
   const filtered=Boolean(clientFilter||needle)
   return <main className="rsv"><div className="rsv-column">
-    <header className="rsv-top"><div><h1>Reservations</h1><p>What’s going out, and what’s coming back.</p></div><div className="rsv-top-actions"><button type="button" className="rsv-button rsv-quiet" disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>New reservation</button></div></header>
+    <header className="rsv-top"><div><h1>Reservations</h1><p>What’s going out, and what’s coming back.</p></div><div className="rsv-top-actions"><button type="button" className="rsv-button rsv-quiet" disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div></header>
     {messages}
     {overdue.length>0&&<div className="rsv-overdue" role="status"><span aria-hidden="true"/><p>{overdue.length===1?<><b>{overdue[0].name}</b> is overdue. It was due back {dateLabel(overdue[0].endsAt)} at {timeLabel(overdue[0].endsAt)}.</>:<><b>{overdue.length} bookings</b> are overdue.</>}</p><button type="button" className="rsv-link" onClick={()=>overdue.length===1?open({name:'detail',id:overdue[0].id}):setTab('out')}>Review</button></div>}
-    {loading&&!rows.length?<Skeleton label="Loading reservations…" variant="row" count={4}/>:!rows.length&&!error?<div className="rsv-empty"><h2>No reservations yet</h2><p>When someone books equipment it shows up here by pickup day, so you always know what goes out and what comes back.</p><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>New reservation</button></div>:rows.length>0&&<>
+    {loading&&!rows.length?<Skeleton label="Loading reservations…" variant="row" count={4}/>:!rows.length&&!error?<div className="rsv-empty"><h2>No reservations yet</h2><p>When someone books equipment it shows up here by pickup day, so you always know what goes out and what comes back.</p><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div>:rows.length>0&&<>
       <div className="rsv-bar">
         <div className="rsv-tabs ws-pill-tabs" role="tablist" aria-label="Reservations"><TabPill id="reservations"/>{([['upcoming','Upcoming'],['out','Out now'],['history','History']] as const).filter(([value])=>admin||value!=='history').map(([value,label])=><button type="button" role="tab" key={value} aria-selected={tab===value} onClick={()=>setTab(value)}>{label}{value!=='history'&&<span>{count(value)}</span>}</button>)}</div>
         <div className="rsv-filter"><button type="button" className="rsv-button rsv-quiet" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(o=>!o)}><FilterIcon/>Filter{filtered&&<span className="rsv-filter-dot">On</span>}</button>
           {filtersOpen&&<div className="rsv-filter-pop"><label className="rsv-field">Search<input className="rsv-input" value={search} placeholder="Booking or equipment name" onChange={e=>setSearch(e.target.value)}/></label><label className="rsv-field">Client account<Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All client accounts</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.deletedAt?' · Deleted':''}</option>)}</Select></label>{filtered&&<button type="button" className="rsv-link" onClick={()=>{setSearch('');setClientFilter('')}}>Clear filters</button>}</div>}
         </div>
       </div>
-      {!shown.length?<div className="rsv-empty rsv-empty-small"><h2>{filtered?'No matching reservations':tab==='upcoming'?'Nothing coming up':tab==='out'?'Nothing is out right now':'No past bookings yet'}</h2><p>{filtered?'Try a different search or client account.':tab==='history'?'Returned and cancelled reservations move here.':'Bookings show up here as soon as they’re made.'}</p></div>
+      {!shown.length?<div className="rsv-empty rsv-empty-small"><h2>{filtered?'No matching reservations':tab==='upcoming'?'Nothing coming up':tab==='out'?'Nothing is out right now':'No past bookings yet'}</h2><p>{filtered?'Try a different search or client account.':tab==='history'?'Returned, cancelled and missed reservations move here.':'Bookings show up here as soon as they’re made.'}</p></div>
       :days.map(day=><section className="rsv-day" key={day}><h2>{dayHeading(day)}</h2><div className="rsv-rows">{shown.filter(r=>new Date(anchor(r)).toDateString()===day).map(r=><button type="button" className="rsv-row" key={r.id} onClick={()=>open({name:'detail',id:r.id})}>
         <span className="rsv-row-time">{tab==='out'?`Due ${timeLabel(r.endsAt)}`:timeLabel(r.startsAt)}</span>
         <span className="rsv-row-main"><b>{r.name}</b><small>{clientName(r.clientAccountId)} · {plural(r.equipmentIds.length,'item')}</small></span>
@@ -147,10 +153,10 @@ function ReservationDetail({reservation:r,inventory,client,busy,onEdit,onCancel}
 }
 
 const STEPS=['When','Equipment','Details'] as const
-function BookingFlow({api,organizationId,inventory,clients,canAddClients,onClientAdded,maxDays,reservation,onClose,onSaved,onEquipmentAdded}:{api:DatabaseApi;organizationId:string;inventory:EquipmentRecord[];clients:ClientAccount[];canAddClients:boolean;onClientAdded:(client:ClientAccount)=>void;maxDays:number;reservation?:EquipmentReservation;onClose:()=>void;onSaved:(r:EquipmentReservation)=>Promise<void>;onEquipmentAdded:(item:EquipmentRecord)=>void}) {
+function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddEquipment,reported,onClientAdded,maxDays,reservation,onClose,onSaved,onEquipmentAdded}:{api:DatabaseApi;organizationId:string;inventory:EquipmentRecord[];clients:ClientAccount[];canAddClients:boolean;canAddEquipment:boolean;reported:string[];onClientAdded:(client:ClientAccount)=>void;maxDays:number;reservation?:EquipmentReservation;onClose:()=>void;onSaved:(r:EquipmentReservation)=>Promise<void>;onEquipmentAdded:(item:EquipmentRecord)=>void}) {
   const [step,setStep]=useState(0)
   const [clientId,setClientId]=useState(reservation?.clientAccountId??''),[addingClient,setAddingClient]=useState(false)
-  const start=useMemo(()=>new Date(Math.ceil((Date.now()+15*60000)/1800000)*1800000).toISOString(),[])
+  const start=useMemo(()=>defaultPickup().toISOString(),[])
   const [name,setName]=useState(reservation?.name??''),[startsAt,setStartsAt]=useState(localTime(reservation?.startsAt??start)),[endsAt,setEndsAt]=useState(localTime(reservation?.endsAt??new Date(Date.parse(start)+HOUR).toISOString())),[ids,setIds]=useState(reservation?.equipmentIds??[]),[availability,setAvailability]=useState<EquipmentAvailability[]>([]),[checking,setChecking]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[availabilityError,setAvailabilityError]=useState(''),[showUnavailable,setShowUnavailable]=useState(false),[search,setSearch]=useState('')
   const mutation=useRef<{key:string;id:string}|null>(null),lifecycle=useMemo(()=>api.equipment(organizationId),[api,organizationId])
   const length=Date.parse(endsAt)-Date.parse(startsAt),valid=Number.isFinite(length)&&length>0&&length<=maxDays*DAY
@@ -165,7 +171,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,onClien
   const needle=search.trim().toLowerCase()
   const listed=inventory.filter(i=>!needle||i.name.toLowerCase().includes(needle)||i.equipmentCode.toLowerCase().includes(needle))
   const free=listed.filter(i=>!why(i)||ids.includes(i.id)),taken=listed.filter(i=>why(i)&&!ids.includes(i.id))
-  const item=(i:EquipmentRecord)=>{const reason=why(i);return <label className={`rsv-item${reason&&!ids.includes(i.id)?' is-off':''}`} key={i.id}><input type="checkbox" className="rsv-check" checked={ids.includes(i.id)} disabled={Boolean(reason)&&!ids.includes(i.id)} onChange={e=>setIds(current=>e.target.checked?[...current,i.id]:current.filter(id=>id!==i.id))}/><span className="rsv-item-main"><b>{i.name}</b><small>{i.equipmentCode} · {i.category}{i.checkedOut?' · Currently checked out':''}</small></span>{reason&&<span className="rsv-item-why">{reason}</span>}</label>}
+  const item=(i:EquipmentRecord)=>{const reason=why(i);return <label className={`rsv-item${reason&&!ids.includes(i.id)?' is-off':''}`} key={i.id}><input type="checkbox" className="rsv-check" checked={ids.includes(i.id)} disabled={Boolean(reason)&&!ids.includes(i.id)} onChange={e=>setIds(current=>e.target.checked?[...current,i.id]:current.filter(id=>id!==i.id))}/><span className="rsv-item-main"><b>{i.name}</b><small>{i.equipmentCode} · {i.category}{i.checkedOut?' · Currently checked out':''}{reported.includes(i.id)?' · Has an open damage report':''}</small></span>{reason&&<span className="rsv-item-why">{reason}</span>}</label>}
   const summary=step===0?(valid?`${dateLabel(new Date(startsAt).toISOString())} · ${lengthLabel(length)}`:''):step===1?(ids.length?`${plural(ids.length,'item')} selected`:'Pick at least one item'):''
   return <form className="rsv-flow" onSubmit={submit} aria-label={reservation?'Edit reservation':'New reservation'}>
     <div className="rsv-flow-bar"><button type="button" className="rsv-button rsv-quiet" onClick={onClose}><CloseIcon/>{reservation?'Discard changes':'Cancel'}</button><h1>{reservation?'Edit reservation':'New reservation'}</h1><span className="rsv-flow-step">Step {step+1} of {STEPS.length}</span></div>
@@ -183,7 +189,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,onClien
           {inventory.length>0&&<label className="rsv-field rsv-search"><span className="ws-sr-only">Search equipment</span><input className="rsv-input" value={search} placeholder="Search by name or code" onChange={e=>setSearch(e.target.value)}/></label>}
           {inventory.length>0&&<div className="rsv-items">{free.map(item)}{!free.length&&<p className="rsv-hint">{needle?'Nothing free matches that search.':'Nothing is free for these dates. Try different dates.'}</p>}</div>}
           {taken.length>0&&<div className="rsv-taken"><button type="button" className="rsv-disclosure" aria-expanded={showUnavailable} onClick={()=>setShowUnavailable(v=>!v)}><Chevron dir={showUnavailable?'down':'right'}/>Not available for these dates ({taken.length})</button>{showUnavailable&&<div className="rsv-items">{taken.map(item)}</div>}</div>}
-          <QuickAddEquipment api={api} organizationId={organizationId} startOpen={!inventory.length} onAdded={added=>{onEquipmentAdded(added);setIds(current=>[...current,added.id])}}/>
+          {canAddEquipment&&<QuickAddEquipment api={api} organizationId={organizationId} startOpen={!inventory.length} onAdded={added=>{onEquipmentAdded(added);setIds(current=>[...current,added.id])}}/>}
           {unavailable&&<p className="rsv-inline-error" role="alert">Selected equipment is unavailable. Choose another item or go back and change the dates.</p>}
         </>}
       </div>}
