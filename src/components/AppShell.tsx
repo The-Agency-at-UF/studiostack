@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import dynamic from 'next/dynamic'
+import { useOverdueReservations } from '../views/Equipment/useOverdueReservations'
 import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
 import { AppSessionProvider } from '../context/AppSessionContext'
@@ -26,6 +27,12 @@ async function loadAccount(user:SignedInUser):Promise<Boot>{
 }
 function takeReturnPath(){const value=sessionStorage.getItem('studiostack.return');sessionStorage.removeItem('studiostack.return');if(!value||value.length>2048)return null;try{const url=new URL(value,window.location.origin);return url.origin===window.location.origin&&!url.pathname.startsWith('//')&&url.pathname!=='/login/'&&url.pathname!=='/login'?url.pathname+url.search+url.hash:null}catch{return null}}
 const BugReportPopup = dynamic(() => import('./BugReportPopup'), { ssr: false })
+
+/** Rendered inside the session provider so the sidebar can count overdue reservations; recounts on each navigation. */
+function WorkspaceHeader(props: Omit<ComponentProps<typeof Header>, 'overdueReservations'>) {
+  const overdue = useOverdueReservations(usePathname() ?? undefined)
+  return <Header {...props} overdueReservations={overdue} />
+}
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter(), pathname = usePathname()
@@ -180,7 +187,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : welcomePage ? children
       : needsWelcome ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || (onboarded && organizations.length > 0)}>
-        <Header isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} organizationName={mode === 'authenticated' ? selectedOrganization?.name : undefined} organizationLogoUrl={mode === 'authenticated' ? selectedOrganization?.logoUrl : undefined} />
+        <WorkspaceHeader isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} organizationName={mode === 'authenticated' ? selectedOrganization?.name : undefined} organizationLogoUrl={mode === 'authenticated' ? selectedOrganization?.logoUrl : undefined} />
         <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
         <BugReportPopup showTrigger={false} userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} />
         <BugReportPopup showTrigger={false} kind="feature" userEmail={email} open={featureRequestOpen} onOpenChange={setFeatureRequestOpen} />

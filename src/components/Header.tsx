@@ -7,9 +7,9 @@ import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOut
 import { closeWithExit } from './workspace/closeWithExit'
 import '../styles/shell.css'
 
-type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null }
+type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null; overdueReservations?: number }
 
-export default function Header({ isAdmin, logOut, email, onReportBug, onRequestFeature, organizationName, organizationLogoUrl }: Props) {
+export default function Header({ isAdmin, logOut, email, onReportBug, onRequestFeature, organizationName, organizationLogoUrl, overdueReservations = 0 }: Props) {
   const [isOpen, setOpen] = useState(false), [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null), accountTrigger = useRef<HTMLButtonElement>(null), accountPanel = useRef<HTMLDivElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null), menuTrigger = useRef<HTMLButtonElement>(null)
@@ -48,7 +48,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
     { name: 'Equipment', links: [
       { to: '/inventory', label: 'Equipment', Icon: HiOutlineArchiveBox },
       { to: '/calendar', label: 'Equipment calendar', Icon: HiOutlineCalendarDays },
-      { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'] },
+      { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'], badge: overdueReservations > 0 ? { count: overdueReservations, label: `${overdueReservations} overdue` } : undefined },
       { to: '/reports', label: 'Reports', Icon: HiOutlineExclamationCircle, related: ['/create-report', '/report-summary'] },
     ] },
     ...(isAdmin ? [{ name: 'Administration', links: [
@@ -79,7 +79,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
         <nav className={isOpen ? 'mobile-nav-links' : 'desktop-nav-links'} aria-label="Main navigation">
           {groups.map(group => <div className="ws-nav-group" key={group.name} data-tour={`nav-${group.name.toLowerCase()}`}><p>{group.name}</p>{group.links.map(link => {
             const active = currentPath === link.to || (link.to === '/organization' && currentPath.startsWith('/organization/')) || ('related' in link && link.related?.includes(currentPath))
-            return <Link key={link.to} href={link.to} onClick={closeMenus} className={`nav-link ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}><link.Icon aria-hidden="true" /><span>{link.label}</span></Link>
+            return <Link key={link.to} href={link.to} onClick={closeMenus} className={`nav-link ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}><link.Icon aria-hidden="true" /><span>{link.label}</span>{'badge' in link && link.badge && <span className="nav-badge" title={link.badge.label}><span aria-hidden="true">{link.badge.count > 99 ? '99+' : link.badge.count}</span><span className="sr-only">{link.badge.label}</span></span>}</Link>
           })}</div>)}
         </nav>
         <div className="header-actions">
