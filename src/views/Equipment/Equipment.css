@@ -113,6 +113,7 @@
 .app-content#workspace-content .inventory-workspace td small.inventory-code { display:block;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:.02em; }
 .inventory-condition-fair { color:var(--warning); }
 .inventory-condition-damaged { color:var(--danger);font-weight:var(--weight-medium); }
+.inventory-open-report { display:block; margin-top:2px; font-size:var(--text-xs, 12px); color:var(--warning); text-decoration:underline; text-underline-offset:2px; }
 .inventory-empty { display:grid;justify-items:start;gap:var(--space-2);padding:var(--space-10) var(--space-6);font-size:var(--text-sm); }
 .inventory-empty p { margin:0;font-size:var(--text-base);font-weight:var(--weight-medium); }
 .inventory-empty span { color:var(--muted); }
