@@ -1,3 +1,4 @@
+import { TabPill } from './TabPill'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 
 export function PageHeader({ title, context, description, actions }: { title: string; context?: string; description?: string; actions?: ReactNode }) {
@@ -30,7 +31,7 @@ export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSe
   return <select className={`ws-select ${className}`} {...props} />
 }
 export function WorkspaceTabs({ label, items, active, disabled, onChange }: { label: string; items: { value: string; label: string }[]; active: string; disabled?: boolean; onChange: (value: string) => void }) {
-  return <nav className="production-tabs" aria-label={label}>{items.map(item => <button key={item.value} disabled={disabled} aria-current={active === item.value ? 'page' : undefined} onClick={() => onChange(item.value)}>{item.label}</button>)}</nav>
+  return <nav className="production-tabs ws-pill-tabs" aria-label={label}><TabPill id={label} />{items.map(item => <button key={item.value} disabled={disabled} aria-current={active === item.value ? 'page' : undefined} onClick={() => onChange(item.value)}>{item.label}</button>)}</nav>
 }
 export function TableRegion({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return <div className={`ws-table-region ${className}`} role="region" aria-label={label} tabIndex={0}>{children}</div>

@@ -95,9 +95,6 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
 .app-content#workspace-content :is(.administration,.production-page) td small { font-size:var(--text-xs); color:var(--muted); }
 .app-content#workspace-content .administration :is(.administration-table) { overflow-x:auto; }
 .administration td a { color:var(--accent); }
-.app-content#workspace-content .production-page .production-tabs,.app-content#workspace-content .administration .production-tabs { display:flex; gap:var(--space-6); flex-wrap:nowrap; overflow:auto; margin:var(--space-5) 0; border-bottom:1px solid var(--line); }
-.app-content#workspace-content :is(.production-page,.administration) .production-tabs button { border:0; border-radius:0; border-bottom:2px solid transparent; padding:var(--space-3) 0; color:var(--muted); background:transparent; white-space:nowrap; }
-.app-content#workspace-content :is(.production-page,.administration) .production-tabs button[aria-current=page] { color:var(--accent); border-bottom-color:var(--accent); background:transparent; }
 .app-content#workspace-content .production-page .production-step header h3 { font-size:var(--text-xl); }
 .app-content#workspace-content .production-page .production-steps nav button { border:0; border-top:3px solid var(--line); border-radius:0; padding:var(--space-2) 0; background:transparent; color:var(--muted); }
 .app-content#workspace-content .production-page .production-steps nav button.is-complete { border-top-color:var(--accent-light); }
@@ -315,3 +312,13 @@ body { min-width:0; }
 .app-content#workspace-content .production-page .production-step-notice strong { color:var(--danger); }
 .app-content#workspace-content .production-page .production-steps nav button:hover:not(:disabled) { background:transparent; color:var(--ink); }
 .app-content#workspace-content .production-page .production-steps .production-savebar button[type=submit] { background:var(--surface); color:var(--ink); border-color:var(--line-strong); }
+
+/* Pill tabs: one bar for every page's views. TabPill slides the white pill behind the active tab. */
+.ws-pill-tabs { position:relative; isolation:isolate; display:flex; flex-wrap:nowrap; gap:2px; width:max-content; max-width:100%; padding:4px; margin:var(--space-5) 0; overflow-x:auto; scrollbar-width:none; background:var(--surface-subtle); border:1px solid var(--line); border-radius:999px; }
+.ws-pill-tabs::-webkit-scrollbar { display:none; }
+.ws-pill-tabs-pill { position:absolute; z-index:-1; top:4px; bottom:4px; left:0; width:0; opacity:0; border-radius:999px; background:var(--surface); box-shadow:0 1px 2px #19171e1f,0 2px 6px #19171e0d; transition:transform var(--motion-page) var(--ease-out),width var(--motion-page) var(--ease-out),opacity var(--motion-fast); pointer-events:none; }
+.app-content#workspace-content .ws-pill-tabs > :is(button,a),.ws-pill-tabs > :is(button,a) { display:inline-flex; align-items:center; gap:var(--space-2); min-height:34px; margin:0; padding:0 var(--space-4); border:0; border-radius:999px; background:transparent; box-shadow:none; color:var(--muted); font:var(--weight-medium) var(--text-sm)/1.2 var(--font-ui); text-decoration:none; white-space:nowrap; cursor:pointer; scale:none; transform:none; transition:color var(--motion-fast); }
+.app-content#workspace-content .ws-pill-tabs > :is(button,a):hover:not(:disabled),.ws-pill-tabs > :is(button,a):hover { background:transparent; color:var(--ink); }
+.app-content#workspace-content .ws-pill-tabs > :is([aria-current=page],[aria-selected=true],[aria-pressed=true]),.ws-pill-tabs > :is([aria-current=page],[aria-selected=true],[aria-pressed=true]) { color:var(--ink); background:transparent; }
+.app-content#workspace-content .ws-pill-tabs > :is(button,a):focus-visible,.ws-pill-tabs > :is(button,a):focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+@media (prefers-reduced-motion:reduce) { .ws-pill-tabs-pill { transition:none; } }

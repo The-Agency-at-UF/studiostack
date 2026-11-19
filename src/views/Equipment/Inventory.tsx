@@ -1,4 +1,5 @@
 'use client'
+import { TabPill } from '../../components/workspace/TabPill'
 import {DetailPanel,Select,Skeleton,StatusLabel} from '../../components/workspace/WorkspaceUI'
 import {HiMagnifyingGlass,HiXMark,HiOutlinePlus} from 'react-icons/hi2'
 import type {EquipmentRecord} from '../../types/equipment'
@@ -63,7 +64,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
     </header>
     {error&&<p role="alert" className="inventory-error">{error}</p>}
     {scanning&&<ScanHandoff api={api} organizationId={organizationId} items={items} admin={admin} onClose={()=>setScanning(false)} onAdd={code=>{setScanning(false);setAddCode(code);setAdded('');setAdding(true);setSelected(null)}} onSaved={async()=>{for(const key of ['fulfillment','reservations','inventory','dashboard','reports'])invalidateCache(`${key}:${organizationId}`);await load().catch(e=>setError(equipmentError(e)))}}/>}
-    <nav className="production-tabs inventory-tabs" aria-label="Equipment views">{inventoryViews.map(([id,label])=><button type="button" key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}{!loading&&<span className="inventory-tab-count"><span className="ws-sr-only">, </span>{counts[id]}</span>}</button>)}</nav>
+    <nav className="production-tabs ws-pill-tabs inventory-tabs" aria-label="Equipment views"><TabPill id="equipment-views"/>{inventoryViews.map(([id,label])=><button type="button" key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}{!loading&&<span className="inventory-tab-count"><span className="ws-sr-only">, </span>{counts[id]}</span>}</button>)}</nav>
     <div className="inventory-toolbar">
       <label className="inventory-search"><span className="ws-sr-only">Search equipment</span><HiMagnifyingGlass aria-hidden="true"/><input type="search" placeholder="Search by name or code" value={query} onChange={e=>setQuery(e.target.value)}/></label>
       <label className="inventory-category"><span className="ws-sr-only">Category</span><Select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</Select></label>

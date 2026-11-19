@@ -69,9 +69,6 @@
 .administration.workspace-surface { background:#fff; }
 .administration.workspace-surface header h1 { font-family:var(--font-ui);font-size:clamp(38px,4vw,58px);font-weight:800;line-height:.95;letter-spacing:-.055em; }
 @media(max-width:700px){.administration.workspace-surface header h1{font-size:36px}}
-.administration .production-tabs { display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px; }
-.administration .production-tabs button { background:var(--surface-subtle);color:#4d3b61; }
-.administration .production-tabs button[aria-current="page"] { background:var(--accent);color:white; }
 .inventory-workspace .administration-form label:first-child { flex:1;max-width:520px;min-width:200px; }
 .equipment-scan { border:1px solid var(--line);padding:20px;margin:20px 0;display:grid;gap:16px;max-width:640px; }
 .equipment-scan-header { display:flex;justify-content:space-between;gap:16px;align-items:flex-start; }
@@ -86,11 +83,9 @@
 .inventory-workspace header h1 { text-wrap:balance; }
 .inventory-workspace .inventory-summary { margin-top:var(--space-2);font-size:var(--text-sm);color:var(--muted);font-variant-numeric:tabular-nums; }
 .app-content#workspace-content .inventory-workspace .inventory-tabs { margin:var(--space-2) 0 var(--space-5); }
-.app-content#workspace-content .inventory-workspace .inventory-tabs button { display:inline-flex;align-items:center;gap:var(--space-2); }
-.app-content#workspace-content .inventory-workspace .inventory-tabs button:hover:not(:disabled) { color:var(--ink);background:transparent; }
-.app-content#workspace-content .inventory-workspace .inventory-tabs button[aria-current=page]:hover { color:var(--accent); }
 .inventory-tab-count { min-width:22px;padding:1px 7px;border-radius:999px;background:var(--surface-subtle);color:var(--muted);font-size:var(--text-xs);font-variant-numeric:tabular-nums;line-height:18px;text-align:center; }
 .inventory-tabs [aria-current=page] .inventory-tab-count { background:var(--accent-soft);color:var(--accent); }
+.inventory-tabs :not([aria-current]) .inventory-tab-count { background:var(--line); }
 .inventory-toolbar { display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4); }
 .inventory-search { position:relative;flex:1 1 280px;max-width:440px; }
 .inventory-search svg { position:absolute;left:14px;top:50%;width:18px;height:18px;transform:translateY(-50%);color:var(--muted);pointer-events:none; }
