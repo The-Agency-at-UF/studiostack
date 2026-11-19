@@ -13,8 +13,10 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     REVOKE ALL ON ALL SEQUENCES IN SCHEMA app FROM ${role};
     REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM ${role};
     REVOKE ALL ON SCHEMA app FROM ${role};
+    GRANT SELECT,INSERT ON app.production_ideas TO ${role};
+    GRANT UPDATE(title,pitch,client_account_id,status,version,updated_at) ON app.production_ideas TO ${role};
     GRANT SELECT,INSERT ON app.client_accounts,app.production_assignments TO ${role};
-    GRANT UPDATE(name,deleted_at,deleted_by,version) ON app.client_accounts TO ${role};
+    GRANT UPDATE(name,deleted_at,deleted_by,version,logo_photo_id) ON app.client_accounts TO ${role};
     GRANT DELETE ON app.production_assignments TO ${role};
     GRANT SELECT,INSERT ON app.bug_reports TO ${role};
     GRANT UPDATE(email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at) ON app.bug_reports TO ${role};
@@ -43,7 +45,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT SELECT, INSERT ON app.organization_access_requests TO ${role};
     GRANT UPDATE (status, decided_by, decided_at, version) ON app.organization_access_requests TO ${role};
     GRANT SELECT, INSERT ON app.user_groups, app.inventory, app.reservations, app.reservation_items TO ${role};
-    GRANT UPDATE (name, category, status, photo_id,condition,version) ON app.inventory TO ${role};
+    GRANT UPDATE (name, category, status, photo_id,color_tag,condition,version) ON app.inventory TO ${role};
     GRANT UPDATE (client_account_id,name,starts_at,ends_at,status,version,fulfillment_status,checked_out_at,returned_at) ON app.reservations TO ${role};
     GRANT DELETE ON app.reservation_items TO ${role};
     GRANT SELECT,INSERT ON app.equipment_checkouts,app.equipment_reports,app.equipment_events TO ${role};
@@ -51,7 +53,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE(returned_by,returned_at,return_condition,return_notes) ON app.equipment_checkouts TO ${role};
     GRANT SELECT, INSERT ON app.production_settings, app.production_briefs, app.production_brief_events, app.production_attachments, app.production_outbox TO ${role};
     GRANT UPDATE (version, reviewer_ids, executive_ids, approval_confirms_dates) ON app.production_settings TO ${role};
-    GRANT UPDATE (client_account_id,data, status, version, submission, shoot_starts_at, shoot_ends_at, updated_at, deleted_at) ON app.production_briefs TO ${role};
+    GRANT UPDATE (client_account_id,data, status, version, submission, soft_holds, shoot_starts_at, shoot_ends_at, updated_at, deleted_at) ON app.production_briefs TO ${role};
     GRANT UPDATE (status) ON app.production_attachments TO ${role};
     GRANT UPDATE (status, attempts, next_attempt_at, lease_token, lease_until, sent_at) ON app.production_outbox TO ${role};
     GRANT SELECT, INSERT ON app.photo_uploads TO ${role};
