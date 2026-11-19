@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppSession } from '../../context/AppSessionContext'
-import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
+import { createDatabaseApiClient } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import {createPreviewDatabaseApi} from '../../preview/database'
 import {storePreviewFile,previewAttachmentKey} from '../../preview/media'
@@ -32,19 +32,22 @@ import type {ClientAccount} from '../../types/production'
 import EmailVerification from './EmailVerification'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import {sentenceCase} from '../../utils/sentenceCase'
+import { errorText } from '../../api/errorText'
+import { useToast } from '../../components/workspace/Toast'
 import './Production.css'
 const ProductionCalendar = dynamic(() => import('./ProductionCalendar'), { ssr: false, loading: () => <Skeleton label="Loading calendar…" variant="tile" count={6} /> })
-const errorText = (error: unknown) => error instanceof DatabaseApiClientError ? ({
-  400: 'Check the required fields, dates and review reason.',
-  401: 'Your session expired. Sign in again.',
-  403: 'Your account does not have permission for this action.',
-  404: 'This record is unavailable.',
-  409: 'This record changed or the action conflicts with its status. Reload before trying again.',
-  429: 'Too many requests. Please wait a moment before trying again.',
-  502: 'Production gateway received an invalid response. Please try again.',
-  503: 'Production services are unavailable. Your unsaved work is still here.',
-  504: 'The database request timed out while connecting. Please try again.'
-}[error.status] ?? 'The request failed. Try again.') : error instanceof TypeError && /fetch|network/i.test(error.message) ? 'Network connection error. Check your connection.' : error instanceof Error ? error.message : 'Something went wrong. Try again.'
+/** What each review action tells the person once the server accepts it. */
+const actionDone: Record<BriefCommand['action'], string> = {
+  submit: 'Brief submitted for review.',
+  approve: 'Brief approved. Shoot dates are confirmed.',
+  deny: 'Brief denied.',
+  request_changes: 'Changes requested.',
+  schedule: 'Confirmed shoot dates updated.',
+  withdraw: 'Request withdrawn.',
+  reopen: 'Brief reopened as a draft.',
+  comment: 'Comment added.',
+  propose_dates: 'Shoot dates proposed.'
+}
 const dateLabel = (value: string | null) => value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'Not scheduled'
 function useProductionClient(organizationId: string, person: string) {
   const session = useAppSession()
@@ -75,7 +78,8 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const [tab, setTab] = useState<'briefs' | 'calendar' | 'decisions' | 'settings' | 'clients' | 'ideas' | 'queue'>(calendarPage ? 'calendar' : 'briefs')
   const [clients,setClients]=useState<ClientAccount[]>(cached?.clients ?? []),[clientFilter,setClientFilter]=useState(''),[authorFilter,setAuthorFilter]=useState('')
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [loading, setLoading] = useState(!cached), [busy, setBusy] = useState(false)
-  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
+  const toast = useToast()
+  const [error, setError] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
   const [pendingDelete, setPendingDelete] = useState<ProductionBrief | null>(null)
   const [clientCreating,setClientCreating]=useState(false)
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
@@ -133,7 +137,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     }
   }, [api, cacheKey, cached])
   useEffect(() => {
-    const effectGeneration = ++generation.current; selection.current++; setPendingDelete(null); setSelected(null); setError(''); setNotice(''); setDirty(false)
+    const effectGeneration = ++generation.current; selection.current++; setPendingDelete(null); setSelected(null); setError(''); setDirty(false)
     setBriefs(cached?.briefs ?? []); setAccess(cached?.access ?? null); setClients(cached?.clients ?? []); setDeliveries(cached?.deliveries ?? [])
     setLoading(!cached)
     let active = true
@@ -168,27 +172,30 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
    * so the page unlocks without waiting for every brief, delivery and client to page in again.
    * Resolves true once the change is saved.
    */
-  const run = async (task: (client: ProductionClient) => Promise<ProductionBrief | void>, done = 'Saved.') => {
+  const run = async (task: (client: ProductionClient) => Promise<ProductionBrief | void>, done: string | null) => {
     if (!api || busy) return false
     const g = generation.current
-    setBusy(true); setError(''); setNotice('')
+    setBusy(true); setError(''); toast.dismiss('production')
     try {
       const b = await task(api); if (g !== generation.current) return false
       if (b) { accept(b); setBriefs(list => list.map(item => item.id === b.id ? b : item)) }
-      mutation.current = null; setNotice(done); invalidateCache(cacheKey)
+      mutation.current = null; invalidateCache(cacheKey)
+      if (done) toast.success(done, { id: 'production' })
       refresh().catch(e => { if (g === generation.current) setError(errorText(e)) })
       return true
     }
-    catch (e) { if (g === generation.current) setError(errorText(e)); return false } finally { if (g === generation.current) setBusy(false) }
+    catch (e) { if (g === generation.current) toast.error(errorText(e), { id: 'production', action: { label: 'Reload', onClick: () => reloadRef.current() } }); return false } finally { if (g === generation.current) setBusy(false) }
   }
-  const save = () => selected && run(async client => { const brief = await client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))); setSavedPulse(n => n + 1); return brief })
+  const reload = () => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() }, null)) }
+  const reloadRef = useRef(reload); reloadRef.current = reload
+  const save = () => selected && run(async client => { const brief = await client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))); setSavedPulse(n => n + 1); return brief }, null)
   const action = async (command: Omit<BriefCommand, 'version' | 'requestId'>) => {
     if (!selected) return false
     const brief = selected
     // A comment has no side effects, so it joins the history at once; a failed send takes it back out.
     const pending: BriefEvent | null = command.action === 'comment' && !busy ? { id: `pending:${crypto.randomUUID()}`, actorId: access?.userId ?? '', actorName: 'You', kind: 'comment', comment: command.comment ?? '', section: command.section ?? '', version: brief.version, createdAt: new Date().toISOString(), snapshot: null } : null
     if (pending) setSelected(s => s?.id === brief.id ? { ...s, events: [...s.events, pending] } : s)
-    const saved = await run(client => client.action(brief.id, { ...command, version: brief.version, requestId: requestId(JSON.stringify({ id: brief.id, version: brief.version, command })) }))
+    const saved = await run(client => client.action(brief.id, { ...command, version: brief.version, requestId: requestId(JSON.stringify({ id: brief.id, version: brief.version, command })) }), actionDone[command.action])
     if (pending && !saved) setSelected(s => s?.id === brief.id ? { ...s, events: s.events.filter(e => e.id !== pending.id) } : s)
     return saved
   }
@@ -202,7 +209,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const update = (key: keyof BriefData, value: string | string[]) => { setForm(f => ({ ...f, [key]: value })); setDirty(true) }
   const updateField = (key: string, value: string) => { setForm(f => ({ ...f, fields: { ...f.fields, [key]: value } })); setDirty(true) }
   const editable = (selected?.ownerId === access?.userId || Boolean(access?.canAdminister)) && ['draft','changes_requested'].includes(selected?.status ?? '')
-  const uploads:BriefUploadsProps|null=selected?{brief:selected,editable,disabled:busy||dirty,preview,onDownload:a=>void run(async client=>{const download=await client.download(selected.id,a.id);const link=document.createElement('a');link.href=download.url;if(preview)link.download=a.name;link.target='_blank';link.rel='noopener noreferrer';link.click()}),onRemove:a=>{if(window.confirm('Remove this attachment? Submitted revisions retain their files.'))void run(async client=>{await client.discard(selected.id,a.id);return client.get(selected.id)})},onComplete:a=>void run(client=>client.complete(selected.id,a.id)),onUpload:async(files,category)=>{const uploaded=await run(async client=>{let brief=selected;for(const file of files){const id=crypto.randomUUID(),upload=await client.attach(selected.id,{id,name:file.name,contentType:file.type,size:file.size,category}),body=new FormData();Object.entries(upload.fields).forEach(([key,value])=>body.append(key,value));body.append('file',file);if(preview){await storePreviewFile(previewAttachmentKey(selected.id,id),file)}else{const response=await fetch(upload.url,{method:'POST',body,credentials:'omit',redirect:'error'});if(!response.ok)throw new Error('Upload failed. Reload to finish or remove the pending file.');}brief=await client.complete(selected.id,id)}return brief});if(!uploaded)throw new Error('File upload failed')}}:null
+  const uploads:BriefUploadsProps|null=selected?{brief:selected,editable,disabled:busy||dirty,preview,onDownload:a=>void run(async client=>{const download=await client.download(selected.id,a.id);const link=document.createElement('a');link.href=download.url;if(preview)link.download=a.name;link.target='_blank';link.rel='noopener noreferrer';link.click()},null),onRemove:a=>{if(window.confirm('Remove this attachment? Submitted revisions retain their files.'))void run(async client=>{await client.discard(selected.id,a.id);return client.get(selected.id)},'Attachment removed.')},onComplete:a=>void run(client=>client.complete(selected.id,a.id),'Attachment uploaded.'),onUpload:async(files,category)=>{const uploaded=await run(async client=>{let brief=selected;for(const file of files){const id=crypto.randomUUID(),upload=await client.attach(selected.id,{id,name:file.name,contentType:file.type,size:file.size,category}),body=new FormData();Object.entries(upload.fields).forEach(([key,value])=>body.append(key,value));body.append('file',file);if(preview){await storePreviewFile(previewAttachmentKey(selected.id,id),file)}else{const response=await fetch(upload.url,{method:'POST',body,credentials:'omit',redirect:'error'});if(!response.ok)throw new Error('Upload failed. Reload to finish or remove the pending file.');}brief=await client.complete(selected.id,id)}return brief},files.length===1?`${files[0].name} uploaded.`:`${files.length} files uploaded.`);if(!uploaded)throw new Error('File upload failed')}}:null
   const byClient=briefs.filter(b=>!clientFilter||(b.data.clientAccountId??b.data.client)===clientFilter)
   const authors=[...new Map(briefs.map(b=>[b.ownerId,b.ownerName||'Unknown'])).entries()].sort((a,b)=>a[1].localeCompare(b[1]))
   const filtered = byClient.filter(b => (tab !== 'queue' || b.status === 'submitted') && (filter === 'all' || b.status === filter) && (!authorFilter || b.ownerId === authorFilter) && `${b.data.projectName} ${b.data.client} ${b.ownerName}`.toLowerCase().includes(query.toLowerCase())).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -235,20 +242,20 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const selectView = (next: typeof tab) => { if (mayLeave()) { setTab(next); setSelected(null); setDirty(false); setSnapshot(null) } }
   return <main className={calendarPage ? 'production-page ws-calendar-page' : 'production-page'}>
     {pendingDelete && <ConfirmDialog title="Delete this brief?" subject={pendingDelete.data.projectName || 'Untitled brief'} description="This brief will be removed from your workspace. This action can’t be undone." confirmLabel="Delete brief" busy={busy} onCancel={() => setPendingDelete(null)} onConfirm={() => void confirmDelete()} />}
-    <PageHeader title={calendarPage ? 'Production calendar' : 'Briefs & production'} actions={<>{calendarPage&&<Link className="ws-button" href="/production/">View briefs</Link>}{!selected&&(tab==='briefs'||calendarPage)&&<button className="production-primary" disabled={busy||!api||!access} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create'))) }}>New brief</button>}</>}/>
+    <PageHeader title={calendarPage ? 'Production calendar' : 'Briefs & production'} actions={<>{calendarPage&&<Link className="ws-button" href="/production/">View briefs</Link>}{!selected&&(tab==='briefs'||calendarPage)&&<button className="production-primary" disabled={busy||!api||!access} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create')), 'Brief created.') }}>New brief</button>}</>}/>
 
     {preview && <p className="production-info">Local preview. Records and uploaded files stay in this browser. Email delivery is simulated.</p>}
     {!preview && session.getAccessToken && <EmailVerification getAccessToken={session.getAccessToken} />}
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
     {!calendarPage && <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','clients','ideas',...(access?.canReview?['queue']:[]), ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ clients:'Client accounts',ideas:'Ideas & pitches',queue:'Brief review queue',briefs:'Briefs',decisions:'Decisions & delivery',settings:'Production roles' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>}
-    <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={() => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() })) }}>Reload</button></p>}{notice && <p role="status">{notice}</p>}</div>
+    <div className="production-feedback" aria-live="polite">{error && <p role="alert" className="production-error">{error} <button disabled={busy} onClick={reload}>Reload</button></p>}</div>
     {loading ? <Skeleton label="Loading production workspace…" variant="row" count={5} /> : !api ? null : !access ? (
       <div className="production-empty">
         <h2>Production workspace unavailable</h2>
         <p>The production workspace could not be loaded. Check your connection or try again.</p>
-        <button className="production-primary" disabled={busy} onClick={() => void refresh()}>Retry loading workspace</button>
+        <button className="production-primary" disabled={busy} onClick={() => void run(async () => { await refresh() }, null)}>Retry loading workspace</button>
       </div>
-    ) : tab === 'ideas' ? <IdeaBoard api={api} access={access} clients={clients} onBrief={idea=>{setTab('briefs');void run(c=>c.create({...emptyBrief(),projectName:idea.title,clientAccountId:idea.clientAccountId,client:clients.find(c=>c.id===idea.clientAccountId)?.name??'',fields:{...emptyBrief().fields,concept:idea.pitch}},crypto.randomUUID()))}} /> : tab === 'clients' ? <><ClientAccounts key={organizationId+person} clients={clients} api={api} database={access.canAdminister?database:null} organizationId={organizationId||'preview'} canManage={access.canReview} canDelete={c=>clientDeletable(c,access.userId,access.canAdminister)} onRefresh={refresh}/>{!access.canAdminister&&clients.some(c=>c.deletedAt&&clientDeletable(c,access.userId,false))&&<DeletedClientAccounts key={'deleted'+organizationId+person} clients={clients} api={api} canRestore={c=>access.canAdminister||clientDeletable(c,access.userId,false)} onRefresh={refresh}/>}</> : tab === 'settings' ? <><ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} />{}</> : tab === 'decisions' ? <DecisionFeed api={api} briefs={briefs} deliveries={deliveries} access={access} preview={preview} onOpen={id => { setTab('briefs'); void open(id) }} onRefresh={refresh} /> : <>
+    ) : tab === 'ideas' ? <IdeaBoard api={api} access={access} clients={clients} onBrief={idea=>{setTab('briefs');void run(c=>c.create({...emptyBrief(),projectName:idea.title,clientAccountId:idea.clientAccountId,client:clients.find(c=>c.id===idea.clientAccountId)?.name??'',fields:{...emptyBrief().fields,concept:idea.pitch}},crypto.randomUUID()),'Brief created from the idea.')}} /> : tab === 'clients' ? <><ClientAccounts key={organizationId+person} clients={clients} api={api} database={access.canAdminister?database:null} organizationId={organizationId||'preview'} canManage={access.canReview} canDelete={c=>clientDeletable(c,access.userId,access.canAdminister)} onRefresh={refresh}/>{!access.canAdminister&&clients.some(c=>c.deletedAt&&clientDeletable(c,access.userId,false))&&<DeletedClientAccounts key={'deleted'+organizationId+person} clients={clients} api={api} canRestore={c=>access.canAdminister||clientDeletable(c,access.userId,false)} onRefresh={refresh}/>}</> : tab === 'settings' ? <><ProductionSettingsForm key={organizationId + person} api={api} loadMembers={loadMembers} onSaved={refresh} />{}</> : tab === 'decisions' ? <DecisionFeed api={api} briefs={briefs} deliveries={deliveries} access={access} preview={preview} onOpen={id => { setTab('briefs'); void open(id) }} onRefresh={refresh} /> : <>
       {!selected && (tab === 'calendar' ? <ProductionCalendar key={organizationId+person} viewKey={organizationId+person} showSoftHoldsByDefault={access.canAdminister||access.canReview} briefs={byClient} onOpen={id => void open(id)} filter={<Field className="production-client-filter" label="Client"><Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All clients</option>{[...new Map(briefs.filter(b=>b.data.client).map(b=>[b.data.clientAccountId??b.data.client,b.data.client])).entries()].map(([id,name])=><option key={id} value={id}>{name}</option>)}</Select></Field>} /> : <>
         <div className="production-toolbar"><Field className="production-search" label="Search briefs"><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Project, client, or author" /></Field><Field className="production-client-filter" label="Client"><Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All clients</option>{[...new Map(briefs.filter(b=>b.data.client).map(b=>[b.data.clientAccountId??b.data.client,b.data.client])).entries()].map(([id,name])=><option key={id} value={id}>{name}</option>)}</Select></Field><Field className="production-client-filter" label="Requested by"><Select value={authorFilter} onChange={e=>setAuthorFilter(e.target.value)}><option value="">All people</option>{authors.map(([id,name])=><option key={id} value={id}>{name}</option>)}</Select></Field><label>Status<Select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</Select></label></div>
         <div className="production-filter-summary" aria-live="polite"><span>{filtered.length} {filtered.length===1?'brief':'briefs'}{query||filter!=='all'||clientFilter||authorFilter?' · Filters applied':''}</span>{(query||filter!=='all'||clientFilter||authorFilter)&&<button onClick={()=>{setQuery('');setFilter('all');setClientFilter('');setAuthorFilter('')}}>Clear filters</button>}</div>
@@ -269,14 +276,14 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
 <CrewRequests requests={form.crewRequests??[]} disabled={!editable||busy} onChange={crewRequests=>{setForm(f=>({...f,crewRequests}));setDirty(true)}}/></>}
 
           </form>
-          {!editable&&<SoftHolds key={`holds:${selected.id}:${selected.version}`} brief={selected} canPropose={(selected.ownerId===access.userId||access.canReview)&&!['denied','withdrawn'].includes(selected.status)} disabled={busy||dirty} onAction={action}/>}{crewVisible&&<div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={async assignments=>{await run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}))}}/></div>}<article className="production-print"><h2>{selected.data.projectName || 'Production brief'}</h2><p>{selected.data.client} · {statusLabels[selected.status]} · Revision {selected.version}</p><p>Requested by {selected.ownerName} · Managers: {selected.data.managers} · Production supervisor: {selected.data.supervisor || 'Not assigned'}</p><p>Delivery: {selected.data.deliveryDate || 'Not set'} · Production: {selected.data.productionTypes.join(', ')}</p>{selected.shootStartsAt && <p>Confirmed shoot: {dateLabel(selected.shootStartsAt)} – {dateLabel(new Date(Date.parse(selected.shootEndsAt!) - 1).toISOString())}</p>}{visibleSections(selected.data).map(s => <section key={s.title}><h3>{s.title}</h3><dl>{s.fields.filter(f=>selected.data.fields[f.key]).map(f=><div key={f.key}><dt>{f.label}</dt><dd>{selected.data.fields[f.key]}</dd></div>)}</dl></section>)}</article>
+          {!editable&&<SoftHolds key={`holds:${selected.id}:${selected.version}`} brief={selected} canPropose={(selected.ownerId===access.userId||access.canReview)&&!['denied','withdrawn'].includes(selected.status)} disabled={busy||dirty} onAction={action}/>}{crewVisible&&<div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={async assignments=>{await run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}),'Crew assignments saved.')}}/></div>}<article className="production-print"><h2>{selected.data.projectName || 'Production brief'}</h2><p>{selected.data.client} · {statusLabels[selected.status]} · Revision {selected.version}</p><p>Requested by {selected.ownerName} · Managers: {selected.data.managers} · Production supervisor: {selected.data.supervisor || 'Not assigned'}</p><p>Delivery: {selected.data.deliveryDate || 'Not set'} · Production: {selected.data.productionTypes.join(', ')}</p>{selected.shootStartsAt && <p>Confirmed shoot: {dateLabel(selected.shootStartsAt)} – {dateLabel(new Date(Date.parse(selected.shootEndsAt!) - 1).toISOString())}</p>}{visibleSections(selected.data).map(s => <section key={s.title}><h3>{s.title}</h3><dl>{s.fields.filter(f=>selected.data.fields[f.key]).map(f=><div key={f.key}><dt>{f.label}</dt><dd>{selected.data.fields[f.key]}</dd></div>)}</dl></section>)}</article>
 
         </div>{inspector&&<DetailPanel className="production-inspector" label="Review and activity">
           <ReadinessChecklist brief={selected}/><ReviewPanel brief={selected} access={access} busy={busy} dirty={dirty} onAction={action} />
           {!access.canReview&&!access.canAdminister&&!access.isExecutive&&selected.events.filter(e=>e.comment&&['denied','changes_requested','approved'].includes(e.kind)).slice(-1).map(e=><section key={e.id}><h3>Decision reason</h3><blockquote>{e.comment}</blockquote></section>)}
           {(access.canReview||access.canAdminister||access.isExecutive)&&<section className="production-history"><h3>Activity & revisions</h3>{[...selected.events].reverse().map(e => { const sending = e.id.startsWith('pending:'); return <article key={e.id} className={sending ? 'is-sending' : undefined} aria-busy={sending || undefined}><div><strong>{e.kind.replaceAll('_',' ')}</strong><small>{sending ? 'Sending…' : new Date(e.createdAt).toLocaleString()}</small></div><p>{e.actorName}{e.section ? ` · ${e.section}` : ''}</p>{e.comment && <blockquote>{e.comment}</blockquote>}{e.snapshot && <button onClick={() => setSnapshot(e)}>View revision {e.version}</button>}</article> })}</section>}
         </DetailPanel>}</div>
-        {snapshot && <section className="production-snapshot" aria-label="Submission snapshot"><div><h3>Recorded revision {snapshot.version}</h3><button onClick={() => setSnapshot(null)}>Close snapshot</button></div><p>This preserves the brief at this point in its review history.</p><dl>{Object.entries(snapshot.snapshot!).filter(([k]) => !['fields','productionTypes'].includes(k)).map(([k,v]) => <div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>)}<div><dt>Production types</dt><dd>{snapshot.snapshot!.productionTypes.join(', ')}</dd></div>{briefSections.flatMap(s => s.fields).filter(f => snapshot.snapshot!.fields[f.key]).map(f => <div key={f.key}><dt>{f.label}</dt><dd>{snapshot.snapshot!.fields[f.key]}</dd></div>)}</dl>{snapshot.attachments?.map(a => <button key={a.id} disabled={busy} onClick={() => void run(async client => { const file = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = file.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() })}>Download {a.name}</button>)}</section>}
+        {snapshot && <section className="production-snapshot" aria-label="Submission snapshot"><div><h3>Recorded revision {snapshot.version}</h3><button onClick={() => setSnapshot(null)}>Close snapshot</button></div><p>This preserves the brief at this point in its review history.</p><dl>{Object.entries(snapshot.snapshot!).filter(([k]) => !['fields','productionTypes'].includes(k)).map(([k,v]) => <div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>)}<div><dt>Production types</dt><dd>{snapshot.snapshot!.productionTypes.join(', ')}</dd></div>{briefSections.flatMap(s => s.fields).filter(f => snapshot.snapshot!.fields[f.key]).map(f => <div key={f.key}><dt>{f.label}</dt><dd>{snapshot.snapshot!.fields[f.key]}</dd></div>)}</dl>{snapshot.attachments?.map(a => <button key={a.id} disabled={busy} onClick={() => void run(async client => { const file = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = file.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() }, null)}>Download {a.name}</button>)}</section>}
       </div>}
     </>}
   </main>
@@ -305,18 +312,19 @@ function SaveStatus({ pulse, onSettled, role, children }: { pulse: number; onSet
   return <span key={pulse} role={role} className={pulse ? 'production-saved-pulse' : undefined} onAnimationEnd={onSettled}>{children}</span>
 }
 function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: ProductionClient; loadMembers: () => Promise<ApiMember[]>; onSaved: () => Promise<void> }) {
-  const [settings,setSettings] = useState<ProductionSettings | null>(null), [saved,setSaved] = useState<ProductionSettings | null>(null), [members,setMembers] = useState<ApiMember[]>([]), [busy,setBusy] = useState(false), [message,setMessage] = useState(''), [error,setError] = useState('')
+  const [settings,setSettings] = useState<ProductionSettings | null>(null), [saved,setSaved] = useState<ProductionSettings | null>(null), [members,setMembers] = useState<ApiMember[]>([]), [busy,setBusy] = useState(false), [error,setError] = useState('')
   useEffect(() => { let active = true; Promise.all([api.settings(),loadMembers()]).then(([s,m]) => { if (active) { setSettings(s); setSaved(s); setMembers(m) } }).catch(e => { if (active) setError(errorText(e)) }); return () => { active = false } }, [api,loadMembers])
   const leadByRole = (m: ApiMember) => ['owner','admin'].includes(m.role)
   const same = (a: string[], b: string[]) => a.length === b.length && a.every(id => b.includes(id))
   const dirty = !!settings && !!saved && (!same(settings.reviewerIds, saved.reviewerIds) || !same(settings.executiveIds, saved.executiveIds))
   const leads = settings ? members.filter(m => leadByRole(m) || settings.reviewerIds.includes(m.id)).length : 0, executives = settings ? members.filter(m => settings.executiveIds.includes(m.id)).length : 0
   const [savedPulse, setSavedPulse] = useState(0)
+  const toast = useToast()
   const roleLabel = (m: ApiMember) => m.role === 'owner' ? 'Owner' : m.role === 'admin' ? 'Admin' : null
   return <section className="production-settings production-access" aria-labelledby="production-access-title">
     <div className="production-section-head"><div><h2 id="production-access-title">Production roles</h2><p>Organization administrators decide who leads production and who hears about decisions.</p></div></div>
     {error && <p role="alert" className="production-error">{error}</p>}
-    {!settings ? <Skeleton label="Loading settings…" variant="row" count={4} /> : <form className="ws-enter" onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(async s => { setSettings(s); setSaved(s); setSavedPulse(n => n + 1); setMessage('Production access and notification settings saved.'); await onSaved() }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
+    {!settings ? <Skeleton label="Loading settings…" variant="row" count={4} /> : <form className="ws-enter" onSubmit={e => { e.preventDefault(); setBusy(true); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(s => { setSettings(s); setSaved(s); setSavedPulse(n => n + 1); toast.success('Production access and notification settings saved.', { id: 'production-settings' }); onSaved().catch(() => toast.error('Settings saved, but the workspace could not reload. Refresh the page to see the change.', { id: 'production-settings-reload' })) }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
       <dl className="production-roles" aria-label="What each role can do">
         <div><dt>Production Lead</dt><dd>Reviews, approves, confirms dates, requests changes and denies briefs; assigns shoot crews and sees organization booking names and equipment. Owners and administrators always have it.</dd></div>
         <div><dt>Executive Leadership Team</dt><dd>Reads submitted briefs and decisions, and receives decision emails.</dd></div>
@@ -327,7 +335,7 @@ function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: Production
         <legend>Team access</legend>{members.length > 0 && <p className="production-count">{leads} Production {leads === 1 ? 'Lead' : 'Leads'}{(()=>{const byRole=members.filter(leadByRole).length;return byRole?` (${byRole} through their owner or admin role)`:''})()} · {executives} on Executive Leadership</p>}
         {members.length ? <div className="production-access-table"><table className="production-table"><thead><tr><th scope="col">Active member</th><th scope="col">Production Lead</th><th scope="col">Executive Leadership Team</th></tr></thead><tbody>{members.map(m => { const name = m.displayName || m.email || m.id, role = roleLabel(m); return <tr key={m.id}>
           <th scope="row"><span className="production-member"><span className="production-member-name">{name}{role && <StatusLabel tone="accent">{role}</StatusLabel>}</span>{m.email && m.email !== name && <span className="production-member-email">{m.email}</span>}</span></th>
-          {(['reviewerIds','executiveIds'] as const).map(key => { const locked = key === 'reviewerIds' && leadByRole(m); return <td key={key}><label className="production-check"><input aria-label={`${key === 'reviewerIds' ? 'Production leadership' : 'Executive Leadership Team'}: ${name}`} type="checkbox" disabled={locked} checked={settings[key].includes(m.id) || locked} onChange={e => { setMessage(''); setSettings(s => s ? { ...s, [key]: e.target.checked ? [...s[key],m.id] : s[key].filter(id => id !== m.id) } : s) }} />{locked && <span className="production-check-note">Included with {role}</span>}</label></td> })}
+          {(['reviewerIds','executiveIds'] as const).map(key => { const locked = key === 'reviewerIds' && leadByRole(m); return <td key={key}><label className="production-check"><input aria-label={`${key === 'reviewerIds' ? 'Production leadership' : 'Executive Leadership Team'}: ${name}`} type="checkbox" disabled={locked} checked={settings[key].includes(m.id) || locked} onChange={e => { setSettings(s => s ? { ...s, [key]: e.target.checked ? [...s[key],m.id] : s[key].filter(id => id !== m.id) } : s) }} />{locked && <span className="production-check-note">Included with {role}</span>}</label></td> })}
         </tr> })}</tbody></table></div> : <p className="production-clients-empty"><span>No active members are available.</span></p>}
       </fieldset>
       <fieldset className="production-emails">
@@ -335,7 +343,7 @@ function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: Production
         <p>Each decision notifies the brief’s author and active Executive Leadership Team members at the verified email addresses on their sign-in accounts. No separate mailing list is needed. Sending starts after the system’s sender address is verified.</p>
         <p>Approval confirms the proposed shoot dates. A month-only estimate needs concrete dates before approval. Equipment bookings are managed separately.</p>
       </fieldset>
-      <div className={`production-savebar production-settings-savebar${dirty ? ' is-dirty' : ''}`}><SaveStatus role="status" pulse={dirty ? 0 : savedPulse} onSettled={() => setSavedPulse(0)}>{message || (dirty ? 'Unsaved changes' : 'All changes saved')}</SaveStatus><button type="submit" className="production-primary" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save settings'}</button></div>
+      <div className={`production-savebar production-settings-savebar${dirty ? ' is-dirty' : ''}`}><SaveStatus role="status" pulse={dirty ? 0 : savedPulse} onSettled={() => setSavedPulse(0)}>{dirty ? 'Unsaved changes' : 'All changes saved'}</SaveStatus><button type="submit" className="production-primary" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save settings'}</button></div>
     </form>}
   </section>
 }
@@ -343,8 +351,9 @@ function DecisionFeed({ api, briefs, deliveries, access, preview, onOpen, onRefr
   const [events,setEvents] = useState<{ brief: ProductionBrief; event: BriefEvent }[]>([]), [error,setError] = useState(''), [busy,setBusy] = useState(false), [loading,setLoading] = useState(true)
   // Retried deliveries read as queued until the outbox reloads; a rejected retry shows its real status again.
   const [retried,setRetried] = useState<Set<string>>(() => new Set())
+  const toast = useToast()
   useEffect(() => { setRetried(new Set()) }, [deliveries])
-  const retry = (id: string) => { setBusy(true); setRetried(v => new Set(v).add(id)); api.retry(id).then(() => onRefresh()).catch(e => { setRetried(v => { const next = new Set(v); next.delete(id); return next }); setError(errorText(e)) }).finally(() => setBusy(false)) }
+  const retry = (id: string) => { setBusy(true); setRetried(v => new Set(v).add(id)); api.retry(id).then(() => { toast.success('Delivery queued to send again.', { id: 'production-delivery' }); return onRefresh() }).catch(e => { setRetried(v => { const next = new Set(v); next.delete(id); return next }); toast.error(errorText(e), { id: 'production-delivery' }) }).finally(() => setBusy(false)) }
   useEffect(() => { let active = true; setLoading(true); Promise.all(briefs.map(b => api.get(b.id))).then(values => { if (active) setEvents(values.flatMap(brief => brief.events.filter(e => ['approved','denied','changes_requested','withdrawn','scheduled'].includes(e.kind)).map(event => ({ brief,event }))).sort((a,b) => b.event.createdAt.localeCompare(a.event.createdAt))) }).catch(e => { if (active) setError(errorText(e)) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [api,briefs])
   return <section className="production-decisions"><h2>Decisions</h2><p>Review outcomes, reasons, and confirmed dates. {preview ? 'Preview sends no email.' : 'Email delivery is tracked separately from the saved decision.'}</p>{error && <p role="alert" className="production-error">{error}</p>}{loading && <Skeleton label="Loading decisions…" variant="row" count={3} />}{!loading && !events.length && <p className="production-empty">No decisions yet. Submitted briefs will appear here after leadership reviews them.</p>}{events.map(({brief,event}) => { const jobs = deliveries.filter(d => d.eventId === event.id).map(d => retried.has(d.id) ? { ...d, status: 'pending' as const } : d); return <article className="production-decision ws-enter" key={event.id}><div><button className="production-row-title" onClick={() => onOpen(brief.id)}>{event.snapshot?.projectName || brief.data.projectName}</button><span className={`production-status status-${event.kind === 'scheduled' ? 'approved' : event.kind}`}>{sentenceCase(event.kind.replaceAll('_',' '))}</span></div>{event.shootStartsAt && <p>Confirmed shoot: {dateLabel(event.shootStartsAt)} – {dateLabel(new Date(Date.parse(event.shootEndsAt!) - 1).toISOString())}</p>}<p>{event.actorName} · {new Date(event.createdAt).toLocaleString()}</p>{event.comment && <blockquote>{event.comment}</blockquote>}<p>{jobs.length ? `Decision email: ${Object.entries(jobs.reduce<Record<string,number>>((n, d) => { const k = ({sent:'sent',failed:'failed to send',uncertain:'delivery unconfirmed',pending:'waiting to send',sending:'sending'} as Record<string,string>)[d.status] ?? d.status.replaceAll('_',' '); n[k] = (n[k] ?? 0) + 1; return n }, {})).map(([k, count]) => `${count} ${k}`).join(', ')}` : 'No email delivery was queued for this decision.'}</p>{access.canAdminister && jobs.filter(d => ['failed','uncertain'].includes(d.status)).map(d => <button key={d.id} disabled={busy} onClick={() => { if (!window.confirm('Retry this delivery? An uncertain delivery may already have reached its recipient.')) return; retry(d.id) }}>Retry {d.status} delivery</button>)}</article> })}</section>
 }
