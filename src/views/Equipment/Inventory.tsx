@@ -30,6 +30,14 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   const [error,setError]=useState('')
   const [query,setQuery]=useState('')
   const [category,setCategory]=useState('')
+  const [reported,setReported]=useState<Set<string>>(new Set())
+  useEffect(()=>{
+    let active=true
+    allPages(after=>api.reports(organizationId).list(after))
+      .then(rows=>{if(active)setReported(new Set(rows.filter(r=>r.status!=='resolved').map(r=>r.equipmentId)))})
+      .catch(()=>{/* The badge is a hint; the list still works without it. */})
+    return()=>{active=false}
+  },[api,organizationId])
   const load=useCallback(async()=>{
     const rows = await allPages(after=>api.inventory(organizationId,{limit:100,after}))
     setItems(rows)
@@ -55,7 +63,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   const refresh=async()=>{setError('');setRefreshing(true);try{await load()}catch(e){setError(equipmentError(e))}finally{setRefreshing(false)}}
   return <main className="administration workspace-surface inventory-workspace">
     <header>
-      <div><h1>Equipment</h1><p className="inventory-summary">{plural(items.length,'item')} · {organizationId==='preview'?'Preview-only data':'Private organization records'}</p></div>
+      <div><h1>Equipment</h1><p className="inventory-summary">{plural(items.length,'item')}{organizationId==='preview'?' · Preview-only data':''}</p></div>
       <div className="administration-actions">
         <button type="button" onClick={()=>void refresh()} disabled={refreshing} aria-busy={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button>
         <button type="button" onClick={()=>setScanning(true)}>Scan equipment</button>
@@ -78,7 +86,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
           <tbody className="ws-stagger">{filtered.map(i=>{const status=serviceStatus(i);return <tr key={i.id} className={i.id===selected?'is-selected':undefined} onClick={()=>inspect(i.id)}>
             <td><div className="inventory-item"><PhotoThumbnail api={api} organizationId={organizationId} item={i}/><div><button type="button" className="equipment-item-link" aria-current={i.id===selected?'true':undefined} onClick={e=>{e.stopPropagation();inspect(i.id)}}>{i.name}</button><small className="inventory-code">{i.equipmentCode}</small></div></div></td>
             <td>{i.category}{i.colorTag&&<small className="equipment-color-tag"><span className={`equipment-color equipment-color-${i.colorTag}`} aria-hidden="true"/>{i.colorTag}</small>}</td>
-            <td><span className={`inventory-condition inventory-condition-${i.condition}`}>{capitalize(i.condition)}</span></td>
+            <td><span className={`inventory-condition inventory-condition-${i.condition}`}>{capitalize(i.condition)}</span>{reported.has(i.id)&&<a className="inventory-open-report" href="/reports/" onClick={e=>e.stopPropagation()}>Open report</a>}</td>
             <td><StatusLabel tone={status.tone}>{status.label}</StatusLabel></td>
           </tr>})}</tbody>
         </table>:!error&&<div className="inventory-empty">
