@@ -198,3 +198,8 @@ describe('Optimistic people controls',()=>{
     expect(screen.getByText("5 people · 3 admins · You're an owner")).toBeInTheDocument()
   })
 })
+
+it.each([['admin','Sam Ellis'],['owner','Jamie Fox']])('keeps %s removal controls aligned with the saved role of %s',async(actor,name)=>{
+ m.settings.mockResolvedValue({...settings,role:actor});const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:`Manage ${name}`}));
+ expect(screen.queryByRole('button',{name:'Remove from organization'})).not.toBeInTheDocument();expect(screen.getByRole('button',{name:'Save role'})).toBeInTheDocument();
+})
