@@ -1,6 +1,7 @@
 'use client'
 import { TabPill } from '../../components/workspace/TabPill'
 import {Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import type {ClientAccount} from '../../types/production'
 import type {FormEvent,KeyboardEvent,ReactNode} from 'react'
@@ -53,7 +54,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const [loading,setLoading]=useState(!cached)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
-  const [notice,setNotice]=useState('')
+  const toast=useToast()
   const load=useCallback(async()=>{
     const [settingsRes, itemsRes, bookingsRes, clientsRes, accessRes, reportsRes] = await Promise.allSettled([
       api.accounts(organizationId).settings(),
@@ -86,20 +87,20 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     setCached(cacheKey, value)
   },[cacheKey])
   useEffect(()=>{let active=true;load().then(value=>{if(active){accept(value);const id=new URLSearchParams(window.location.search).get('reservation');if(id&&value.bookings.some(r=>r.id===id))setView({name:'detail',id})}}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
-  const open=(next:View)=>{setView(next);setNotice('');setFiltersOpen(false);if(typeof window!=='undefined')window.scrollTo?.(0,0)}
+  const open=(next:View)=>{setView(next);setFiltersOpen(false);if(typeof window!=='undefined')window.scrollTo?.(0,0)}
   const clientName=(id?:string|null)=>id?clients.find(c=>c.id===id)?.name??'Client account':'Internal use'
   const overdue=rows.filter(isOverdue),locked=!admin&&overdue.some(r=>!r.readOnly)
   const current=view.name==='detail'||view.name==='edit'?rows.find(r=>r.id===view.id):undefined
   async function refresh(){setError('');setLoading(true);try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
   function equipmentAdded(item:EquipmentRecord){setInventory(list=>[...list.filter(i=>i.id!==item.id),item]);for(const key of ['inventory','reservations','dashboard','reports','fulfillment','calendar'])invalidateCache(`${key}:${organizationId}`)}
   function clientAdded(client:ClientAccount){setClients(list=>[...list.filter(c=>c.id!==client.id),client]);invalidateCache(`reservations:${organizationId}`);invalidateCache(`production:${organizationId}`)}
-  async function saved(row:EquipmentReservation,message='Reservation saved.'){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);setView({name:'detail',id:row.id});setNotice(message);invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
+  async function saved(row:EquipmentReservation,message='Reservation saved.'){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);setView({name:'detail',id:row.id});toast.success(message,{id:'reservation'});invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
   // Optimistic: the booking reads as cancelled at once; the previous booking returns if the server rejects the cancellation.
-  async function cancel(){if(!current||busy)return;const previous=current;setBusy(true);setError('');setNotice('');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');setRows(list=>list.map(r=>r.id===previous.id?{...r,status:'cancelled'}:r))
-    let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));setError(equipmentError(e));setBusy(false);return}
+  async function cancel(){if(!current||busy)return;const previous=current;setBusy(true);setError('');toast.dismiss('reservation');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');setRows(list=>list.map(r=>r.id===previous.id?{...r,status:'cancelled'}:r))
+    let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));toast.error(`The reservation was not cancelled. ${equipmentError(e)}`,{id:'reservation'});setBusy(false);return}
     try{await saved(row,'Reservation cancelled.')}finally{setBusy(false)}}
 
-  const messages=<>{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}{notice&&<p className="rsv-message" role="status">{notice}</p>}</>
+  const messages=<>{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}</>
   if(view.name==='new'&&(!locked||loading)||view.name==='edit'&&current){
     const reservation=view.name==='edit'?current:undefined
     return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} canAddEquipment={admin} reported={reported} onClientAdded={clientAdded} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
@@ -213,8 +214,8 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
 const NEW_CLIENT='__new_client__'
 /** Creates a client account without leaving the booking, then selects it. Not a nested <form>, so Enter is handled here. */
 function NewClientAccount({api,organizationId,onAdded,onCancel}:{api:DatabaseApi;organizationId:string;onAdded:(client:ClientAccount)=>void;onCancel:()=>void}){
-  const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
-  async function add(){if(busy)return;const value=name.trim().replace(/\s+/g,' ');if(!value){setError('Enter a name for the client account.');return}setBusy(true);setError('');try{onAdded(await api.production(organizationId).createClient(value))}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
+  const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
+  async function add(){if(busy)return;const value=name.trim().replace(/\s+/g,' ');if(!value){setError('Enter a name for the client account.');return}setBusy(true);setError('');try{const client=await api.production(organizationId).createClient(value);onAdded(client);toast.success(`${client.name} added and selected.`,{id:'reservation-client'})}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
   return <div className="rsv-add rsv-add-client" role="group" aria-label="Add a client account"><label className="rsv-field">New client account<input className="rsv-input" value={name} maxLength={160} disabled={busy} placeholder="e.g. Southside Coffee Co." autoFocus onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void add()}}}/></label>
     <p className="rsv-hint">It’s added for your whole organization and selected for this booking.</p>
     {error&&<p className="rsv-inline-error" role="alert">{error}</p>}

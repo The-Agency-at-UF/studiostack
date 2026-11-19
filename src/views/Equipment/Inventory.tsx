@@ -1,6 +1,7 @@
 'use client'
 import { TabPill } from '../../components/workspace/TabPill'
 import {DetailPanel,Select,Skeleton,StatusLabel} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 import {HiMagnifyingGlass,HiXMark,HiOutlinePlus} from 'react-icons/hi2'
 import type {EquipmentRecord} from '../../types/equipment'
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react'
@@ -18,6 +19,7 @@ import '../Accounts/Administration.css'
 import './Equipment.css'
 export default function LiveInventory(){const context=useLiveOrganization();return context?<InventoryWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id} admin={context.admin}/>:<main className="administration"><h1>Equipment</h1><p>Select an active organization in your account to view equipment.</p></main>}
 function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organizationId:string;admin:boolean}) {
+  const toast=useToast()
   const cacheKey = `inventory:${organizationId}`
   const cached = useMemo(() => getCached<EquipmentRecord[]>(cacheKey), [cacheKey])
   const [items,setItems]=useState<EquipmentRecord[]>(cached ?? [])
@@ -103,7 +105,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
         {current?.photoId&&<PrivatePhoto key={`${current.id}:${current.photoId}`} api={api} organizationId={organizationId} item={current}/>}
         {current&&added===current.id&&<p role="status" className="inventory-added">{current.name} added. Download its QR label and attach it so it can be scanned at pickup and return.</p>}
         {current&&<details className="inventory-label" open={added===current.id}><summary>Equipment QR label</summary><QRCodeGenerator equipmentID={current.equipmentCode}/></details>}
-        {admin&&<>{current&&<h3 className="inventory-editor-heading">Edit details</h3>}<ItemEditor key={current?.id??'new:'+addCode} api={api} organizationId={organizationId} item={current} initialCode={addCode} onSaved={async item=>{if(!current)setAdded(item.id);setAdding(false);setSelected(item.id);invalidateCache(`photo:${organizationId}:${item.id}`);invalidateCache(`inventory:${organizationId}`);invalidateCache('dashboard:');await load()}}/></>}
+        {admin&&<>{current&&<h3 className="inventory-editor-heading">Edit details</h3>}<ItemEditor key={current?.id??'new:'+addCode} api={api} organizationId={organizationId} item={current} initialCode={addCode} onSaved={async item=>{if(!current)setAdded(item.id);setAdding(false);setSelected(item.id);invalidateCache(`photo:${organizationId}:${item.id}`);invalidateCache(`inventory:${organizationId}`);invalidateCache('dashboard:');if(current)toast.success(`${item.name} saved.`,{id:'equipment'});try{await load()}catch{toast.error('Equipment saved, but the list could not reload. Refresh to see the latest.',{id:'equipment-reload'})}}}/></>}
       </DetailPanel>}
     </div>
   </main>
