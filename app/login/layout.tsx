@@ -5,7 +5,7 @@ const title = 'Sign in to StudioStack'
 const description = 'Production, equipment, and your team.'
 
 export const metadata: Metadata = {
-  title,
+  title: { absolute: title },
   description,
   openGraph: { title, description, url: '/login/', siteName: 'StudioStack', type: 'website' },
   twitter: { card: 'summary_large_image', title, description },

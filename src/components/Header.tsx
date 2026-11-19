@@ -92,7 +92,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
             {accountOpen && <div ref={accountPanel} id="account-panel" className="account-panel">
               <div className="account-identity"><strong>Your account</strong></div>
               <Link href="/account" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account & workspaces</Link>
-              <Link href="/reservations" onClick={closeMenus}><HiOutlineCalendarDays aria-hidden="true" />My reservations</Link>
+              <Link href="/reservations" onClick={closeMenus}><HiOutlineCalendarDays aria-hidden="true" />{isAdmin ? 'All reservations' : 'My reservations'}</Link>
               {isAdmin && <><Link href="/organization" onClick={closeMenus}><HiOutlineUsers aria-hidden="true" />Manage members</Link><Link href="/organization/settings" onClick={closeMenus}><HiOutlineCog6Tooth aria-hidden="true" />Organization settings</Link></>}
               {onReportBug && <button className="account-report-bug" onClick={() => { closeMenus(); onReportBug() }}><HiOutlineBugAnt aria-hidden="true" />Report a bug</button>}
               {onRequestFeature && <button className="account-request-feature" onClick={() => { closeMenus(); onRequestFeature() }}><HiOutlineLightBulb aria-hidden="true" />Request a feature</button>}
