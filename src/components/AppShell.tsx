@@ -6,6 +6,11 @@ import dynamic from 'next/dynamic'
 import { useOverdueReservations } from '../views/Equipment/useOverdueReservations'
 import { usePathname, useRouter } from 'next/navigation'
 import Header from './Header'
+import PreviewControls from './PreviewControls'
+import {defaultPreviewPerson} from '../preview/people'
+import {readPreview,writePreview} from '../preview/storage'
+import {readWorkspace,previewIdentity,availablePreviewPerson} from '../preview/workspace'
+import {previewFileUrl,previewPhotoKey} from '../preview/media'
 import { AppSessionProvider } from '../context/AppSessionContext'
 import { TourProvider } from './tour/TourContext'
 import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
@@ -42,6 +47,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const loginPageRef = useRef(loginPage)
   loginPageRef.current = loginPage
   const [mode, setMode] = useState<Mode>('signed-out')
+  const [previewPersonId,setPreviewPerson]=useState(()=>availablePreviewPerson(readPreview('studiostack.preview.person',()=>defaultPreviewPerson))),[previewRevision,setPreviewRevision]=useState(0)
+  const choosePreviewPerson=useCallback((id:string)=>{const identity=previewIdentity(id);writePreview('studiostack.preview.person',id);invalidateCache();setPreviewPerson(id);if(identity.status!=='active')router.push('/welcome/');else if(pathname==='/welcome'||pathname==='/welcome/')router.push('/')},[router,pathname])
+  const [previewLogoUrl,setPreviewLogoUrl]=useState<string>()
+  useEffect(()=>{let active=true;if(mode==='preview'){const id=readWorkspace().settings.logoPhotoId;if(id)void previewFileUrl(previewPhotoKey(id)).then(file=>{if(active)setPreviewLogoUrl(file.url)}).catch(()=>{if(active)setPreviewLogoUrl(undefined)});else setPreviewLogoUrl(undefined)}return()=>{active=false}},[mode,previewRevision])
   const [email, setEmail] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [bugReportOpen, setBugReportOpen] = useState(false), [featureRequestOpen, setFeatureRequestOpen] = useState(false)
@@ -112,7 +121,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }
   }, [ready, mode, loginPage, router, pathname])
   // New accounts, and accounts left without any organization, finish onboarding before the workspace.
-  const needsWelcome = mode === 'authenticated' && (!onboarded || organizations.length === 0)
+  const needsWelcome = mode === 'authenticated' && (!onboarded || organizations.length === 0)||mode==='preview'&&previewIdentity(previewPersonId).status!=='active'
   useEffect(() => { if (ready && needsWelcome && !welcomePage) router.replace('/welcome/') }, [ready, needsWelcome, welcomePage, router])
 
   const logOut = useCallback(async () => {
@@ -152,6 +161,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     bootedByUser.current = true
     const real = mode === 'authenticated'
     if(real)try{await signOutPasswordSession()}catch{/* Clear local session even if revocation fails. */}
+    const restored=availablePreviewPerson(previewPersonId);setPreviewPerson(restored);writePreview('studiostack.preview.person',restored)
     enterPreview(); setMode('preview'); setEmail('demo@studiostack.com'); setIsAdmin(true); setOrganizations([]); setExpiresAt(undefined);setSubject('');setSelectedOrganizationId(''); setAuthError(''); setReady(true)
     try {
       localStorage.setItem('email', 'demo@studiostack.com')
@@ -159,7 +169,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     } catch { /* storage access error */ }
     if (real) { try { window.location.assign(logoutUrl()); return } catch { /* Preview never receives credentials. */ } }
     router.push('/')
-  }, [mode, router])
+  }, [mode, router,previewPersonId])
   const completeSignIn=useCallback(async(user:SignedInUser)=>{
     invalidateCache()
     bootedByUser.current = true
@@ -172,12 +182,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
       const destination=sessionStorage.getItem('studiostack-production-return');sessionStorage.removeItem('studiostack-production-return');const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();router.replace(result.onboarded===false||!result.organizations.length?'/welcome/':target || '/')
     }catch{bootedByUser.current=false;clearSignIn();setMode('signed-out');setAuthError('Your account could not be loaded. Try signing in again.');throw new Error('Account unavailable')}finally{setBusy(false)}
   },[router])
-  const refreshOrganizations=useCallback(async()=>{const result=await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken}).organizations({limit:100});setOrganizations(result.items)},[])
-  const selectedOrganization=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0]
-  const currentAdmin=mode==='authenticated'?['owner','admin'].includes(selectedOrganization?.role):isAdmin
+  const refreshOrganizations=useCallback(async()=>{if(mode==='preview'){invalidateCache();setPreviewRevision(v=>v+1);return}const result=await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken}).organizations({limit:100});setOrganizations(result.items)},[mode])
+  const displayedOrganizations=useMemo<ApiOrganization[]>(()=>{void previewRevision;if(mode!=='preview')return organizations;const workspace=readWorkspace(),member=previewIdentity(previewPersonId,workspace);return member.status==='active'?[{id:'preview',name:workspace.settings.name,slug:'preview',role:member.role,logoUrl:previewLogoUrl}]:[]},[mode,organizations,previewPersonId,previewRevision,previewLogoUrl])
+  const selectedOrganization=displayedOrganizations.find(org=>org.id===selectedOrganizationId)??displayedOrganizations[0]
+  const currentAdmin=mode==='authenticated'||mode==='preview'?['owner','admin'].includes(selectedOrganization?.role):isAdmin
+
   const markOnboarded=useCallback(()=>setOnboarded(true),[])
-  const session = useMemo(() => ({ email, isAdmin:currentAdmin,needsWelcome,markOnboarded, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations,completeSignIn,setAuthenticating:setBusy,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId:chooseOrganization,refreshOrganizations,
-    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [email, mode, signIn, openPreview, logOut, busy, authError, configured, organizations,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization,needsWelcome,markOnboarded])
+  const previewEmail=mode==='preview'?previewIdentity(previewPersonId).email??'':email
+  const session = useMemo(() => ({ email:previewEmail, isAdmin:currentAdmin,needsWelcome,markOnboarded, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations:displayedOrganizations,previewPersonId,setPreviewPersonId:choosePreviewPerson,completeSignIn,setAuthenticating:setBusy,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId:chooseOrganization,refreshOrganizations,
+    ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [previewEmail, mode, signIn, openPreview, logOut, busy, authError, configured, displayedOrganizations,previewPersonId,choosePreviewPerson,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization,needsWelcome,markOnboarded])
 
   return <AppSessionProvider value={session}>
     {/* Keep the password form mounted while it owns a pending sign-in or challenge. */}
@@ -187,8 +200,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
       : welcomePage ? children
       : needsWelcome ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Opening StudioStack…</main>
       : <TourProvider owner={mode === 'preview' ? 'preview' : subject} isAdmin={currentAdmin} autoStart={mode === 'preview' || (onboarded && organizations.length > 0)}>
-        <WorkspaceHeader isAdmin={currentAdmin} logOut={logOut} email={email} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} organizationName={mode === 'authenticated' ? selectedOrganization?.name : undefined} organizationLogoUrl={mode === 'authenticated' ? selectedOrganization?.logoUrl : undefined} />
-        <div className="app-content" id="workspace-content" tabIndex={-1}>{children}</div>
+        <WorkspaceHeader isAdmin={currentAdmin} logOut={logOut} email={previewEmail} onReportBug={() => setBugReportOpen(true)} onRequestFeature={() => setFeatureRequestOpen(true)} organizationName={selectedOrganization?.name} organizationLogoUrl={selectedOrganization?.logoUrl} />
+        <div key={mode==='preview'?previewPersonId:'live'} className="app-content" id="workspace-content" tabIndex={-1}>{mode==='preview'&&<PreviewControls/>}{children}</div>
         <BugReportPopup showTrigger={false} userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} />
         <BugReportPopup showTrigger={false} kind="feature" userEmail={email} open={featureRequestOpen} onOpenChange={setFeatureRequestOpen} />
       </TourProvider>}

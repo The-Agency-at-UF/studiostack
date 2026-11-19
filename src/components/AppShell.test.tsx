@@ -1,3 +1,5 @@
+import {createPreviewDatabaseApi} from '../preview/database'
+import {writePreview} from '../preview/storage'
 import { StrictMode } from 'react'
 import {renderToString} from 'react-dom/server'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -68,7 +70,7 @@ describe('Session boundary', () => {
   it('preview is explicit, has no real token and can sign out', async () => {
     render(<AppShell><Controls /></AppShell>)
     fireEvent.click(await screen.findByRole('button', { name: 'Preview' }))
-    expect(await screen.findByText('preview/demo@studiostack.com/true/no-token')).toBeInTheDocument()
+    expect(await screen.findByText('preview/admin@preview.example/true/no-token')).toBeInTheDocument()
     expect(mocks.push).toHaveBeenCalledWith('/')
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(await screen.findByText('signed-out//false/no-token')).toBeInTheDocument()
@@ -188,7 +190,7 @@ describe('Preview document hydration',()=>{
   it('restores preview after mounting without bootstrapping a real account',async()=>{
     mocks.pathname='/';mocks.preview=true;
     render(<AppShell><Controls/></AppShell>);
-    expect(await screen.findByText('preview/demo@studiostack.com/true/no-token')).toBeInTheDocument();
+    expect(await screen.findByText('preview/admin@preview.example/true/no-token')).toBeInTheDocument();
     expect(mocks.me).not.toHaveBeenCalled();expect(mocks.replace).not.toHaveBeenCalledWith('/login/');
   });
 });
@@ -282,4 +284,9 @@ describe('Password form inside the session shell',()=>{
     await screen.findByText('authenticated/member@example.test/false/token')
     expect(mocks.replace).toHaveBeenCalledWith('/')
   })
+})
+
+it('recovers a removed saved preview identity before rendering the preview shell',async()=>{
+ const api=createPreviewDatabaseApi('preview-author');writePreview('studiostack.preview.person','preview-author');await api.deleteAccount();mocks.preview=true;mocks.pathname='/';
+ render(<AppShell><Controls/></AppShell>);expect(await screen.findByText('preview/admin@preview.example/true/no-token')).toBeInTheDocument();
 })

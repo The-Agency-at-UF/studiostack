@@ -1,5 +1,6 @@
 'use client'
 import {useCallback,useEffect,useMemo,useState} from 'react'
+import type {PreviewDatabase} from '../../preview/database'
 import {createDatabaseApiClient} from '../../api/database'
 import {authConfiguration} from '../../auth/cognito'
 import {emailStatus} from '../../auth/emailVerification'
@@ -11,15 +12,15 @@ type Step='name'|'verify'|'organization'
 const titles:Record<Step,string>={name:'Welcome to StudioStack.',verify:'Check your email.',organization:'Find your organization.'}
 const descriptions:Record<Step,string>={name:'Confirm the name your team sees on reservations, shoots and reports.',verify:'',organization:'Search for your studio, club or agency.'}
 /** First run for a new account: confirm the name, verify the sign-in email, then join an organization. */
-export default function Welcome({getAccessToken,onFinished,onSignOut}:{getAccessToken:()=>Promise<string>;onFinished:(organizationId:string)=>Promise<void>;onSignOut:()=>void}) {
-  const api=useMemo(()=>createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken}),[getAccessToken])
+export default function Welcome({getAccessToken,onFinished,onSignOut,previewClient}:{getAccessToken?:()=>Promise<string>;previewClient?:PreviewDatabase;onFinished:(organizationId:string)=>Promise<void>;onSignOut:()=>void}) {
+  const api=useMemo(()=>previewClient??createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:getAccessToken!}),[getAccessToken,previewClient])
   const [account,setAccount]=useState<{name:string;email:string;verified:boolean;skipVerify:boolean}|null>(null),[step,setStep]=useState<Step>('name'),[title,setTitle]=useState(titles.name),[error,setError]=useState('')
   useEffect(()=>{let active=true
-    Promise.all([api.me(),emailStatus(getAccessToken)]).then(([user,status])=>{if(!active)return
+    Promise.all([api.me(),previewClient?api.me().then(u=>({email:u.email??'',verified:true})):emailStatus(getAccessToken!)]).then(([user,status])=>{if(!active)return
       // Registration stores the sign-in label, which is often the email; ask for a real name instead.
       const name=user.displayName&&user.displayName!==status.email?user.displayName:''
       setAccount({name,email:status.email,verified:status.verified,skipVerify:status.verified})}).catch(()=>{if(active)setError('Your account could not be loaded. Refresh to try again.')})
-    return()=>{active=false}},[api,getAccessToken])
+    return()=>{active=false}},[api,getAccessToken,previewClient])
   // The step count is fixed at arrival so verifying mid-flow doesn't renumber the steps.
   const steps:Step[]=account?.skipVerify?['name','organization']:['name','verify','organization']
   const go=(next:Step)=>{setStep(next);setTitle(titles[next])}
@@ -34,7 +35,7 @@ export default function Welcome({getAccessToken,onFinished,onSignOut}:{getAccess
     {error&&<p className="login-error" role="alert">{error}</p>}
     {!account?!error&&<p className="login-security-note" role="status">Loading your account…</p>
       :step==='name'?<NameStep initialName={account.name} email={account.email} onSignOut={onSignOut} onSave={async name=>{await api.register(name);setAccount({...account,name});go(account.verified?'organization':'verify')}}/>
-      :step==='verify'?<VerifyEmailStep email={account.email} getAccessToken={getAccessToken} onBack={()=>go('name')} onVerified={()=>{setAccount({...account,verified:true});go('organization')}}/>
+      :step==='verify'?<VerifyEmailStep email={account.email} getAccessToken={getAccessToken!} onBack={()=>go('name')} onVerified={()=>{setAccount({...account,verified:true});go('organization')}}/>
       :<OrganizationStep api={api} onJoined={finish} onTitle={onTitle} onBack={()=>go('name')}/>}
   </AuthLayout>
 }

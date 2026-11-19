@@ -11,7 +11,7 @@ type ScannedHandoff={kind:'checkout'|'return';reservation:EquipmentReservation}|
 export function handoffFor(item:EquipmentRecord,reservations:EquipmentReservation[],now:number):ScannedHandoff{
   const mine=reservations.filter(r=>r.status==='confirmed'&&r.equipmentIds.includes(item.id))
   if(item.checkedOut){const reservation=mine.find(r=>r.fulfillmentStatus==='checked_out');return reservation?{kind:'return',reservation}:{kind:'none',reason:`${item.name} is checked out on a reservation you cannot return. Ask a production administrator to return it.`}}
-  if(item.status!=='available')return {kind:'none',reason:`${item.name} is ${item.status==='maintenance'?'in maintenance':'retired'} and cannot be checked out.`}
+  if(item.status!=='available')return {kind:'none',reason:`${item.name} is ${item.status==='maintenance'?'in maintenance':'archived'} and cannot be checked out.`}
   const upcoming=mine.filter(r=>r.fulfillmentStatus==='reserved'&&Date.parse(r.endsAt)>now).sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt)),ready=upcoming.find(r=>Date.parse(r.startsAt)<=now+15*60000)
   if(ready)return {kind:'checkout',reservation:ready}
   return {kind:'none',reason:upcoming[0]?`Pickup for ${upcoming[0].name} opens 15 minutes before ${new Date(upcoming[0].startsAt).toLocaleString()}.`:`No reservation includes ${item.name}. Book it before checking it out.`}

@@ -69,9 +69,9 @@ describe('Account page',()=>{
     fireEvent.click(within(sections).getByRole('button',{name:'Sign out'}))
     expect(session.signOut).toHaveBeenCalledOnce()
   })
-  it('does not load invitations in preview',()=>{
+  it('loads local invitations without calling the hosted API in preview',async()=>{
     renderAccount({mode:'preview',getAccessToken:undefined})
-    expect(screen.getByText('Sign in to see invitations for your email.')).toBeInTheDocument()
+    expect(await screen.findByText(/No pending invitations/)).toBeInTheDocument()
     expect(mocks.list).not.toHaveBeenCalled()
   })
   it('deletes the account only after the email is retyped, then signs out',async()=>{
@@ -98,9 +98,9 @@ describe('Account page',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
     expect(screen.queryByRole('button',{name:'Delete account permanently'})).not.toBeInTheDocument()
   })
-  it('hides account deletion outside a real signed-in session',()=>{
+  it('makes local account deletion available in preview',()=>{
     renderAccount({mode:'preview' as AppSession['mode'],getAccessToken:undefined},'security')
-    expect(screen.queryByRole('button',{name:'Delete account'})).not.toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Delete account'})).toBeInTheDocument()
   })
   it('shows why the server refused to delete the account',async()=>{
     const {DatabaseApiClientError}=await import('../../api/database')
@@ -139,9 +139,8 @@ describe('Account notifications',()=>{
     expect(check).not.toBeChecked()
     expect(check).toBeEnabled()
   })
-  it('asks preview visitors to sign in instead of showing the toggle',()=>{
+  it('uses a local notification preference in preview',async()=>{
     renderAccount({mode:'preview' as AppSession['mode'],getAccessToken:undefined},'notifications')
-    expect(screen.getByText(/Sign in and choose a workspace/)).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    const check=await screen.findByRole('checkbox',{name:'Email me about equipment alerts'});await waitFor(()=>expect(check).toBeEnabled());expect(mocks.preferences).not.toHaveBeenCalled()
   })
 })

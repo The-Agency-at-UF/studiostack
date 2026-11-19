@@ -6,6 +6,7 @@ import {createDatabaseApiClient} from '../api/database';
 import {authConfiguration} from '../auth/cognito';
 import type {ApiBugReport,FeedbackKind} from '../types/database-api';
 import { IoIosCloseCircle, IoIosBug, IoIosBulb } from "react-icons/io";
+import {createPreviewDatabaseApi} from '../preview/database';
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 
 const copy = {
@@ -48,12 +49,12 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
         status: "Open",
       };
 
-      if(session.mode==='authenticated'){
+      if(session.mode==='authenticated'||session.mode==='preview'){
         const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
-        if(!organizationId||!session.getAccessToken)throw new Error('Organization unavailable')
+        if(!organizationId||session.mode!=='preview'&&!session.getAccessToken)throw new Error('Organization unavailable')
         const payload={kind,title:title.trim(),description:description.trim(),pagePath:pathname||'/'},key=JSON.stringify(payload)
         if(request.current?.key!==key)request.current={key,id:crypto.randomUUID()}
-        await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}).submitBugReport(organizationId,{...payload,requestId:request.current.id})
+        await (session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken!})).submitBugReport(organizationId,{...payload,requestId:request.current.id})
         request.current=null
       }else await addDoc(collection(db, text.collection), reportData);
       setSubmitted(true);
@@ -71,9 +72,9 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
 
   async function loadHistory(){
     const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
-    if(!organizationId||!session.getAccessToken)return
+    if(!organizationId||session.mode!=='preview'&&!session.getAccessToken)return
     const generation=historyGeneration.current;setHistoryLoading(true);setHistoryError('')
-    try{const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after},kind);items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
+    try{const api=session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken!}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after},kind);items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
   }
 
   const handleClose = (close: () => void) => {
@@ -126,7 +127,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                   {text.heading}
                 </h1>
 
-                {session.mode==='authenticated'&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
+                {(session.mode==='authenticated'||session.mode==='preview')&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
                 <div className="space-y-4">
                   <div>
                     <label className="block font-semibold mb-1">Title</label>
@@ -180,7 +181,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                     </div>
                     <h2 className="text-2xl font-bold">{text.success}</h2>
                     <p className="text-gray-700">
-                      {text.thanks}
+                      {session.mode==='preview'?'Saved to this browser’s preview. No notification was sent.':text.thanks}
                     </p>
                   </>
                 ) : (
