@@ -30,10 +30,16 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
   const session=useAppSession(),[tab,setTab]=useState<AccountTab>(initialTab)
   const organizations=session.organizations??[]
   const current=organizations.find(o=>o.id===session.selectedOrganizationId)??organizations[0]
+  const api=useMemo(()=>session.getAccessToken?createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}):null,[session.getAccessToken])
+  const [name,setName]=useState<string|null>(null)
+  useEffect(()=>{if(!api)return;let active=true
+    // Registration stores the sign-in label, which is often the email; treat that as no name yet.
+    api.me().then(user=>{if(active)setName(user.displayName&&user.displayName!==user.email?user.displayName:'')}).catch(()=>{if(active)setName('')})
+    return()=>{active=false}},[api])
   return <div className="account-page">
     <header className="account-header">
       <span className="account-avatar" aria-hidden="true">{initials(session.email||'?')}</span>
-      <div><h1>{session.email||'Your account'}</h1>
+      <div><h1>{name||session.email||'Your account'}</h1>
         {current&&<p className="account-subtitle">{roleLabel(current.role)} of {current.name}</p>}</div>
     </header>
     <div className="account-layout">
@@ -43,7 +49,7 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
         <button type="button" className="account-signout-link" onClick={()=>void session.signOut?.()}>Sign out</button>
       </nav>
       <div className="account-content">
-        {tab==='profile'&&<ProfileTab/>}
+        {tab==='profile'&&<ProfileTab name={name} onSave={api?async value=>{const user=await api.register(value);setName(user.displayName??value)}:undefined}/>}
         {tab==='workspaces'&&<WorkspacesTab/>}
         {tab==='notifications'&&<NotificationsTab/>}
         {tab==='security'&&<SecurityTab/>}
@@ -52,15 +58,34 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
   </div>
 }
 
-function ProfileTab() {
+function ProfileTab({name,onSave}:{name:string|null;onSave?:(name:string)=>Promise<void>}) {
   const session=useAppSession()
   return <section className="account-card" aria-labelledby="account-profile-title">
-    <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2><p>The email you sign in with. Workspace invitations are sent here.</p></div>
+    <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2><p>Your name and the email you sign in with. Workspace invitations are sent to this email.</p></div>
     <div className="account-card-body">
+      {onSave&&name!==null&&<NameField initialName={name} onSave={onSave}/>}
       <label className="ws-field">Email<input type="email" value={session.email} readOnly/></label>
       {session.getAccessToken&&<EmailVerification getAccessToken={session.getAccessToken}/>}
     </div>
   </section>
+}
+
+/** The name teammates see on reservations, shoots and reports. */
+function NameField({initialName,onSave}:{initialName:string;onSave:(name:string)=>Promise<void>}) {
+  const [value,setValue]=useState(initialName),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(false)
+  const changed=value.trim()!==initialName
+  async function save(){
+    const trimmed=value.trim()
+    if(!trimmed){setError('Enter the name your team knows you by.');return}
+    setBusy(true);setError('');setSaved(false)
+    try{await onSave(trimmed);setSaved(true)}catch{setError('Your name could not be saved. Try again.')}finally{setBusy(false)}
+  }
+  return <form className="account-code" noValidate onSubmit={e=>{e.preventDefault();void save()}}>
+    <label className="ws-field">Name<input value={value} onChange={e=>{setValue(e.target.value);setError('');setSaved(false)}} maxLength={120} autoComplete="name" disabled={busy} aria-invalid={error?true:undefined} aria-describedby={error?'account-name-error':undefined}/></label>
+    <button type="submit" className="ws-button ws-button-primary" disabled={busy||!changed}>{busy?'Saving…':'Save name'}</button>
+    {error&&<p id="account-name-error" className="account-field-error" role="alert">{error}</p>}
+    {saved&&!changed&&<p className="account-field-note" role="status">Name saved.</p>}
+  </form>
 }
 
 function SecurityTab() {

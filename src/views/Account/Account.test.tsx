@@ -2,19 +2,47 @@ import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/r
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import Account from './Account'
 import {AppSessionProvider,type AppSession} from '../../context/AppSessionContext'
-const mocks=vi.hoisted(()=>({list:vi.fn(),accept:vi.fn(),code:vi.fn(),remove:vi.fn(),preferences:vi.fn(),update:vi.fn()}))
-vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({pendingInvitations:mocks.list,acceptInvitation:mocks.accept,joinByCode:mocks.code,deleteAccount:mocks.remove,alerts:()=>({preferences:mocks.preferences,updatePreferences:mocks.update})}),DatabaseApiClientError:class extends Error{constructor(public status:number,public statusText?:string,public payload?:unknown){super()}}}))
+const mocks=vi.hoisted(()=>({list:vi.fn(),accept:vi.fn(),code:vi.fn(),remove:vi.fn(),preferences:vi.fn(),update:vi.fn(),me:vi.fn(),register:vi.fn()}))
+vi.mock('../../api/database',()=>({createDatabaseApiClient:()=>({me:mocks.me,register:mocks.register,pendingInvitations:mocks.list,acceptInvitation:mocks.accept,joinByCode:mocks.code,deleteAccount:mocks.remove,alerts:()=>({preferences:mocks.preferences,updatePreferences:mocks.update})}),DatabaseApiClientError:class extends Error{constructor(public status:number,public statusText?:string,public payload?:unknown){super()}}}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.test'})}))
 vi.mock('../Production/EmailVerification',()=>({default:()=><p>Email verification</p>}))
 const organizations=[{id:'agency',slug:'agency',name:'The Agency at UF',role:'member' as const},{id:'lab',slug:'lab',name:'Media Lab',role:'admin' as const,logoUrl:'https://cdn.example.test/lab.png'}]
-function renderAccount(overrides:Partial<AppSession>={},initialTab?:'security'|'notifications') {
+function renderAccount(overrides:Partial<AppSession>={},initialTab?:'security'|'notifications'|'profile') {
   const session:AppSession={email:'roger@example.test',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=>'token',organizations,selectedOrganizationId:'agency',setSelectedOrganizationId:vi.fn(),refreshOrganizations:vi.fn().mockResolvedValue(undefined),signOut:vi.fn(),...overrides}
   render(<AppSessionProvider value={session}><Account initialTab={initialTab}/></AppSessionProvider>)
   return session
 }
-beforeEach(()=>{vi.clearAllMocks();mocks.list.mockResolvedValue({items:[]});mocks.accept.mockResolvedValue({organizationId:'studio'});mocks.code.mockResolvedValue({organizationId:'studio'});mocks.preferences.mockResolvedValue({equipmentEmail:false,version:0});mocks.update.mockResolvedValue({equipmentEmail:true,version:1})})
+beforeEach(()=>{vi.clearAllMocks();mocks.list.mockResolvedValue({items:[]});mocks.accept.mockResolvedValue({organizationId:'studio'});mocks.code.mockResolvedValue({organizationId:'studio'});mocks.preferences.mockResolvedValue({equipmentEmail:false,version:0});mocks.update.mockResolvedValue({equipmentEmail:true,version:1});mocks.me.mockResolvedValue({id:'me',email:'roger@example.test',displayName:'roger@example.test',onboardedAt:null});mocks.register.mockImplementation(async(displayName:string)=>({id:'me',email:'roger@example.test',displayName,onboardedAt:null}))})
 afterEach(cleanup)
 describe('Account page',()=>{
+  it('changes the name shown to teammates from the Profile tab',async()=>{
+    renderAccount({},'profile')
+    const input=await screen.findByRole('textbox',{name:'Name'})
+    expect(input).toHaveValue('')
+    const save=screen.getByRole('button',{name:'Save name'})
+    expect(save).toBeDisabled()
+    fireEvent.change(input,{target:{value:'  Roger McKenzie '}})
+    fireEvent.click(save)
+    expect(await screen.findByText('Name saved.')).toBeInTheDocument()
+    expect(mocks.register).toHaveBeenCalledWith('Roger McKenzie')
+    expect(screen.getByRole('heading',{level:1,name:'Roger McKenzie'})).toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Save name'})).toBeDisabled()
+  })
+  it('keeps the typed name when saving fails',async()=>{
+    mocks.me.mockResolvedValue({id:'me',email:'roger@example.test',displayName:'Roger',onboardedAt:null})
+    mocks.register.mockRejectedValue(new Error('offline'))
+    renderAccount({},'profile')
+    expect(await screen.findByRole('heading',{level:1,name:'Roger'})).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox',{name:'Name'}),{target:{value:'  '}})
+    fireEvent.click(screen.getByRole('button',{name:'Save name'}))
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter the name your team knows you by.')
+    expect(mocks.register).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox',{name:'Name'}),{target:{value:'Roger M'}})
+    fireEvent.click(screen.getByRole('button',{name:'Save name'}))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your name could not be saved. Try again.')
+    expect(screen.getByRole('textbox',{name:'Name'})).toHaveValue('Roger M')
+    expect(screen.getByRole('heading',{level:1,name:'Roger'})).toBeInTheDocument()
+  })
   it('lists workspaces with logos or monograms and switches the current one',async()=>{
     const session=renderAccount()
     expect(screen.getByRole('heading',{level:1,name:'roger@example.test'})).toBeInTheDocument()
