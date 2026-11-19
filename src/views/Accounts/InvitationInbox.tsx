@@ -5,15 +5,16 @@ import {authConfiguration} from '../../auth/cognito'
 import type {PendingInvitation} from '../../types/accounts'
 import EmailVerification from '../Production/EmailVerification'
 import {Select} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 export default function InvitationInbox({getAccessToken,onAccepted}:{getAccessToken:()=>Promise<string>;onAccepted?:()=>Promise<void>}) {
   const api=useMemo(()=>createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken}),[getAccessToken])
   const [selectedId,setSelectedId]=useState('')
-  const [items,setItems]=useState<PendingInvitation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[status,setStatus]=useState('')
+  const [items,setItems]=useState<PendingInvitation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
   const load=useCallback(async()=>{setBusy(true);setError('');try{setItems((await api.pendingInvitations()).items)}catch(error){setError(error instanceof DatabaseApiClientError&&error.status===403?'Verify your sign-in email, then refresh invitations.':'Invitations could not be loaded. Refresh to try again.')}finally{setBusy(false)}},[api])
   useEffect(()=>{void load()},[load])
-  async function accept(invitation:PendingInvitation){setBusy(true);setError('');try{await api.acceptInvitation(invitation.id,invitation.organizationId);setItems(current=>current.filter(i=>i.id!==invitation.id));setStatus(`Joined ${invitation.organizationName}.`);await onAccepted?.()}catch{setError('The invitation could not be accepted. Refresh your organizations and invitations before trying again.')}finally{setBusy(false)}}
+  async function accept(invitation:PendingInvitation){setBusy(true);setError('');try{try{await api.acceptInvitation(invitation.id,invitation.organizationId)}catch{setError('The invitation could not be accepted. Refresh your organizations and invitations before trying again.');return}setItems(current=>current.filter(i=>i.id!==invitation.id));toast.success(`Joined ${invitation.organizationName}.`,{id:'invitation-inbox'});await onAccepted?.()}catch{toast.error(`You joined ${invitation.organizationName}, but your workspaces could not reload. Refresh the page to open it.`,{id:'invitation-inbox'})}finally{setBusy(false)}}
   return <section className="account-invitations" aria-labelledby="invitation-title"><EmailVerification getAccessToken={getAccessToken}/><h2 id="invitation-title">Join a workspace</h2>
-    {error&&<p role="alert">{error}</p>}{status&&<p role="status">{status}</p>}
+    {error&&<p role="alert">{error}</p>}
     <label className="login-workspace-picker">Workspace to join
       <Select value={items.some(item=>item.id===selectedId)?selectedId:''} disabled={busy||!items.length} onChange={event=>setSelectedId(event.target.value)}>
         <option value="">{items.length?'Choose an invited workspace':'No workspace invitations yet'}</option>

@@ -3,6 +3,7 @@ import {HiOutlineMagnifyingGlass} from 'react-icons/hi2'
 import {DatabaseApiClientError,type createDatabaseApiClient} from '../../api/database'
 import type {JoinPolicy,OnboardingOverview,OrganizationSearchResult} from '../../types/accounts'
 import WelcomeActions from './WelcomeActions'
+import {useToast} from '../../components/workspace/Toast'
 type Api=ReturnType<typeof createDatabaseApiClient>
 const tags:Record<JoinPolicy,string>={open:'Open',request:'Request access',pending:'Pending',invite:'Invite only',member:'Joined'}
 const initials=(name:string)=>name.split(/\s+/).filter(w=>/^[\p{L}\p{N}]/u.test(w)).slice(0,2).map(w=>w[0].toUpperCase()).join('')
@@ -13,7 +14,9 @@ const codeFailure=(e:unknown)=>e instanceof DatabaseApiClientError&&e.status===4
 export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;onJoined:(organizationId:string)=>Promise<void>;onBack?:()=>void;onTitle:(title:string)=>void}) {
   const [overview,setOverview]=useState<OnboardingOverview|null>(null),[query,setQuery]=useState(''),[results,setResults]=useState<OrganizationSearchResult[]|null>(null)
   const [selected,setSelected]=useState<OrganizationSearchResult|null>(null),[requesting,setRequesting]=useState(false),[message,setMessage]=useState(''),[code,setCode]=useState('')
-  const [error,setError]=useState(''),[codeError,setCodeError]=useState(''),[busy,setBusy]=useState(false)
+  const [error,setError]=useState(''),[codeError,setCodeError]=useState(''),[busy,setBusy]=useState(false),toast=useToast()
+  // Once the server lets the account in, a failure to open the workspace is not a failure to join.
+  const enter=(id:string)=>onJoined(id).catch(()=>toast.error('You joined, but your workspace could not open. Refresh the page to continue.',{id:'welcome-join'}))
   const load=useCallback(()=>api.onboarding().then(setOverview).catch(()=>setError('Your invitations could not be checked. Refresh to try again.')),[api])
   useEffect(()=>{void load()},[load])
   useEffect(()=>{onTitle(requesting?'Request access.':'Find your organization.')},[requesting,onTitle])
@@ -25,7 +28,7 @@ export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;
   async function act(task:()=>Promise<unknown>,fallback:string){setBusy(true);setError('');try{await task()}catch(e){setError(failure(e,fallback))}finally{setBusy(false)}}
   const pending=overview?.requests.filter(r=>r.status==='pending')??[]
 
-  if(requesting&&selected)return <form className="login-password-form welcome-form" noValidate onSubmit={e=>{e.preventDefault();void act(async()=>{await api.requestAccess(selected.organizationId,message.trim()||undefined);setRequesting(false);setMessage('');await load();await search(query.trim())},'Your request could not be sent. Try again.')}}>
+  if(requesting&&selected)return <form className="login-password-form welcome-form" noValidate onSubmit={e=>{e.preventDefault();void act(async()=>{await api.requestAccess(selected.organizationId,message.trim()||undefined);setRequesting(false);setMessage('');toast.success(`Request sent to ${selected.name}. We’ll email you when it’s decided.`,{id:'welcome-request'});await load();await search(query.trim())},'Your request could not be sent. Try again.')}}>
     <p className="login-description welcome-context">An administrator at {selected.name} approves new members.</p>
     <label>Note for administrators (optional)<textarea value={message} maxLength={500} rows={3} onChange={e=>setMessage(e.target.value)} placeholder="I’m on the Thursday broadcast crew."/></label>
     {error&&<p className="login-error" role="alert">{error}</p>}
@@ -37,10 +40,10 @@ export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;
     {overview&&overview.invitations.length>0&&<section aria-labelledby="welcome-invitations"><h2 id="welcome-invitations" className="welcome-legend">Your invitations</h2>
       <ul className="welcome-results">{overview.invitations.map(i=><li key={i.id} className="welcome-result"><span className="welcome-avatar" aria-hidden="true">{initials(i.organizationName)}</span>
         <span><strong>{i.organizationName}</strong><small>Invited as {i.role} · expires {new Date(i.expiresAt).toLocaleDateString()}</small></span>
-        <button type="button" className="welcome-secondary" disabled={busy} onClick={()=>void act(async()=>{await api.acceptInvitation(i.id,i.organizationId);await onJoined(i.organizationId)},'The invitation could not be accepted. Refresh and try again.')}>Accept<span className="login-sr-only"> invitation to {i.organizationName}</span></button></li>)}</ul></section>}
+        <button type="button" className="welcome-secondary" disabled={busy} onClick={()=>void act(async()=>{await api.acceptInvitation(i.id,i.organizationId);await enter(i.organizationId)},'The invitation could not be accepted. Refresh and try again.')}>Accept<span className="login-sr-only"> invitation to {i.organizationName}</span></button></li>)}</ul></section>}
     <form id="welcome-organization" className="login-password-form welcome-form" noValidate onSubmit={e=>{e.preventDefault();setError('')
       if(!selected){setError('Choose your organization, or enter a join code.');return}
-      if(selected.policy==='open')void act(async()=>{await api.joinByDomain(selected.organizationId);await onJoined(selected.organizationId)},'This organization could not be joined. Refresh and try again.')
+      if(selected.policy==='open')void act(async()=>{await api.joinByDomain(selected.organizationId);await enter(selected.organizationId)},'This organization could not be joined. Refresh and try again.')
       else if(selected.policy==='member')void act(()=>onJoined(selected.organizationId),'Your workspace could not be opened. Try again.')
       else if(selected.policy==='request')setRequesting(true)
       else if(selected.policy==='pending')void act(async()=>{await load();await search(query.trim())},'Your request could not be checked. Try again.')
@@ -55,10 +58,10 @@ export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;
     </form>
     {pending.length>0&&<ul className="welcome-results" aria-label="Your access requests">{pending.map(r=><li key={r.id} className="welcome-result"><span className="welcome-avatar" aria-hidden="true">{initials(r.organizationName)}</span>
       <span><strong>{r.organizationName}</strong><small>Requested {new Date(r.createdAt).toLocaleDateString()} · we’ll email you when it’s decided</small></span>
-      <button type="button" className="login-text-action" disabled={busy} onClick={()=>void act(async()=>{await api.withdrawAccessRequest(r.id,r.organizationId);await load();if(query.trim().length>=2)await search(query.trim())},'The request could not be withdrawn. Refresh and try again.')}>Withdraw<span className="login-sr-only"> request to {r.organizationName}</span></button></li>)}</ul>}
+      <button type="button" className="login-text-action" disabled={busy} onClick={()=>void act(async()=>{await api.withdrawAccessRequest(r.id,r.organizationId);toast.success(`Request to ${r.organizationName} withdrawn.`,{id:'welcome-request'});await load();if(query.trim().length>=2)await search(query.trim())},'The request could not be withdrawn. Refresh and try again.')}>Withdraw<span className="login-sr-only"> request to {r.organizationName}</span></button></li>)}</ul>}
     <div className="login-divider"><span>or</span></div>
     <form className="login-password-form welcome-code-join" noValidate onSubmit={e=>{e.preventDefault();if(!code.trim()){setCodeError('Enter the join code from your administrator.');return}
-      setBusy(true);setCodeError('');api.joinByCode(code).then(r=>onJoined(r.organizationId)).catch(e=>setCodeError(codeFailure(e))).finally(()=>setBusy(false))}}>
+      setBusy(true);setCodeError('');api.joinByCode(code).then(r=>enter(r.organizationId),e=>setCodeError(codeFailure(e))).finally(()=>setBusy(false))}}>
       <label>Join code<input value={code} onChange={e=>{setCode(e.target.value);setCodeError('')}} placeholder="ABCDE-FGHJK" maxLength={32} autoComplete="off" spellCheck={false} aria-invalid={Boolean(codeError)}/></label>
       <button className="welcome-secondary" disabled={busy}>Join with code</button>
       {codeError&&<p className="login-error" role="alert">{codeError}</p>}
