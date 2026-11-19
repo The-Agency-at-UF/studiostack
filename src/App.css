@@ -184,14 +184,6 @@
   padding: clamp(34px, 5vw, 82px) clamp(20px, 4vw, 64px) 0;
 }
 
-.eyebrow {
-  margin: 0 0 14px;
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-}
 
 /* Shared workspace language for the operational pages. */
 .workspace-surface {

@@ -19,7 +19,6 @@ export default function OrganizationHeader({ settings, summary, active, action }
     <header className="org-header">
       {logoUrl ? <img className="org-header-monogram org-header-logo" src={logoUrl} alt="" /> : <span className="org-header-monogram" aria-hidden="true">{settings ? initials(settings.name) : ''}</span>}
       <div className="org-header-title">
-        <p className="org-header-eyebrow">Organization</p>
         <h1>{settings?.name ?? 'Your organization'}</h1>
         {settings && <p>{summary ?? <>You&apos;re {settings.role === 'member' ? 'a member' : `an ${settings.role}`}</>}</p>}
       </div>

@@ -24,7 +24,7 @@ const views=[{value:'dayGridMonth',label:'Month'},{value:'timeGridWeek',label:'W
 /** Checked-out bookings past their return time are overdue; the rest keep their fulfillment state. */
 function statusOf(booking:{fulfillmentStatus:string;endsAt:string},now:number):Status{return booking.fulfillmentStatus==='checked_out'?(Date.parse(booking.endsAt)<now?'overdue':'checked-out'):'reserved'}
 
-export default function LiveEquipmentCalendar(){const c=useLiveOrganization();return c?<CalendarWorkspace key={c.organization.id} api={c.api} org={c.organization.id} admin={c.admin}/>:<main className="ws-calendar-page"><PageHeader context="Equipment schedule" title="Equipment calendar" description="Select an active organization in your account to view equipment bookings."/></main>}
+export default function LiveEquipmentCalendar(){const c=useLiveOrganization();return c?<CalendarWorkspace key={c.organization.id} api={c.api} org={c.organization.id} admin={c.admin}/>:<main className="ws-calendar-page"><PageHeader title="Equipment calendar"/><p>Select an active organization in your account to view equipment bookings.</p></main>}
 function CalendarWorkspace({api,org,admin}:{api:DatabaseApi;org:string;admin:boolean}){
  const [initialView] = useState(() => getCached<{date:string;view:string}>(`calendar-view:${org}`,86_400_000))
  const day=usePickedDay()
@@ -82,7 +82,7 @@ function CalendarWorkspace({api,org,admin}:{api:DatabaseApi;org:string;admin:boo
  const current=visible.find(r=>r.id===selected),owned=bookings.find(r=>r.id===selected),item=items.find(i=>i.id===equipment)
  const dates=useCallback((arg:DatesSetArg)=>{const start=arg.start.toISOString(),end=arg.end.toISOString();setCached(`calendar-view:${org}`,{date:arg.view.currentStart.toISOString(),view:arg.view.type});setWindow(current=>current?.start===start&&current.end===end?current:{start,end})},[org])
  return <main className="ws-calendar-page">
-  <PageHeader context="Equipment schedule" title="Equipment calendar" description="Gear reservations from pickup to return, in your local time zone. Pickups and returns happen on campus." actions={<><Button disabled={loading} onClick={()=>{setNow(Date.now());setReload(v=>v+1)}}>Refresh</Button><Link className="ws-button ws-button-primary" href="/create-reservation/">Book gear</Link></>}/>
+  <PageHeader title="Equipment calendar" actions={<><Button disabled={loading} onClick={()=>{setNow(Date.now());setReload(v=>v+1)}}>Refresh</Button><Link className="ws-button ws-button-primary" href="/create-reservation/">Book gear</Link></>}/>
   <div className="ws-calendar-filters">
    <Field label="Filter equipment"><Select value={equipment} onChange={e=>{setEquipment(e.target.value);setSelected('')}}><option value="">All equipment</option>{items.map(i=><option key={i.id} value={i.id}>{i.name} · {i.equipmentCode}</option>)}</Select></Field>
    <div className="ws-calendar-toggles"><label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Equipment bookings</label><label className="ws-check-chip"><input type="checkbox" checked={holds} onChange={e=>setHolds(e.target.checked)}/>Production soft holds</label></div>

@@ -12,8 +12,8 @@ import '../Accounts/Administration.css'
 import './Equipment.css'
 type SectionErrors = { items?: string; bookings?: string; reports?: string; alerts?: string }
 type CachedDashboard = { items: EquipmentRecord[]; bookings: EquipmentReservation[]; reports: EquipmentReport[]; alerts: AppAlert[] }
-export default function LiveDashboard({statistics=false,production}:{statistics?:boolean;production?:ReactNode}){const c=useLiveOrganization();if(c&&statistics&&!c.admin)return <main className="administration"><h1>Statistics</h1><p>Organization administrators can view organization statistics.</p></main>;return c?<DashboardWorkspace key={c.organization.id} api={c.api} org={c.organization.id} name={c.organization.name} admin={c.admin} statistics={statistics} production={production}/>:<main className="administration"><h1>StudioStack</h1><p>Select an active organization in your account to open the workspace.</p></main>}
-function DashboardWorkspace({api,org,name,admin,statistics,production}:{api:DatabaseApi;org:string;name:string;admin:boolean;statistics:boolean;production?:ReactNode}){
+export default function LiveDashboard({statistics=false,production}:{statistics?:boolean;production?:ReactNode}){const c=useLiveOrganization();if(c&&statistics&&!c.admin)return <main className="administration"><h1>Statistics</h1><p>Organization administrators can view organization statistics.</p></main>;return c?<DashboardWorkspace key={c.organization.id} api={c.api} org={c.organization.id} admin={c.admin} statistics={statistics} production={production}/>:<main className="administration"><h1>StudioStack</h1><p>Select an active organization in your account to open the workspace.</p></main>}
+function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseApi;org:string;admin:boolean;statistics:boolean;production?:ReactNode}){
  const cacheKey = `dashboard:${org}`
  const cached = getCached<CachedDashboard>(cacheKey)
  const [items,setItems]=useState<EquipmentRecord[]|null>(cached?.items ?? null)
@@ -82,7 +82,7 @@ function DashboardWorkspace({api,org,name,admin,statistics,production}:{api:Data
       <div><dt>Open equipment reports</dt><dd>{reports!==null?openReports.length:errors.reports?'–':'…'}</dd></div>
     </dl>
  return <main className={statistics?'administration':'dashboard-page administration live-dashboard'}>
-  <PageHeader title={statistics?'Equipment statistics':'Home'} context={name} description={statistics?'Organization equipment and booking activity.':'Production, equipment, and the work that needs your attention.'} actions={<><Button disabled={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href={statistics?'/create-reservation/':'/production/'}>{statistics?'Book gear':'Open production'}</Link></>}/>
+  <PageHeader title={statistics?'Equipment statistics':'Home'} actions={<><Button disabled={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href={statistics?'/create-reservation/':'/production/'}>{statistics?'Book gear':'Open production'}</Link></>}/>
   {!statistics&&production&&<div className="ws-tray" role="group" aria-labelledby="home-tray-production"><p className="ws-tray-label" id="home-tray-production">Production</p>{production}</div>}
   {globalError&&<p role="alert">{globalError}</p>}
   {loading&&!hasAnyData&&<Skeleton label="Loading workspace…" variant="tile" count={4}/>}

@@ -33,7 +33,7 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
   return <div className="account-page">
     <header className="account-header">
       <span className="account-avatar" aria-hidden="true">{initials(session.email||'?')}</span>
-      <div><p className="ws-context">Account</p><h1>{session.email||'Your account'}</h1>
+      <div><h1>{session.email||'Your account'}</h1>
         {current&&<p className="account-subtitle">{roleLabel(current.role)} of {current.name}</p>}</div>
     </header>
     <div className="account-layout">
