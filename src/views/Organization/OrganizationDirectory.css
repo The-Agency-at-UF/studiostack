@@ -91,6 +91,14 @@
   .org-person-panel { position:static; }
 }
 
+.org-directory-members-hint { margin:0 0 var(--space-4); color:var(--muted); font-size:var(--text-sm); }
+.org-directory-member-actions { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-2); }
+.org-directory-member-actions .ws-button:disabled { opacity:.55; cursor:not-allowed; }
+.org-directory-list li:has(.org-directory-member-actions) { flex-wrap:wrap; }
+.org-directory-list li > div { min-width:min(100%,var(--control-height)); }
+@media (max-width:1000px) {
+  .org-directory-member-actions { flex-basis:100%; }
+}
 @media (max-width:700px) {
   .org-person-panel { padding:var(--space-4); }
   .org-directory { padding:var(--space-5) var(--space-4); gap:var(--space-5); }

@@ -6,6 +6,7 @@ import {changeMember,changeOrganization} from './validation'
 import type {AccountRequest} from './routes'
 import type {ApiOrganization} from '../../src/types/database-api'
 import {isAdmin,pageOf,requestHash} from '../database/repository-utils'
+import {canChangeMemberAccess} from '../../src/accounts/member-permissions'
 type Context={organizationId:string;user:{id:string};membership:{role:ApiOrganization['role']}}
 const memberColumns='u.id,u.email,u.display_name AS "displayName",m.role,m.status,m.version'
 const forbidden=():never=>{throw new ApiError(403,'Organization owner or administrator access required')}
@@ -64,6 +65,7 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
       const owners=await client.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'",[organizationId])
       if(owners.rows.length<2)throw new ApiError(409,'Keep at least one active organization owner')
     }
+    if(v.status!==current.status&&!canChangeMemberAccess(role,current.role))forbidden()
     await client.query('UPDATE app.organization_memberships SET role=$3,status=$4,version=version+1 WHERE organization_id=$1 AND user_id=$2',[organizationId,current.id,v.role,v.status]);kind='member_updated';details={fromRole:current.role,role:v.role,fromStatus:current.status,status:v.status}
     if(v.status!=='active'){
       // Production review and ELT roles end with the membership; restoring it does not restore them.

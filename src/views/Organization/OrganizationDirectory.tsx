@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { HiOutlineMagnifyingGlass, HiOutlinePlus, HiOutlineXMark } from 'react-icons/hi2'
+import {canChangeMemberAccess} from '../../accounts/member-permissions'
+import {createPreviewDatabaseApi} from '../../preview/database'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
@@ -38,8 +40,8 @@ const roleLabel: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
 export default function OrganizationDirectory() {
-  const session = useAppSession(), org = session.selectedOrganizationId ?? session.organizations?.[0]?.id
-  const api = useMemo(() => org && session.getAccessToken ? createDatabaseApiClient({ baseUrl: authConfiguration().apiUrl, getAccessToken: session.getAccessToken }).accounts(org) : null, [org, session.getAccessToken])
+  const session = useAppSession(), org = session.selectedOrganizationId ?? session.organizations?.[0]?.id ?? (session.mode==='preview'?'preview':undefined)
+  const api = useMemo(() => session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId).accounts('preview'):org && session.getAccessToken ? createDatabaseApiClient({ baseUrl: authConfiguration().apiUrl, getAccessToken: session.getAccessToken }).accounts(org) : null, [org, session.getAccessToken,session.mode,session.previewPersonId])
   const [settings, setSettings] = useState<OrganizationSettings | null>(null)
   const [people, setPeople] = useState<Person[]>([])
   const [pendingInvitations, setPendingInvitations] = useState(0)
@@ -147,7 +149,7 @@ export default function OrganizationDirectory() {
       <section className="org-directory-card org-directory-people" aria-labelledby="org-people">
         <div className="org-directory-card-heading">
           <h2 id="org-people">People</h2>
-          <p>{owner ? 'Change anyone’s role or remove them from Manage.' : manager ? 'Owners and admins manage people. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
+          <p>{owner ? 'Manage roles and remove members or admins. Change an owner’s role before removing them.' : manager ? 'Admins manage member and admin roles, and remove members. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
         </div>
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {notice && <Notice kind="success">{notice}</Notice>}
@@ -183,7 +185,7 @@ export default function OrganizationDirectory() {
           <span>Showing {visible.length} of {people.length}</span>
         </div>
       </section>
-      {selected && <PersonPanel key={selected.id} person={selected} owner={owner} busy={busy} organization={settings.name} change={change} onClose={closePanel} />}
+      {selected && <PersonPanel key={selected.id} person={selected} owner={owner} canRemove={canChangeMemberAccess(settings.role,selected.role)} busy={busy} organization={settings.name} change={change} onClose={closePanel} />}
       </div>
     </>}
   </main>
@@ -218,7 +220,7 @@ const roleDetails: Record<Role, string> = {
   admin: 'Also manages people, equipment and settings.',
   owner: 'Full control, including other owners and workspace domains.',
 }
-function PersonPanel({ person, owner, busy, organization, change, onClose }: { person: Person; owner: boolean; busy: boolean; organization: string; change: Change; onClose: () => void }) {
+function PersonPanel({ person, owner, canRemove, busy, organization, change, onClose }: { person: Person; owner: boolean;canRemove:boolean; busy: boolean; organization: string; change: Change; onClose: () => void }) {
   // The draft belongs to the version it was made against, so a reload after saving shows the confirmed role.
   const [draft, setDraft] = useState<{ version?: number; role: Role } | null>(null)
   const [confirm, setConfirm] = useState<'remove' | 'owner' | null>(null)
@@ -253,17 +255,17 @@ function PersonPanel({ person, owner, busy, organization, change, onClose }: { p
         </fieldset>
         <button type="submit" className="ws-button ws-button-primary" disabled={busy || role === person.role}>Save role</button>
       </form>
-      <section className="org-person-section" aria-labelledby="org-person-remove">
+      {canRemove&&<section className="org-person-section" aria-labelledby="org-person-remove">
         <h3 id="org-person-remove">Remove from {organization}</h3>
         <p className="org-person-note">They lose access to this organization. Their bookings and history are kept, and you can invite them back.</p>
         <button type="button" className="ws-button ws-button-danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove from organization</button>
-      </section>
+      </section>}
     </div>
     {confirm === 'remove' && <ConfirmDialog title={`Remove from ${organization}?`} subject={person.name} confirmLabel="Remove"
       description="They lose access to this organization and its productions right away. Their bookings and history are kept. To bring them back, send a new invitation."
       onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'member', 'suspended', `${person.name} was removed from ${organization}.`) }} />}
     {confirm === 'owner' && <ConfirmDialog title="Make this person an owner?" subject={person.name} confirmLabel="Make owner"
-      description="Owners can change anyone’s role or access, including other owners, and manage workspace domains."
+      description="Owners manage roles, remove members and admins, and manage workspace domains. Another owner must change an owner’s role before removal."
       onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'owner', 'active', `${person.name} is now an owner.`) }} />}
   </DetailPanel>
 }
