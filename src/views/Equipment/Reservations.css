@@ -7,7 +7,7 @@
 .rsv-icon { width:18px; height:18px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }
 
 /* Controls */
-.rsv .rsv-button { display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2); min-height:var(--control-height); padding:0 var(--space-4); border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font:var(--weight-medium) var(--text-sm)/1 var(--font-ui); white-space:nowrap; cursor:pointer; text-decoration:none; transition:background var(--motion-fast),border-color var(--motion-fast); }
+.rsv .rsv-button { display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2); min-height:var(--control-height); padding:0 var(--space-4); border:1px solid var(--line-strong); border-radius:var(--radius-pill); background:var(--surface); color:var(--ink); font:var(--weight-medium) var(--text-sm)/1 var(--font-ui); white-space:nowrap; cursor:pointer; text-decoration:none; transition:background var(--motion-fast),border-color var(--motion-fast); }
 .rsv .rsv-button:hover:not(:disabled) { background:var(--surface-hover); border-color:var(--accent-light); }
 .rsv .rsv-button:disabled { opacity:.5; cursor:not-allowed; }
 .rsv .rsv-primary { background:var(--accent); border-color:var(--accent); color:var(--on-frame); }
@@ -19,7 +19,7 @@
 .rsv .rsv-link.rsv-danger { color:var(--danger); text-decoration-color:color-mix(in srgb,var(--danger) 30%,transparent); }
 .rsv .rsv-link:disabled { opacity:.5; cursor:not-allowed; }
 .rsv .rsv-field { display:flex; flex-direction:column; gap:var(--space-2); font-size:var(--text-sm); font-weight:var(--weight-medium); }
-.rsv .rsv-input { height:48px; width:100%; border:1px solid var(--line-strong); border-radius:var(--radius-panel); background:var(--surface); padding:0 var(--space-3); color:var(--ink); font:var(--weight-regular) var(--text-base)/1.4 var(--font-ui); caret-color:var(--accent); font-variant-numeric:tabular-nums; }
+.rsv .rsv-input { height:48px; width:100%; border:1px solid var(--line-strong); border-radius:var(--radius-pill); background:var(--surface); padding:0 var(--space-3); color:var(--ink); font:var(--weight-regular) var(--text-base)/1.4 var(--font-ui); caret-color:var(--accent); font-variant-numeric:tabular-nums; }
 .rsv .rsv-input::placeholder { color:#78737f; }
 .rsv .rsv-input:disabled { color:var(--muted); background:var(--surface-subtle); border-color:var(--line); }
 .rsv .ws-select { width:100%; min-height:48px; font-size:var(--text-base); }

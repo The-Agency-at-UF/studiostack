@@ -19,7 +19,7 @@
 .ws-shell .nav-link.active::before { content:''; position:absolute; left:0; width:3px; height:20px; border-radius:var(--radius-control); background:var(--accent-light); }
 .ws-shell .nav-link.active svg { color:var(--accent-light); }
 .ws-shell .header-actions { margin:0; padding-top:var(--space-3); border-top:1px solid var(--frame-line); display:flex; flex-direction:column; gap:var(--space-3); align-items:stretch; }
-.ws-shell .header-cta { display:flex; align-items:center; justify-content:space-between; padding:var(--space-3) var(--space-4); min-height:var(--control-height); border-radius:var(--radius-control); text-transform:none; letter-spacing:normal; font-size:var(--text-sm); background:var(--accent); color:var(--on-frame); }
+.ws-shell .header-cta { display:flex; align-items:center; justify-content:space-between; padding:var(--space-3) var(--space-4); min-height:var(--control-height); border-radius:var(--radius-pill); text-transform:none; letter-spacing:normal; font-size:var(--text-sm); background:var(--accent); color:var(--on-frame); }
 .ws-shell .header-cta:hover { transform:none; background:var(--accent-hover); }
 .ws-shell .account-trigger { width:100%; justify-content:flex-start; gap:var(--space-2); padding:var(--space-2); color:var(--on-frame); min-height:var(--control-height); text-align:left; }
 .ws-shell .account-trigger > svg:first-child { width:28px; height:28px; }

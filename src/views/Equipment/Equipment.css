@@ -62,7 +62,7 @@
 .live-dashboard.administration { max-width:1600px;width:min(100%,1600px);margin:0 auto;padding:clamp(34px,5vw,82px) clamp(20px,4vw,64px) 0;background:transparent; }
 .section-inline-error { display:flex;align-items:center;gap:16px;padding:16px;background:#fdf2f2;border:1px solid #f8b4b4;border-radius:6px;margin:16px 0; }
 .section-inline-error p { color:#a52b3e;margin:0;font-size:13px;flex:1; }
-.section-inline-error button { font-size:12px;padding:6px 12px;background:var(--accent);color:#fff;border:0;border-radius:4px;cursor:pointer; }
+.section-inline-error button { font-size:12px;padding:6px 14px;background:var(--accent);color:#fff;border:0;border-radius:var(--radius-pill);cursor:pointer; }
 .section-inline-error button:hover { background:var(--accent-hover); }
 .section-inline-error button:disabled { opacity:0.6;cursor:not-allowed; }
 /* Match the established preview workspace frame and heading hierarchy. */
