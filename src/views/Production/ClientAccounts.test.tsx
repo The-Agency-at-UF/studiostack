@@ -57,7 +57,7 @@ describe('Optimistic client accounts',()=>{
   it('lists a new client while it saves and takes it back out if saving fails',async()=>{
     let fail!:(error:unknown)=>void;const createClient=vi.fn().mockReturnValue(new Promise((_,reject)=>{fail=reject}))
     render(<ClientAccounts clients={clients} api={{createClient} as unknown as ProductionClient} canManage canDelete={()=>true} onRefresh={vi.fn().mockResolvedValue(undefined)}/>)
-    await userEvent.type(screen.getByLabelText('Client account name'),'Orientation');await userEvent.click(screen.getByRole('button',{name:'Add client account'}))
+    await userEvent.click(screen.getByRole('button',{name:'+ Add client account'}));await userEvent.type(screen.getByLabelText('Client account name'),'Orientation');await userEvent.click(screen.getByRole('button',{name:'Add client account'}))
     expect(within(screen.getByText('Orientation').closest('li')!).getByText('Saving…')).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:'Delete Orientation'})).not.toBeInTheDocument();expect(screen.getByLabelText('Client account name')).toHaveValue('')
     fail(new Error('offline'))
