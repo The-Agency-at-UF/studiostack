@@ -128,3 +128,14 @@
 .ws-handoff.is-overdue strong { color:var(--warning); }
 .ws-calendar-page .ws-calendar-hint { margin:var(--space-6) 0 0; max-width:760px; font-size:var(--text-xs); color:var(--muted); }
 @media (max-width:700px) { .ws-calendar-title { order:-1; width:100%; } .ws-calendar-filters select { min-width:0; width:100%; } }
+
+/* Confirmation state uses the same colours in both calendars. */
+.ws-event--shoot,.ws-event--reserved,.ws-event--checked-out { --fc-event-bg-color:var(--success); --fc-event-border-color:var(--success); --fc-event-text-color:var(--on-frame); }
+.ws-calendar .fc .ws-event--tentative { --fc-event-bg-color:var(--danger-soft); --fc-event-border-color:var(--danger); --fc-event-text-color:var(--danger); }
+.ws-event--tentative .ws-event-mark { border-color:var(--danger); }
+.ws-swatch--shoot,.ws-swatch--reserved,.ws-swatch--checked-out { background:var(--success); }
+.ws-swatch--tentative { background:var(--danger-soft); border-color:var(--danger); }
+.ws-calendar-badge.ws-event--shoot,.ws-calendar-badge.ws-event--reserved,.ws-calendar-badge.ws-event--checked-out { background:var(--success); color:var(--on-frame); }
+.ws-calendar-badge.ws-event--tentative { background:var(--danger-soft); color:var(--danger); border-color:var(--danger); }
+.ws-event--overdue { --fc-event-bg-color:var(--danger-soft); --fc-event-border-color:var(--danger); --fc-event-text-color:var(--danger); }
+.ws-swatch--overdue,.ws-calendar-badge.ws-event--overdue { background:var(--danger-soft); color:var(--danger); border-color:var(--danger); }
