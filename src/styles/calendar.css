@@ -11,7 +11,7 @@
 .ws-calendar-filters .ws-field { font-size:var(--text-xs); font-weight:var(--weight-medium); color:var(--muted); margin:0; }
 .ws-calendar-filters select { min-width:220px; min-height:var(--control-height); }
 .ws-calendar-toggles { display:flex; flex-wrap:wrap; gap:var(--space-2); }
-.ws-calendar-page label.ws-check-chip { display:inline-flex; flex-direction:row; align-items:center; gap:var(--space-2); min-height:var(--control-height); padding:0 14px; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); font-size:var(--text-sm); color:var(--ink); cursor:pointer; }
+.ws-calendar-page label.ws-check-chip { display:inline-flex; flex-direction:row; align-items:center; gap:var(--space-2); min-height:var(--control-height); padding:0 16px; border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--surface); font-size:var(--text-sm); color:var(--ink); cursor:pointer; }
 .ws-check-chip input { width:16px; height:16px; margin:0; accent-color:var(--accent); }
 .ws-calendar-legend { display:flex; flex-wrap:wrap; gap:var(--space-4); margin:0; padding:0; list-style:none; font-size:var(--text-xs); color:var(--muted); }
 .ws-calendar-legend li { display:flex; align-items:center; gap:6px; }
@@ -24,13 +24,13 @@
 .ws-calendar { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); overflow:hidden; }
 .ws-calendar-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-3); padding:14px var(--space-4); border-bottom:1px solid var(--line); }
 .ws-calendar-nav { display:flex; gap:6px; }
-.app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-nav button { display:inline-grid; place-items:center; min-width:40px; height:40px; min-height:40px; padding:0 14px; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-medium); }
+.app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-nav button { display:inline-grid; place-items:center; min-width:40px; height:40px; min-height:40px; padding:0 14px; border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--surface); color:var(--ink); font-size:var(--text-sm); font-weight:var(--weight-medium); }
 .app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-nav button[aria-label] { padding:0; }
 .app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-nav button svg { width:16px; height:16px; }
 .app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-nav button:hover:not(:disabled) { background:var(--surface-hover); border-color:var(--line-strong); }
 .app-content#workspace-content .ws-calendar-title { margin:0; font-size:18px; font-weight:var(--weight-bold); }
-.ws-calendar-views { display:flex; padding:3px; gap:2px; background:var(--surface-subtle); border-radius:var(--radius-panel); }
-.app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-views button { height:34px; min-height:34px; padding:0 14px; border:0; border-radius:var(--radius-control); background:transparent; color:var(--muted); font-size:13px; font-weight:var(--weight-medium); }
+.ws-calendar-views { display:flex; padding:3px; gap:2px; background:var(--surface-subtle); border-radius:var(--radius-pill); }
+.app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-views button { height:34px; min-height:34px; padding:0 14px; border:0; border-radius:var(--radius-pill); background:transparent; color:var(--muted); font-size:13px; font-weight:var(--weight-medium); }
 .app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-views button:hover:not(:disabled) { background:transparent; color:var(--ink); }
 .app-content#workspace-content .ws-calendar-page .ws-calendar .ws-calendar-views button[aria-pressed=true] { background:var(--surface); color:var(--ink); box-shadow:0 1px 2px #19171e1f; }
 .ws-calendar-scroll { overflow-x:auto; }
