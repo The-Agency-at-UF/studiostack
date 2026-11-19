@@ -43,7 +43,7 @@ type User = QueryResultRow & { id: string; email: string | null; displayName: st
 type Membership = QueryResultRow & { role: 'owner' | 'admin' | 'member' }
 type ReservationRow = QueryResultRow & { id: string; userId: string; status: string; requestHash?: string }
 const userColumns = 'id, email, display_name AS "displayName", onboarded_at AS "onboardedAt"'
-const equipmentColumns = 'id, equipment_code AS "equipmentCode", name, category, status, created_at AS "createdAt", photo_id AS "photoId", condition, version, EXISTS(SELECT 1 FROM app.equipment_checkouts ec WHERE ec.organization_id=inventory.organization_id AND ec.equipment_id=inventory.id AND ec.returned_at IS NULL) AS "checkedOut"'
+const equipmentColumns = 'id, equipment_code AS "equipmentCode", name, category, color_tag AS "colorTag", status, created_at AS "createdAt", photo_id AS "photoId", condition, version, EXISTS(SELECT 1 FROM app.equipment_checkouts ec WHERE ec.organization_id=inventory.organization_id AND ec.equipment_id=inventory.id AND ec.returned_at IS NULL) AS "checkedOut"'
 
 
 function admin(membership: Membership) {
@@ -124,9 +124,9 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       }
       case 'createEquipment': {
         admin(membership)
-        const { equipmentCode, name, category, photoId } = request.input
+        const { equipmentCode, name, category, photoId, colorTag } = request.input
         await checkAttachment(client, organizationId, photoId)
-        return (await client.query(`INSERT INTO app.inventory (organization_id, equipment_code, name, category, photo_id) VALUES ($1, $2, $3, $4, $5) RETURNING ${equipmentColumns}`, [organizationId, equipmentCode, name, category, photoId ?? null])).rows[0]
+        return (await client.query(`INSERT INTO app.inventory (organization_id, equipment_code, name, category, photo_id, color_tag) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${equipmentColumns}`, [organizationId, equipmentCode, name, category, photoId ?? null, colorTag ?? null])).rows[0]
       }
       case 'updateEquipment': {
         admin(membership)
@@ -142,13 +142,13 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
           if(reports.rows.length)throw new ApiError(409,'Resolve high-severity reports before restoring service')
         }
         await checkAttachment(client, organizationId, request.input.photoId)
-        return (await client.query(`UPDATE app.inventory SET name = COALESCE($3, name), category = COALESCE($4, category), status = COALESCE($5, status), version=version+1, photo_id = CASE WHEN $6::boolean THEN $7::uuid ELSE photo_id END
-          WHERE organization_id = $1 AND id = $2 RETURNING ${equipmentColumns}`, [organizationId, request.itemId, request.input.name ?? null, request.input.category ?? null, request.input.status ?? null, request.input.photoId !== undefined, request.input.photoId ?? null])).rows[0]
+        return (await client.query(`UPDATE app.inventory SET name = COALESCE($3, name), category = COALESCE($4, category), status = COALESCE($5, status), version=version+1, photo_id = CASE WHEN $6::boolean THEN $7::uuid ELSE photo_id END, color_tag=CASE WHEN $8::boolean THEN $9::text ELSE color_tag END
+          WHERE organization_id = $1 AND id = $2 RETURNING ${equipmentColumns}`, [organizationId, request.itemId, request.input.name ?? null, request.input.category ?? null, request.input.status ?? null, request.input.photoId !== undefined, request.input.photoId ?? null, request.input.colorTag !== undefined, request.input.colorTag ?? null])).rows[0]
       }
       case 'reservations': {
         const readOrganization = await canReadOrganizationBookings()
         const result = await client.query<QueryResultRow & { id: string }>(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id = $1
-          AND ($2::uuid IS NULL OR r.id > $2::uuid) AND ($4::boolean OR r.user_id = $5) ORDER BY r.id LIMIT $3`,
+          AND ($2::uuid IS NULL OR r.id > $2::uuid) AND ($4::boolean OR r.user_id = $5) AND ($4::boolean OR (r.status='confirmed' AND r.fulfillment_status<>'returned' AND (r.ends_at>now() OR r.fulfillment_status='checked_out'))) ORDER BY r.id LIMIT $3`,
         [organizationId, request.page.after, request.page.limit + 1, readOrganization, user.id])
         return page(result.rows.map(row=>({...row,readOnly:membership.role==='member'&&row.userId!==user.id})), request.page.limit)
       }
@@ -159,7 +159,10 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         if (!reservation) throw new ApiError(404, 'Reservation not found')
         const readOnly=membership.role==='member'&&reservation.userId!==user.id
         if(readOnly&&(request.operation!=='reservation'||!await canReadOrganizationBookings()))throw new ApiError(404,'Reservation not found')
-        if (request.operation === 'reservation') return {...reservation,readOnly}
+        if (request.operation === 'reservation') {
+          if(!await canReadOrganizationBookings()&&(reservation.status==='cancelled'||reservation.fulfillmentStatus==='returned'||Date.parse(reservation.endsAt)<=now()&&reservation.fulfillmentStatus!=='checked_out'))throw new ApiError(404,'Reservation history is restricted to leadership')
+          return {...reservation,readOnly}
+        }
         if(reservation.fulfillmentStatus&&reservation.fulfillmentStatus!=='reserved')throw new ApiError(409,'Return checked-out equipment before closing a reservation')
         if(reservation.status==='cancelled')return reservation
         // Idempotent cancellation preserves the record/history; no hard deletion.
@@ -176,13 +179,15 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
           if (requestHash !== fingerprint) throw new ApiError(409, 'Request ID was already used with different reservation details')
           return reservation
         }
+        const overdue = await client.query("SELECT id FROM app.reservations WHERE organization_id=$1 AND user_id=$2 AND status='confirmed' AND fulfillment_status='checked_out' AND ends_at<$3 LIMIT 1", [organizationId,user.id,new Date(now()).toISOString()])
+        if (overdue.rows.length && !['owner','admin'].includes(membership.role)) throw new ApiError(409, 'Return your overdue equipment before making a new reservation')
         const policy=(await client.query('SELECT reservation_days AS days FROM app.organizations WHERE id=$1',[organizationId])).rows[0]
         if(!policy||Date.parse(input.endsAt)-Date.parse(input.startsAt)>policy.days*86400000)throw new ApiError(400,'Reservation exceeds the organization maximum length')
         if (Date.parse(input.startsAt) < now()) throw new ApiError(400, 'Reservations must start in the future')
         const items = await client.query<{ id: string; status: string }>('SELECT id, status FROM app.inventory WHERE organization_id = $1 AND id = ANY($2::uuid[]) ORDER BY id FOR UPDATE', [organizationId, input.equipmentIds])
         if (items.rows.length !== input.equipmentIds.length || items.rows.some(item => item.status !== 'available')) throw new ApiError(409, 'Equipment is missing or out of service')
         const conflicts = await client.query(`SELECT 1 FROM app.reservation_items i JOIN app.reservations r ON r.organization_id = i.organization_id AND r.id = i.reservation_id
-          WHERE i.organization_id = $1 AND i.equipment_id = ANY($2::uuid[]) AND r.status = 'confirmed' AND r.fulfillment_status<>'returned' AND r.starts_at < $4::timestamptz AND r.ends_at > $3::timestamptz LIMIT 1`, [organizationId, input.equipmentIds, input.startsAt, input.endsAt])
+          WHERE i.organization_id = $1 AND i.equipment_id = ANY($2::uuid[]) AND r.status = 'confirmed' AND r.fulfillment_status<>'returned' AND ((r.starts_at < $4::timestamptz AND r.ends_at > $3::timestamptz) OR (r.fulfillment_status='checked_out' AND r.ends_at<now())) LIMIT 1`, [organizationId, input.equipmentIds, input.startsAt, input.endsAt])
         if (conflicts.rows.length) throw new ApiError(409, 'Equipment is already reserved for this time')
         if(input.clientAccountId){const c=await client.query('SELECT id FROM app.client_accounts WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR SHARE',[organizationId,input.clientAccountId]);if(!c.rows.length)throw new ApiError(400,'Choose an active client account in this organization')}
         const inserted = await client.query<{ id: string }>('INSERT INTO app.reservations (organization_id, user_id, name, starts_at, ends_at, request_id, request_hash,client_account_id) VALUES ($1, $2, $3, $4, $5, $6, $7,$8) RETURNING id', [organizationId, user.id, input.name, input.startsAt, input.endsAt, input.requestId, fingerprint,input.clientAccountId??null])
