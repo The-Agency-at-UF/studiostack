@@ -52,6 +52,14 @@ describe('Header', () => {
     expect(screen.getByText('The Agency at UF')).toBeInTheDocument();
   });
 
+  it('badges the Reservations link with the overdue count', () => {
+    const view = render(<Header isAdmin={false} logOut={() => {}} overdueReservations={2} />);
+    expect(screen.getByRole('link', { name: 'Reservations 2 overdue' })).toHaveAttribute('href', '/reservations');
+    view.rerender(<Header isAdmin={false} logOut={() => {}} overdueReservations={0} />);
+    expect(screen.getByRole('link', { name: 'Reservations' })).toBeInTheDocument();
+    expect(view.container.querySelector('.nav-badge')).toBeNull();
+  });
+
   it('shows Admin-only links when isAdmin is true', () => {
     render(<Header isAdmin={true} logOut={() => {}} />);
     // These should only be visible for admins
