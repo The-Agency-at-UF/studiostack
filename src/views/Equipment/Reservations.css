@@ -132,6 +132,8 @@
 .rsv-add { margin-top:var(--space-6); padding:var(--space-5); border-radius:var(--radius-panel); background:var(--surface-tray); display:flex; flex-direction:column; gap:14px; }
 .rsv-add-fields { grid-template-columns:1fr 1fr; align-items:start; }
 .rsv-add .ws-select { white-space:nowrap; text-overflow:ellipsis; }
+.rsv-client { display:flex; flex-direction:column; }
+.rsv-add-client { margin-top:var(--space-3); }
 .rsv-add-actions { display:flex; gap:var(--space-2); flex-wrap:wrap; }
 .rsv-review { margin-top:var(--space-8); padding:var(--space-1) var(--space-5); border-radius:var(--radius-panel); background:var(--surface-tray); }
 .rsv-review > div { display:grid; grid-template-columns:96px minmax(0,1fr) auto; gap:var(--space-4); align-items:start; padding:14px 0; border-top:1px solid var(--line); }

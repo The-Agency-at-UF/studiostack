@@ -27,7 +27,7 @@ function dayHeading(iso:string){const d=new Date(iso),today=new Date(),diff=Math
 function lengthLabel(ms:number){if(!Number.isFinite(ms)||ms<=0)return '—';const days=Math.floor(ms/DAY),hours=Math.round((ms%DAY)/HOUR);return [days&&`${days} day${days>1?'s':''}`,hours&&`${hours} hour${hours>1?'s':''}`].filter(Boolean).join(' ')||'Under an hour'}
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`
 
-type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[]; clients: ClientAccount[] }
+type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[]; clients: ClientAccount[]; canAddClients: boolean }
 type Tab='upcoming'|'out'|'history'
 type View={name:'list'}|{name:'detail';id:string}|{name:'new'}|{name:'edit';id:string}
 const tabOf=(r:EquipmentReservation):Tab=>r.status==='cancelled'||r.fulfillmentStatus==='returned'?'history':r.fulfillmentStatus==='checked_out'?'out':'upcoming'
@@ -41,6 +41,7 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
   const [inventory,setInventory]=useState<EquipmentRecord[]>(cached?.items ?? [])
   const [maxDays,setMaxDays]=useState(cached?.settings.reservationDays ?? 7)
   const [clients,setClients]=useState<ClientAccount[]>(cached?.clients ?? [])
+  const [canAddClients,setCanAddClients]=useState(cached?.canAddClients ?? false)
   const [view,setView]=useState<View>(create?{name:'new'}:{name:'list'})
   const [tab,setTab]=useState<Tab>('upcoming')
   const [clientFilter,setClientFilter]=useState('')
@@ -51,11 +52,12 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
   const load=useCallback(async()=>{
-    const [settingsRes, itemsRes, bookingsRes, clientsRes] = await Promise.allSettled([
+    const [settingsRes, itemsRes, bookingsRes, clientsRes, accessRes] = await Promise.allSettled([
       api.accounts(organizationId).settings(),
       allPages(after=>api.inventory(organizationId,{limit:100,after})),
       allPages(after=>api.reservations(organizationId,{limit:100,after})),
-      allPages(after=>api.production(organizationId).clients(after))
+      allPages(after=>api.production(organizationId).clients(after)),
+      api.production(organizationId).access()
     ])
     if (bookingsRes.status === 'rejected') throw bookingsRes.reason
     if (itemsRes.status === 'rejected') throw itemsRes.reason
@@ -63,11 +65,14 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
       settings: settingsRes.status === 'fulfilled' ? settingsRes.value : { reservationDays: 7 },
       items: itemsRes.status === 'fulfilled' ? itemsRes.value : [],
       bookings: bookingsRes.status === 'fulfilled' ? bookingsRes.value : [],
-      clients: clientsRes.status === 'fulfilled' ? clientsRes.value : []
+      clients: clientsRes.status === 'fulfilled' ? clientsRes.value : [],
+      // Production leads and administrators add client accounts; the server enforces the same rule.
+      canAddClients: accessRes.status === 'fulfilled' && accessRes.value.canReview
     }
   },[api,organizationId])
   const accept=useCallback((value:Awaited<ReturnType<typeof load>>)=>{
     setClients(value.clients)
+    setCanAddClients(value.canAddClients)
     setRows(value.bookings)
     setInventory(value.items)
     setMaxDays(value.settings.reservationDays)
@@ -79,6 +84,7 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
   const current=view.name==='detail'||view.name==='edit'?rows.find(r=>r.id===view.id):undefined
   async function refresh(){setError('');setLoading(true);try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
   function equipmentAdded(item:EquipmentRecord){setInventory(list=>[...list.filter(i=>i.id!==item.id),item]);for(const key of ['inventory','reservations','dashboard','reports','fulfillment','calendar'])invalidateCache(`${key}:${organizationId}`)}
+  function clientAdded(client:ClientAccount){setClients(list=>[...list.filter(c=>c.id!==client.id),client]);invalidateCache(`reservations:${organizationId}`);invalidateCache(`production:${organizationId}`)}
   async function saved(row:EquipmentReservation,message='Reservation saved.'){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);setView({name:'detail',id:row.id});setNotice(message);invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
   // Optimistic: the booking reads as cancelled at once; the previous booking returns if the server rejects the cancellation.
   async function cancel(){if(!current||busy)return;const previous=current;setBusy(true);setError('');setNotice('');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');setRows(list=>list.map(r=>r.id===previous.id?{...r,status:'cancelled'}:r))
@@ -88,7 +94,7 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
   const messages=<>{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}{notice&&<p className="rsv-message" role="status">{notice}</p>}</>
   if(view.name==='new'||view.name==='edit'&&current){
     const reservation=view.name==='edit'?current:undefined
-    return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
+    return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} onClientAdded={clientAdded} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
   }
   if(view.name==='detail'&&current) return <main className="rsv"><div className="rsv-column">
     <button type="button" className="rsv-back" onClick={()=>open({name:'list'})}><Chevron dir="left"/>Reservations</button>
@@ -140,9 +146,9 @@ function ReservationDetail({reservation:r,inventory,client,busy,onEdit,onCancel}
 }
 
 const STEPS=['When','Equipment','Details'] as const
-function BookingFlow({api,organizationId,inventory,clients,maxDays,reservation,onClose,onSaved,onEquipmentAdded}:{api:DatabaseApi;organizationId:string;inventory:EquipmentRecord[];clients:ClientAccount[];maxDays:number;reservation?:EquipmentReservation;onClose:()=>void;onSaved:(r:EquipmentReservation)=>Promise<void>;onEquipmentAdded:(item:EquipmentRecord)=>void}) {
+function BookingFlow({api,organizationId,inventory,clients,canAddClients,onClientAdded,maxDays,reservation,onClose,onSaved,onEquipmentAdded}:{api:DatabaseApi;organizationId:string;inventory:EquipmentRecord[];clients:ClientAccount[];canAddClients:boolean;onClientAdded:(client:ClientAccount)=>void;maxDays:number;reservation?:EquipmentReservation;onClose:()=>void;onSaved:(r:EquipmentReservation)=>Promise<void>;onEquipmentAdded:(item:EquipmentRecord)=>void}) {
   const [step,setStep]=useState(0)
-  const [clientId,setClientId]=useState(reservation?.clientAccountId??'')
+  const [clientId,setClientId]=useState(reservation?.clientAccountId??''),[addingClient,setAddingClient]=useState(false)
   const start=useMemo(()=>new Date(Math.ceil((Date.now()+15*60000)/1800000)*1800000).toISOString(),[])
   const [name,setName]=useState(reservation?.name??''),[startsAt,setStartsAt]=useState(localTime(reservation?.startsAt??start)),[endsAt,setEndsAt]=useState(localTime(reservation?.endsAt??new Date(Date.parse(start)+HOUR).toISOString())),[ids,setIds]=useState(reservation?.equipmentIds??[]),[availability,setAvailability]=useState<EquipmentAvailability[]>([]),[checking,setChecking]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[availabilityError,setAvailabilityError]=useState(''),[showUnavailable,setShowUnavailable]=useState(false),[search,setSearch]=useState('')
   const mutation=useRef<{key:string;id:string}|null>(null),lifecycle=useMemo(()=>api.equipment(organizationId),[api,organizationId])
@@ -182,7 +188,8 @@ function BookingFlow({api,organizationId,inventory,clients,maxDays,reservation,o
       </div>}
       {step===2&&<div className="rsv-question"><h2>Name this booking</h2><p>Something your team will recognize on the list.</p>
         <div className="rsv-stack"><label className="rsv-field">Reservation name<input className="rsv-input" value={name} maxLength={120} placeholder="e.g. Spring reel b-roll" onChange={e=>setName(e.target.value)} required autoFocus/></label>
-        <label className="rsv-field">Client account<Select value={clientId} onChange={e=>setClientId(e.target.value)}><option value="">No client · internal use</option>{clients.filter(c=>!c.deletedAt||c.id===clientId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select></label></div>
+        <div className="rsv-client"><label className="rsv-field">Client account<Select value={addingClient?NEW_CLIENT:clientId} onChange={e=>{if(e.target.value===NEW_CLIENT)setAddingClient(true);else{setAddingClient(false);setClientId(e.target.value)}}}><option value="">No client · internal use</option>{clients.filter(c=>!c.deletedAt||c.id===clientId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}{canAddClients&&<option value={NEW_CLIENT}>+ Add a new client account…</option>}</Select></label>
+        {addingClient&&<NewClientAccount api={api} organizationId={organizationId} onCancel={()=>setAddingClient(false)} onAdded={client=>{onClientAdded(client);setClientId(client.id);setAddingClient(false)}}/>}</div></div>
         <dl className="rsv-review"><div><dt>When</dt><dd>{valid?rangeLabel(new Date(startsAt).toISOString(),new Date(endsAt).toISOString()):'—'}</dd><button type="button" className="rsv-link" onClick={()=>setStep(0)}>Change<span className="ws-sr-only"> dates</span></button></div>
           <div><dt>Equipment</dt><dd>{ids.map(id=><span key={id}>{inventory.find(i=>i.id===id)?.name??'Equipment item'}</span>)}</dd><button type="button" className="rsv-link" onClick={()=>setStep(1)}>Change<span className="ws-sr-only"> equipment</span></button></div></dl>
         {error&&<p className="rsv-inline-error" role="alert">{error}</p>}
@@ -194,6 +201,17 @@ function BookingFlow({api,organizationId,inventory,clients,maxDays,reservation,o
       <button type="submit" className="rsv-button rsv-primary" disabled={busy||!canContinue||step===2&&(checking||unavailable||!ids.length||!valid)}>{step<2?'Continue':busy?'Saving reservation…':reservation?'Save reservation':'Create reservation'}</button>
     </div></div>
   </form>
+}
+
+const NEW_CLIENT='__new_client__'
+/** Creates a client account without leaving the booking, then selects it. Not a nested <form>, so Enter is handled here. */
+function NewClientAccount({api,organizationId,onAdded,onCancel}:{api:DatabaseApi;organizationId:string;onAdded:(client:ClientAccount)=>void;onCancel:()=>void}){
+  const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  async function add(){if(busy)return;const value=name.trim().replace(/\s+/g,' ');if(!value){setError('Enter a name for the client account.');return}setBusy(true);setError('');try{onAdded(await api.production(organizationId).createClient(value))}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
+  return <div className="rsv-add rsv-add-client" role="group" aria-label="Add a client account"><label className="rsv-field">New client account<input className="rsv-input" value={name} maxLength={160} disabled={busy} placeholder="e.g. Southside Coffee Co." autoFocus onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void add()}}}/></label>
+    <p className="rsv-hint">It’s added for your whole organization and selected for this booking.</p>
+    {error&&<p className="rsv-inline-error" role="alert">{error}</p>}
+    <div className="rsv-add-actions"><button type="button" className="rsv-button" disabled={busy} onClick={()=>void add()}><Plus/>{busy?'Adding client account…':'Add client account'}</button><button type="button" className="rsv-button rsv-quiet" disabled={busy} onClick={onCancel}>Cancel</button></div></div>
 }
 
 /** Lets any member add an item, in any category, without leaving the booking. It is not a nested <form>, so Enter is handled here instead of submitting the reservation. */
