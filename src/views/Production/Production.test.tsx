@@ -75,7 +75,12 @@ describe('production workspace',()=>{
     const toolbar=document.querySelector('.production-toolbar')!
     expect(toolbar.firstElementChild).toContainElement(screen.getByRole('searchbox'))
     expect(screen.getByRole('button',{name:'Fall recap'})).toBeInTheDocument()
-    await userEvent.setup().selectOptions(screen.getByLabelText('Requested by'),'Andrew Chung')
+    const user=userEvent.setup()
+    await user.click(screen.getByRole('button',{name:/Requested by/}))
+    await user.type(screen.getByRole('combobox',{name:'Search requested by'}),'andr')
+    expect(screen.queryByRole('option',{name:'Roger'})).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option',{name:'Andrew Chung'}))
+    expect(screen.getByRole('button',{name:/Requested by/})).toHaveTextContent('Andrew Chung')
     expect(screen.getByRole('button',{name:'Spring launch'})).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:'Fall recap'})).not.toBeInTheDocument()
     expect(screen.getByText(/1 brief · Filters applied/)).toBeInTheDocument()
