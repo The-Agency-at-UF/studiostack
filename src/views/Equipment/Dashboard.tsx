@@ -82,7 +82,7 @@ function DashboardWorkspace({api,org,name,admin,statistics,production}:{api:Data
       <div><dt>Open equipment reports</dt><dd>{reports!==null?openReports.length:errors.reports?'–':'…'}</dd></div>
     </dl>
  return <main className={statistics?'administration':'dashboard-page administration live-dashboard'}>
-  <PageHeader title={statistics?'Equipment statistics':'Home'} context={name} description={statistics?'Organization equipment and booking activity.':'Production, equipment, and the work that needs your attention.'} actions={<><Button disabled={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh equipment'}</Button><Link className="ws-button ws-button-primary" href={statistics?'/create-reservation/':'/production/'}>{statistics?'Book equipment':'Open production'}</Link></>}/>
+  <PageHeader title={statistics?'Equipment statistics':'Home'} context={name} description={statistics?'Organization equipment and booking activity.':'Production, equipment, and the work that needs your attention.'} actions={<><Button disabled={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href={statistics?'/create-reservation/':'/production/'}>{statistics?'Book gear':'Open production'}</Link></>}/>
   {!statistics&&production&&<div className="ws-tray" role="group" aria-labelledby="home-tray-production"><p className="ws-tray-label" id="home-tray-production">Production</p>{production}</div>}
   {globalError&&<p role="alert">{globalError}</p>}
   {loading&&!hasAnyData&&<Skeleton label="Loading workspace…" variant="tile" count={4}/>}
