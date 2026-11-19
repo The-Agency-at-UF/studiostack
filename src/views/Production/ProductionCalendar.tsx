@@ -13,7 +13,7 @@ type Kind = 'shoot' | 'tentative' | 'milestone'
 type Entry = { id: string; brief: ProductionBrief; kind: Kind; title: string; badge: string; when: string; start: string; end?: string }
 const milestoneFields = [['conceptReview','Concept review'],['locationConfirmed','Location confirmed'],['paperworkDue','Signed paperwork due'],['assetsDue','Brand assets due'],['deliveryDate','Delivery'],['preProduction','Pre-production'],['roughCut','Rough cut'],['internalReview','Internal review'],['firstRevisions','Revisions'],['clientReview','Client review'],['secondRevisions','Client revisions'],['finalApproval','Final approval']] as const
 const views = [{ value: 'dayGridMonth', label: 'Month' }, { value: 'timeGridWeek', label: 'Week' }]
-const kindLabel: Record<Kind, string> = { shoot: 'Confirmed shoot', tentative: 'Unconfirmed soft hold', milestone: 'Milestone' }
+const kindLabel: Record<Kind, string> = { shoot: 'Confirmed shoot', tentative: 'Soft hold (unconfirmed)', milestone: 'Milestone' }
 // Brief dates are calendar days stored in UTC; format them without shifting into the viewer's zone.
 const day = (value: string | number, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) => new Date(value).toLocaleDateString(undefined, { ...options, timeZone: 'UTC' })
 const short = (value: string | number) => day(value, { month: 'short', day: 'numeric' })
@@ -47,8 +47,8 @@ export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default'
     <div className="ws-calendar-filters">
       <div className="ws-calendar-filters-group">{filter}
         <div className="ws-calendar-toggles" role="group" aria-label="Show on calendar">
-          <label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Show confirmed shoots (green)</label>
-          <label className="ws-check-chip"><input type="checkbox" checked={tentative} onChange={e=>setTentative(e.target.checked)} />Show soft holds (red)</label>
+          <label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Confirmed shoots</label>
+          <label className="ws-check-chip"><input type="checkbox" checked={tentative} onChange={e=>setTentative(e.target.checked)} />Soft holds (unconfirmed)</label>
           <label className="ws-check-chip"><input type="checkbox" checked={milestones} onChange={e=>setMilestones(e.target.checked)} />Milestones</label>
         </div>
       </div>
@@ -64,7 +64,7 @@ export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default'
         </section>}
       </aside>
     </div>
-    {!events.length && <p className="production-empty">No dated briefs yet. Add projected shoot dates or milestones to a brief.</p>}
+    {!events.length && <p className="production-empty">{(()=>{const drafts=briefs.filter(b=>b.status==='draft'&&(b.data.deliveryDate||b.data.fields.proposedStart)).length;return drafts?`Nothing scheduled yet. ${drafts===1?'1 draft brief has':`${drafts} draft briefs have`} dates — they appear here once submitted.`:'Nothing scheduled yet. Dates from submitted and approved briefs appear here.'})()}</p>}
   </section>
 }
 

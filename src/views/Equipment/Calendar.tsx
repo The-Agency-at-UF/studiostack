@@ -1,5 +1,6 @@
 'use client'
 import {useCallback,useEffect,useMemo,useState} from 'react'
+import {sentenceCase} from '../../utils/sentenceCase'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -84,10 +85,10 @@ function CalendarWorkspace({api,org,admin}:{api:DatabaseApi;org:string;admin:boo
   <PageHeader context="Equipment schedule" title="Equipment calendar" description="Gear reservations from pickup to return, in your local time zone. Pickups and returns happen on campus." actions={<><Button disabled={loading} onClick={()=>{setNow(Date.now());setReload(v=>v+1)}}>Refresh</Button><Link className="ws-button ws-button-primary" href="/create-reservation/">Book gear</Link></>}/>
   <div className="ws-calendar-filters">
    <Field label="Filter equipment"><Select value={equipment} onChange={e=>{setEquipment(e.target.value);setSelected('')}}><option value="">All equipment</option>{items.map(i=><option key={i.id} value={i.id}>{i.name} · {i.equipmentCode}</option>)}</Select></Field>
-   <div className="ws-calendar-toggles"><label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Show confirmed reservations (green)</label><label className="ws-check-chip"><input type="checkbox" checked={holds} onChange={e=>setHolds(e.target.checked)}/>Show soft holds (red)</label></div>
-   <ul className="ws-calendar-legend" aria-label="Legend">{(['reserved','checked-out','overdue'] as Status[]).map(s=><li key={s}><span className={`ws-swatch ws-swatch--${s}`} aria-hidden="true"/>{statusLabel[s]}</li>)}</ul>
+   <div className="ws-calendar-toggles"><label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Equipment bookings</label><label className="ws-check-chip"><input type="checkbox" checked={holds} onChange={e=>setHolds(e.target.checked)}/>Production soft holds</label></div>
+   <ul className="ws-calendar-legend" aria-label="Legend">{(['reserved','checked-out','overdue'] as Status[]).map(s=><li key={s}><span className={`ws-swatch ws-swatch--${s}`} aria-hidden="true"/>{statusLabel[s]}</li>)}{holds&&<li><span className="ws-swatch ws-swatch--tentative" aria-hidden="true"/>Production soft hold</li>}</ul>
   </div>
-  {item&&<p className="administration-hint">Current condition: {item.condition} · {item.status}{item.checkedOut?' · Currently checked out':''}</p>}
+  {item&&<p className="administration-hint">Current condition: {sentenceCase(String(item.condition??''))} · {sentenceCase(String(item.status??'').replaceAll('_',' '))}{item.checkedOut?' · Currently checked out':''}</p>}
   {error&&<p role="alert">{error}</p>}{loading&&<p className="ws-sr-only" role="status">Loading equipment calendar…</p>}
   <div className="ws-calendar-layout">
    <WorkspaceCalendar label="Equipment bookings" viewChoices={views} dateClick={day.dateClick} dayCellClassNames={day.dayCellClassNames} plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialDate={initialView?.date} initialView={initialView?.view ?? 'dayGridMonth'} datesSet={dates} events={[...events,...softEvents]} dayMaxEvents eventClick={arg=>setSelected(arg.event.id)} editable={false}/>
