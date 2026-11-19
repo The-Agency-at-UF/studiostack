@@ -8,11 +8,15 @@ import {useAppSession} from '../../context/AppSessionContext'
 import type {ApiPage} from '../../types/database-api'
 import type {JoinCode,OrganizationInvitation,OrganizationSettings,OrganizationActivity,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
 import {Skeleton} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 import JoinMethods,{AccessRequests,settled,type AdminLists,type Run} from './JoinMethods'
 import {uploadOrganizationPhoto} from '../../api/privatePhotos'
 import {OrganizationLogo} from '../Account/Account'
 import OrganizationHeader from '../Organization/OrganizationHeader'
 import './Administration.css'
+/** What each administration change says once it is saved, keyed by the prefix of its request key. */
+const savedMessages:[string,string][]=[['retry:','Invitation email queued to send again.'],['revoke:','Invitation revoked.'],['approve:','Access request approved.'],['deny:','Access request denied.'],['{"code"','Join code created.'],['{"domain"','Domain added.'],['domain:','Domain setting updated.'],['remove-domain:','Domain removed.'],['revoke-code:','Join code revoked.']]
+const savedMessage=(key:string)=>savedMessages.find(([prefix])=>key.startsWith(prefix))?.[1]??'Organization settings saved.'
 async function all<T>(read:(after?:string)=>Promise<ApiPage<T>>){const items:T[]=[];let after:string|undefined;do{const page=await read(after);items.push(...page.items);after=page.nextCursor??undefined}while(after);return items}
 const message=(error:unknown)=>error instanceof DatabaseApiClientError?({403:'Your account cannot manage this organization.',409:'The record changed or the action is unavailable. Refresh before trying again.',400:'Check the form values and active team members.',401:'Your session expired. Sign in again.'}[error.status]??'The service is unavailable. Your changes have not been confirmed.'):'The service is unavailable. Your changes have not been confirmed.'
 
@@ -34,7 +38,7 @@ export default function Administration() {
   const api=useMemo(()=>org?database?.accounts(org):null,[org,database])
   const [settings,setSettings]=useState<OrganizationSettings|null>(null),[invitations,setInvitations]=useState<OrganizationInvitation[]>([]),[activity,setActivity]=useState<OrganizationActivity[]>([])
   const [requests,setRequests]=useState<PendingAccessRequest[]>([]),[codes,setCodes]=useState<JoinCode[]>([]),[domains,setDomains]=useState<WorkspaceDomain[]>([])
-  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
+  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
   const [allActivity,setAllActivity]=useState(false),[current,setCurrent]=useState<string>('general')
   const generation=useRef(0),mutation=useRef<{key:string;id:string}|null>(null)
   // Background reloads can overlap; only the newest one, started after the latest change, may update the page.
@@ -45,19 +49,21 @@ export default function Administration() {
     const [rows,pending,joinCodes,owned,events]=await Promise.all([all(api.invitations),all(api.accessRequests),all(api.joinCodes),s.role==='owner'?all(api.domains):Promise.resolve([]),all(api.activity)])
     if(!stale()){setInvitations(rows);setRequests(pending);setCodes(joinCodes);setDomains(owned);setActivity(events)}
   },[api])
-  useEffect(()=>{const g=++generation.current;setSettings(null);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setNotice('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
+  useEffect(()=>{const g=++generation.current;setSettings(null);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
   const lists=():AdminLists=>({invitations,requests,codes,domains})
   const put=(l:AdminLists)=>{setInvitations(l.invitations);setRequests(l.requests);setCodes(l.codes);setDomains(l.domains)}
   /**
    * Sends one administration change. With `optimistic`, the lists show the change at once, a rejected
    * change puts them back, and the page reloads in the background instead of staying locked.
    */
-  const run:Run=async(key,task,optimistic)=>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`,before=lists();if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};loads.current++;setBusy(true);setError('');setNotice('');if(optimistic)put(optimistic.apply(before))
+  const run:Run=async(key,task,optimistic)=>{if(!api||busy)return;const g=generation.current,scope=`${org}:${key}`,before=lists();if(mutation.current?.key!==scope)mutation.current={key:scope,id:crypto.randomUUID()};loads.current++;setBusy(true);setError('');toast.dismiss('organization-settings');if(optimistic)put(optimistic.apply(before))
     const reload=async()=>{await session.refreshOrganizations?.();if(g===generation.current)await load()}
-    try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;setNotice('Saved.')
-      if(optimistic){if(optimistic.settle)put(optimistic.settle(optimistic.apply(before),result));reload().catch(e=>{if(g===generation.current)setError(message(e))})}else await reload()
+    // The change is saved before the reload; a failed reload only means the page may be out of date.
+    const reloadFailed=()=>{if(g===generation.current)toast.error('The change was saved, but the page could not reload. Refresh to see the latest.',{id:'organization-settings-reload'})}
+    try{const result=await task(api,mutation.current.id);if(g!==generation.current)return;mutation.current=null;toast.success(savedMessage(key),{id:'organization-settings'})
+      if(optimistic){if(optimistic.settle)put(optimistic.settle(optimistic.apply(before),result));reload().catch(reloadFailed)}else await reload().catch(reloadFailed)
       return result}
-    catch(e){if(g===generation.current){if(optimistic)put(before);setError(message(e))}}finally{if(g===generation.current)setBusy(false)}}
+    catch(e){if(g===generation.current){if(optimistic)put(before);toast.error(message(e),{id:'organization-settings'})}}finally{if(g===generation.current)setBusy(false)}}
   const owner=settings?.role==='owner',admin=owner||settings?.role==='admin'
   const ready=!loading&&admin&&!!settings
   // Highlight the index entry for the section the reader has scrolled into; the last one once the page bottoms out.
@@ -76,7 +82,7 @@ export default function Administration() {
   const events=[...activity].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),shownEvents=allActivity?events:events.slice(0,ACTIVITY_PREVIEW)
   return <main className="administration administration-settings-page workspace-surface">
     <OrganizationHeader settings={settings} active="settings"/>
-    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
+    {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
     {!loading&&settings&&!admin&&<p>Only organization owners and administrators can manage the organization.</p>}
     {ready&&<div className="administration-layout">
       <nav className="administration-index" aria-label="Settings sections">

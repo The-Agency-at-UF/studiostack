@@ -8,6 +8,7 @@ import type {PendingInvitation} from '../../types/accounts'
 import type {ApiOrganization} from '../../types/database-api'
 import EmailVerification from '../Production/EmailVerification'
 import NotificationsTab from './Notifications'
+import {useToast} from '../../components/workspace/Toast'
 import './Account.css'
 
 type AccountTab='profile'|'workspaces'|'notifications'|'security'
@@ -72,19 +73,18 @@ function ProfileTab({name,onSave}:{name:string|null;onSave?:(name:string)=>Promi
 
 /** The name teammates see on reservations, shoots and reports. */
 function NameField({initialName,onSave}:{initialName:string;onSave:(name:string)=>Promise<void>}) {
-  const [value,setValue]=useState(initialName),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(false)
+  const [value,setValue]=useState(initialName),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
   const changed=value.trim()!==initialName
   async function save(){
     const trimmed=value.trim()
     if(!trimmed){setError('Enter the name your team knows you by.');return}
-    setBusy(true);setError('');setSaved(false)
-    try{await onSave(trimmed);setSaved(true)}catch{setError('Your name could not be saved. Try again.')}finally{setBusy(false)}
+    setBusy(true);setError('')
+    try{await onSave(trimmed);toast.success('Name saved.',{id:'account-name'})}catch{setError('Your name could not be saved. Try again.')}finally{setBusy(false)}
   }
   return <form className="account-code" noValidate onSubmit={e=>{e.preventDefault();void save()}}>
-    <label className="ws-field">Name<input value={value} onChange={e=>{setValue(e.target.value);setError('');setSaved(false)}} maxLength={120} autoComplete="name" disabled={busy} aria-invalid={error?true:undefined} aria-describedby={error?'account-name-error':undefined}/></label>
+    <label className="ws-field">Name<input value={value} onChange={e=>{setValue(e.target.value);setError('')}} maxLength={120} autoComplete="name" disabled={busy} aria-invalid={error?true:undefined} aria-describedby={error?'account-name-error':undefined}/></label>
     <button type="submit" className="ws-button ws-button-primary" disabled={busy||!changed}>{busy?'Saving…':'Save name'}</button>
     {error&&<p id="account-name-error" className="account-field-error" role="alert">{error}</p>}
-    {saved&&!changed&&<p className="account-field-note" role="status">Name saved.</p>}
   </form>
 }
 
@@ -125,14 +125,14 @@ function DeleteAccount({email,getAccessToken,previewPersonId,onDeleted}:{email:s
 }
 
 function WorkspacesTab() {
-  const session=useAppSession(),organizations=session.organizations??[]
+  const session=useAppSession(),organizations=session.organizations??[],toast=useToast()
   const selected=organizations.some(o=>o.id===session.selectedOrganizationId)?session.selectedOrganizationId:organizations[0]?.id
   return <>
     <section className="account-card" aria-labelledby="account-workspaces-title">
       <div className="account-card-heading"><h2 id="account-workspaces-title">Your workspaces</h2><p>Choose the workspace you are working in.</p></div>
       {organizations.length?<fieldset className="account-workspaces"><legend className="sr-only">Current workspace</legend>
         {organizations.map(org=><label key={org.id} className="account-workspace">
-          <input type="radio" name="account-workspace" value={org.id} checked={selected===org.id} onChange={()=>session.setSelectedOrganizationId?.(org.id)}/>
+          <input type="radio" name="account-workspace" value={org.id} checked={selected===org.id} onChange={()=>{session.setSelectedOrganizationId?.(org.id);toast.success(`Switched to ${org.name}.`,{id:'account-workspace'})}}/>
           <OrganizationLogo organization={org}/>
           <span className="account-workspace-name"><strong>{org.name}</strong><span>{roleLabel(org.role)}</span></span>
           {selected===org.id&&<span className="ws-status ws-status-accent">Current</span>}
@@ -147,22 +147,25 @@ function WorkspacesTab() {
 function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken?:()=>Promise<string>;previewPersonId?:string;onJoined:(organizationId:string)=>Promise<void>}) {
   const api=useMemo(()=>previewPersonId?createPreviewDatabaseApi(previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:getAccessToken!}),[getAccessToken,previewPersonId])
   const [invitations,setInvitations]=useState<PendingInvitation[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false)
-  const [error,setError]=useState(''),[status,setStatus]=useState(''),[code,setCode]=useState(''),[codeError,setCodeError]=useState('')
+  const toast=useToast()
+  const [error,setError]=useState(''),[code,setCode]=useState(''),[codeError,setCodeError]=useState('')
   const load=useCallback(async()=>{setBusy(true);setError('');try{setInvitations((await api.pendingInvitations()).items);setLoaded(true)}catch(e){setError(e instanceof DatabaseApiClientError&&e.status===403?'Verify your sign-in email on the Profile tab, then check again.':'Invitations could not be loaded. Check again in a moment.')}finally{setBusy(false)}},[api])
   useEffect(()=>{void load()},[load])
-  async function accept(invitation:PendingInvitation){setBusy(true);setError('');setStatus('');try{await api.acceptInvitation(invitation.id,invitation.organizationId);setInvitations(items=>items.filter(i=>i.id!==invitation.id));setStatus(`Joined ${invitation.organizationName}.`);await onJoined(invitation.organizationId)}catch{setError('The invitation could not be accepted. Check again before retrying.')}finally{setBusy(false)}}
+  // Joining is done once the server accepts; a failed refresh afterwards only means the workspace list is stale.
+  async function joined(name:string,organizationId:string){toast.success(`Joined ${name}.`,{id:'account-join'});try{await onJoined(organizationId)}catch{toast.error(`You joined ${name}, but your workspace list could not reload. Refresh the page to switch to it.`,{id:'account-join-reload'})}}
+  async function accept(invitation:PendingInvitation){setBusy(true);setError('');try{try{await api.acceptInvitation(invitation.id,invitation.organizationId)}catch{setError('The invitation could not be accepted. Check again before retrying.');return}setInvitations(items=>items.filter(i=>i.id!==invitation.id));await joined(invitation.organizationName,invitation.organizationId)}finally{setBusy(false)}}
   async function joinWithCode(){
     if(!code.trim()){setCodeError('Enter the join code from your workspace administrator.');return}
-    setBusy(true);setError('');setStatus('');setCodeError('')
-    try{const {organizationId}=await api.joinByCode(code.trim());setCode('');setStatus('You joined the workspace.');await onJoined(organizationId)}
-    catch(e){if(e instanceof DatabaseApiClientError&&[400,404].includes(e.status))setCodeError('That join code is not valid. Check it with your workspace administrator.');else if(e instanceof DatabaseApiClientError&&e.status===409)setCodeError('You were removed from this workspace, so a join code can’t add you back. Ask an administrator to invite you.');else setError(e instanceof DatabaseApiClientError&&e.status===429?'Too many join code attempts. Try again in an hour.':'Join codes could not be checked right now. Try again.')}
-    finally{setBusy(false)}
+    setBusy(true);setError('');setCodeError('')
+    let organizationId:string
+    try{({organizationId}=await api.joinByCode(code.trim()));setCode('')}
+    catch(e){if(e instanceof DatabaseApiClientError&&[400,404].includes(e.status))setCodeError('That join code is not valid. Check it with your workspace administrator.');else if(e instanceof DatabaseApiClientError&&e.status===409)setCodeError('You were removed from this workspace, so a join code can’t add you back. Ask an administrator to invite you.');else setError(e instanceof DatabaseApiClientError&&e.status===429?'Too many join code attempts. Try again in an hour.':'Join codes could not be checked right now. Try again.');setBusy(false);return}
+    try{await joined('the workspace',organizationId)}finally{setBusy(false)}
   }
   return <section className="account-card" aria-labelledby="account-join-title">
     <div className="account-card-heading"><h2 id="account-join-title">Join another workspace</h2><p>Invitations sent to your verified email appear here.</p></div>
     <div className="account-card-body">
       {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
-      {status&&<p className="ws-notice ws-notice-success" role="status">{status}</p>}
       {invitations.length>0&&<ul className="account-workspaces account-invitation-list">{invitations.map(invitation=><li key={invitation.id} className="account-workspace">
         <OrganizationLogo organization={{name:invitation.organizationName}}/>
         <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {invitation.role} · expires {new Date(invitation.expiresAt).toLocaleDateString()}</span></span>
@@ -173,7 +176,7 @@ function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken
       <form className="account-code" noValidate onSubmit={e=>{e.preventDefault();void joinWithCode()}}>
         <label className="ws-field">Have a join code?<input value={code} onChange={e=>{setCode(e.target.value);setCodeError('')}} placeholder="ABCDE-FGHJK" maxLength={32} autoComplete="off" spellCheck={false} aria-invalid={codeError?true:undefined} aria-describedby={codeError?'account-code-error':undefined}/></label>
         <button type="submit" className="ws-button ws-button-primary" disabled={busy}>Join workspace</button>
-        {codeError&&<p id="account-code-error" className="account-field-error">{codeError}</p>}
+        {codeError&&<p id="account-code-error" className="account-field-error" role="alert">{codeError}</p>}
       </form>
     </div>
   </section>

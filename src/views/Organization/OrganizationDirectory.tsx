@@ -9,6 +9,7 @@ import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/datab
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
 import { DetailPanel, EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion } from '../../components/workspace/WorkspaceUI'
+import { useToast } from '../../components/workspace/Toast'
 import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import type { AccountClient } from '../../api/accounts'
 import type { ApiPage } from '../../types/database-api'
@@ -46,7 +47,7 @@ export default function OrganizationDirectory() {
   const [people, setPeople] = useState<Person[]>([])
   const [pendingInvitations, setPendingInvitations] = useState(0)
   const [loading, setLoading] = useState(true), [error, setError] = useState('')
-  const [busy, setBusy] = useState(false), [actionError, setActionError] = useState(''), [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false), toast = useToast()
   const [inviting, setInviting] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admins' | 'members'>('all')
@@ -74,7 +75,7 @@ export default function OrganizationDirectory() {
 
   useEffect(() => {
     const g = ++generation.current
-    setSettings(null); setPeople([]); setPendingInvitations(0); setError(''); setActionError(''); setNotice(''); setBusy(false); setInviting(false)
+    setSettings(null); setPeople([]); setPendingInvitations(0); setError(''); setBusy(false); setInviting(false)
     setSearch(''); setRoleFilter('all'); setSelectedId(null); setLoading(true)
     load().catch(e => { if (g === generation.current) setError(loadMessage(e)) }).finally(() => { if (g === generation.current) setLoading(false) })
     return () => { generation.current++ }
@@ -86,18 +87,19 @@ export default function OrganizationDirectory() {
     const g = generation.current, before = people
     let saved = false
     if (mutation.current?.key !== key) mutation.current = { key, id: crypto.randomUUID() }
-    setBusy(true); setActionError(''); setNotice('')
+    setBusy(true); toast.dismiss('people')
     if (apply) setPeople(apply)
     try {
       await task(api, mutation.current.id)
       saved = true
       if (g !== generation.current) return false
       mutation.current = null
-      setNotice(done)
-      await load()
+      toast.success(done, { id: 'people' })
+      // The change is saved; a failed reload only means the list may be out of date.
+      try { await load() } catch { if (g === generation.current) toast.error('The change was saved, but the people list could not reload. Refresh to see the latest.', { id: 'people-reload' }) }
       return true
     } catch (e) {
-      if (g === generation.current) { if (apply && !saved) setPeople(before); setActionError(actionMessage(e)) }
+      if (g === generation.current) { if (apply && !saved) setPeople(before); toast.error(actionMessage(e), { id: 'people' }) }
       return false
     }
     finally { if (g === generation.current) setBusy(false) }
@@ -151,8 +153,6 @@ export default function OrganizationDirectory() {
           <h2 id="org-people">People</h2>
           <p>{owner ? 'Manage roles and remove members or admins. Change an owner’s role before removing them.' : manager ? 'Admins manage member and admin roles, and remove members. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
         </div>
-        {actionError && <Notice kind="error">{actionError}</Notice>}
-        {notice && <Notice kind="success">{notice}</Notice>}
         <div className="org-directory-filters">
           <label className="org-directory-search"><HiOutlineMagnifyingGlass aria-hidden="true" /><input aria-label="Search people" placeholder={manager ? 'Search by name or email' : 'Search by name'} value={search} onChange={event => setSearch(event.target.value)} /></label>
           <Select aria-label="Filter by role" value={roleFilter} onChange={event => setRoleFilter(event.target.value as typeof roleFilter)}>

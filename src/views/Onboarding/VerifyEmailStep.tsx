@@ -1,12 +1,13 @@
 import {useEffect,useRef,useState} from 'react'
 import {confirmEmailCode,emailCodeError,sendEmailCode} from '../../auth/emailVerification'
 import WelcomeActions from './WelcomeActions'
+import {useToast} from '../../components/workspace/Toast'
 const length=6
 /** Sends a code to the sign-in email on arrival and confirms it; joining an organization needs a verified email. */
 export default function VerifyEmailStep({email,getAccessToken,onVerified,onBack}:{email:string;getAccessToken:()=>Promise<string>;onVerified:()=>void;onBack:()=>void}) {
-  const [digits,setDigits]=useState<string[]>(Array(length).fill('')),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false)
+  const [digits,setDigits]=useState<string[]>(Array(length).fill('')),[error,setError]=useState(''),[busy,setBusy]=useState(false),toast=useToast()
   const boxes=useRef<(HTMLInputElement|null)[]>([]),sent=useRef(false)
-  const send=()=>{setError('');setNotice('');return sendEmailCode(getAccessToken).then(()=>setNotice(`Code sent to ${email}.`)).catch(e=>setError(emailCodeError(e,true)))}
+  const send=()=>{setError('');return sendEmailCode(getAccessToken).then(()=>toast.success(`Code sent to ${email}.`,{id:'welcome-code'})).catch(e=>setError(emailCodeError(e,true)))}
   useEffect(()=>{if(sent.current)return;sent.current=true;void send()},[])// eslint-disable-line react-hooks/exhaustive-deps
   function fill(at:number,value:string){const next=[...digits],chars=value.replace(/\D/g,'').slice(0,length-at).split('')
     if(!chars.length){next[at]='';setDigits(next);return}
@@ -20,7 +21,7 @@ export default function VerifyEmailStep({email,getAccessToken,onVerified,onBack}
         onChange={e=>fill(i,e.target.value)} onPaste={e=>{e.preventDefault();fill(i,e.clipboardData.getData('text'))}}
         onKeyDown={e=>{if(e.key==='Backspace'&&!digit&&i>0)boxes.current[i-1]?.focus()}}/>)}</div>
     </fieldset>
-    {error?<p className="login-error" role="alert">{error}</p>:notice&&<p className="login-field-hint" role="status">{notice}</p>}
+    {error&&<p className="login-error" role="alert">{error}</p>}
     <WelcomeActions primary={busy?'Verifying…':'Verify email'} busy={busy} secondary={<span className="welcome-links">
       <button type="button" className="login-text-action" onClick={onBack}>Back</button>
       <button type="button" className="login-text-action" onClick={()=>{setDigits(Array(length).fill(''));void send()}}>Send another code</button></span>}/>
