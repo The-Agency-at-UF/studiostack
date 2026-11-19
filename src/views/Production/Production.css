@@ -17,6 +17,7 @@
 .production-error { background: #fbe9eb; color: #902631; padding: 13px 16px; border-left: 3px solid #a2222c; white-space: pre-wrap; }
 .production-toolbar { display: flex; align-items: flex-end; gap: 16px; margin: 24px 0; }
 .production-search { flex: 1; max-width: 520px; }
+.production-toolbar .production-client-filter { margin: 0; min-width: 160px; }
 .production-toolbar>.production-primary { margin-left: auto; min-width: 130px; display: flex; justify-content: space-between; gap: 16px; }
 .production-table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
 .production-table { border-collapse: collapse; text-align: left; width: 100%; font-size: 13px; }

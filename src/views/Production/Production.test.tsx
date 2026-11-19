@@ -5,6 +5,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Production from './Production'
+import {emptyBrief} from '../../types/production'
 import {invalidateCache,setCached} from '../../api/cache'
 import { AppSessionProvider } from '../../context/AppSessionContext'
 vi.mock('next/dynamic',()=>({default:()=>()=> <p>Calendar surface</p>}))
@@ -64,6 +65,19 @@ describe('production workspace',()=>{
     await step('Review & submit');expect(screen.getByText('Required details are complete.')).toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Submit for review'}));await waitFor(()=>expect(screen.queryByRole('button',{name:'Submit for review'})).not.toBeInTheDocument())
     expect(screen.getByText('In review',{selector:'.production-status'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:/View revision/})).not.toBeInTheDocument()
+  })
+  it('puts search first and filters briefs by the person who requested them',async()=>{
+    const brief=(id:string,ownerId:string,ownerName:string,projectName:string)=>({id,organizationId:'cache-org',ownerId,ownerName,status:'draft',version:1,submission:0,data:{...emptyBrief(),projectName},shootStartsAt:null,shootEndsAt:null,createdAt:'2026-11-01T00:00:00Z',updatedAt:'2026-11-01T00:00:00Z',events:[],attachments:[]})
+    setCached('production:cache-org',{briefs:[brief('a','u1','Andrew Chung','Spring launch'),brief('b','u2','Roger','Fall recap')],clients:[],deliveries:[],access:{userId:'u1',canReview:false,canAdminister:false,isExecutive:false}})
+    vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})))
+    render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
+    const toolbar=document.querySelector('.production-toolbar')!
+    expect(toolbar.firstElementChild).toContainElement(screen.getByRole('searchbox'))
+    expect(screen.getByRole('button',{name:'Fall recap'})).toBeInTheDocument()
+    await userEvent.setup().selectOptions(screen.getByLabelText('Requested by'),'Andrew Chung')
+    expect(screen.getByRole('button',{name:'Spring launch'})).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Fall recap'})).not.toBeInTheDocument()
+    expect(screen.getByText(/1 brief · Filters applied/)).toBeInTheDocument()
   })
   it('lets the author delete a never-submitted draft from the brief list',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
