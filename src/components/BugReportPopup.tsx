@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Popup from './Popup';
 import {useAppSession} from '../context/AppSessionContext';
-import {createDatabaseApiClient} from '../api/database';
+import {createDatabaseApiClient,DatabaseApiClientError} from '../api/database';
+import {errorText} from '../api/errorText';
 import {authConfiguration} from '../auth/cognito';
 import type {ApiBugReport,FeedbackKind} from '../types/database-api';
 import { IoIosCloseCircle, IoIosBug, IoIosBulb } from "react-icons/io";
@@ -26,6 +27,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState('');
 
   useEffect(() => {
     setCurrentUrl(window.location.href);
@@ -33,9 +35,10 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
 
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
-      alert("Please provide both a title and description.");
+      setMissing(!title.trim() && !description.trim() ? 'Add a title and a description.' : !title.trim() ? 'Add a title.' : 'Add a description.');
       return;
     }
+    setMissing('');
 
     setIsSubmitting(true);
     setError(null);
@@ -63,8 +66,9 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
       setTitle("");
       setDescription("");
     } catch (err) {
-      void err;
-      setError(text.failure);
+      // Name the cause when it is the service or the connection; other details stay private.
+      const known = err instanceof DatabaseApiClientError || (err instanceof TypeError && /fetch|network/i.test(err.message));
+      setError(known ? `${text.failure.replace(/ Please try again later\.$/, '')} ${errorText(err)}` : text.failure);
     } finally {
       setIsSubmitting(false);
     }
@@ -82,6 +86,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
     setSubmitted(false);
     setHistory([]);setHistoryError('');
     setError(null);
+    setMissing('');
     setTitle("");
     setDescription("");
     close();
@@ -136,7 +141,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                       placeholder={text.titlePlaceholder} maxLength={160}
                       className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white"
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
+                      onChange={(e) => { setTitle(e.target.value); setMissing(''); }}
                     />
                   </div>
 
@@ -147,11 +152,12 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                       rows={4}
                       className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white resize-none"
                       value={description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      onChange={(e) => { setDescription(e.target.value); setMissing(''); }}
                     />
                   </div>
                 </div>
 
+                {missing && <p role="alert" className="pt-4 text-sm font-semibold text-[var(--danger)]">{missing}</p>}
                 <div className="actions flex justify-end space-x-3 pt-6 font-bold">
                   <button
                     className="px-6 py-2 bg-gray-300 rounded-md cursor-pointer hover:bg-gray-400"
@@ -179,7 +185,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                     <div className="flex justify-center text-green-600">
                       <text.Icon className="w-16 h-16" />
                     </div>
-                    <h2 className="text-2xl font-bold">{text.success}</h2>
+                    <h2 className="text-2xl font-bold" role="status">{text.success}</h2>
                     <p className="text-gray-700">
                       {session.mode==='preview'?'Saved to this browser’s preview. No notification was sent.':text.thanks}
                     </p>
@@ -189,8 +195,10 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                     <div className="flex justify-center text-red-600">
                       <text.Icon className="w-16 h-16" />
                     </div>
-                    <h2 className="text-2xl font-bold">Submission Failed</h2>
-                    <p className="text-gray-700">{error}</p>
+                    <div role="alert">
+                      <h2 className="text-2xl font-bold">Submission Failed</h2>
+                      <p className="text-gray-700">{error}</p>
+                    </div>
                     <button
                       className="px-6 py-2 bg-[var(--accent-light)] rounded-md font-bold hover:bg-[var(--accent)] hover:text-white transition-colors mt-4"
                       onClick={() => setError(null)}
