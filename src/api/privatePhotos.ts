@@ -1,3 +1,4 @@
+import {storePreviewFile,previewPhotoKey} from '../preview/media'
 import type { createDatabaseApiClient } from './database'
 import { preparePhoto } from './preparePhoto'
 
@@ -7,6 +8,7 @@ import { preparePhoto } from './preparePhoto'
 export async function uploadOrganizationPhoto(file: File, organizationId: string, api: ReturnType<typeof createDatabaseApiClient>, requestId = crypto.randomUUID()) {
   const processed = await preparePhoto(file)
   const authorization = await api.createPhotoUpload({ organizationId, contentType: 'image/jpeg', size: processed.size, requestId })
+  if(organizationId==='preview'){await storePreviewFile(previewPhotoKey(authorization.photoId),processed);return api.completePhoto(organizationId,authorization.photoId)}
   const endpoint = new URL(authorization.url)
   if (endpoint.protocol !== 'https:' || endpoint.hostname !== 'studio-stack-photos-dev.s3.us-east-2.amazonaws.com' && endpoint.hostname !== 'studio-stack-photos-prod.s3.us-east-2.amazonaws.com' || endpoint.username || endpoint.password || endpoint.search) throw new Error('Unexpected private upload destination')
   const form = new FormData()

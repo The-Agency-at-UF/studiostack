@@ -1,6 +1,7 @@
 'use client'
 import {useCallback,useEffect,useMemo,useState} from 'react'
 import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database'
+import {createPreviewDatabaseApi} from '../../preview/database'
 import {authConfiguration} from '../../auth/cognito'
 import {useAppSession} from '../../context/AppSessionContext'
 import type {PendingInvitation} from '../../types/accounts'
@@ -68,13 +69,13 @@ function SecurityTab() {
     <div className="account-card-heading"><h2 id="account-security-title">Sign-in and security</h2></div>
     <div className="account-row"><div><strong>Signed in as</strong><span>{session.email}</span></div>{session.mode==='authenticated'&&<span className="ws-status ws-status-success">Connected securely</span>}</div>
     <div className="account-row"><div><strong>This browser</strong><span>Sign out when you finish on a shared computer.</span></div><button type="button" className="ws-button ws-button-secondary" onClick={()=>void session.signOut?.()}>Sign out</button></div>
-    {session.mode==='authenticated'&&session.getAccessToken&&<DeleteAccount email={session.email} getAccessToken={session.getAccessToken} onDeleted={()=>void session.signOut?.()}/>}
+    {(session.mode==='preview'||session.mode==='authenticated'&&session.getAccessToken)&&<DeleteAccount previewPersonId={session.mode==='preview'?(session.previewPersonId??'preview-admin'):undefined} email={session.email} getAccessToken={session.getAccessToken} onDeleted={()=>void session.signOut?.()}/>}
   </section>
 }
 
 /** Permanently removes the signed-in account after the person retypes their email. */
-function DeleteAccount({email,getAccessToken,onDeleted}:{email:string;getAccessToken:()=>Promise<string>;onDeleted:()=>void}) {
-  const api=useMemo(()=>createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken}),[getAccessToken])
+function DeleteAccount({email,getAccessToken,previewPersonId,onDeleted}:{email:string;getAccessToken?:()=>Promise<string>;previewPersonId?:string;onDeleted:()=>void}) {
+  const api=useMemo(()=>previewPersonId?createPreviewDatabaseApi(previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:getAccessToken!}),[getAccessToken,previewPersonId])
   const [open,setOpen]=useState(false),[typed,setTyped]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const matches=typed.trim().toLowerCase()===email.trim().toLowerCase()&&email.trim()!==''
   function close(){setOpen(false);setTyped('');setError('')}
@@ -113,13 +114,13 @@ function WorkspacesTab() {
         </label>)}
       </fieldset>:<p className="account-empty">You are not in a workspace yet. Join one below.</p>}
     </section>
-    {session.getAccessToken?<JoinWorkspace getAccessToken={session.getAccessToken} onJoined={async id=>{await session.refreshOrganizations?.();session.setSelectedOrganizationId?.(id)}}/>
+    {session.mode==='preview'||session.getAccessToken?<JoinWorkspace previewPersonId={session.mode==='preview'?(session.previewPersonId??'preview-admin'):undefined} getAccessToken={session.getAccessToken} onJoined={async id=>{await session.refreshOrganizations?.();session.setSelectedOrganizationId?.(id)}}/>
       :<section className="account-card"><div className="account-card-heading"><h2>Join another workspace</h2><p>Sign in to see invitations for your email.</p></div></section>}
   </>
 }
 
-function JoinWorkspace({getAccessToken,onJoined}:{getAccessToken:()=>Promise<string>;onJoined:(organizationId:string)=>Promise<void>}) {
-  const api=useMemo(()=>createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken}),[getAccessToken])
+function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken?:()=>Promise<string>;previewPersonId?:string;onJoined:(organizationId:string)=>Promise<void>}) {
+  const api=useMemo(()=>previewPersonId?createPreviewDatabaseApi(previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:getAccessToken!}),[getAccessToken,previewPersonId])
   const [invitations,setInvitations]=useState<PendingInvitation[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false)
   const [error,setError]=useState(''),[status,setStatus]=useState(''),[code,setCode]=useState(''),[codeError,setCodeError]=useState('')
   const load=useCallback(async()=>{setBusy(true);setError('');try{setInvitations((await api.pendingInvitations()).items);setLoaded(true)}catch(e){setError(e instanceof DatabaseApiClientError&&e.status===403?'Verify your sign-in email on the Profile tab, then check again.':'Invitations could not be loaded. Check again in a moment.')}finally{setBusy(false)}},[api])

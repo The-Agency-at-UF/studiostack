@@ -1,5 +1,5 @@
 'use client'
-import {previewEquipmentApi} from './previewApi'
+import {createPreviewDatabaseApi} from './previewApi'
 import {useMemo} from 'react'
 import {useAppSession} from '../../context/AppSessionContext'
 import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database'
@@ -8,7 +8,8 @@ import type {ApiPage} from '../../types/database-api'
 export type DatabaseApi=ReturnType<typeof createDatabaseApiClient>
 export function useLiveOrganization(){const session=useAppSession(),organization=session.organizations?.find(o=>o.id===session.selectedOrganizationId)??session.organizations?.[0]
   const api=useMemo(()=>session.mode==='authenticated'&&session.getAccessToken?createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}):null,[session.mode,session.getAccessToken])
-  if(session.mode==='preview')return {api:previewEquipmentApi,organization:{id:'preview',slug:'preview',name:'Preview workspace',role:'owner' as const},admin:true}
+  const previewApi=useMemo(()=>createPreviewDatabaseApi(session.previewPersonId),[session.previewPersonId])
+  if(session.mode==='preview'){if(session.previewPersonId&&session.organizations?.length===0)return null;const organization=session.organizations?.find(o=>o.id==='preview')??{id:'preview',slug:'preview',name:'Preview workspace',role:'owner' as const};return {api:previewApi,organization,admin:['owner','admin'].includes(organization.role)}}
   return api&&organization?{api,organization,admin:['owner','admin'].includes(organization.role)}:null
 }
 export async function allPages<T>(load:(after?:string)=>Promise<ApiPage<T>>){const items:T[]=[];let after:string|undefined;do{const page=await load(after);items.push(...page.items);after=page.nextCursor??undefined}while(after);return items}
@@ -27,5 +28,6 @@ export function equipmentError(error:unknown):string{
     }
     return messages[error.status]??'The service is unavailable. Refresh to check whether your changes were saved.'
   }
+  if(error instanceof Error&&error.name==='PreviewError')return error.message
   return 'The service is unavailable. Refresh to check whether your changes were saved.'
 }

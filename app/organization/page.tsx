@@ -7,6 +7,6 @@ import { useAppSession } from '../../src/context/AppSessionContext'
 export default function OrganizationPage() {
   const session=useAppSession()
   const {isAdmin}=session
-  if(session.mode==='authenticated')return <OrganizationDirectory />
+  if(session.mode==='authenticated'||session.mode==='preview')return <OrganizationDirectory />
   return <Organization isAdmin={isAdmin} />
 }

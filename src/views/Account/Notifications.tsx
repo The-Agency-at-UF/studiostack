@@ -9,7 +9,7 @@ export default function NotificationsTab() {
   const live=useLiveOrganization()
   const heading=<div className="account-card-heading"><h2 id="account-notifications-title">Notifications</h2>
     <p>Alerts always appear on the Alerts page. Optional emails go to your verified sign-up email.</p></div>
-  if(!live||live.organization.id==='preview')return <section className="account-card" aria-labelledby="account-notifications-title">{heading}
+  if(!live)return <section className="account-card" aria-labelledby="account-notifications-title">{heading}
     <p className="account-empty">Sign in and choose a workspace to manage email notifications.</p></section>
   return <section className="account-card" aria-labelledby="account-notifications-title">{heading}
     <EmailPreferences key={live.organization.id} api={live.api} org={live.organization.id} orgName={live.organization.name}/>

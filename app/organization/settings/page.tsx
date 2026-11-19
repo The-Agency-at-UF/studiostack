@@ -6,6 +6,6 @@ import { useAppSession } from '../../../src/context/AppSessionContext'
 
 export default function OrganizationSettingsPage() {
   const session = useAppSession()
-  if (session.mode === 'authenticated') return <Administration />
+  if (session.mode === 'authenticated'||session.mode==='preview') return <Administration />
   return <Organization isAdmin={session.isAdmin} initialTab="settings" />
 }

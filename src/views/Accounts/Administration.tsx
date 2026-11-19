@@ -1,5 +1,6 @@
 'use client'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
+import {createPreviewDatabaseApi} from '../../preview/database'
 import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database'
 import {authConfiguration} from '../../auth/cognito'
 import {useAppSession} from '../../context/AppSessionContext'
@@ -27,8 +28,8 @@ const when=(iso:string)=>new Date(iso).toLocaleString(undefined,{month:'short',d
 const ACTIVITY_PREVIEW=5
 
 export default function Administration() {
-  const session=useAppSession(),org=session.selectedOrganizationId??session.organizations?.[0]?.id
-  const database=useMemo(()=>session.getAccessToken?createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}):null,[session.getAccessToken])
+  const session=useAppSession(),org=session.selectedOrganizationId??session.organizations?.[0]?.id??(session.mode==='preview'?'preview':undefined)
+  const database=useMemo(()=>session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId):session.getAccessToken?createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}):null,[session.getAccessToken,session.mode,session.previewPersonId])
   const api=useMemo(()=>org?database?.accounts(org):null,[org,database])
   const [settings,setSettings]=useState<OrganizationSettings|null>(null),[invitations,setInvitations]=useState<OrganizationInvitation[]>([]),[activity,setActivity]=useState<OrganizationActivity[]>([])
   const [requests,setRequests]=useState<PendingAccessRequest[]>([]),[codes,setCodes]=useState<JoinCode[]>([]),[domains,setDomains]=useState<WorkspaceDomain[]>([])
