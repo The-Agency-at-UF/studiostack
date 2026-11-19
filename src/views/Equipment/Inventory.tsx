@@ -1,11 +1,11 @@
 'use client'
 import {DetailPanel,Select,Skeleton,StatusLabel} from '../../components/workspace/WorkspaceUI'
-import {HiMagnifyingGlass,HiXMark} from 'react-icons/hi2'
+import {HiMagnifyingGlass,HiXMark,HiOutlinePlus} from 'react-icons/hi2'
 import type {EquipmentRecord} from '../../types/equipment'
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react'
 import type {FormEvent} from 'react'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
-import {equipmentCategories,type EquipmentCategory,type EquipmentStatus} from '../../types/database-api'
+import {equipmentCategories,equipmentColors,type EquipmentCategory,type EquipmentStatus} from '../../types/database-api'
 import {uploadOrganizationPhoto} from '../../api/privatePhotos'
 import QRCodeGenerator from '../../components/QRCodeGenerator'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
@@ -58,7 +58,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
       <div className="administration-actions">
         <button type="button" onClick={()=>void refresh()} disabled={refreshing} aria-busy={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button>
         <button type="button" onClick={()=>setScanning(true)}>Scan equipment</button>
-        {admin&&<button type="button" className="ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}>Add item</button>}
+        {admin&&<button type="button" className="ws-button ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}><HiOutlinePlus aria-hidden="true"/> Add item</button>}
       </div>
     </header>
     {error&&<p role="alert" className="inventory-error">{error}</p>}
@@ -76,7 +76,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
           <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Condition</th><th scope="col">Status</th></tr></thead>
           <tbody className="ws-stagger">{filtered.map(i=>{const status=serviceStatus(i);return <tr key={i.id} className={i.id===selected?'is-selected':undefined} onClick={()=>inspect(i.id)}>
             <td><div className="inventory-item"><PhotoThumbnail api={api} organizationId={organizationId} item={i}/><div><button type="button" className="equipment-item-link" aria-current={i.id===selected?'true':undefined} onClick={e=>{e.stopPropagation();inspect(i.id)}}>{i.name}</button><small className="inventory-code">{i.equipmentCode}</small></div></div></td>
-            <td>{i.category}</td>
+            <td>{i.category}{i.colorTag&&<small className="equipment-color-tag"><span className={`equipment-color equipment-color-${i.colorTag}`} aria-hidden="true"/>{i.colorTag}</small>}</td>
             <td><span className={`inventory-condition inventory-condition-${i.condition}`}>{capitalize(i.condition)}</span></td>
             <td><StatusLabel tone={status.tone}>{status.label}</StatusLabel></td>
           </tr>})}</tbody>
@@ -102,17 +102,18 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
 type InventoryView='all'|'ready'|'out'|'service'
 const inventoryViews:[InventoryView,string][]=[['all','All equipment'],['ready','Available'],['out','Checked out'],['service','Maintenance']]
 function matchesView(item:EquipmentRecord,view:InventoryView){return view==='all'||view==='out'&&item.checkedOut||view==='ready'&&!item.checkedOut&&item.status==='available'||view==='service'&&item.status==='maintenance'}
-function serviceStatus(item:EquipmentRecord):{label:string;tone:'neutral'|'accent'|'success'|'warning'}{if(item.checkedOut)return {label:'Checked out',tone:'accent'};if(item.status==='maintenance')return {label:'Maintenance',tone:'warning'};if(item.status==='retired')return {label:'Retired',tone:'neutral'};return {label:'Available',tone:'success'}}
+function serviceStatus(item:EquipmentRecord):{label:string;tone:'neutral'|'accent'|'success'|'warning'}{if(item.checkedOut)return {label:'Checked out',tone:'accent'};if(item.status==='maintenance')return {label:'Maintenance',tone:'warning'};if(item.status==='retired')return {label:'Archive',tone:'neutral'};return {label:'Available',tone:'success'}}
 const capitalize=(value?:string|null)=>value?value.charAt(0).toUpperCase()+value.slice(1):"Not recorded"
 const plural=(count:number,noun:string)=>`${count} ${noun}${count===1?'':'s'}`
 /** Suggests a label code for gear that has no QR label yet, such as LIG-7K2Q for a light. */
 function ItemEditor({api,organizationId,item,initialCode='',onSaved}:{api:DatabaseApi;organizationId:string;item?:EquipmentRecord;initialCode?:string;onSaved:(item:EquipmentRecord)=>Promise<void>}) {
-  const [code,setCode]=useState(item?.equipmentCode??initialCode),[name,setName]=useState(item?.name??''),[category,setCategory]=useState<EquipmentCategory>(item?.category??'Camera & Accessories'),[status,setStatus]=useState<EquipmentStatus>(item?.status??'available'),[photo,setPhoto]=useState<File|null>(null),[removePhoto,setRemovePhoto]=useState(false),[scan,setScan]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const [code,setCode]=useState(item?.equipmentCode??initialCode),[name,setName]=useState(item?.name??''),[category,setCategory]=useState<EquipmentCategory>(item?.category??'Camera & Accessories'),[status,setStatus]=useState<EquipmentStatus>(item?.status??'available'),[colorTag,setColorTag]=useState(item?.colorTag??''),[photo,setPhoto]=useState<File|null>(null),[removePhoto,setRemovePhoto]=useState(false),[scan,setScan]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const uploaded=useRef<{file:File;photoId:string}|null>(null)
-  async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');try{let photoId=item?.photoId??undefined;if(photo){if(uploaded.current?.file!==photo){const result=await uploadOrganizationPhoto(photo,organizationId,api);uploaded.current={file:photo,photoId:result.photoId}}photoId=uploaded.current!.photoId}const saved=item?await api.updateEquipment(organizationId,item.id,{name,category,status,...(photo?{photoId}:removePhoto?{photoId:null}:{})}):await api.createEquipment(organizationId,{equipmentCode:code.trim(),name,category,...(photoId?{photoId}:{})});await onSaved(saved)}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
+  async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');try{let photoId=item?.photoId??undefined;if(photo){if(uploaded.current?.file!==photo){const result=await uploadOrganizationPhoto(photo,organizationId,api);uploaded.current={file:photo,photoId:result.photoId}}photoId=uploaded.current!.photoId}const saved=item?await api.updateEquipment(organizationId,item.id,{name,category,status,colorTag:colorTag?colorTag as typeof equipmentColors[number]:null,...(photo?{photoId}:removePhoto?{photoId:null}:{})}):await api.createEquipment(organizationId,{equipmentCode:code.trim(),name,category,...(colorTag?{colorTag:colorTag as typeof equipmentColors[number]}:{}),...(photoId?{photoId}:{})});await onSaved(saved)}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
   return <form className="equipment-editor" onSubmit={submit}><fieldset disabled={busy}><label>Equipment code<input value={code} onChange={e=>setCode(e.target.value)} pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,127}" maxLength={128} disabled={Boolean(item)} required/></label>{!item&&<><button type="button" onClick={()=>setScan(true)}>Scan existing label</button><button type="button" onClick={()=>setCode(generatedEquipmentCode(category))}>Generate new code</button><p className="administration-hint">Scan a label already on the equipment, or generate a code and print its QR label after saving.</p></>}{scan&&<EquipmentQrScanner onCancel={()=>setScan(false)} onCode={value=>{if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value))return false;setCode(value);setScan(false);return true}}/>}
     <label>Item name<input value={name} maxLength={120} onChange={e=>setName(e.target.value)} required/></label><label>Equipment category<Select value={category} onChange={e=>setCategory(e.target.value as EquipmentCategory)}>{equipmentCategories.map(c=><option key={c}>{c}</option>)}</Select></label>
-    {item&&<label>Service status<Select value={status} onChange={e=>setStatus(e.target.value as EquipmentStatus)}><option value="available">Available</option><option value="maintenance">Maintenance</option><option value="retired">Retired</option></Select></label>}
-    {organizationId!=='preview'&&<label>Equipment photo<input type="file" accept="image/*,.heic,.heif,.avif" onChange={e=>{setPhoto(e.target.files?.[0]??null);uploaded.current=null;setRemovePhoto(false)}}/></label>}{item?.photoId&&!photo&&<label className="administration-checkbox"><input type="checkbox" checked={removePhoto} onChange={e=>setRemovePhoto(e.target.checked)}/>Remove current photo</label>}
-    <p className="administration-hint">Photos stay private to the organization. Retire equipment to preserve its history.</p><button disabled={busy||scan}>{busy?'Saving equipment…':item?'Save equipment':'Create equipment'}</button></fieldset>{error&&<p role="alert">{error}</p>}</form>
+    <label>Color tag<Select value={colorTag} onChange={e=>setColorTag(e.target.value)}><option value="">No color tag</option>{equipmentColors.map(c=><option key={c} value={c}>{c}</option>)}</Select></label>
+    {item&&<label>Service status<Select value={status} onChange={e=>setStatus(e.target.value as EquipmentStatus)}><option value="available">Available</option><option value="maintenance">Maintenance</option><option value="retired">Archive</option></Select></label>}
+    {<label>Equipment photo<input type="file" accept="image/*,.heic,.heif,.avif" onChange={e=>{setPhoto(e.target.files?.[0]??null);uploaded.current=null;setRemovePhoto(false)}}/></label>}{item?.photoId&&!photo&&<label className="administration-checkbox"><input type="checkbox" checked={removePhoto} onChange={e=>setRemovePhoto(e.target.checked)}/>Remove current photo</label>}
+    <p className="administration-hint">Photos stay private to the organization. Archive equipment to preserve its history. Record breakage in Equipment reports or during return.</p><button disabled={busy||scan}>{busy?'Saving equipment…':item?'Save equipment':'Create equipment'}</button></fieldset>{error&&<p role="alert">{error}</p>}</form>
 }

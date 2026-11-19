@@ -32,9 +32,9 @@ type Tab='upcoming'|'out'|'history'
 type View={name:'list'}|{name:'detail';id:string}|{name:'new'}|{name:'edit';id:string}
 const tabOf=(r:EquipmentReservation):Tab=>r.status==='cancelled'||r.fulfillmentStatus==='returned'?'history':r.fulfillmentStatus==='checked_out'?'out':'upcoming'
 
-export default function LiveReservations({create=false}:{create?:boolean}){const context=useLiveOrganization();return context?<ReservationWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id} create={create}/>:<main className="administration"><h1>Reservations</h1><p>Select an active organization in your account to reserve equipment.</p></main>}
+export default function LiveReservations({create=false}:{create?:boolean}){const context=useLiveOrganization();return context?<ReservationWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id} admin={context.admin} create={create}/>:<main className="administration"><h1>Reservations</h1><p>Select an active organization in your account to reserve equipment.</p></main>}
 
-function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organizationId:string;create:boolean}) {
+function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi;organizationId:string;admin:boolean;create:boolean}) {
   const cacheKey = `reservations:${organizationId}`
   const cached = getCached<CachedReservations>(cacheKey)
   const [rows,setRows]=useState<EquipmentReservation[]>(cached?.bookings ?? [])
@@ -81,6 +81,7 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
   useEffect(()=>{let active=true;load().then(value=>{if(active){accept(value);const id=new URLSearchParams(window.location.search).get('reservation');if(id&&value.bookings.some(r=>r.id===id))setView({name:'detail',id})}}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
   const open=(next:View)=>{setView(next);setNotice('');setFiltersOpen(false);if(typeof window!=='undefined')window.scrollTo?.(0,0)}
   const clientName=(id?:string|null)=>id?clients.find(c=>c.id===id)?.name??'Client account':'Internal use'
+  const overdue=rows.filter(isOverdue),locked=!admin&&overdue.some(r=>!r.readOnly)
   const current=view.name==='detail'||view.name==='edit'?rows.find(r=>r.id===view.id):undefined
   async function refresh(){setError('');setLoading(true);try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
   function equipmentAdded(item:EquipmentRecord){setInventory(list=>[...list.filter(i=>i.id!==item.id),item]);for(const key of ['inventory','reservations','dashboard','reports','fulfillment','calendar'])invalidateCache(`${key}:${organizationId}`)}
@@ -91,8 +92,8 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
     let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));setError(equipmentError(e));setBusy(false);return}
     try{await saved(row,'Reservation cancelled.')}finally{setBusy(false)}}
 
-  const messages=<>{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}{notice&&<p className="rsv-message" role="status">{notice}</p>}</>
-  if(view.name==='new'||view.name==='edit'&&current){
+  const messages=<>{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}{notice&&<p className="rsv-message" role="status">{notice}</p>}</>
+  if(view.name==='new'&&(!locked||loading)||view.name==='edit'&&current){
     const reservation=view.name==='edit'?current:undefined
     return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} onClientAdded={clientAdded} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
   }
@@ -108,15 +109,14 @@ function ReservationWorkspace({api,organizationId,create}:{api:DatabaseApi;organ
   const anchor=(r:EquipmentReservation)=>tab==='out'?r.endsAt:r.startsAt
   const shown=matches.filter(r=>tabOf(r)===tab).sort((a,b)=>tab==='history'?Date.parse(b.startsAt)-Date.parse(a.startsAt):Date.parse(anchor(a))-Date.parse(anchor(b)))
   const days=[...new Set(shown.map(r=>new Date(anchor(r)).toDateString()))]
-  const overdue=rows.filter(isOverdue)
   const filtered=Boolean(clientFilter||needle)
   return <main className="rsv"><div className="rsv-column">
-    <header className="rsv-top"><div><h1>Reservations</h1><p>What’s going out, and what’s coming back.</p></div><div className="rsv-top-actions"><button type="button" className="rsv-button rsv-quiet" disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button type="button" className="rsv-button rsv-primary" onClick={()=>open({name:'new'})}><Plus/>New reservation</button></div></header>
+    <header className="rsv-top"><div><h1>Reservations</h1><p>What’s going out, and what’s coming back.</p></div><div className="rsv-top-actions"><button type="button" className="rsv-button rsv-quiet" disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>New reservation</button></div></header>
     {messages}
     {overdue.length>0&&<div className="rsv-overdue" role="status"><span aria-hidden="true"/><p>{overdue.length===1?<><b>{overdue[0].name}</b> is overdue. It was due back {dateLabel(overdue[0].endsAt)} at {timeLabel(overdue[0].endsAt)}.</>:<><b>{overdue.length} bookings</b> are overdue.</>}</p><button type="button" className="rsv-link" onClick={()=>overdue.length===1?open({name:'detail',id:overdue[0].id}):setTab('out')}>Review</button></div>}
-    {loading&&!rows.length?<Skeleton label="Loading reservations…" variant="row" count={4}/>:!rows.length&&!error?<div className="rsv-empty"><h2>No reservations yet</h2><p>When someone books equipment it shows up here by pickup day, so you always know what goes out and what comes back.</p><button type="button" className="rsv-button rsv-primary" onClick={()=>open({name:'new'})}><Plus/>New reservation</button></div>:rows.length>0&&<>
+    {loading&&!rows.length?<Skeleton label="Loading reservations…" variant="row" count={4}/>:!rows.length&&!error?<div className="rsv-empty"><h2>No reservations yet</h2><p>When someone books equipment it shows up here by pickup day, so you always know what goes out and what comes back.</p><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>New reservation</button></div>:rows.length>0&&<>
       <div className="rsv-bar">
-        <div className="rsv-tabs" role="tablist" aria-label="Reservations">{([['upcoming','Upcoming'],['out','Out now'],['history','History']] as const).map(([value,label])=><button type="button" role="tab" key={value} aria-selected={tab===value} onClick={()=>setTab(value)}>{label}{value!=='history'&&<span>{count(value)}</span>}</button>)}</div>
+        <div className="rsv-tabs" role="tablist" aria-label="Reservations">{([['upcoming','Upcoming'],['out','Out now'],['history','History']] as const).filter(([value])=>admin||value!=='history').map(([value,label])=><button type="button" role="tab" key={value} aria-selected={tab===value} onClick={()=>setTab(value)}>{label}{value!=='history'&&<span>{count(value)}</span>}</button>)}</div>
         <div className="rsv-filter"><button type="button" className="rsv-button rsv-quiet" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(o=>!o)}><FilterIcon/>Filter{filtered&&<span className="rsv-filter-dot">On</span>}</button>
           {filtersOpen&&<div className="rsv-filter-pop"><label className="rsv-field">Search<input className="rsv-input" value={search} placeholder="Booking or equipment name" onChange={e=>setSearch(e.target.value)}/></label><label className="rsv-field">Client account<Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All client accounts</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.deletedAt?' · Deleted':''}</option>)}</Select></label>{filtered&&<button type="button" className="rsv-link" onClick={()=>{setSearch('');setClientFilter('')}}>Clear filters</button>}</div>}
         </div>
