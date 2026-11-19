@@ -1,17 +1,17 @@
 import QRCode from "react-qr-code";
+import { useToast } from "./workspace/Toast";
 
 const QRCodeGenerator = ({ equipmentID }: { equipmentID: string }) => {
+  const toast = useToast();
+  const failed = () => toast.error("The QR label could not be created. Try again, or print it from another browser.", { id: `qr-${equipmentID}` });
   const downloadAction = () => {
     const svgParent = document.getElementById(`qr-container-${equipmentID}`);
     const svg = svgParent?.querySelector('svg');
-    if (!svg) {
-        console.error("QR Code SVG not found");
-        return;
-    }
+    if (!svg) return failed();
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return failed();
     const img = new Image();
 
     img.onload = () => {
@@ -45,7 +45,9 @@ const QRCodeGenerator = ({ equipmentID }: { equipmentID: string }) => {
       downloadLink.download = `${equipmentID}_qr.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
+      toast.success(`QR label for ${equipmentID} downloaded.`, { id: `qr-${equipmentID}` });
     };
+    img.onerror = failed;
 
     img.src = "data:image/svg+xml;base64," + btoa(svgData);
   };

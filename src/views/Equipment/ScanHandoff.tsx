@@ -1,5 +1,6 @@
 'use client'
 import {useState} from 'react'
+import {useToast} from '../../components/workspace/Toast'
 import {allPages,equipmentError,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {ConditionForm} from './Fulfillment'
@@ -18,10 +19,10 @@ export function handoffFor(item:EquipmentRecord,reservations:EquipmentReservatio
 }
 type Scan={item:EquipmentRecord;handoff:ScannedHandoff}|{unknown:string}
 export default function ScanHandoff({api,organizationId,items,admin,onAdd,onSaved,onClose}:{api:DatabaseApi;organizationId:string;items:EquipmentRecord[];admin:boolean;onAdd:(code:string)=>void;onSaved:()=>Promise<void>;onClose:()=>void}){
-  const [camera,setCamera]=useState(true),[code,setCode]=useState(''),[scan,setScan]=useState<Scan|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
+  const [camera,setCamera]=useState(true),[code,setCode]=useState(''),[scan,setScan]=useState<Scan|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
   function lookUp(value:string){
     const trimmed=value.trim();if(!trimmed)return false
-    const item=items.find(i=>i.equipmentCode===trimmed);setCamera(false);setCode('');setError('');setNotice('')
+    const item=items.find(i=>i.equipmentCode===trimmed);setCamera(false);setCode('');setError('');
     if(!item){setScan({unknown:trimmed});return true}
     setBusy(true)
     allPages(after=>api.reservations(organizationId,{limit:100,after})).then(rows=>setScan({item,handoff:handoffFor(item,rows,Date.now())})).catch(e=>setError(equipmentError(e))).finally(()=>setBusy(false))
@@ -30,11 +31,11 @@ export default function ScanHandoff({api,organizationId,items,admin,onAdd,onSave
   function again(){setScan(null);setError('');setCamera(true)}
   async function saved(row:EquipmentReservation,damaged:boolean){
     const name=scan&&'item' in scan?scan.item.name:'Equipment'
-    setNotice(row.fulfillmentStatus==='returned'?`${name} returned${damaged?'. A damage report was created and damaged items were placed in maintenance':''}.`:`${name} checked out on ${row.name}.`);setScan(null)
+    toast.success(row.fulfillmentStatus==='returned'?`${name} returned${damaged?'. A damage report was created and damaged items were placed in maintenance':''}.`:`${name} checked out on ${row.name}.`);setScan(null)
     await onSaved()
   }
   return <section className="equipment-scan" aria-label="Scan equipment"><div className="equipment-scan-header"><div><h2>Scan equipment</h2><p className="administration-hint">Scan a label to check equipment out or return it. Your location is confirmed on campus near {agencyCampus.name}.</p></div><button type="button" className="equipment-item-link" onClick={onClose}>Close scanner</button></div>
-    {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}{busy&&<p role="status">Finding the reservation…</p>}
+    {error&&<p role="alert">{error}</p>}{busy&&<p role="status">Finding the reservation…</p>}
     {!scan&&!busy&&<>{camera?<EquipmentQrScanner onCancel={()=>setCamera(false)} onCode={lookUp}/>:<button type="button" onClick={()=>setCamera(true)}>Use camera</button>}
       <form className="equipment-scan-manual" onSubmit={e=>{e.preventDefault();lookUp(code)}}><label>Or enter equipment code<input value={code} autoComplete="off" onChange={e=>setCode(e.target.value)}/></label><button>Look up equipment</button></form></>}
     {scan&&'unknown' in scan&&<div><p role="alert">No equipment uses the code {scan.unknown}.</p>{admin&&<button type="button" className="ws-button-primary" onClick={()=>onAdd(scan.unknown)}>Add {scan.unknown} as new equipment</button>}<button type="button" onClick={again}>Scan another item</button></div>}
