@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { OrganizationSettings } from '../../types/accounts'
 import { useAppSession } from '../../context/AppSessionContext'
+import { TabPill } from '../../components/workspace/TabPill'
 import './OrganizationHeader.css'
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '?'
@@ -24,7 +25,8 @@ export default function OrganizationHeader({ settings, summary, active, action }
       </div>
       {action}
     </header>
-    {manager && <nav className="org-header-tabs" aria-label="Organization sections">
+    {manager && <nav className="org-header-tabs ws-pill-tabs" aria-label="Organization sections">
+      <TabPill id="organization-sections" />
       <Link href="/organization" aria-current={active === 'people' ? 'page' : undefined}>People</Link>
       <Link href="/organization/settings" aria-current={active === 'settings' ? 'page' : undefined}>Access &amp; settings</Link>
     </nav>}

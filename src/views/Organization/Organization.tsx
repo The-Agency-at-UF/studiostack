@@ -1,5 +1,6 @@
 'use client'
 
+import { TabPill } from '../../components/workspace/TabPill'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineXMark } from 'react-icons/hi2'
@@ -105,7 +106,8 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         <div><h2>{org.name}</h2><p>Previewing organization administrator access</p></div>
         <div className="org-counts"><span><strong>{active.length}</strong> active members</span><span><strong>{invited.length}</strong> pending invitations</span></div>
       </div>
-      <nav className="org-tabs" aria-label="Organization sections">
+      <nav className="org-tabs ws-pill-tabs" aria-label="Organization sections">
+        <TabPill id="organization-preview-sections" />
         {(['members', 'activity', 'settings'] as const).map(item => <button key={item} className={tab === item ? 'selected' : ''} aria-pressed={tab === item} onClick={() => setTab(item)}>{item === 'members' ? 'Members & access' : item === 'activity' ? 'Activity' : 'Settings'}</button>)}
       </nav>
       {notice && <p className="org-notice" role="status">{notice}</p>}

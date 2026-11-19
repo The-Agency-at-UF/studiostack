@@ -12,9 +12,6 @@
 .production-page .production-danger { color: #a2222c; }
 .production-info,.production-warning { padding: 12px 16px; background: var(--accent-soft); border-left: 3px solid var(--accent-light); font-size: 13px; line-height: 1.6; }
 .production-warning { background: #fbf0d4; border-color: #c5a04f; }
-.production-tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; overflow-x: auto; }
-.production-tabs button { white-space: nowrap; padding: 12px 0 14px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; color: var(--muted); }
-.production-tabs button[aria-current=page] { color: var(--accent); border-bottom-color: var(--accent); }
 .production-feedback:empty { display: none; }
 .production-feedback { font-size: 13px; margin: 12px 0; }
 .production-error { background: #fbe9eb; color: #902631; padding: 13px 16px; border-left: 3px solid #a2222c; white-space: pre-wrap; }
@@ -116,7 +113,6 @@
 @media (max-width:1000px) {
   .production-detail-grid { grid-template-columns: minmax(0,1fr) 280px; gap: 24px; }
   .production-page { padding: 28px 22px 60px; }
-  .production-tabs { gap: 18px; }
   .production-inspector { padding-left: 18px; }
 }
 @media (max-width:760px) {
