@@ -1,3 +1,6 @@
+import {useState} from 'react'
+import {createPreviewProductionClient} from '../../production/preview'
+import PreviewControls from '../../components/PreviewControls'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +9,8 @@ import {invalidateCache,setCached} from '../../api/cache'
 import { AppSessionProvider } from '../../context/AppSessionContext'
 vi.mock('next/dynamic',()=>({default:()=>()=> <p>Calendar surface</p>}))
 vi.mock('../../auth/cognito',()=>({authConfiguration:()=>({apiUrl:'https://api.example.org'})}))
-function renderPreview() { return render(<AppSessionProvider value={{email:'demo@example.org',isAdmin:true,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'preview'}}><Production /></AppSessionProvider>) }
+function PreviewHarness(){const [person,setPerson]=useState('preview-author');return <AppSessionProvider value={{email:'demo@example.org',isAdmin:person==='preview-admin',setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'preview',previewPersonId:person,setPreviewPersonId:setPerson}}><PreviewControls/><Production key={person}/></AppSessionProvider>}
+function renderPreview(){return render(<PreviewHarness/>)}
 beforeEach(()=>{localStorage.clear();window.history.replaceState(null,'','/production/');vi.restoreAllMocks()})
 afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals()})
 describe('production workspace',()=>{
@@ -79,7 +83,7 @@ describe('production workspace',()=>{
   })
   it('lets configured Production leadership approve and confirms the proposed dates',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview as/}),'preview-reviewer');await screen.findByRole('button',{name:'Decisions & delivery'})
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-reviewer');await screen.findByRole('button',{name:'Decisions & delivery'})
     await user.click(screen.getByRole('button',{name:'Campus stories'}));await screen.findByRole('button',{name:'Approve & confirm dates'})
     expect(screen.getByRole('button',{name:'Deny brief'})).toBeDisabled()
     await user.click(screen.getByRole('button',{name:'Approve & confirm dates'}));await screen.findByText(/^Confirmed shoot:/,{selector:'.production-review p'})
@@ -90,10 +94,10 @@ describe('production workspace',()=>{
   it('exposes access settings only to administrators and persists reviewer selection',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     expect(screen.queryByRole('button',{name:'Access & notifications'})).not.toBeInTheDocument()
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview as/}),'preview-admin');await user.click(await screen.findByRole('button',{name:'Access & notifications'}))
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-admin');await user.click(await screen.findByRole('button',{name:'Access & notifications'}))
     const reviewer=await screen.findByRole('checkbox',{name:'Production leadership: Alex · Client Services'});await user.click(reviewer)
     await user.click(screen.getByRole('button',{name:'Save settings'}));expect(await screen.findByText('Production access and notification settings saved.')).toHaveClass('production-saved-pulse')
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview as/}),'preview-author');await screen.findByRole('button',{name:'Decisions & delivery'})
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-author');await screen.findByRole('button',{name:'Decisions & delivery'})
     expect(screen.queryByRole('button',{name:'Access & notifications'})).not.toBeInTheDocument()
   })
   it('never substitutes preview records when an authenticated service request fails',async()=>{
@@ -107,7 +111,7 @@ describe('production workspace',()=>{
   })
 })
 
-it('protects unsaved brief edits during app navigation while permitting step changes',async()=>{
+it('protects unsaved brief edits during app navigation while permitting section links',async()=>{
   const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'});
   await user.click(screen.getByRole('button',{name:'New brief'}));await screen.findByRole('heading',{name:'New production brief'});
   await user.type(screen.getByLabelText('Project name *'),'Unfinished production');
@@ -115,4 +119,49 @@ it('protects unsaved brief edits during app navigation while permitting step cha
   const steps=within(screen.getByRole('navigation',{name:'Brief steps'}));await user.click(steps.getByRole('button',{name:/Project overview/}));await user.click(steps.getByRole('button',{name:/Basics/}));expect(confirm).not.toHaveBeenCalled();
   const destination=document.createElement('a');destination.href='/inventory/';document.body.append(destination);
   try{const event=new MouseEvent('click',{bubbles:true,cancelable:true,button:0});expect(destination.dispatchEvent(event)).toBe(false);expect(confirm).toHaveBeenCalledOnce();expect(screen.getByLabelText('Project name *')).toHaveValue('Unfinished production')}finally{destination.remove()}
+})
+
+it('lets a preview Production Lead save confirmed crew on an approved shoot',async()=>{
+ const api=createPreviewProductionClient('preview-reviewer'),brief=await api.get('preview-brief');await api.action(brief.id,{action:'approve',version:brief.version,requestId:crypto.randomUUID()});
+ const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'});
+ await user.selectOptions(screen.getByRole('combobox',{name:'Preview account'}),'preview-reviewer');await user.click(await screen.findByRole('button',{name:'Campus stories'}));
+ const save=await screen.findByRole('button',{name:'Save crew assignments'});await waitFor(()=>expect(save).toBeEnabled());await user.click(screen.getByRole('checkbox',{name:'Alex · Client Services'}));await user.click(save);
+ await waitFor(async()=>expect((await api.get(brief.id)).crew).toContainEqual(expect.objectContaining({userId:'preview-author'})));
+})
+
+it('converts a selected pitch into a visible draft with its client account',async()=>{
+ const lead=createPreviewProductionClient('preview-reviewer'),idea=await lead.createIdea({id:crypto.randomUUID(),title:'Example selected pitch',pitch:'An example story.',clientAccountId:'preview-client'});await lead.updateIdea(idea.id,{title:idea.title,pitch:idea.pitch,clientAccountId:idea.clientAccountId,status:'selected',version:idea.version});
+ const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('button',{name:'Ideas & pitches'}));await user.click(await screen.findByRole('button',{name:'Create brief from pitch'}));
+ expect(await screen.findByLabelText('Project name *')).toHaveValue(idea.title);expect(screen.getByLabelText('Client *')).toHaveValue('Example client');expect(screen.getByLabelText('Client account')).toHaveValue('preview-client');
+})
+
+it('creates and selects a client inside a brief without saving or discarding other draft edits',async()=>{
+ const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('button',{name:'New brief'}));
+ expect(screen.queryByRole('button',{name:'Add client'})).not.toBeInTheDocument();
+ await user.selectOptions(screen.getByRole('combobox',{name:'Preview account'}),'preview-reviewer');
+ await user.click(await screen.findByRole('button',{name:'New brief'}));
+ await user.type(await screen.findByLabelText('Project name *'),'Example unsaved client brief');
+ await user.click(screen.getByRole('button',{name:'Add client'}));
+ await user.type(screen.getByLabelText('New client account name'),'Example inline client{Enter}');
+ await waitFor(()=>expect(screen.getByLabelText('Client account')).toHaveDisplayValue('Example inline client'));
+ expect(screen.getByLabelText('Client *')).toHaveValue('Example inline client');
+ expect(screen.getByLabelText('Project name *')).toHaveValue('Example unsaved client brief');
+ expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+ const api=createPreviewProductionClient('preview-reviewer'),unsaved=(await api.list()).items.find(b=>b.status==='draft'&&b.ownerId==='preview-reviewer')!;
+ expect(unsaved.data.projectName).toBe('');expect(unsaved.data.clientAccountId).toBeFalsy();
+ await user.click(screen.getByRole('button',{name:'Save draft'}));await screen.findByText('All changes saved');
+ expect((await api.get(unsaved.id)).data).toMatchObject({projectName:'Example unsaved client brief',client:'Example inline client',clientAccountId:expect.any(String)});
+})
+
+it('puts file controls in their matching guided steps and keeps draft text across steps',async()=>{
+ const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('button',{name:'New brief'}));
+ const step=(name:string)=>user.click(within(screen.getByRole('navigation',{name:'Brief steps'})).getByRole('button',{name:new RegExp(name)}));
+ expect(screen.getByRole('link',{name:'Official production template 1'})).toBeVisible();
+ await step('Project overview');expect(screen.getByRole('button',{name:'Upload Creative brief (PDF)'})).toBeVisible();await user.type(screen.getByLabelText('Project summary *'),'An example brief summary.');
+ await step('Creative direction');for(const name of ['Storyboard (optional)','Other references','Brand guidelines','Logos, graphics & lower thirds'])expect(screen.getByRole('button',{name:`Upload ${name}`})).toBeVisible();
+ expect(screen.queryByRole('button',{name:'Upload Creative brief (PDF)'})).not.toBeInTheDocument();
+ await step('Paperwork');for(const name of ['Location permission / shoot agreement','Signed release forms','Shot list','Signed consent forms'])expect(screen.getByRole('button',{name:`Upload ${name}`})).toBeVisible();
+ expect(screen.getByLabelText('Permits required?')).toBeVisible();expect(screen.getByLabelText('Who provides releases?')).toBeVisible();
+ await step('Project overview');expect(screen.getByLabelText('Project summary *')).toHaveValue('An example brief summary.');
+ expect(within(screen.getByRole('navigation',{name:'Brief steps'})).queryByRole('button',{name:/Attachments/})).not.toBeInTheDocument();
 })
