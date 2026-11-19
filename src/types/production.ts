@@ -24,8 +24,13 @@ export const briefSections: Section[] = [
     { key: 'shootEstimate', label: 'Shoot date estimate (month, date window or notes)', required: true }, { key: 'proposedStart', label: 'Projected shoot window starts', type: 'date' }, { key: 'proposedEnd', label: 'Projected shoot window ends', type: 'date' },
     { key: 'location', label: 'Primary location', required: true }, { key: 'otherLocations', label: 'Additional locations' }, { key: 'locationContact', label: 'Location contact' },
     { key: 'locationRestrictions', label: 'Location restrictions / requirements', type: 'textarea' }, { key: 'parking', label: 'Parking / load-in' }, { key: 'access', label: 'Building access / security' },
-    { key: 'permits', label: 'Permits required?', type: 'select', options: ['Yes', 'No', 'TBD'] }, { key: 'contentType', label: 'Production format (interview, event, brand film, etc.)' },
-    { key: 'talent', label: 'Talent / interviewees, roles, wardrobe and notes', type: 'textarea' }, { key: 'releases', label: 'Talent releases required?', type: 'select', options: ['Yes', 'No', 'TBD'] }, { key: 'releaseProvider', label: 'Who provides releases?' },
+    { key: 'contentType', label: 'Production format (interview, event, brand film, etc.)' },
+    { key: 'talent', label: 'Talent / interviewees, roles, wardrobe and notes', type: 'textarea' },
+  ] },
+  { title: 'Paperwork', fields: [
+    { key: 'permits', label: 'Permits required?', type: 'select', options: ['Yes', 'No', 'TBD'] },
+    { key: 'releases', label: 'Talent releases required?', type: 'select', options: ['Yes', 'No', 'TBD'] },
+    { key: 'releaseProvider', label: 'Who provides releases?' },
   ] },
   { title: 'Post-production', scope: 'post', fields: [
     { key: 'editingDirection', label: 'Editing style / direction', type: 'textarea', required: true }, { key: 'referenceEdits', label: 'Reference edits', type: 'textarea' },
@@ -39,20 +44,26 @@ export const briefSections: Section[] = [
     { key: 'archiveRequired', label: 'Archive footage required?', type: 'select', options: ['Yes', 'No', 'TBD'] }, { key: 'archiveSource', label: 'Archive footage source' }, { key: 'usageRights', label: 'Usage rights confirmed?', type: 'select', options: ['Yes', 'No', 'TBD'] },
   ] },
   { title: 'Timeline', fields: [
+    { key: 'conceptReview', label: 'Concept review', type: 'date' }, { key: 'locationConfirmed', label: 'Location confirmed', type: 'date' }, { key: 'paperworkDue', label: 'Signed paperwork due', type: 'date' }, { key: 'assetsDue', label: 'Brand assets due', type: 'date' },
     { key: 'preProduction', label: 'Pre-production complete', type: 'date' }, { key: 'roughCut', label: 'Rough cut', type: 'date' }, { key: 'internalReview', label: 'Internal review', type: 'date' },
     { key: 'firstRevisions', label: 'First revisions', type: 'date' }, { key: 'clientReview', label: 'Client review', type: 'date' }, { key: 'secondRevisions', label: 'Second revisions', type: 'date' }, { key: 'finalApproval', label: 'Final internal approval', type: 'date' },
   ] },
 ]
-export interface ClientAccount {id:string;name:string;version:number;createdBy:string|null;deletedAt:string|null}
-export interface ProductionAssignment {userId:string;name:string;role:string}
-export interface BriefData { clientAccountId?:string|null; projectName: string; client: string; managers: string; supervisor: string; deliveryDate: string; productionTypes: ProductionType[]; fields: Record<string, string> }
+export const crewRoles = ['Videographer','Photographer','Video Editor','Line Producer','Production Supervisor'] as const
+export interface CrewRequest { id:string; role:typeof crewRoles[number]; startsAt:string; endsAt:string; location:string }
+export interface SoftHold { id:string; startsAt:string; endsAt:string }
+export const attachmentCategories = { brand_guidelines:'Brand guidelines', creative_assets:'Logos, graphics & lower thirds', creative_brief:'Creative brief (PDF)', shot_list:'Shot list', release:'Signed release forms', location_agreement:'Location permission / shoot agreement', consent:'Signed consent forms', storyboard:'Storyboard (optional)', reference:'Other references' } as const
+export type AttachmentCategory = keyof typeof attachmentCategories
+export interface ClientAccount { logoPhotoId?:string|null;id:string;name:string;version:number;createdBy:string|null;deletedAt:string|null;archivedAt?:string|null}
+export interface ProductionAssignment {crewRequestId?:string|null;userId:string;name:string;role:string}
+export interface BriefData { crewRequests?:CrewRequest[]; clientAccountId?:string|null; projectName: string; client: string; managers: string; supervisor: string; deliveryDate: string; productionTypes: ProductionType[]; fields: Record<string, string> }
 export interface BriefEvent { id: string; actorId: string; actorName: string; kind: string; comment: string; section: string; version: number; createdAt: string; snapshot: BriefData | null; attachments?: BriefAttachment[]; shootStartsAt?: string | null; shootEndsAt?: string | null }
-interface BriefAttachment { id: string; name: string; contentType: string; size: number; status: 'pending' | 'ready'; uploadedBy: string }
-export interface ProductionBrief { crew?:ProductionAssignment[]; id: string; organizationId: string; ownerId: string; ownerName: string; status: BriefStatus; version: number; submission: number; data: BriefData; shootStartsAt: string | null; shootEndsAt: string | null; createdAt: string; updatedAt: string; events: BriefEvent[]; attachments: BriefAttachment[] }
+export interface BriefAttachment { category?:AttachmentCategory; id: string; name: string; contentType: string; size: number; status: 'pending' | 'ready'; uploadedBy: string }
+export interface ProductionBrief {softHolds?:SoftHold[]|null; crew?:ProductionAssignment[]; id: string; organizationId: string; ownerId: string; ownerName: string; status: BriefStatus; version: number; submission: number; data: BriefData; shootStartsAt: string | null; shootEndsAt: string | null; createdAt: string; updatedAt: string; events: BriefEvent[]; attachments: BriefAttachment[] }
 export interface ProductionSettings { version: number; reviewerIds: string[]; executiveIds: string[]; approvalConfirmsDates: boolean }
 export interface ProductionAccess { userId: string; canReview: boolean; canAdminister: boolean; isExecutive: boolean; notificationsConfigured: boolean }
-type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'comment' | 'withdraw' | 'reopen' | 'schedule'
-export interface BriefCommand { action: BriefAction; version: number; requestId: string; comment?: string; section?: string; shootStartsAt?: string; shootEndsAt?: string }
+export type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'comment' | 'withdraw' | 'reopen' | 'schedule' | 'propose_dates'
+export interface BriefCommand { softHolds?:SoftHold[]; softHoldId?:string; action: BriefAction; version: number; requestId: string; comment?: string; section?: string; shootStartsAt?: string; shootEndsAt?: string }
 export interface Delivery { id: string; briefId: string; eventId: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'uncertain'; attempts: number; createdAt: string; sentAt: string | null }
 export const emptyBrief = (): BriefData => ({ projectName: '', client: '', managers: '', supervisor: '', deliveryDate: '', productionTypes: [], fields: {} })
 export function visibleSections(data: BriefData) { return briefSections.filter(s => !s.scope || (s.scope === 'onsite' ? data.productionTypes.some(t => t === 'Photography' || t === 'Videography') : data.productionTypes.some(t => t === 'Video Editing' || t === 'Motion Graphics'))) }
@@ -62,4 +73,9 @@ export function submissionErrors(data: BriefData): string[] {
   for (const section of visibleSections(data)) for (const field of section.fields) if (field.required && !data.fields[field.key]?.trim()) errors.push(field.label)
   return errors
 }
-export const sectionId = (title: string) => `brief-${title.toLowerCase().replaceAll(' ', '-')}`
+
+export const ideaStatuses = {idea:'Idea',pitched:'Pitched',selected:'Selected',archived:'Archived'} as const
+export interface ProductionIdea {id:string;authorId:string;authorName:string;clientAccountId:string|null;title:string;pitch:string;status:keyof typeof ideaStatuses;version:number;createdAt:string;updatedAt:string}
+export type IdeaInput = Pick<ProductionIdea,'title'|'pitch'|'clientAccountId'>
+
+export const sectionId = (title:string)=>`brief-${title.toLowerCase().replaceAll(' ','-')}`
