@@ -331,3 +331,18 @@ input[type=checkbox]:disabled { background:var(--surface-subtle); border-color:v
 input[type=checkbox]:disabled:checked { background:var(--line-strong); border-color:var(--line-strong); }
 input[type=checkbox][aria-invalid=true] { border-color:var(--danger); }
 @media(prefers-reduced-motion:reduce) { input[type=checkbox] { transition:none; } }
+/* Toasts: short confirmations and failures. The viewport is a manual popover (top layer) with a fixed-position fallback. */
+.ws-toasts { position:fixed; inset:auto var(--space-6) var(--space-6) auto; z-index:400; display:flex; flex-direction:column; align-items:flex-end; gap:var(--space-2); width:min(400px,calc(100vw - var(--space-8))); margin:0; padding:0; border:0; background:transparent; overflow:visible; pointer-events:none; }
+.ws-toasts:popover-open { display:flex; }
+.ws-toast { display:flex; align-items:flex-start; gap:var(--space-3); width:100%; padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4); border:1px solid var(--line); border-left:4px solid var(--success); border-radius:var(--radius-card); background:var(--surface); color:var(--ink); box-shadow:var(--shadow-menu); font-size:var(--text-sm); line-height:var(--line-body); pointer-events:auto; animation:ws-toast-in var(--motion-enter) var(--ease-out) both; }
+.ws-toast-error { border-left-color:var(--danger); }
+.ws-toast p { flex:1; margin:0; padding-top:2px; min-width:0; overflow-wrap:anywhere; }
+.ws-toast-icon { display:inline-grid; place-items:center; flex:none; width:22px; height:22px; margin-top:1px; border-radius:50%; background:var(--success-soft); color:var(--success); font-size:var(--text-xs); font-weight:var(--weight-bold); }
+.ws-toast-error .ws-toast-icon { background:var(--danger-soft); color:var(--danger); }
+.ws-toast-action,.ws-toast-close { flex:none; min-height:28px; border:0; background:transparent; cursor:pointer; border-radius:var(--radius-control); }
+.ws-toast-action { padding:0 var(--space-2); color:var(--accent); font-weight:var(--weight-medium); font-size:var(--text-sm); }
+.ws-toast-close { width:28px; color:var(--muted); font-size:var(--text-lg); line-height:1; }
+.ws-toast-action:hover,.ws-toast-close:hover { background:var(--surface-hover); }
+@keyframes ws-toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@media(max-width:640px) { .ws-toasts { inset:auto var(--space-4) var(--space-4) var(--space-4); width:auto; align-items:stretch; } }
+@media(prefers-reduced-motion:reduce) { .ws-toast { animation:none; } }

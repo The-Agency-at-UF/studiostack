@@ -13,6 +13,7 @@ import {readWorkspace,previewIdentity,availablePreviewPerson} from '../preview/w
 import {previewFileUrl,previewPhotoKey} from '../preview/media'
 import { AppSessionProvider } from '../context/AppSessionContext'
 import { TourProvider } from './tour/TourContext'
+import { ToastProvider } from './workspace/Toast'
 import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
 import {restorePasswordSession,signOutPasswordSession} from '../auth/password'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
@@ -192,7 +193,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const session = useMemo(() => ({ email:previewEmail, isAdmin:currentAdmin,needsWelcome,markOnboarded, setEmail, setIsAdmin, mode, signIn, openPreview, signOut: logOut, busy, authError, configured, organizations:displayedOrganizations,previewPersonId,setPreviewPersonId:choosePreviewPerson,completeSignIn,setAuthenticating:setBusy,selectedOrganizationId:selectedOrganization?.id,setSelectedOrganizationId:chooseOrganization,refreshOrganizations,
     ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [previewEmail, mode, signIn, openPreview, logOut, busy, authError, configured, displayedOrganizations,previewPersonId,choosePreviewPerson,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization,needsWelcome,markOnboarded])
 
-  return <AppSessionProvider value={session}>
+  return <AppSessionProvider value={session}><ToastProvider>
     {/* Keep the password form mounted while it owns a pending sign-in or challenge. */}
     {loginPage ? children
       : busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
@@ -205,5 +206,5 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <BugReportPopup showTrigger={false} userEmail={email} open={bugReportOpen} onOpenChange={setBugReportOpen} />
         <BugReportPopup showTrigger={false} kind="feature" userEmail={email} open={featureRequestOpen} onOpenChange={setFeatureRequestOpen} />
       </TourProvider>}
-  </AppSessionProvider>
+  </ToastProvider></AppSessionProvider>
 }
