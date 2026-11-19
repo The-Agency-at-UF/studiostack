@@ -11,7 +11,8 @@ import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://main.dxs0q7vrz4oko.amplifyapp.com'),
-  title: 'StudioStack',
+  // Each page names itself in a sibling layout.tsx so open browser tabs can be told apart.
+  title: { default: 'Home · StudioStack', template: '%s · StudioStack' },
   description: 'Production equipment operations for The Agency at UF',
   icons: { icon: { url: '/favicon.svg', type: 'image/svg+xml' } },
   openGraph: { siteName: 'StudioStack', type: 'website' },

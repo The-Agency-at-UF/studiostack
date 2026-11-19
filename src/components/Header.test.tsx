@@ -123,7 +123,7 @@ describe('Header', () => {
   });
 
   it.each([
-    ['My reservations', '/reservations'],
+    ['All reservations', '/reservations'],
     ['Manage members', '/organization'],
     ['Organization settings', '/organization/settings'],
   ])('keeps %s mounted through a pointer blur so its navigation can finish', async (name, href) => {
@@ -133,18 +133,25 @@ describe('Header', () => {
     await user.click(screen.getByRole('button', { name: 'Account' }));
     const link = screen.getByRole('link', { name });
     expect(link).toHaveAttribute('href', href);
-    fireEvent.blur(screen.getByRole('link', { name: 'My reservations' }), { relatedTarget: null });
+    fireEvent.blur(screen.getByRole('link', { name: 'All reservations' }), { relatedTarget: null });
     expect(link).toBeInTheDocument();
     await user.click(link);
     expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'false');
     expect(logOut).not.toHaveBeenCalled();
   });
 
+  it.each([[true, 'All reservations'], [false, 'My reservations']])('names the reservations link for what it lists (admin: %s)', async (isAdmin, name) => {
+    const user = userEvent.setup();
+    render(<Header isAdmin={isAdmin} logOut={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    expect(screen.getByRole('link', { name })).toHaveAttribute('href', '/reservations');
+  });
+
   it('still dismisses the menu when keyboard focus leaves it', async () => {
     const user = userEvent.setup();
     render(<Header isAdmin logOut={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
-    fireEvent.blur(screen.getByRole('link', { name: 'My reservations' }), { relatedTarget: screen.getByRole('link', { name: 'Book gear' }) });
+    fireEvent.blur(screen.getByRole('link', { name: 'All reservations' }), { relatedTarget: screen.getByRole('link', { name: 'Book gear' }) });
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
   });
 });
