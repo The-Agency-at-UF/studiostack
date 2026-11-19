@@ -6,11 +6,13 @@ import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './li
 import type {AppAlert} from '../../types/alerts'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import {Skeleton} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 type CachedAlerts = { rows: AppAlert[] }
 export default function LiveAlerts(){const c=useLiveOrganization();return c?<AlertsWorkspace key={c.organization.id} api={c.api} org={c.organization.id}/>:<main className="administration"><h1>Alerts</h1><p>Select an active organization in your account to view your alerts.</p></main>}
 function AlertsWorkspace({api,org}:{api:DatabaseApi;org:string}){
+  const toast=useToast()
  const router=useRouter(),client=useMemo(()=>api.alerts(org),[api,org])
  const cacheKey = `alerts:${org}`
  const cached = getCached<CachedAlerts>(cacheKey)
@@ -24,7 +26,7 @@ function AlertsWorkspace({api,org}:{api:DatabaseApi;org:string}){
  async function refresh(){setLoading(true);setError('');try{const v=await load();setRows(v.rows);setCached(cacheKey,{rows:v.rows})}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
  const track=(id:string,on:boolean)=>setPending(p=>{const next=new Set(p);if(on)next.add(id);else next.delete(id);return next})
  // Optimistic: the row reads as read at once; the server row replaces it, or the previous read state returns on failure.
- async function markRead(row:AppAlert,open=false){if(pending.has(row.id))return;const previous=row.readAt;track(row.id,true);setError('');if(!previous)setRows(v=>v.map(r=>r.id===row.id?{...r,readAt:new Date().toISOString()}:r));try{const saved=await client.read(row.id);invalidateCache(`alerts:${org}`);invalidateCache(`dashboard:${org}`);setRows(v=>v.map(r=>r.id===saved.id?saved:r));if(open&&(/^\/(report-summary|reservations|check-in-out)\/\?(report|reservation)=[a-f0-9-]{36}$/.test(saved.targetPath)||/^\/production\/\?brief=[a-f0-9-]{36}$/.test(saved.targetPath)))router.push(saved.targetPath)}catch(e){setRows(v=>v.map(r=>r.id===row.id?{...r,readAt:previous}:r));setError(equipmentError(e))}finally{track(row.id,false)}}
+ async function markRead(row:AppAlert,open=false){if(pending.has(row.id))return;const previous=row.readAt;track(row.id,true);setError('');if(!previous)setRows(v=>v.map(r=>r.id===row.id?{...r,readAt:new Date().toISOString()}:r));try{const saved=await client.read(row.id);invalidateCache(`alerts:${org}`);invalidateCache(`dashboard:${org}`);setRows(v=>v.map(r=>r.id===saved.id?saved:r));if(open&&(/^\/(report-summary|reservations|check-in-out)\/\?(report|reservation)=[a-f0-9-]{36}$/.test(saved.targetPath)||/^\/production\/\?brief=[a-f0-9-]{36}$/.test(saved.targetPath)))router.push(saved.targetPath)}catch(e){setRows(v=>v.map(r=>r.id===row.id?{...r,readAt:previous}:r));toast.error(`The alert was not marked as read. ${equipmentError(e)}`,{id:'alerts'})}finally{track(row.id,false)}}
  const visible=rows.filter(r=>!unreadOnly||!r.readAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
  return <main className="administration workspace-surface"><header><div><h1>Alerts</h1><p>{rows.filter(r=>!r.readAt).length} unread</p></div><button disabled={loading||pending.size>0} onClick={()=>void refresh()}>Refresh</button></header>{error&&<p role="alert">{error}</p>}
   {org!=='preview'&&<p className="administration-hint">Want these by email? <Link href="/account/notifications/">Manage notifications</Link></p>}

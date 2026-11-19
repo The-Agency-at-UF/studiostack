@@ -10,6 +10,7 @@ import {getCached,setCached,invalidateCache} from '../../api/cache'
 import {currentLocation,LocationError} from '../../api/location'
 import {agencyCampus,campusProximity,campusProximityMessage,type DeviceLocation} from '../../types/campus'
 import {Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import {useToast} from '../../components/workspace/Toast'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 type CachedFulfillment = { rows: EquipmentReservation[]; items: EquipmentRecord[] }
@@ -23,7 +24,7 @@ function FulfillmentWorkspace({api,organizationId}:{api:DatabaseApi;organization
   const initialRows = cached?.rows ?? cachedReservations?.bookings ?? []
   const initialItems = cached?.items ?? cachedReservations?.items ?? cachedInventory ?? []
 
-  const [rows,setRows]=useState<EquipmentReservation[]>(initialRows),[items,setItems]=useState<EquipmentRecord[]>(initialItems),[selected,setSelected]=useState(''),[loading,setLoading]=useState(!cached && !cachedReservations),[error,setError]=useState(''),[notice,setNotice]=useState(''),[history,setHistory]=useState<EquipmentEvent[]>([]),[historyError,setHistoryError]=useState('')
+  const [rows,setRows]=useState<EquipmentReservation[]>(initialRows),[items,setItems]=useState<EquipmentRecord[]>(initialItems),[selected,setSelected]=useState(''),[loading,setLoading]=useState(!cached && !cachedReservations),[error,setError]=useState(''),toast=useToast(),[history,setHistory]=useState<EquipmentEvent[]>([]),[historyError,setHistoryError]=useState('')
   const lifecycle=useMemo(()=>api.equipment(organizationId),[api,organizationId])
   const load=useCallback(async()=>{
     const [rows,items]=await Promise.all([
@@ -42,11 +43,11 @@ function FulfillmentWorkspace({api,organizationId}:{api:DatabaseApi;organization
     invalidateCache(`inventory:${organizationId}`)
     invalidateCache(`dashboard:${organizationId}`)
     if (damaged) invalidateCache(`reports:${organizationId}`)
-    setRows(value=>value.map(r=>r.id===row.id?row:r));setNotice(row.fulfillmentStatus==='returned'?(damaged?'Equipment returned. A damage report was created and damaged items were placed in maintenance.':'Equipment returned.'):'Equipment checked out.');try{const value=await load();setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items})}catch(e){setError(equipmentError(e))}
+    setRows(value=>value.map(r=>r.id===row.id?row:r));toast.success(row.fulfillmentStatus==='returned'?(damaged?'Equipment returned. A damage report was created and damaged items were placed in maintenance.':'Equipment returned.'):'Equipment checked out.');try{const value=await load();setRows(value.rows);setItems(value.items);setCached(cacheKey,{rows:value.rows,items:value.items})}catch(e){setError(equipmentError(e))}
   }
   return <main className="administration workspace-surface"><header><div><h1>Pickup & return</h1></div><button disabled={loading} onClick={()=>void refresh()}>Refresh</button></header>
-    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
-    <label className="equipment-booking-select">Reservation<Select value={selected} onChange={e=>{setSelected(e.target.value);setNotice('')}}><option value="">Choose a reservation</option>{[...rows].sort((a,b)=>Date.parse(b.startsAt)-Date.parse(a.startsAt)).map(r=><option key={r.id} value={r.id}>{r.name} · {reservationLabel(r)}</option>)}</Select></label>
+    {error&&<p role="alert">{error}</p>}
+    <label className="equipment-booking-select">Reservation<Select value={selected} onChange={e=>{setSelected(e.target.value);}}><option value="">Choose a reservation</option>{[...rows].sort((a,b)=>Date.parse(b.startsAt)-Date.parse(a.startsAt)).map(r=><option key={r.id} value={r.id}>{r.name} · {reservationLabel(r)}</option>)}</Select></label>
     {loading&&!rows.length&&<Skeleton label="Loading equipment handoffs…" variant="row" count={3}/>}
     {!loading&&!rows.length&&<p>No reservations yet. <Link href="/create-reservation/">Book equipment</Link> to get started.</p>}
     {current&&!loading&&<div className="equipment-handoff-layout"><section><h2>{current.name}</h2><p>{reservationLabel(current)} · {new Date(current.startsAt).toLocaleString()} to {new Date(current.endsAt).toLocaleString()}</p>
