@@ -13,7 +13,7 @@ import {readWorkspace,previewIdentity,availablePreviewPerson} from '../preview/w
 import {previewFileUrl,previewPhotoKey} from '../preview/media'
 import { AppSessionProvider } from '../context/AppSessionContext'
 import { TourProvider } from './tour/TourContext'
-import { ToastProvider } from './workspace/Toast'
+import { ToastProvider, useToast } from './workspace/Toast'
 import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
 import {restorePasswordSession,signOutPasswordSession} from '../auth/password'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
@@ -38,6 +38,16 @@ const BugReportPopup = dynamic(() => import('./BugReportPopup'), { ssr: false })
 function WorkspaceHeader(props: Omit<ComponentProps<typeof Header>, 'overdueReservations'>) {
   const overdue = useOverdueReservations(usePathname() ?? undefined)
   return <Header {...props} overdueReservations={overdue} />
+}
+
+/** Inside the workspace, a session that can no longer refresh is reported as a toast; the sign-in page shows it inline. */
+function SessionNotice({ message, active, onSignIn }: { message: string; active: boolean; onSignIn: () => void }) {
+  const toast = useToast()
+  useEffect(() => {
+    if (active && message) toast.error(message, { id: 'session', action: { label: 'Sign in again', onClick: onSignIn } })
+    else toast.dismiss('session')
+  }, [active, message, onSignIn, toast])
+  return null
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -145,7 +155,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     if (mode !== 'authenticated' || !expiresAt) return
     const timer = window.setTimeout(() => {
       void restorePasswordSession(authConfiguration(),true).then(user=>{
-        if(user){setRefreshRetry(0);setExpiresAt(user.expiresAt)}
+        if(user){setRefreshRetry(0);setAuthError('');setExpiresAt(user.expiresAt)}
         else {clearSignIn();setMode('signed-out');setOrganizations([]);router.replace('/login/')}
       }).catch(()=>{setAuthError('Could not refresh your session. Check your connection.');setRefreshRetry(n=>n+1)})
     }, refreshRetry?30_000:Math.max(0, expiresAt - Date.now() - 30_000))
@@ -194,6 +204,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     ...(mode === 'authenticated' ? { getAccessToken: accessToken } : {}) }), [previewEmail, mode, signIn, openPreview, logOut, busy, authError, configured, displayedOrganizations,previewPersonId,choosePreviewPerson,currentAdmin,selectedOrganization?.id,refreshOrganizations,completeSignIn,chooseOrganization,needsWelcome,markOnboarded])
 
   return <AppSessionProvider value={session}><ToastProvider>
+    <SessionNotice message={authError} active={mode === 'authenticated' && !loginPage && !welcomePage} onSignIn={logOut} />
     {/* Keep the password form mounted while it owns a pending sign-in or challenge. */}
     {loginPage ? children
       : busy ? <main className="session-loading" aria-live="polite"><span className="login-spinner" aria-hidden="true" />Completing secure sign-in…</main>
