@@ -25,7 +25,7 @@ describe('client account deletion permissions',()=>{
     for(const [deleted,deletedAt] of [[true,null],[false,'2026-11-13T00:00:00Z']] as const){
       const {client,query}=database({name:'Acme',version:1,createdBy:creator,deletedAt})
       await dispatchClients(client,patch(deleted),{userId:creator,canManage:false,admin:false})
-      expect(query.mock.calls.find(([sql])=>String(sql).startsWith('UPDATE'))?.[1]).toEqual([org,id,'Acme',deleted,creator])
+      expect(query.mock.calls.find(([sql])=>String(sql).startsWith('UPDATE'))?.[1]).toEqual([org,id,'Acme',deleted,creator,false,null])
     }
   })
   it('keeps renaming with leadership and treats the older archive flag as delete',async()=>{
@@ -34,6 +34,6 @@ describe('client account deletion permissions',()=>{
     await expect(dispatchClients(client,{...patch(true),body:{name:'Acme',archived:true,version:1}},{userId:other,canManage:true,admin:false})).rejects.toMatchObject({status:403})
     await expect(dispatchClients(client,{...patch(true),body:{name:'Acme',archived:true,deleted:true,version:1}},{userId:creator,canManage:true,admin:true})).rejects.toMatchObject({status:400})
     await dispatchClients(client,{...patch(true),body:{name:'Acme',archived:true,version:1}},{userId:creator,canManage:false,admin:false})
-    expect(query.mock.calls.find(([sql])=>String(sql).startsWith('UPDATE'))?.[1]).toEqual([org,id,'Acme',true,creator])
+    expect(query.mock.calls.find(([sql])=>String(sql).startsWith('UPDATE'))?.[1]).toEqual([org,id,'Acme',true,creator,false,null])
   })
 })
