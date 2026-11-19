@@ -42,7 +42,8 @@ export default function PasswordForm({onAuthenticated,onBusyChange,onStepChange,
     if(result.step==='new-password')changeStep('new-password')
     else if(result.step==='reset-password')changeStep('forgot')
     else if(result.step==='confirm-sign-up'){changeStep('confirm-sign-up');setNotice('Enter your email verification code, or request a new one below.')}
-    else await onAuthenticated(result.user)
+    // The app shell reports why an account could not load beside the sign-in form, so this form does not repeat it.
+    else try{await onAuthenticated(result.user)}catch{/* Shown by the shell. */}
   }
   async function submit(event:FormEvent){
     event.preventDefault();if(busy)return;setError('');setNotice('')
