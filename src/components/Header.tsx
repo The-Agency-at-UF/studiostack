@@ -1,32 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTour } from './tour/TourContext'
 import StudioStack from '../assets/StudioStack.png'
-import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineExclamationCircle, HiOutlineChartBar, HiOutlineBuildingOffice2, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb } from 'react-icons/hi2'
+import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineWrenchScrewdriver, HiOutlineChartBar, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb, HiOutlineQuestionMarkCircle, HiOutlineBookOpen, HiOutlineRocketLaunch } from 'react-icons/hi2'
 import { closeWithExit } from './workspace/closeWithExit'
 import '../styles/shell.css'
 
 type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null; overdueReservations?: number }
 
+type Menu = 'help' | 'account' | null
+
+/** A sidebar-footer popover. Its panel plays an exit before unmounting; navigation from inside it closes at once. */
+function MenuPopover({ id, tour, open, onOpen, onClose, trigger, triggerRef, children }: { id: string; tour: string; open: boolean; onOpen: () => void; onClose: () => void; trigger: (props: { ref: RefObject<HTMLButtonElement>; 'aria-expanded': boolean; 'aria-controls': string; onClick: () => void }) => ReactNode; triggerRef: RefObject<HTMLButtonElement>; children: ReactNode }) {
+  const root = useRef<HTMLDivElement>(null), panel = useRef<HTMLDivElement>(null)
+  const close = () => closeWithExit(panel.current, onClose)
+  useEffect(() => {
+    if (!open) return
+    root.current?.querySelector<HTMLElement>('.account-panel :is(a,button)')?.focus()
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) close() }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [open])
+  return <div className="account-menu" ref={root} data-tour={tour} onKeyDown={event => {
+    if (event.key === 'Escape' && open) { event.stopPropagation(); close(); triggerRef.current?.focus() }
+  }} onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) close() }}>
+    {trigger({ ref: triggerRef, 'aria-expanded': open, 'aria-controls': id, onClick: () => open ? close() : onOpen() })}
+    {open && <div ref={panel} id={id} className="account-panel">{children}</div>}
+  </div>
+}
+
 export default function Header({ isAdmin, logOut, email, onReportBug, onRequestFeature, organizationName, organizationLogoUrl, overdueReservations = 0 }: Props) {
-  const [isOpen, setOpen] = useState(false), [accountOpen, setAccountOpen] = useState(false)
-  const accountRef = useRef<HTMLDivElement>(null), accountTrigger = useRef<HTMLButtonElement>(null), accountPanel = useRef<HTMLDivElement>(null)
+  const [isOpen, setOpen] = useState(false), [menu, setMenu] = useState<Menu>(null)
+  const accountTrigger = useRef<HTMLButtonElement>(null), helpTrigger = useRef<HTMLButtonElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null), menuTrigger = useRef<HTMLButtonElement>(null)
   const pathname = usePathname(), tour = useTour()
   const dismissDrawer = () => { setOpen(false); menuTrigger.current?.focus() }
-  // The account menu plays its exit before unmounting; navigation from inside it closes at once.
-  const closeAccount = () => closeWithExit(accountPanel.current, () => setAccountOpen(false))
-
-  useEffect(() => {
-    if (!accountOpen) return
-    accountRef.current?.querySelector<HTMLAnchorElement>('.account-panel a')?.focus()
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !accountRef.current?.contains(event.target)) closeAccount()
-    }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [accountOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -39,32 +48,37 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
     return () => { document.body.style.overflow = previous; media?.removeEventListener('change', closeOnDesktop) }
   }, [isOpen])
 
+  // Section names never repeat a link inside them; the top group needs no heading. `tour` names the spotlight anchor.
   const groups = [
-    { name: 'Overview', links: [{ to: '/', label: 'Home', Icon: HiOutlineHome }, { to: '/alerts', label: 'Alerts', Icon: HiOutlineBell }] },
-    { name: 'Help', links: [{to:'/get-started',label:'Get Started',Icon:HiOutlineLightBulb},{to:'/resources',label:'Resources',Icon:HiOutlineClipboardDocumentList}] },
-    { name: 'Production', links: [
-      { to: '/production', label: 'Production', Icon: HiOutlineVideoCamera },
-      { to: '/production/calendar', label: 'Production calendar', Icon: HiOutlineCalendar },
+    { tour: 'overview', links: [{ to: '/', label: 'Home', Icon: HiOutlineHome }, { to: '/alerts', label: 'Alerts', Icon: HiOutlineBell }] },
+    { tour: 'production', name: 'Production', links: [
+      { to: '/production', label: 'Productions', Icon: HiOutlineVideoCamera },
+      { to: '/production/calendar', label: 'Shoot calendar', Icon: HiOutlineCalendar },
     ] },
-    { name: 'Equipment', links: [
-      { to: '/inventory', label: 'Equipment', Icon: HiOutlineArchiveBox },
-      { to: '/calendar', label: 'Equipment calendar', Icon: HiOutlineCalendarDays },
+    { tour: 'equipment', name: 'Equipment', links: [
+      { to: '/inventory', label: 'Inventory', Icon: HiOutlineArchiveBox },
+      { to: '/calendar', label: 'Gear calendar', Icon: HiOutlineCalendarDays },
       { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'], badge: overdueReservations > 0 ? { count: overdueReservations, label: `${overdueReservations} overdue` } : undefined },
-      { to: '/reports', label: 'Reports', Icon: HiOutlineExclamationCircle, related: ['/create-report', '/report-summary'] },
+      { to: '/reports', label: 'Damage reports', Icon: HiOutlineWrenchScrewdriver, related: ['/create-report', '/report-summary'] },
     ] },
-    ...(isAdmin ? [{ name: 'Administration', links: [
+    ...(isAdmin ? [{ tour: 'administration', name: 'Admin', links: [
+      { to: '/organization', label: 'Members', Icon: HiOutlineUsers, section: true },
       { to: '/statistics', label: 'Statistics', Icon: HiOutlineChartBar },
-      { to: '/organization', label: 'Organization', Icon: HiOutlineBuildingOffice2 },
+      { to: '/organization/settings', label: 'Settings', Icon: HiOutlineCog6Tooth, section: true },
     ] }] : []),
   ]
   const currentPath = pathname?.replace(/\/$/, '') || '/'
-  const closeMenus = () => { setOpen(false); setAccountOpen(false) }
+  // Members owns /organization/* except the settings pages, which Settings owns.
+  const isActive = (link: { to: string; section?: boolean; related?: string[] }) => currentPath === link.to || !!link.related?.includes(currentPath)
+    || (!!link.section && currentPath.startsWith(link.to + '/') && !(link.to === '/organization' && (currentPath === '/organization/settings' || currentPath.startsWith('/organization/settings/'))))
+  const helpActive = currentPath === '/get-started' || currentPath === '/resources'
+  const closeMenus = () => { setOpen(false); setMenu(null) }
 
   return <header className="site-header ws-shell">
     <a className="ws-skip-link" href="#workspace-content">Skip to workspace</a>
     <div className="site-header-inner">
       <Link href="/" className="brand-lockup" onClick={closeMenus}>{organizationName ? <>{organizationLogoUrl && <img className="brand-org-logo" src={organizationLogoUrl} alt="" />}<span className="brand-org-name" title={organizationName}>{organizationName}</span></> : <img src={StudioStack.src ?? StudioStack} alt="StudioStack" />}</Link>
-      <button ref={menuTrigger} className="ws-menu-toggle" data-tour="menu-toggle" aria-label="Toggle navigation" aria-expanded={isOpen} aria-controls="workspace-navigation" onClick={() => { setOpen(open => !open); setAccountOpen(false) }}><HiOutlineBars3 aria-hidden="true" /></button>
+      <button ref={menuTrigger} className="ws-menu-toggle" data-tour="menu-toggle" aria-label="Toggle navigation" aria-expanded={isOpen} aria-controls="workspace-navigation" onClick={() => { setOpen(open => !open); setMenu(null) }}><HiOutlineBars3 aria-hidden="true" /></button>
       {isOpen && <button className="ws-drawer-backdrop" aria-label="Close navigation" tabIndex={-1} onClick={dismissDrawer} />}
       <div ref={drawerRef} id="workspace-navigation" className={`ws-sidebar-body ${isOpen ? 'is-open' : ''}`} role={isOpen ? 'dialog' : undefined} aria-modal={isOpen ? true : undefined} aria-label={isOpen ? 'Workspace navigation' : undefined} onKeyDown={event => {
         if (!isOpen) return
@@ -78,28 +92,28 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
       }}>
         <div className="ws-drawer-heading"><span>Navigation</span><button className="drawer-close" aria-label="Close navigation drawer" onClick={dismissDrawer}><HiOutlineXMark aria-hidden="true" /></button></div>
         <nav className={isOpen ? 'mobile-nav-links' : 'desktop-nav-links'} aria-label="Main navigation">
-          {groups.map(group => <div className="ws-nav-group" key={group.name} data-tour={`nav-${group.name.toLowerCase()}`}><p>{group.name}</p>{group.links.map(link => {
-            const active = currentPath === link.to || (link.to === '/organization' && currentPath.startsWith('/organization/')) || ('related' in link && link.related?.includes(currentPath))
+          {groups.map(group => <div className="ws-nav-group" key={group.tour} data-tour={`nav-${group.tour}`}>{group.name && <p>{group.name}</p>}{group.links.map(link => {
+            const active = isActive(link)
             return <Link key={link.to} href={link.to} onClick={closeMenus} className={`nav-link ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}><link.Icon aria-hidden="true" /><span>{link.label}</span>{'badge' in link && link.badge && <span className="nav-badge" title={link.badge.label}><span aria-hidden="true">{link.badge.count > 99 ? '99+' : link.badge.count}</span><span className="sr-only">{link.badge.label}</span></span>}</Link>
           })}</div>)}
         </nav>
         <div className="header-actions">
+          <MenuPopover id="help-panel" tour="help" open={menu === 'help'} onOpen={() => setMenu('help')} onClose={() => setMenu(open => open === 'help' ? null : open)} triggerRef={helpTrigger}
+            trigger={props => <button {...props} className={`nav-link help-trigger ${helpActive ? 'active' : ''}`}><HiOutlineQuestionMarkCircle aria-hidden="true" /><span>Help</span></button>}>
+            <div className="account-identity"><strong>Help &amp; feedback</strong></div>
+            <Link href="/get-started" onClick={closeMenus}><HiOutlineRocketLaunch aria-hidden="true" />Get started</Link>
+            <Link href="/resources" onClick={closeMenus}><HiOutlineBookOpen aria-hidden="true" />Resources</Link>
+            {tour && <button className="account-tour" onClick={() => { closeMenus(); tour.start('workspace') }}><HiOutlineSparkles aria-hidden="true" />Take the tour</button>}
+            {onReportBug && <button className="account-report-bug" onClick={() => { closeMenus(); onReportBug() }}><HiOutlineBugAnt aria-hidden="true" />Report a bug</button>}
+            {onRequestFeature && <button className="account-request-feature" onClick={() => { closeMenus(); onRequestFeature() }}><HiOutlineLightBulb aria-hidden="true" />Request a feature</button>}
+          </MenuPopover>
           <Link href="/create-reservation" className="header-cta" data-tour="book-gear" onClick={closeMenus}>Book gear <HiOutlineArrowUpRight aria-hidden="true" /></Link>
-          <div className="account-menu" ref={accountRef} data-tour="account" onKeyDown={event => {
-            if (event.key === 'Escape' && accountOpen) { event.stopPropagation(); closeAccount(); accountTrigger.current?.focus() }
-          }} onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) closeAccount() }}>
-            <button ref={accountTrigger} className="account-trigger" aria-label="Account" aria-expanded={accountOpen} aria-controls="account-panel" onClick={() => accountOpen ? closeAccount() : setAccountOpen(true)}><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>
-            {accountOpen && <div ref={accountPanel} id="account-panel" className="account-panel">
-              <div className="account-identity"><strong>Your account</strong></div>
-              <Link href="/account" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account & workspaces</Link>
-              <Link href="/reservations" onClick={closeMenus}><HiOutlineCalendarDays aria-hidden="true" />{isAdmin ? 'All reservations' : 'My reservations'}</Link>
-              {isAdmin && <><Link href="/organization" onClick={closeMenus}><HiOutlineUsers aria-hidden="true" />Manage members</Link><Link href="/organization/settings" onClick={closeMenus}><HiOutlineCog6Tooth aria-hidden="true" />Organization settings</Link></>}
-              {onReportBug && <button className="account-report-bug" onClick={() => { closeMenus(); onReportBug() }}><HiOutlineBugAnt aria-hidden="true" />Report a bug</button>}
-              {onRequestFeature && <button className="account-request-feature" onClick={() => { closeMenus(); onRequestFeature() }}><HiOutlineLightBulb aria-hidden="true" />Request a feature</button>}
-              {tour && <button className="account-tour" onClick={() => { closeMenus(); tour.start('workspace') }}><HiOutlineSparkles aria-hidden="true" />Take the tour</button>}
-              <button className="account-signout" onClick={() => { closeMenus(); void logOut() }}><HiOutlineArrowRightOnRectangle aria-hidden="true" />Sign out</button>
-            </div>}
-          </div>
+          <MenuPopover id="account-panel" tour="account" open={menu === 'account'} onOpen={() => setMenu('account')} onClose={() => setMenu(open => open === 'account' ? null : open)} triggerRef={accountTrigger}
+            trigger={props => <button {...props} className="account-trigger" aria-label="Account"><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>}>
+            <div className="account-identity"><strong>Your account</strong></div>
+            <Link href="/account" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account &amp; workspaces</Link>
+            <button className="account-signout" onClick={() => { closeMenus(); void logOut() }}><HiOutlineArrowRightOnRectangle aria-hidden="true" />Sign out</button>
+          </MenuPopover>
         </div>
       </div>
     </div>
