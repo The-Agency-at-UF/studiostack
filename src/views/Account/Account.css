@@ -75,3 +75,7 @@
 }
 .account-toggle { cursor:pointer; flex-wrap:nowrap; }
 .account-toggle input { flex:none; width:1.125rem; height:1.125rem; accent-color:var(--accent); }
+@media (max-width:760px) {
+  /* Shadow on the edge with more sections, so the scrolled-off tabs are discoverable. */
+  .account-sections { background-image:linear-gradient(to right,var(--canvas) 30%,transparent),linear-gradient(to left,var(--canvas) 30%,transparent),radial-gradient(farthest-side at 0 50%,#19171e2e,transparent),radial-gradient(farthest-side at 100% 50%,#19171e2e,transparent); background-position:left center,right center,left center,right center; background-size:32px 100%,32px 100%,12px 100%,12px 100%; background-repeat:no-repeat; background-attachment:local,local,scroll,scroll; }
+}

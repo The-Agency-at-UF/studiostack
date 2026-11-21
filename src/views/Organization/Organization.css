@@ -97,3 +97,9 @@
   .org-heading, .org-dialog, .org-dialog::backdrop, .org-dialog[data-closing], .org-dialog[data-closing]::backdrop, .org-notice { animation: none; }
   .org-primary, .org-table tbody tr { transition: none; }
 }
+
+@media (max-width: 780px) {
+  /* The tab strip keeps its side gutters inside the card instead of widening it. */
+  .org-tabs.ws-pill-tabs { max-width: calc(100% - 40px); }
+  .org-row-actions button { min-height: 40px; min-width: 44px; }
+}

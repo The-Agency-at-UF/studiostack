@@ -1,6 +1,6 @@
 'use client'
 import {useCallback,useEffect,useState,type ReactNode} from 'react'
-import {PageHeader,Button,Skeleton} from '../../components/workspace/WorkspaceUI'
+import {PageHeader,Button,Skeleton,TableRegion} from '../../components/workspace/WorkspaceUI'
 import Link from 'next/link'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReport,EquipmentReservation} from '../../types/equipment'
@@ -92,7 +92,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
         {errors.bookings?<div className="section-inline-error"><p role="alert">{errors.bookings}</p><button disabled={retrying==='bookings'} onClick={()=>retrySection('bookings')}>{retrying==='bookings'?'Retrying…':'Retry bookings'}</button></div>:bookings===null&&loading?<Skeleton label="Loading bookings…" variant="row" count={4}/>:<ol className="equipment-chart ws-enter" aria-label="Confirmed bookings by month">{months.map(m=><li key={m.key}><span>{m.label}</span><div><span style={{width:Math.max(m.count?1:0,m.count/max*100)+'%'}}/></div><strong>{m.count}</strong></li>)}</ol>}
       </section>
       <section><h2>Equipment by category</h2>
-        {errors.items?<div className="section-inline-error"><p role="alert">{errors.items}</p><button disabled={retrying==='items'} onClick={()=>retrySection('items')}>{retrying==='items'?'Retrying…':'Retry inventory'}</button></div>:items===null&&loading?<Skeleton label="Loading inventory…" variant="row" count={4}/>:<table><thead><tr><th>Category</th><th>Total</th><th>Checked out</th><th>Out of service</th></tr></thead><tbody className="ws-stagger">{categories.map(category=>{const catItems=items!.filter(i=>i.category===category);return <tr key={category}><td>{category}</td><td>{catItems.length}</td><td>{catItems.filter(i=>i.checkedOut).length}</td><td>{catItems.filter(i=>i.status!=='available').length}</td></tr>})}</tbody></table>}
+        {errors.items?<div className="section-inline-error"><p role="alert">{errors.items}</p><button disabled={retrying==='items'} onClick={()=>retrySection('items')}>{retrying==='items'?'Retrying…':'Retry inventory'}</button></div>:items===null&&loading?<Skeleton label="Loading inventory…" variant="row" count={4}/>:<TableRegion label="Equipment by category"><table><thead><tr><th>Category</th><th>Total</th><th>Checked out</th><th>Out of service</th></tr></thead><tbody className="ws-stagger">{categories.map(category=>{const catItems=items!.filter(i=>i.category===category);return <tr key={category}><td>{category}</td><td>{catItems.length}</td><td>{catItems.filter(i=>i.checkedOut).length}</td><td>{catItems.filter(i=>i.status!=='available').length}</td></tr>})}</tbody></table></TableRegion>}
       </section>
     </>:<>
       <div className="ws-tray" role="group" aria-labelledby="home-tray-equipment"><p className="ws-tray-label" id="home-tray-equipment">Equipment</p>
