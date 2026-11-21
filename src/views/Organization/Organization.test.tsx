@@ -1,8 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
-import { describe, expect, it } from 'vitest'
-import Organization from './Organization'
+import { beforeEach, describe, expect, it } from 'vitest'
+import Organization, { resetOrganizationPreview } from './Organization'
+beforeEach(resetOrganizationPreview)
 
 describe('Organization preview', () => {
   it('opens settings directly from the account settings route', () => {
@@ -26,7 +27,7 @@ describe('Organization preview', () => {
   it('labels the prototype and restricts the admin preview', () => {
     const { rerender } = render(<Organization isAdmin={true} />)
     expect(screen.getByText('UI preview')).toBeInTheDocument()
-    expect(screen.getByText(/Changes reset on refresh/)).toBeInTheDocument()
+    expect(screen.getByText(/Changes reset when you refresh the page/)).toBeInTheDocument()
     rerender(<Organization isAdmin={false} />)
     expect(screen.getByText(/must be an admin/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Invite member' })).not.toBeInTheDocument()
@@ -72,13 +73,10 @@ describe('Organization preview', () => {
     const user = userEvent.setup()
     render(<Organization isAdmin />)
     await user.click(screen.getByRole('button', { name: 'Change role for Morgan Lee' }))
-    await user.selectOptions(screen.getByLabelText('Organization role'), 'Member')
-    await user.click(screen.getByRole('button', { name: 'Save role' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('at least one active administrator')
+    expect(screen.getByRole('option', { name: 'Member' })).toBeDisabled()
+    expect(screen.getByText(/only active administrator/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close dialog' }))
-    await user.click(screen.getByRole('button', { name: 'Suspend Morgan Lee' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm preview change' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('at least one active administrator')
+    expect(screen.getByRole('button', { name: 'Suspend Morgan Lee' })).toBeDisabled()
   })
 
   it('groups administrators above members', () => {
@@ -125,5 +123,29 @@ describe('Organization preview', () => {
     await user.click(screen.getByRole('button', { name: 'Save preview settings' }))
     expect(screen.getByRole('heading', { name: 'UF Preview Studio' })).toBeInTheDocument()
     expect(screen.getByText('Not connected')).toBeInTheDocument()
+  })
+})
+
+describe('Organization preview changes', () => {
+  it('keeps changes when the page is opened again and follows a rename', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<Organization isAdmin />)
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    const name = screen.getByLabelText('Organization name')
+    await user.clear(name); await user.type(name, 'Renamed Org')
+    await user.click(screen.getByRole('button', { name: /Save preview settings/ }))
+    unmount()
+    render(<Organization isAdmin />)
+    expect(screen.getByRole('heading', { name: 'Renamed Org' })).toBeInTheDocument()
+    expect(screen.getByText('RO')).toBeInTheDocument()
+  })
+  it('explains why a blank name is not saved', async () => {
+    const user = userEvent.setup()
+    render(<Organization isAdmin />)
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    const name = screen.getByLabelText('Organization name')
+    await user.clear(name); await user.type(name, '   ')
+    await user.click(screen.getByRole('button', { name: /Save preview settings/ }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter an organization name.')
   })
 })
