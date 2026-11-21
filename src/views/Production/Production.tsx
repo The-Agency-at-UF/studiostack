@@ -10,7 +10,7 @@ import { authConfiguration } from '../../auth/cognito'
 import {createPreviewDatabaseApi} from '../../preview/database'
 import {storePreviewFile,previewAttachmentKey} from '../../preview/media'
 import { createPreviewProductionClient } from '../../production/preview'
-import { briefSections, emptyBrief, productionTypes, statusLabels, visibleSections, type BriefCommand, type BriefData, type BriefEvent, type Delivery, type ProductionAccess, type ProductionBrief, type ProductionSettings } from '../../types/production'
+import { briefSections, dateErrors, emptyBrief, normalizedBrief, productionIsOnSite, productionTypes, statusLabels, visibleSections, type BriefCommand, type BriefData, type BriefEvent, type Delivery, type ProductionAccess, type ProductionBrief, type ProductionSettings } from '../../types/production'
 import type { ApiMember } from '../../types/database-api'
 import type { ProductionClient } from '../../api/production'
 import { SearchableSelect } from '../../components/workspace/SearchableSelect'
@@ -49,6 +49,13 @@ const actionDone: Record<BriefCommand['action'], string> = {
   comment: 'Comment added.',
   propose_dates: 'Shoot dates proposed.'
 }
+function briefShootLabel(brief: ProductionBrief) {
+  const holds = softHoldsFor(brief)
+  if (holds.length === 1) return `${dateLabel(holds[0].startsAt)} · tentative`
+  if (holds.length > 1) return `${holds.length} unconfirmed soft holds`
+  const estimate = productionIsOnSite(brief.data) && brief.data.fields.shootEstimate
+  return estimate ? `${estimate} · estimate` : 'Not proposed'
+}
 const dateLabel = (value: string | null) => value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'Not scheduled'
 function useProductionClient(organizationId: string, person: string) {
   const session = useAppSession()
@@ -83,6 +90,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const [error, setError] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
   const [pendingDelete, setPendingDelete] = useState<ProductionBrief | null>(null)
   const [clientCreating,setClientCreating]=useState(false)
+  const newBriefButton = useRef<HTMLButtonElement>(null), focusNewBrief = useRef(false)
   const [dirty, setDirty] = useState(false), [snapshot, setSnapshot] = useState<BriefEvent | null>(null)
   // Counts successful saves; a new count replays the one-time "saved" pulse on the save bar.
   const [savedPulse, setSavedPulse] = useState(0)
@@ -179,7 +187,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     setBusy(true); setError(''); toast.dismiss('production')
     try {
       const b = await task(api); if (g !== generation.current) return false
-      if (b) { accept(b); setBriefs(list => list.map(item => item.id === b.id ? b : item)) }
+      if (b) { accept(b); setBriefs(list => [b, ...list.filter(item => item.id !== b.id)]) }
       mutation.current = null; invalidateCache(cacheKey)
       if (done) toast.success(done, { id: 'production' })
       refresh().catch(e => { if (g === generation.current) setError(errorText(e)) })
@@ -189,7 +197,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   }
   const reload = () => { if (mayLeave()) void (selected ? open(selected.id) : run(async () => { await refresh() }, null)) }
   const reloadRef = useRef(reload); reloadRef.current = reload
-  const save = () => selected && run(async client => { const brief = await client.save(selected.id, form, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, form }))); setSavedPulse(n => n + 1); return brief }, null)
+  const save = () => { if (!selected) return; const invalid = dateErrors(form, true)[0]; if (invalid) { toast.error(invalid.message, { id: 'production' }); return } const data = normalizedBrief(form); return run(async client => { const brief = await client.save(selected.id, data, selected.version, requestId(JSON.stringify({ save: selected.id, version: selected.version, data }))); setSavedPulse(n => n + 1); return brief }, null) }
   const action = async (command: Omit<BriefCommand, 'version' | 'requestId'>) => {
     if (!selected) return false
     const brief = selected
@@ -204,7 +212,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const remove = (brief: ProductionBrief) => setPendingDelete(brief)
   const confirmDelete = async () => {
     if (!pendingDelete || busy) return
-    await run(async client => { await client.remove(pendingDelete.id); setBriefs(list => list.filter(b => b.id !== pendingDelete.id)); setSelected(null); setDirty(false) }, 'Brief deleted.')
+    await run(async client => { await client.remove(pendingDelete.id); setBriefs(list => list.filter(b => b.id !== pendingDelete.id)); setSelected(null); setDirty(false); setSnapshot(null); focusNewBrief.current = true }, 'Brief deleted.')
     setPendingDelete(null)
   }
   const update = (key: keyof BriefData, value: string | string[]) => { setForm(f => ({ ...f, [key]: value })); setDirty(true) }
@@ -241,10 +249,26 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+  useEffect(() => {
+    if (!busy && !pendingDelete && newBriefButton.current && focusNewBrief.current) {
+      focusNewBrief.current = false
+      newBriefButton.current.focus()
+    }
+  }, [busy, pendingDelete])
+  function newBrief() {
+    const blank = briefs.find(b => {
+      const d = b.data
+      return b.ownerId === access?.userId && b.status === 'draft' && !b.submission && !b.attachments.length && !b.softHolds?.length
+        && !d.projectName.trim() && !d.client.trim() && !d.clientAccountId && !d.managers.trim() && !d.supervisor.trim()
+        && !d.deliveryDate && !d.productionTypes.length && !d.crewRequests?.length && Object.values(d.fields).every(value => !value.trim())
+    })
+    if (blank) void open(blank.id)
+    else void run(client => client.create(emptyBrief(), requestId('create')), 'Brief created.')
+  }
   const selectView = (next: typeof tab) => { if (mayLeave()) { setTab(next); setSelected(null); setDirty(false); setSnapshot(null) } }
   return <main className={calendarPage ? 'production-page ws-calendar-page' : 'production-page'}>
     {pendingDelete && <ConfirmDialog title="Delete this brief?" subject={pendingDelete.data.projectName || 'Untitled brief'} description="This brief will be removed from your workspace. This action can’t be undone." confirmLabel="Delete brief" busy={busy} onCancel={() => setPendingDelete(null)} onConfirm={() => void confirmDelete()} />}
-    <PageHeader title={calendarPage ? 'Production calendar' : 'Briefs & production'} actions={<>{calendarPage&&<Link className="ws-button" href="/production/">View briefs</Link>}{!selected&&(tab==='briefs'||calendarPage)&&<button className="production-primary" disabled={busy||!api||!access} onClick={() => { if (mayLeave()) void run(client => client.create(emptyBrief(), requestId('create')), 'Brief created.') }}>New brief</button>}</>}/>
+    <PageHeader title={calendarPage ? 'Production calendar' : 'Briefs & production'} actions={<>{calendarPage&&<Link className="ws-button" href="/production/">View briefs</Link>}{!selected&&(tab==='briefs'||calendarPage)&&<button className="production-primary" disabled={busy||!api||!access} ref={newBriefButton} onClick={newBrief}>New brief</button>}</>}/>
 
     {preview && <p className="production-info">Local preview. Records and uploaded files stay in this browser. Email delivery is simulated.</p>}
     {!preview && session.getAccessToken && <EmailVerification getAccessToken={session.getAccessToken} />}
@@ -261,7 +285,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
       {!selected && (tab === 'calendar' ? <ProductionCalendar key={organizationId+person} viewKey={organizationId+person} showSoftHoldsByDefault={access.canAdminister||access.canReview} briefs={byClient} onOpen={id => void open(id)} filter={<SearchableSelect className="production-client-filter" label="Client" allLabel="All clients" placeholder="Search clients" value={clientFilter} onChange={setClientFilter} options={clientOptions} />} /> : <>
         <div className="production-toolbar"><Field className="production-search" label="Search briefs"><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Project, client, or author" /></Field><SearchableSelect className="production-client-filter" label="Client" allLabel="All clients" placeholder="Search clients" value={clientFilter} onChange={setClientFilter} options={clientOptions} /><SearchableSelect className="production-client-filter" label="Requested by" allLabel="All people" placeholder="Search people" value={authorFilter} onChange={setAuthorFilter} options={authors} /><label>Status<Select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</Select></label></div>
         <div className="production-filter-summary" aria-live="polite"><span>{filtered.length} {filtered.length===1?'brief':'briefs'}{query||filter!=='all'||clientFilter||authorFilter?' · Filters applied':''}</span>{(query||filter!=='all'||clientFilter||authorFilter)&&<button onClick={()=>{setQuery('');setFilter('all');setClientFilter('');setAuthorFilter('')}}>Clear filters</button>}</div>
-        <TableRegion className="production-table-wrap" label="Production briefs"><table className="production-table"><thead><tr><th>Project / client</th><th>Status</th><th>Requested by</th><th>Shoot</th><th>Delivery</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody className="ws-stagger">{filtered.map(b => <tr key={b.id}><td><button className="production-row-title" disabled={busy} onClick={() => void open(b.id)}>{b.data.projectName || 'Untitled brief'}</button>{productionReadiness(b).flagged&&(b.ownerId===access.userId||access.canAdminister||access.canReview)&&<span className="production-error"><HiOutlineFlag aria-hidden="true"/> Readiness needs attention</span>}<span>{b.data.client || 'Client not added'}{!b.data.projectName && ` · started ${dateLabel(b.createdAt)}`}</span></td><td><span className={`production-status status-${b.status}`}>{statusLabels[b.status]}</span></td><td>{b.ownerName}</td><td>{b.shootStartsAt ? dateLabel(b.shootStartsAt) : b.data.fields.proposedStart ? `${dateLabel(b.data.fields.proposedStart)} · tentative` : b.data.fields.shootEstimate ? `${b.data.fields.shootEstimate} · estimate` : 'Not proposed'}</td><td>{b.data.deliveryDate ? dateLabel(b.data.deliveryDate) : 'Not set'}</td><td><div className="production-row-actions"><button disabled={busy} aria-label={`Open ${b.data.projectName || 'untitled brief'}`} onClick={() => void open(b.id)}>Open</button>{tab==='queue'&&b.status==='submitted'&&<><button disabled={busy} onClick={()=>void run(client=>client.action(b.id,{action:'approve',version:b.version,requestId:crypto.randomUUID()}),'Brief approved.')}>Approve</button><button disabled={busy} className="production-danger" onClick={()=>{setTab('queue');void open(b.id)}}>Deny with reason</button></>}{deletable(b) && <button className="production-danger" disabled={busy} aria-label={`Delete ${b.data.projectName || 'untitled brief'}`} onClick={() => remove(b)}>Delete</button>}</div></td></tr>)}</tbody></table>{!filtered.length && <div className="production-empty"><h2>{tab === 'queue' ? 'Nothing to review' : briefs.length ? 'No matching briefs' : 'Start with a brief'}</h2><p>{tab === 'queue' ? 'Submitted briefs wait here for a Production Lead’s decision.' : briefs.length ? 'Try another search or status.' : 'Create a production request to share the scope, dates, and deliverables with Production leadership.'}</p></div>}</TableRegion>
+        <TableRegion className="production-table-wrap" label="Production briefs"><table className="production-table"><thead><tr><th>Project / client</th><th>Status</th><th>Requested by</th><th>Shoot</th><th>Delivery</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody className="ws-stagger">{filtered.map(b => <tr key={b.id}><td><button className="production-row-title" disabled={busy} onClick={() => void open(b.id)}>{b.data.projectName || 'Untitled brief'}</button>{productionReadiness(b).flagged&&(b.ownerId===access.userId||access.canAdminister||access.canReview)&&<span className="production-error"><HiOutlineFlag aria-hidden="true"/> Readiness needs attention</span>}<span>{b.data.client || 'Client not added'}{!b.data.projectName && ` · started ${dateLabel(b.createdAt)}`}</span></td><td><span className={`production-status status-${b.status}`}>{statusLabels[b.status]}</span></td><td>{b.ownerName}</td><td>{b.shootStartsAt ? dateLabel(b.shootStartsAt) : briefShootLabel(b)}</td><td>{b.data.deliveryDate ? dateLabel(b.data.deliveryDate) : 'Not set'}</td><td><div className="production-row-actions"><button disabled={busy} aria-label={`Open ${b.data.projectName || 'untitled brief'}`} onClick={() => void open(b.id)}>Open</button>{tab==='queue'&&b.status==='submitted'&&<><button disabled={busy} onClick={()=>void run(client=>client.action(b.id,{action:'approve',version:b.version,requestId:crypto.randomUUID()}),'Brief approved.')}>Approve</button><button disabled={busy} className="production-danger" onClick={()=>{setTab('queue');void open(b.id)}}>Deny with reason</button></>}{deletable(b) && <button className="production-danger" disabled={busy} aria-label={`Delete ${b.data.projectName || 'untitled brief'}`} onClick={() => remove(b)}>Delete</button>}</div></td></tr>)}</tbody></table>{!filtered.length && <div className="production-empty"><h2>{tab === 'queue' ? 'Nothing to review' : briefs.length ? 'No matching briefs' : 'Start with a brief'}</h2><p>{tab === 'queue' ? 'Submitted briefs wait here for a Production Lead’s decision.' : briefs.length ? 'Try another search or status.' : 'Create a production request to share the scope, dates, and deliverables with Production leadership.'}</p></div>}</TableRegion>
       </>)}
       {selected && <div className="production-detail ws-enter"><div className="production-detail-header"><button disabled={busy} onClick={() => { if (mayLeave()) { setSelected(null); setDirty(false) } }}>← Back to {tab === 'calendar' ? 'calendar' : 'briefs'}</button><span className={`production-status status-${selected.status}`}>{statusLabels[selected.status]}</span><span>{selected.submission ? `Submitted ${selected.submission === 1 ? 'once' : `${selected.submission} times`}` : 'Not submitted yet'}</span><button disabled={busy} onClick={() => window.print()}>Print / save PDF</button>{deletable(selected) && <button className="production-danger" disabled={busy} onClick={() => remove(selected)}>Delete draft</button>}</div>
         <div className={inspector?'production-detail-grid':'production-detail-grid is-single'}><div>
@@ -298,10 +322,10 @@ function ReviewPanel({ brief, access, busy, dirty, onAction }: { brief: Producti
   const postComment = async () => { const text = comment; setComment(''); if (!await onAction({ action: 'comment', comment: text, section })) setComment(c => c || text) }
   const send = (action: BriefCommand['action']) => action === 'comment' ? postComment() : onAction({ action, comment, section, ...(hold&&['approve','schedule'].includes(action)?{softHoldId:hold}:{}), ...(['approve','schedule'].includes(action) && (start || end) ? { shootStartsAt: start ? `${start}T00:00:00.000Z` : '', shootEndsAt: end ? new Date(Date.parse(end) + 86400_000).toISOString() : '' } : {}) })
   return <section className="production-review"><h3>Review & scheduling</h3><p>{brief.shootStartsAt ? `Confirmed shoot: ${dateLabel(brief.shootStartsAt)} – ${dateLabel(new Date(Date.parse(brief.shootEndsAt!) - 1).toISOString())}` : 'Shoot dates become confirmed when Production approves the brief.'}</p>
-    {!access.notificationsConfigured && <p className="production-warning">Decisions appear in this workspace. An administrator must choose Executive Leadership Team members, and the sender email must be verified, before decision emails go out.</p>}
+    {access.canAdminister && !access.notificationsConfigured && <p className="production-warning">Decisions appear in this workspace. An administrator must choose Executive Leadership Team members, and the sender email must be verified, before decision emails go out.</p>}
 
-    {(own || access.canReview) && !['denied','withdrawn'].includes(brief.status) && <><label>Comment / decision reason<textarea rows={4} maxLength={6000} value={comment} disabled={busy} onChange={e => setComment(e.target.value)} /></label><label>Brief section<Select value={section} disabled={busy} onChange={e => setSection(e.target.value)}><option value="">Whole brief</option>{briefSections.map(s => <option key={s.title}>{s.title}</option>)}</Select></label><button disabled={busy || dirty || !comment.trim()} onClick={() => send('comment')}>Add comment</button></>}
-    {access.canReview && ['submitted','approved'].includes(brief.status) && <><div className="production-review-dates"><p>Changing confirmed dates moves on-site crew shifts and requires crew to be confirmed again.</p><p>{brief.data.fields.proposedStart ? `Proposed: ${brief.data.fields.proposedStart} – ${brief.data.fields.proposedEnd}.` : 'No concrete shoot dates proposed.'} Enter dates below to confirm a different window.</p><label>Choose a soft hold<Select value={hold} disabled={busy} onChange={e=>{setHold(e.target.value);setStart('');setEnd('')}}><option value="">Choose a proposal or enter dates</option>{softHoldsFor(brief).map(h=><option key={h.id} value={h.id}>{new Date(h.startsAt).toLocaleString()} – {new Date(h.endsAt).toLocaleString()}</option>)}</Select></label><label>Confirmed shoot starts<input type="date" disabled={busy} value={start} onChange={e => {setStart(e.target.value);setHold('')}} /></label><label>Confirmed shoot ends<input type="date" disabled={busy} value={end} onChange={e => {setEnd(e.target.value);setHold('')}} /></label></div><div className="production-review-actions">
+    {(own || access.canReview) && !['denied','withdrawn'].includes(brief.status) && <><label>Comment / decision reason<textarea rows={4} maxLength={6000} value={comment} disabled={busy} onChange={e => setComment(e.target.value)} /></label><label>Brief section<Select value={section} disabled={busy} onChange={e => setSection(e.target.value)}><option value="">Whole brief</option>{visibleSections(brief.data).map(s => <option key={s.title}>{s.title}</option>)}</Select></label><button disabled={busy || dirty || !comment.trim()} onClick={() => send('comment')}>Add comment</button></>}
+    {access.canReview && ['submitted','approved'].includes(brief.status) && <><div className="production-review-dates"><p>Changing confirmed dates moves on-site crew shifts and requires crew to be confirmed again.</p><p>{briefShootLabel(brief)}. Enter dates below to confirm a different window.</p><label>Choose a soft hold<Select value={hold} disabled={busy} onChange={e=>{setHold(e.target.value);setStart('');setEnd('')}}><option value="">Choose a proposal or enter dates</option>{softHoldsFor(brief).map(h=><option key={h.id} value={h.id}>{new Date(h.startsAt).toLocaleString()} – {new Date(h.endsAt).toLocaleString()}</option>)}</Select></label><label>Confirmed shoot starts<input type="date" disabled={busy} value={start} onChange={e => {setStart(e.target.value);setHold('')}} /></label><label>Confirmed shoot ends<input type="date" disabled={busy} value={end} onChange={e => {setEnd(e.target.value);setHold('')}} /></label></div><div className="production-review-actions">
       {brief.status === 'submitted' && <><button className="production-primary" disabled={busy || dirty} onClick={() => send('approve')}>{hold||start||brief.shootStartsAt||softHoldsFor(brief).length===1?'Approve & confirm dates':'Approve brief'}</button><button className="production-danger" disabled={busy || dirty || !comment.trim()} onClick={() => { if (window.confirm('Deny this production request? Your reason will be recorded and emailed to the submitter and active ELT members.')) send('deny') }}>Deny brief</button></>}
       <button disabled={busy || dirty || !comment.trim()} onClick={() => send('request_changes')}>Request changes</button><button disabled={busy || dirty || (!hold && (!start || !end))} onClick={() => send('schedule')}>{brief.shootStartsAt?'Update confirmed dates':'Confirm shoot date'}</button>
     </div></>}

@@ -1,10 +1,10 @@
-import type { ProductionBrief, SoftHold } from '../types/production'
+import { proposedWindow, type ProductionBrief, type SoftHold } from '../types/production'
 
 /** Includes old projected windows until a brief has explicit date proposals. */
 export function softHoldsFor(brief: ProductionBrief): SoftHold[] {
   if (brief.softHolds) return brief.softHolds
-  const { proposedStart, proposedEnd } = brief.data.fields
-  return proposedStart && proposedEnd ? [{ id: 'projected', startsAt: `${proposedStart}T00:00:00.000Z`, endsAt: new Date(Date.parse(proposedEnd) + 86400000).toISOString() }] : []
+  const projected = proposedWindow(brief.data)
+  return projected ? [{ id: 'projected', startsAt: `${projected.start}T00:00:00.000Z`, endsAt: new Date(Date.parse(projected.end) + 86400000).toISOString() }] : []
 }
 export function productionReadiness(brief: ProductionBrief, now = Date.now()) {
   const onsite = brief.data.productionTypes.some(t => ['Photography','Videography'].includes(t))

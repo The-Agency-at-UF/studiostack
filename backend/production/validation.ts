@@ -1,5 +1,5 @@
 import { ApiError, object, uuid, date as timestamp } from '../database/api-validation'
-import { briefSections, productionTypes, crewRoles, type BriefData, type BriefCommand, type ProductionSettings } from '../../src/types/production'
+import { briefSections, productionTypes, crewRoles, withoutHiddenFields, type BriefData, type BriefCommand, type ProductionSettings } from '../../src/types/production'
 const bad = (message: string): never => { throw new ApiError(400, message) }
 function string(value: unknown, max = 4000): string { if (typeof value !== 'string' || value.length > max || Array.from(value).some(c => c.charCodeAt(0) < 32 && !['\t','\n','\r'].includes(c))) return bad('Invalid text or text too long'); return value.trim() }
 export function version(value: unknown): number { if (!Number.isSafeInteger(value) || Number(value) < 0) return bad('A valid record version is required'); return Number(value) }
@@ -30,6 +30,8 @@ export function briefData(input: unknown): BriefData {
     })
     if (new Set(result.crewRequests.map(r=>r.id)).size !== result.crewRequests.length) bad('Crew request IDs must be unique')
   }
+  // Answers from a step the production types no longer show are not part of the brief.
+  result.fields = withoutHiddenFields(result).fields
   const start = result.fields.proposedStart, end = result.fields.proposedEnd
   if (Boolean(start) !== Boolean(end) || (start && end < start)) bad('Provide a valid start and end for the projected shoot window')
   if (end && result.deliveryDate && end > result.deliveryDate) bad('Projected shoot must finish by the target delivery date')
