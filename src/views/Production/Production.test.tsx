@@ -94,8 +94,8 @@ describe('production workspace',()=>{
     expect(input).toHaveAttribute('aria-invalid','true')
     expect(screen.getByText('Target delivery date is in the past.')).toBeInTheDocument()
     fireEvent.change(input,{target:{value:''}})
-    vi.stubGlobal('confirm',()=>true)
     await user.click(screen.getByRole('button',{name:/Back to briefs/}))
+    await user.click(within(await screen.findByRole('dialog',{name:'Discard unsaved changes?'})).getByRole('button',{name:'Discard changes'}))
     await user.click(screen.getByRole('button',{name:'New brief'}))
     await screen.findByLabelText('Target delivery date *')
     expect(window.location.search).toBe(draftUrl)
@@ -115,6 +115,18 @@ describe('production workspace',()=>{
     await screen.findByText('Brief deleted.')
     expect(screen.queryByRole('button',{name:'Delete untitled brief'})).not.toBeInTheDocument()
     expect(screen.getByRole('button',{name:'Campus stories'})).toBeInTheDocument()
+  })
+  it('asks in a themed dialog before denying a brief',async()=>{
+    const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-reviewer');await screen.findByRole('button',{name:'Decisions & delivery'})
+    await user.click(screen.getByRole('button',{name:'Campus stories'}));await screen.findByRole('button',{name:'Deny brief'})
+    await user.type(screen.getByLabelText('Comment / decision reason'),'Out of scope this term')
+    await user.click(screen.getByRole('button',{name:'Deny brief'}))
+    await user.click(within(await screen.findByRole('dialog',{name:'Deny this production request?'})).getByRole('button',{name:'Cancel'}))
+    await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());expect(screen.queryByText('Denied',{selector:'.production-status'})).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Deny brief'}))
+    await user.click(within(await screen.findByRole('dialog',{name:'Deny this production request?'})).getByRole('button',{name:'Deny brief'}))
+    expect(await screen.findByText('Denied',{selector:'.production-status'})).toBeInTheDocument()
   })
   it('lets configured Production leadership approve and confirms the proposed dates',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
@@ -152,9 +164,16 @@ it('protects unsaved brief edits during app navigation while permitting step cha
   await user.click(screen.getByRole('button',{name:'New brief'}));await screen.findByRole('heading',{name:'New production brief'});
   await user.type(screen.getByLabelText('Project name *'),'Unfinished production');
   const confirm=vi.fn(()=>false);vi.stubGlobal('confirm',confirm);
-  const steps=within(screen.getByRole('navigation',{name:'Brief steps'}));await user.click(steps.getByRole('button',{name:/Project overview/}));await user.click(steps.getByRole('button',{name:/Basics/}));expect(confirm).not.toHaveBeenCalled();
+  const steps=within(screen.getByRole('navigation',{name:'Brief steps'}));await user.click(steps.getByRole('button',{name:/Project overview/}));await user.click(steps.getByRole('button',{name:/Basics/}));expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   const destination=document.createElement('a');destination.href='/inventory/';document.body.append(destination);
-  try{const event=new MouseEvent('click',{bubbles:true,cancelable:true,button:0});expect(destination.dispatchEvent(event)).toBe(false);expect(confirm).toHaveBeenCalledOnce();expect(screen.getByLabelText('Project name *')).toHaveValue('Unfinished production')}finally{destination.remove()}
+  try{
+    const event=new MouseEvent('click',{bubbles:true,cancelable:true,button:0});expect(destination.dispatchEvent(event)).toBe(false)
+    const dialog=await screen.findByRole('dialog',{name:'Discard unsaved changes?'});expect(confirm).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button',{name:'Cancel'}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Project name *')).toHaveValue('Unfinished production')
+    await user.click(screen.getByRole('button',{name:/Back to briefs/}));await user.click(within(await screen.findByRole('dialog',{name:'Discard unsaved changes?'})).getByRole('button',{name:'Discard changes'}))
+    await waitFor(()=>expect(screen.queryByRole('heading',{name:'New production brief'})).not.toBeInTheDocument())
+  }finally{destination.remove()}
 })
 
 it('lets a preview Production Lead save confirmed crew on an approved shoot',async()=>{
