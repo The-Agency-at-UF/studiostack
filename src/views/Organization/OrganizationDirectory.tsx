@@ -9,6 +9,8 @@ import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/datab
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
 import { DetailPanel, EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion } from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import { useToast } from '../../components/workspace/Toast'
 import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import type { AccountClient } from '../../api/accounts'
@@ -119,6 +121,8 @@ export default function OrganizationDirectory() {
   const query = search.trim().toLowerCase()
   const visible = sorted.filter(p => `${p.name} ${p.email ?? ''}`.toLowerCase().includes(query)
     && (roleFilter === 'all' || (roleFilter === 'admins') === (p.role !== 'member')))
+  const { pageRows, pagination } = usePagination(visible, [org, query, roleFilter])
+  const paginated = pagination.hasPrevious || pagination.hasNext
   // Owners manage everyone; admins manage everyone except owners. Nobody changes their own access here.
   // The server marks the caller's own row. An email can sit on an older duplicate account, so it is
   // only a fallback for an API that does not send the mark yet.
@@ -162,7 +166,7 @@ export default function OrganizationDirectory() {
         {visible.length ? <TableRegion label="People in this organization" className="org-directory-table">
           <table>
             <thead><tr><th scope="col">Person</th><th scope="col">Role</th>{manager && <th scope="col"><span className="ws-sr-only">Manage</span></th>}</tr></thead>
-            <tbody>{visible.map(person => {
+            <tbody>{pageRows.map(person => {
               const you = isYou(person), open = selected?.id === person.id
               return <tr key={person.id} className={open ? 'is-selected' : undefined}>
                 <td><div className="org-directory-person">
@@ -178,12 +182,13 @@ export default function OrganizationDirectory() {
             })}</tbody>
           </table>
         </TableRegion> : <EmptyState title={filtered ? 'No one matches these filters.' : 'No one has joined yet.'} />}
-        <div className="org-directory-footer">
+        <Pagination label="People" pagination={pagination} />
+        {(manager || filtered || !paginated) && <div className="org-directory-footer">
           {manager ? (pendingInvitations
             ? <Link href="/organization/settings#invitations">{plural(pendingInvitations, 'pending invitation')}</Link>
             : <span>No pending invitations</span>) : <span />}
-          <span>Showing {visible.length} of {people.length}</span>
-        </div>
+          {(!paginated || filtered) && <span>{paginated ? `${visible.length} of ${people.length} people match` : `Showing ${visible.length} of ${people.length}`}</span>}
+        </div>}
       </section>
       {selected && <PersonPanel key={selected.id} person={selected} owner={owner} canRemove={canChangeMemberAccess(settings.role,selected.role)} busy={busy} organization={settings.name} change={change} onClose={closePanel} />}
       </div>
