@@ -4,12 +4,13 @@ import Header from './Header';
 import { TourProvider } from './tour/TourContext';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
+const nav = vi.hoisted(() => ({ path: '/' }));
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/',
+  usePathname: () => nav.path,
 }));
 
 describe('Header', () => {
-  it.each(['Home','Production','Production calendar','Equipment calendar','Reservations','Reports','Alerts','Equipment','Statistics','Organization'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
+  it.each(['Home','Productions','Shoot calendar','Gear calendar','Reservations','Damage reports','Alerts','Inventory','Members','Statistics','Settings'])('preserves the %s link between pointer-down and click when dismissing the account menu', async (name) => {
     const user = userEvent.setup(); const logOut = vi.fn(); const view = render(<Header isAdmin logOut={logOut} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
     const link = screen.getByRole('link', { name }); const clicked = vi.fn(); link.addEventListener('click', clicked);
@@ -25,7 +26,7 @@ describe('Header', () => {
     const user=userEvent.setup(), logOut=vi.fn();const view=render(<Header isAdmin={false} logOut={logOut} />);
     await user.click(screen.getByRole('button',{name:'Toggle navigation'}));
     const mobile=view.container.querySelector('.mobile-nav-links')!;
-    const link=Array.from(mobile.querySelectorAll('a')).find(a=>a.textContent==='Reports')!;
+    const link=Array.from(mobile.querySelectorAll('a')).find(a=>a.textContent==='Damage reports')!;
     view.rerender(<Header isAdmin={false} logOut={logOut} email="member@example.test" />);
     expect(link.isConnected).toBe(true);expect(view.container.querySelector('.mobile-nav-links')).toBe(mobile);
     await user.click(link);expect(view.container.querySelector('.mobile-nav-links')).toBeNull();expect(logOut).not.toHaveBeenCalled();
@@ -66,7 +67,9 @@ describe('Header', () => {
     expect(screen.getAllByText('Statistics')[0]).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Teams' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Organization' })).toHaveAttribute('href', '/organization');
+    expect(screen.getByRole('link', { name: 'Members' })).toHaveAttribute('href', '/organization');
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/organization/settings');
+    expect(screen.getByText('Admin')).toBeInTheDocument();
   });
 
   it('does not show Admin-only links when isAdmin is false', () => {
@@ -74,13 +77,35 @@ describe('Header', () => {
     // These should NOT be visible for students
     expect(screen.queryByText('Statistics')).not.toBeInTheDocument();
     expect(screen.queryByText('Users')).not.toBeInTheDocument();
-    expect(screen.queryByText('Organization')).not.toBeInTheDocument();
+    expect(screen.queryByText('Members')).not.toBeInTheDocument();
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument();
   });
 
   it('shows common links for both roles', () => {
     render(<Header isAdmin={false} logOut={() => {}} />);
     expect(screen.getAllByText('Home')[0]).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Equipment' })).toHaveAttribute('href', '/inventory');
+    expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('href', '/inventory');
+  });
+
+  it('names sections without repeating their links and leaves the top group unlabeled', () => {
+    const { container } = render(<Header isAdmin logOut={() => {}} />);
+    const headings = Array.from(container.querySelectorAll('.desktop-nav-links .ws-nav-group > p')).map(p => p.textContent);
+    expect(headings).toEqual(['Production', 'Equipment', 'Admin']);
+    expect(container.querySelector('[data-tour="nav-overview"] > p')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Get Started' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/organization', 'Members'],
+    ['/organization/roles', 'Members'],
+    ['/organization/settings', 'Settings'],
+    ['/organization/settings/join-codes', 'Settings'],
+  ])('marks only one admin link current on %s', (path, current) => {
+    nav.path = path;
+    try {
+      render(<Header isAdmin logOut={() => {}} />);
+      expect(screen.getAllByRole('link', { current: 'page' }).map(link => link.textContent)).toEqual([current]);
+    } finally { nav.path = '/'; }
   });
 
   it('opens account actions, closes with Escape, and restores focus', async () => {
@@ -92,7 +117,6 @@ describe('Header', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('preview@example.com')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Account & workspaces' })).toHaveFocus();
-    expect(screen.getByRole('link', { name: 'Organization settings' })).toHaveAttribute('href', '/organization/settings');
     await user.keyboard('{Escape}');
     expect(trigger).toHaveFocus();
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
@@ -103,8 +127,6 @@ describe('Header', () => {
     const logOut = vi.fn();
     render(<Header isAdmin={false} logOut={logOut} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
-    expect(screen.queryByText('Organization settings')).not.toBeInTheDocument();
-    expect(screen.queryByText('Manage members')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(logOut).toHaveBeenCalledOnce();
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
@@ -118,40 +140,37 @@ describe('Header', () => {
     await user.click(screen.getByAltText('StudioStack'));
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     await user.click(trigger);
-    await user.click(screen.getByRole('link', { name: 'Organization settings' }));
+    await user.click(screen.getByRole('link', { name: 'Account & workspaces' }));
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it.each([
-    ['All reservations', '/reservations'],
-    ['Manage members', '/organization'],
-    ['Organization settings', '/organization/settings'],
-  ])('keeps %s mounted through a pointer blur so its navigation can finish', async (name, href) => {
+  it('keeps Account & workspaces mounted through a pointer blur so its navigation can finish', async () => {
     const user = userEvent.setup();
     const logOut = vi.fn();
     render(<Header isAdmin logOut={logOut} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
-    const link = screen.getByRole('link', { name });
-    expect(link).toHaveAttribute('href', href);
-    fireEvent.blur(screen.getByRole('link', { name: 'All reservations' }), { relatedTarget: null });
+    const link = screen.getByRole('link', { name: 'Account & workspaces' });
+    expect(link).toHaveAttribute('href', '/account');
+    fireEvent.blur(link, { relatedTarget: null });
     expect(link).toBeInTheDocument();
     await user.click(link);
     expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'false');
     expect(logOut).not.toHaveBeenCalled();
   });
 
-  it.each([[true, 'All reservations'], [false, 'My reservations']])('names the reservations link for what it lists (admin: %s)', async (isAdmin, name) => {
+  it.each([true, false])('keeps only personal actions in the account menu (admin: %s)', async isAdmin => {
     const user = userEvent.setup();
-    render(<Header isAdmin={isAdmin} logOut={vi.fn()} />);
+    render(<Header isAdmin={isAdmin} logOut={vi.fn()} onReportBug={() => {}} onRequestFeature={() => {}} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
-    expect(screen.getByRole('link', { name })).toHaveAttribute('href', '/reservations');
+    const panel = document.getElementById('account-panel')!;
+    expect(Array.from(panel.querySelectorAll('a,button')).map(el => el.textContent)).toEqual(['Account & workspaces', 'Sign out']);
   });
 
   it('still dismisses the menu when keyboard focus leaves it', async () => {
     const user = userEvent.setup();
     render(<Header isAdmin logOut={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
-    fireEvent.blur(screen.getByRole('link', { name: 'All reservations' }), { relatedTarget: screen.getByRole('link', { name: 'Book gear' }) });
+    fireEvent.blur(screen.getByRole('link', { name: 'Account & workspaces' }), { relatedTarget: screen.getByRole('link', { name: 'Book gear' }) });
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
   });
 });
@@ -179,16 +198,16 @@ describe('Header tour', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 10, 100, 40));
     const user = userEvent.setup();
     render(<TourProvider owner="member" isAdmin={isAdmin} autoStart={false}><Header isAdmin={isAdmin} logOut={() => {}} /></TourProvider>);
-    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(screen.getByRole('button', { name: 'Help' }));
     await user.click(screen.getByRole('button', { name: 'Take the tour' }));
-    expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Help' })).toHaveAttribute('aria-expanded', 'false');
     const seen: string[] = [];
     while (screen.queryByRole('dialog')) { seen.push(screen.getByRole('heading', { level: 2 }).textContent!); await user.click(screen.getByRole('button', { name: /Next|Finish/ })); }
     return seen;
   };
 
-  it('replays the workspace tour from the account menu and highlights each sidebar area', async () => {
-    expect(await titles(true)).toEqual(['Welcome to StudioStack', 'Open the menu', 'Start at Home', 'Plan productions', 'Find and track gear', 'Run your workspace', 'Book gear from anywhere', 'Your account', 'You’re all set']);
+  it('replays the workspace tour from the Help menu and highlights each sidebar area', async () => {
+    expect(await titles(true)).toEqual(['Welcome to StudioStack', 'Open the menu', 'Start at Home', 'Plan productions', 'Find and track gear', 'Run your workspace', 'Book gear from anywhere', 'Get help', 'Your account', 'You’re all set']);
   });
 
   it('leaves the administration step out for members', async () => {
@@ -198,27 +217,50 @@ describe('Header tour', () => {
   it('offers no tour outside the workspace shell', async () => {
     const user = userEvent.setup();
     render(<Header isAdmin={false} logOut={() => {}} />);
-    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(screen.getByRole('button', { name: 'Help' }));
     expect(screen.queryByRole('button', { name: 'Take the tour' })).not.toBeInTheDocument();
   });
-  it.each([[false, 'My reservations'], [true, 'Organization settings']])('places Report a bug after the last account link (admin: %s) and opens it', async (isAdmin, previous) => {
-    const user = userEvent.setup(), onReportBug = vi.fn();
-    render(<Header isAdmin={isAdmin} logOut={() => {}} onReportBug={onReportBug} />);
+  it('opens Get started and Resources from the Help menu', async () => {
+    const user = userEvent.setup();
+    render(<Header isAdmin={false} logOut={() => {}} />);
+    const help = screen.getByRole('button', { name: 'Help' });
+    await user.click(help);
+    expect(screen.getByRole('link', { name: 'Get started' })).toHaveFocus();
+    expect(screen.getByRole('link', { name: 'Resources' })).toHaveAttribute('href', '/resources');
+    await user.click(screen.getByRole('link', { name: 'Get started' }));
+    expect(help).toHaveAttribute('aria-expanded', 'false');
+  });
+  it('closes the Help menu with Escape and opening Account replaces it', async () => {
+    const user = userEvent.setup();
+    render(<Header isAdmin={false} logOut={() => {}} />);
+    const help = screen.getByRole('button', { name: 'Help' });
+    await user.click(help);
+    await user.keyboard('{Escape}');
+    expect(help).toHaveFocus();
+    expect(help).toHaveAttribute('aria-expanded', 'false');
+    await user.click(help);
     await user.click(screen.getByRole('button', { name: 'Account' }));
+    expect(help).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'true');
+  });
+  it('places Report a bug after Resources and opens it', async () => {
+    const user = userEvent.setup(), onReportBug = vi.fn();
+    render(<Header isAdmin={false} logOut={() => {}} onReportBug={onReportBug} />);
+    await user.click(screen.getByRole('button', { name: 'Help' }));
     const report = screen.getByRole('button', { name: 'Report a bug' });
-    expect(screen.getByRole('link', { name: previous }).nextElementSibling).toBe(report);
+    expect(screen.getByRole('link', { name: 'Resources' }).nextElementSibling).toBe(report);
     await user.click(report);
     expect(onReportBug).toHaveBeenCalledOnce();
-    expect(screen.queryByText('Your account')).not.toBeInTheDocument();
+    expect(screen.queryByText('Help & feedback')).not.toBeInTheDocument();
   });
-  it.each([false, true])('places Request a feature directly under Report a bug (admin: %s) and opens it', async isAdmin => {
+  it('places Request a feature directly under Report a bug and opens it', async () => {
     const user = userEvent.setup(), onRequestFeature = vi.fn();
-    render(<Header isAdmin={isAdmin} logOut={() => {}} onReportBug={() => {}} onRequestFeature={onRequestFeature} />);
-    await user.click(screen.getByRole('button', { name: 'Account' }));
+    render(<Header isAdmin={false} logOut={() => {}} onReportBug={() => {}} onRequestFeature={onRequestFeature} />);
+    await user.click(screen.getByRole('button', { name: 'Help' }));
     const request = screen.getByRole('button', { name: 'Request a feature' });
     expect(screen.getByRole('button', { name: 'Report a bug' }).nextElementSibling).toBe(request);
     await user.click(request);
     expect(onRequestFeature).toHaveBeenCalledOnce();
-    expect(screen.queryByText('Your account')).not.toBeInTheDocument();
+    expect(screen.queryByText('Help & feedback')).not.toBeInTheDocument();
   });
 });
