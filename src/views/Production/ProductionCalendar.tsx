@@ -4,7 +4,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import { useState, type ReactNode } from 'react'
 import {softHoldsFor} from '../../production/readiness'
 import {getCached,setCached} from '../../api/cache'
-import { statusLabels, type ProductionBrief } from '../../types/production'
+import { productionIsOnSite, statusLabels, type ProductionBrief } from '../../types/production'
 import { usePickedDay } from '../../components/workspace/usePickedDay'
 import { WorkspaceCalendar } from '../../components/workspace/WorkspaceCalendar'
 import { Button } from '../../components/workspace/WorkspaceUI'
@@ -15,7 +15,7 @@ const milestoneFields = [['conceptReview','Concept review'],['locationConfirmed'
 const views = [{ value: 'dayGridMonth', label: 'Month' }, { value: 'timeGridWeek', label: 'Week' }]
 const kindLabel: Record<Kind, string> = { shoot: 'Confirmed shoot', tentative: 'Soft hold (unconfirmed)', milestone: 'Milestone' }
 // Brief dates are calendar days stored in UTC; format them without shifting into the viewer's zone.
-const day = (value: string | number, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) => new Date(value).toLocaleDateString(undefined, { ...options, timeZone: 'UTC' })
+const day = (value: string | number, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) => new Date(value).toLocaleDateString(undefined, { ...options, ...(new Date(value).getUTCFullYear() !== new Date().getUTCFullYear() ? { year: 'numeric' } : {}), timeZone: 'UTC' })
 const short = (value: string | number) => day(value, { month: 'short', day: 'numeric' })
 const range = (start: string | number, lastDay: string | number) => short(start) === short(lastDay) ? day(start) : `${day(start)} – ${day(lastDay)}`
 const milestoneDate = (brief: ProductionBrief, key: string) => key === 'deliveryDate' ? brief.data.deliveryDate : brief.data.fields[key]
@@ -32,8 +32,10 @@ function entries(brief: ProductionBrief, tentative: boolean, milestones: boolean
 const shortRange = (start: string | number, lastDay: string | number) => short(start) === short(lastDay) ? short(start) : `${short(start)} – ${short(lastDay)}`
 function shootSummary(brief: ProductionBrief) {
   if (brief.shootStartsAt) return `${shortRange(brief.shootStartsAt, Date.parse(brief.shootEndsAt!) - 1)} · Confirmed`
-  if (brief.data.fields.proposedStart) return `${shortRange(brief.data.fields.proposedStart, brief.data.fields.proposedEnd || brief.data.fields.proposedStart)} · Tentative`
-  return brief.data.fields.shootEstimate ? `Estimate: ${brief.data.fields.shootEstimate}` : 'Not scheduled'
+  const holds = softHoldsFor(brief)
+  if (holds.length === 1) return `${shortRange(holds[0].startsAt, Date.parse(holds[0].endsAt) - 1)} · Tentative`
+  if (holds.length > 1) return `${holds.length} unconfirmed soft holds`
+  return productionIsOnSite(brief.data) && brief.data.fields.shootEstimate ? `Estimate: ${brief.data.fields.shootEstimate}` : 'Not scheduled'
 }
 
 export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default', filter, showSoftHoldsByDefault=false }: { briefs: ProductionBrief[]; onOpen: (id: string) => void; viewKey?: string; filter?: ReactNode;showSoftHoldsByDefault?:boolean }) {
