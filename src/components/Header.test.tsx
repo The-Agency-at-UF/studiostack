@@ -170,7 +170,7 @@ describe('Header', () => {
     const user = userEvent.setup();
     render(<Header isAdmin logOut={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Account' }));
-    fireEvent.blur(screen.getByRole('link', { name: 'Account & workspaces' }), { relatedTarget: screen.getByRole('link', { name: 'Book gear' }) });
+    fireEvent.blur(screen.getByRole('link', { name: 'Account & workspaces' }), { relatedTarget: screen.getByRole('button', { name: 'Help' }) });
     expect(screen.queryByText('Your account')).not.toBeInTheDocument();
   });
 });
@@ -207,7 +207,7 @@ describe('Header tour', () => {
   };
 
   it('replays the workspace tour from the Help menu and highlights each sidebar area', async () => {
-    expect(await titles(true)).toEqual(['Welcome to StudioStack', 'Open the menu', 'Start at Home', 'Plan productions', 'Find and track gear', 'Run your workspace', 'Book gear from anywhere', 'Get help', 'Your account', 'You’re all set']);
+    expect(await titles(true)).toEqual(['Welcome to StudioStack', 'Open the menu', 'Start at Home', 'Plan productions', 'Find and track gear', 'Run your workspace', 'Get help', 'Your account', 'You’re all set']);
   });
 
   it('leaves the administration step out for members', async () => {
