@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import {createPreviewProductionClient} from '../../production/preview'
 import PreviewControls from '../../components/PreviewControls'
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Production from './Production'
@@ -52,7 +52,7 @@ describe('production workspace',()=>{
     expect(screen.getByLabelText('Project name *')).not.toHaveAttribute('aria-invalid')
     await user.click(screen.getByRole('button',{name:'Next: Project overview'}));expect(screen.getByLabelText('Project summary *')).not.toHaveAttribute('aria-invalid')
     await step('Review & submit');expect(screen.getByText('Still needed · 10')).toBeInTheDocument()
-    await user.click(screen.getByRole('button',{name:'Submit for review'}));expect(screen.getByRole('alert')).toHaveTextContent('Fill in all 10 required details before submitting.');expect(screen.queryByText('In review',{selector:'.production-status'})).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Submit for review'}));expect(screen.getByRole('alert')).toHaveTextContent('Fix all 10 items still needed before submitting.');expect(screen.queryByText('In review',{selector:'.production-status'})).not.toBeInTheDocument()
     await step('Basics');expect(screen.getByLabelText('Project name *')).toHaveAttribute('aria-invalid','true');expect(screen.getByText('Add a project name.')).toBeInTheDocument()
     await user.type(screen.getByLabelText('Project name *'),'Editing request');expect(screen.getByLabelText('Project name *')).not.toHaveAttribute('aria-invalid');await user.type(screen.getByLabelText('Client *'),'Example client');await user.type(screen.getByLabelText('Account / project managers *'),'Alex')
     await user.type(screen.getByLabelText('Target delivery date *'),'2026-12-20');await user.click(screen.getByLabelText(/Video Editing/))
@@ -84,6 +84,21 @@ describe('production workspace',()=>{
     expect(screen.getByRole('button',{name:'Spring launch'})).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:'Fall recap'})).not.toBeInTheDocument()
     expect(screen.getByText(/1 brief · Filters applied/)).toBeInTheDocument()
+  })
+  it('shows a past target date inline and reopens an untouched draft',async()=>{
+    const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
+    await user.click(screen.getByRole('button',{name:'New brief'}))
+    const input=await screen.findByLabelText('Target delivery date *')
+    const draftUrl=window.location.search
+    fireEvent.change(input,{target:{value:'2020-01-01'}})
+    expect(input).toHaveAttribute('aria-invalid','true')
+    expect(screen.getByText('Target delivery date is in the past.')).toBeInTheDocument()
+    fireEvent.change(input,{target:{value:''}})
+    vi.stubGlobal('confirm',()=>true)
+    await user.click(screen.getByRole('button',{name:/Back to briefs/}))
+    await user.click(screen.getByRole('button',{name:'New brief'}))
+    await screen.findByLabelText('Target delivery date *')
+    expect(window.location.search).toBe(draftUrl)
   })
   it('lets the author delete a never-submitted draft from the brief list',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
@@ -132,7 +147,7 @@ describe('production workspace',()=>{
   })
 })
 
-it('protects unsaved brief edits during app navigation while permitting section links',async()=>{
+it('protects unsaved brief edits during app navigation while permitting step changes',async()=>{
   const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'});
   await user.click(screen.getByRole('button',{name:'New brief'}));await screen.findByRole('heading',{name:'New production brief'});
   await user.type(screen.getByLabelText('Project name *'),'Unfinished production');
