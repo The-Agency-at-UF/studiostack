@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { briefData, briefCommand, productionSettings } from '../../backend/production/validation'
-import { emptyBrief, submissionErrors, visibleSections } from '../types/production'
+import { dateErrors, emptyBrief, proposedWindow, submissionErrors, visibleSections } from '../types/production'
 const requestId = '11111111-1111-4111-8111-111111111111'
 describe('production brief inputs and conditional requirements', () => {
   it('allows incomplete drafts but identifies required submission fields', () => {
@@ -19,10 +19,12 @@ describe('production brief inputs and conditional requirements', () => {
   })
   it.each([
     { fields: { notAField: 'injected' } }, { role: 'admin' }, { productionTypes: ['Photography','Photography'] }, { deliveryDate: '2026-02-30' },
-    { fields: { proposedStart: '2026-11-05', proposedEnd: '2026-11-04' } }, { fields: { proposedStart: '2026-11-05' } },
+    { productionTypes: ['Videography'], fields: { proposedStart: '2026-11-05', proposedEnd: '2026-11-04' } }, { productionTypes: ['Videography'], fields: { proposedStart: '2026-11-05' } },
     { fields: { brandLink: 'javascript:alert(1)' } }, { fields: { permits: 'Definitely' } },
   ])('rejects invalid or injected brief content %j', input => { expect(()=>briefData({ ...emptyBrief(), ...input })).toThrow() })
-  it('allows a month-only estimate and safe reference URL in a draft', () => { expect(briefData({ ...emptyBrief(), fields: { shootEstimate: 'November', brandLink: 'https://example.org/brand' } }).fields.shootEstimate).toBe('November') })
+  it('allows a month-only estimate and safe reference URL in a draft', () => { expect(briefData({ ...emptyBrief(), productionTypes: ['Photography'], fields: { shootEstimate: 'November', brandLink: 'https://example.org/brand' } }).fields.shootEstimate).toBe('November') })
+  it('drops answers from a step the production types no longer show', () => { const data = { ...emptyBrief(), productionTypes: ['Video Editing' as const], fields: { proposedStart: '2026-12-14', proposedEnd: '2026-12-16', location: 'Studio', editingDirection: 'Fast cuts' } }; expect(briefData(data).fields).toEqual({ editingDirection: 'Fast cuts' }); expect(proposedWindow(data)).toBeNull() })
+  it('flags shoot windows that end before they start or after delivery', () => { const data = { ...emptyBrief(), deliveryDate: '2099-01-10', productionTypes: ['Videography' as const], fields: { proposedStart: '2099-01-20', proposedEnd: '2099-01-05' } }; expect(dateErrors(data).map(e => e.message)).toEqual(['Projected shoot window ends before it starts.']); expect(dateErrors({ ...data, fields: { proposedStart: '2099-01-08', proposedEnd: '2099-01-12' } }).map(e => e.key)).toEqual(['proposedEnd']); expect(dateErrors({ ...data, deliveryDate: '2020-01-01', fields: {} }).map(e => e.key)).toEqual(['deliveryDate']) })
   it.each(['request_changes','deny','comment'])('requires a reason for %s', action => { expect(()=>briefCommand({ action,version:1,requestId })).toThrow('reason') })
   it('rejects optimistic-version bypass and malformed schedules', () => {
     expect(()=>briefCommand({ action:'approve',version:-1,requestId })).toThrow()

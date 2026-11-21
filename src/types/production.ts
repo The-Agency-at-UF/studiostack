@@ -66,12 +66,40 @@ export type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'c
 export interface BriefCommand { softHolds?:SoftHold[]; softHoldId?:string; action: BriefAction; version: number; requestId: string; comment?: string; section?: string; shootStartsAt?: string; shootEndsAt?: string }
 export interface Delivery { id: string; briefId: string; eventId: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'uncertain'; attempts: number; createdAt: string; sentAt: string | null }
 export const emptyBrief = (): BriefData => ({ projectName: '', client: '', managers: '', supervisor: '', deliveryDate: '', productionTypes: [], fields: {} })
-export function visibleSections(data: BriefData) { return briefSections.filter(s => !s.scope || (s.scope === 'onsite' ? data.productionTypes.some(t => t === 'Photography' || t === 'Videography') : data.productionTypes.some(t => t === 'Video Editing' || t === 'Motion Graphics'))) }
+export const productionIsOnSite = (data: BriefData) => data.productionTypes.some(t => t === 'Photography' || t === 'Videography')
+export function visibleSections(data: BriefData) { return briefSections.filter(s => !s.scope || (s.scope === 'onsite' ? productionIsOnSite(data) : data.productionTypes.some(t => t === 'Video Editing' || t === 'Motion Graphics'))) }
+/** The brief without answers from sections its production types no longer show, so a hidden step can't still set dates. */
+export function withoutHiddenFields(data: BriefData): BriefData {
+  const keys = new Set(visibleSections(data).flatMap(s => s.fields.map(f => f.key)))
+  return { ...data, fields: Object.fromEntries(Object.entries(data.fields).filter(([k]) => keys.has(k))) }
+}
+/** The brief as it is saved: hidden sections dropped and text trimmed. */
+export function normalizedBrief(data: BriefData): BriefData {
+  const clean = withoutHiddenFields(data), trim = (v: string) => v.trim()
+  return { ...clean, projectName: trim(clean.projectName), client: trim(clean.client), managers: trim(clean.managers), supervisor: trim(clean.supervisor), fields: Object.fromEntries(Object.entries(clean.fields).map(([k, v]) => [k, trim(v)])) }
+}
+/** The projected shoot window, only while the On-site production step is part of the brief. */
+export function proposedWindow(data: BriefData): { start: string; end: string } | null {
+  const fields = withoutHiddenFields(data).fields
+  const start = fields.proposedStart, end = fields.proposedEnd
+  return start && end && end >= start && (!data.deliveryDate || end <= data.deliveryDate) ? { start, end } : null
+}
+const today = () => new Date().toISOString().slice(0, 10)
+/** Date mistakes in the brief, keyed by the field to fix. `saving` limits it to the checks the server applies on every save. */
+export function dateErrors(data: BriefData, saving = false): { key: string; message: string }[] {
+  const f = withoutHiddenFields(data).fields, delivery = data.deliveryDate, errors: { key: string; message: string }[] = []
+  if (!saving && delivery && delivery < today()) errors.push({ key: 'deliveryDate', message: 'Target delivery date is in the past.' })
+  if (Boolean(f.proposedStart) !== Boolean(f.proposedEnd)) errors.push({ key: f.proposedStart ? 'proposedEnd' : 'proposedStart', message: 'Give both a start and an end for the projected shoot window.' })
+  else if (f.proposedStart && f.proposedEnd < f.proposedStart) errors.push({ key: 'proposedEnd', message: 'Projected shoot window ends before it starts.' })
+  else if (f.proposedEnd && delivery && f.proposedEnd > delivery) errors.push({ key: 'proposedEnd', message: 'Projected shoot must finish by the target delivery date.' })
+  for (const field of briefSections.find(s => s.title === 'Timeline')!.fields) if (f[field.key] && delivery && f[field.key] > delivery) errors.push({ key: field.key, message: `${field.label} is after the target delivery date.` })
+  return errors
+}
 export function submissionErrors(data: BriefData): string[] {
   const errors = (['projectName', 'client', 'managers', 'deliveryDate'] as const).filter(k => !data[k].trim()).map(k => ({ projectName: 'Project name', client: 'Client', managers: 'Account / project managers', deliveryDate: 'Target delivery date' })[k])
   if (!data.productionTypes.length) errors.push('Production type')
   for (const section of visibleSections(data)) for (const field of section.fields) if (field.required && !data.fields[field.key]?.trim()) errors.push(field.label)
-  return errors
+  return [...errors, ...dateErrors(data).map(e => e.message)]
 }
 
 export const ideaStatuses = {idea:'Idea',pitched:'Pitched',selected:'Selected',archived:'Archived'} as const

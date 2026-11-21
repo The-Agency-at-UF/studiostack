@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Popup from './Popup';
 import {useAppSession} from '../context/AppSessionContext';
@@ -11,8 +11,8 @@ import {createPreviewDatabaseApi} from '../preview/database';
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 
 const copy = {
-  bug: { Icon: IoIosBug, trigger: 'Report a Bug', heading: 'Report a Bug', history: 'Your submitted reports', empty: 'No reports yet.', titlePlaceholder: 'What happened?', submit: 'Submit Report', success: 'Report Submitted!', thanks: 'Thank you for your feedback. Our team has been notified and will look into this issue.', failure: 'Failed to submit bug report. Please try again later.', collection: 'bugReports' },
-  feature: { Icon: IoIosBulb, trigger: 'Request a Feature', heading: 'Request a Feature', history: 'Your submitted requests', empty: 'No requests yet.', titlePlaceholder: 'What would you like?', submit: 'Submit Request', success: 'Request Submitted!', thanks: 'Thank you for the idea. Our team will review it when planning what to build next.', failure: 'Failed to submit feature request. Please try again later.', collection: 'featureRequests' },
+  bug: { Icon: IoIosBug, trigger: 'Report a bug', heading: 'Report a bug', history: 'Your submitted reports', empty: 'No reports yet.', titlePlaceholder: 'What happened?', submit: 'Submit report', success: 'Report submitted', previewThanks: 'This is a local preview, so the report was saved in this browser only and no one was notified.', thanks: 'Thank you for your feedback. Our team has been notified and will look into this issue.', failure: 'Failed to submit bug report. Please try again later.', collection: 'bugReports' },
+  feature: { Icon: IoIosBulb, trigger: 'Request a feature', heading: 'Request a feature', history: 'Your submitted requests', empty: 'No requests yet.', titlePlaceholder: 'What would you like?', submit: 'Submit request', success: 'Request submitted', previewThanks: 'This is a local preview, so the request was saved in this browser only and no one was notified.', thanks: 'Thank you for the idea. Our team will review it when planning what to build next.', failure: 'Failed to submit feature request. Please try again later.', collection: 'featureRequests' },
 } as const
 
 function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigger = true }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void; kind?: FeedbackKind; showTrigger?: boolean }) {
@@ -28,6 +28,9 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState('');
+  const fieldId = useId(), resultHeading = useRef<HTMLHeadingElement>(null);
+  // Move focus to the outcome so keyboard and screen reader users hear it instead of landing on the page body.
+  useEffect(() => { if (submitted || error) resultHeading.current?.focus() }, [submitted, error]);
 
   useEffect(() => {
     setCurrentUrl(window.location.href);
@@ -81,7 +84,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
     try{const api=session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken!}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after},kind);items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
   }
 
-  const handleClose = (close: () => void) => {
+  const reset = () => {
     historyGeneration.current++;setHistoryLoading(false);
     setSubmitted(false);
     setHistory([]);setHistoryError('');
@@ -89,8 +92,9 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
     setMissing('');
     setTitle("");
     setDescription("");
-    close();
   };
+  // Escape, the overlay, Cancel, Close and the X all start the next report from a fresh form.
+  const handleClose = (close: () => void) => { reset(); close(); };
 
   return (
     <Popup
@@ -104,53 +108,55 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
       nested
       open={open}
       onOpen={() => onOpenChange?.(true)}
-      onClose={() => onOpenChange?.(false)}
+      onClose={() => { reset(); onOpenChange?.(false) }}
       contentStyle={{
-        backgroundColor: "#ECECEC",
-        borderRadius: "0.5rem",
-        border: "2px solid black",
-        width: "90%",
+        backgroundColor: "var(--paper-light)",
+        color: "var(--ink)",
+        borderRadius: "var(--radius-lg, 12px)",
+        border: "1px solid var(--line)",
+        boxShadow: "0 18px 48px rgba(20, 12, 36, 0.18)",
+        width: "calc(100% - 32px)",
         maxWidth: "500px",
       }}
       overlayStyle={{
-        backgroundColor: "rgba(105, 105, 105, 0.5)",
+        backgroundColor: "rgba(20, 12, 36, 0.42)",
         zIndex: 2000,
       }}
     >
       {(close) => (
         <div className="modal relative">
-          <IoIosCloseCircle
-            color="var(--accent)"
-            className="w-8 h-8 absolute top-4 right-4 cursor-pointer hover:scale-110 transition-transform z-10"
-            onClick={() => handleClose(close)}
-          />
+          <button type="button" aria-label="Close dialog" className="absolute top-3 right-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--muted)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]" onClick={() => handleClose(close)}>
+            <IoIosCloseCircle aria-hidden="true" className="w-7 h-7" />
+          </button>
 
           <div className="content p-6">
             {!submitted && !error ? (
               <>
-                <h1 className="font-bold text-2xl pb-4 border-b border-black mb-4">
+                <h1 className="font-bold text-xl pb-4 pr-10 border-b border-[var(--line)] mb-4">
                   {text.heading}
                 </h1>
 
                 {(session.mode==='authenticated'||session.mode==='preview')&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
                 <div className="space-y-4">
                   <div>
-                    <label className="block font-semibold mb-1">Title</label>
+                    <label className="block font-semibold mb-1" htmlFor={`${fieldId}-title`}>Title</label>
                     <input
+                      id={`${fieldId}-title`}
                       type="text"
                       placeholder={text.titlePlaceholder} maxLength={160}
-                      className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white"
+                      className="border border-[var(--line-strong)] focus:border-[var(--accent)] focus:outline-2 focus:outline-[var(--accent)] p-2 rounded-md w-full bg-white"
                       value={title}
                       onChange={(e) => { setTitle(e.target.value); setMissing(''); }}
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">Description</label>
+                    <label className="block font-semibold mb-1" htmlFor={`${fieldId}-description`}>Description</label>
                     <textarea
+                      id={`${fieldId}-description`}
                       placeholder="Provide more details..." maxLength={4000}
                       rows={4}
-                      className="border-2 border-gray-300 focus:border-[var(--accent)] focus:outline-none p-2 rounded-md w-full bg-white resize-none"
+                      className="border border-[var(--line-strong)] focus:border-[var(--accent)] focus:outline-2 focus:outline-[var(--accent)] p-2 rounded-md w-full bg-white resize-none"
                       value={description}
                       onChange={(e) => { setDescription(e.target.value); setMissing(''); }}
                     />
@@ -185,9 +191,9 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                     <div className="flex justify-center text-green-600">
                       <text.Icon className="w-16 h-16" />
                     </div>
-                    <h2 className="text-2xl font-bold" role="status">{text.success}</h2>
+                    <h2 className="text-2xl font-bold" role="status" tabIndex={-1} ref={resultHeading}>{text.success}</h2>
                     <p className="text-gray-700">
-                      {session.mode==='preview'?'Saved to this browser’s preview. No notification was sent.':text.thanks}
+                      {session.mode === 'authenticated' ? text.thanks : text.previewThanks}
                     </p>
                   </>
                 ) : (
@@ -196,14 +202,14 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
                       <text.Icon className="w-16 h-16" />
                     </div>
                     <div role="alert">
-                      <h2 className="text-2xl font-bold">Submission Failed</h2>
+                      <h2 className="text-2xl font-bold" tabIndex={-1} ref={resultHeading}>Submission failed</h2>
                       <p className="text-gray-700">{error}</p>
                     </div>
                     <button
                       className="px-6 py-2 bg-[var(--accent-light)] rounded-md font-bold hover:bg-[var(--accent)] hover:text-white transition-colors mt-4"
                       onClick={() => setError(null)}
                     >
-                      Try Again
+                      Try again
                     </button>
                   </>
                 )}

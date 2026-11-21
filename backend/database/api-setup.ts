@@ -7,8 +7,10 @@ import { applyMigrations } from './migrations'
 import { databaseApiGrants } from './api-grants'
 import { fixtures } from './dev-fixtures'
 import { copyAppData, digestAppData, digestDifferences, prepareRdsLogin } from './rds-copy'
+import { devCopySourceConfig, replaceWithProductionCopy, type KeptAccount } from './dev-copy'
 
 type RdsCutoverAction = { action: 'rds-prepare' | 'rds-copy' | 'rds-verify' }
+type DevCopyAction = { action: 'dev-copy'; keep: KeptAccount[] }
 
 /** The new RDS instance, reached with its own RDS-managed master secret; only set for the cutover. */
 function rdsTarget(environment: string) {
@@ -22,7 +24,7 @@ function rdsTarget(environment: string) {
 /** Package only. Deploy/invoke temporarily with reviewed maintenance access.
  * Never attach this entry point to HTTP API Gateway or leave it deployed.
  */
-export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | {action:'hand-over-agency-ownership';owner:unknown;formerOwner?:unknown} | {action:'retire-stale-account';current:unknown;staleSubject?:string;apply?:boolean} | RdsCutoverAction | Record<string, never> = {}) {
+export async function handler(event: Parameters<typeof fixtures>[0] | {action:'bootstrap-production-admin';subject:string;email:string} | {action:'hand-over-agency-ownership';owner:unknown;formerOwner?:unknown} | {action:'retire-stale-account';current:unknown;staleSubject?:string;apply?:boolean} | RdsCutoverAction | DevCopyAction | Record<string, never> = {}) {
   let stage = 'configuration'
   try {
     const config = databaseConfig()
@@ -40,6 +42,13 @@ export async function handler(event: Parameters<typeof fixtures>[0] | {action:'b
     if ('action' in event && event.action === 'retire-stale-account') {
       stage = 'account-repair'
       return await retireStaleAccount(database,config,event)
+    }
+    if ('action' in event && event.action === 'dev-copy') {
+      stage = 'devcopy'
+      // Dev only: the source is a temporary restore of production inside dev's network, read once.
+      if (config.environment !== 'dev' || process.env.ALLOW_PROD_COPY !== 'yes') throw new Error('Production copy approval required')
+      const source = createDatabase(devCopySourceConfig(config, process.env.COPY_SOURCE_HOST ?? '', process.env.COPY_SOURCE_SECRET_ARN ?? ''))
+      return await replaceWithProductionCopy(source, database, { issuer: `https://cognito-idp.us-east-2.amazonaws.com/${process.env.COGNITO_USER_POOL_ID}`, keep: event.keep, migrations: new URL('file:///var/task/migrations/') })
     }
     if ('action' in event && (event.action === 'rds-prepare' || event.action === 'rds-copy' || event.action === 'rds-verify')) {
       stage = event.action.replace('-', '')

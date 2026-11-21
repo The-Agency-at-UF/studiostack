@@ -138,3 +138,8 @@
 .ws-calendar-badge.ws-event--tentative { background:var(--warning-soft); color:var(--warning); border-color:var(--warning); }
 .ws-event--overdue { --fc-event-bg-color:var(--danger-soft); --fc-event-border-color:var(--danger); --fc-event-text-color:var(--danger); }
 .ws-swatch--overdue,.ws-calendar-badge.ws-event--overdue { background:var(--danger-soft); color:var(--danger); border-color:var(--danger); }
+/* On phones the month grid fits the screen, so every weekday (and today) is visible without sideways scrolling. */
+@media (max-width:700px) {
+  .ws-calendar-grid:has(.fc-dayGridMonth-view) { min-width:0; }
+  .ws-calendar .fc-dayGridMonth-view .fc-col-header-cell-cushion { padding-inline:0; font-size:var(--text-xs); }
+}

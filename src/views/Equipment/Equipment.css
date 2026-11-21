@@ -72,6 +72,8 @@
 .inventory-workspace .administration-form label:first-child { flex:1;max-width:520px;min-width:200px; }
 .equipment-scan { border:1px solid var(--line);padding:20px;margin:20px 0;display:grid;gap:16px;max-width:640px; }
 .equipment-scan-header { display:flex;justify-content:space-between;gap:16px;align-items:flex-start; }
+.equipment-scan-close { flex:none;min-height:40px;padding:0 4px;border:0;background:none;color:var(--ink);font-size:var(--text-sm);font-weight:var(--weight-bold); }
+.equipment-scan-close:hover { color:var(--accent); }
 .equipment-scan h2 { margin:0 0 6px; }
 .equipment-scan h3 { font-weight:600;font-size:15px;margin:0; }
 .equipment-scan small { display:block;color:var(--muted);font-size:12px;margin:4px 0 12px; }
@@ -108,7 +110,8 @@
 .app-content#workspace-content .inventory-workspace .equipment-item-link { min-height:0;display:block;font-size:var(--text-sm);font-weight:var(--weight-bold);color:var(--ink); }
 .app-content#workspace-content .inventory-workspace tr:hover .equipment-item-link,.app-content#workspace-content .inventory-workspace .equipment-item-link[aria-current] { color:var(--accent); }
 .app-content#workspace-content .inventory-workspace .equipment-item-link:hover { text-decoration:none; }
-.app-content#workspace-content .inventory-workspace .equipment-item-link::after { content:'';position:absolute;inset:0; }
+/* Stretch the row's name button over its cell only; it must not cover the scanner or editor beside the table. */
+.app-content#workspace-content .inventory-workspace .inventory-table .equipment-item-link::after { content:'';position:absolute;inset:0; }
 .app-content#workspace-content .inventory-workspace .inventory-table td:first-child { position:relative; }
 .app-content#workspace-content .inventory-workspace td small.inventory-code { display:block;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:.02em; }
 .inventory-condition-fair { color:var(--warning); }

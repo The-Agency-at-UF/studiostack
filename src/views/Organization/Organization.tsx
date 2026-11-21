@@ -25,6 +25,13 @@ function initialOrganization(): OrganizationData {
   ] }
 }
 
+// Kept for the life of the page, so preview changes survive moving around the app and reset only on refresh.
+let previewState: OrganizationData | null = null
+/** Clears preview changes; used by tests that each start from the sample organization. */
+export function resetOrganizationPreview() { previewState = null }
+const minorWords = new Set(['the', 'of', 'at', 'and', 'for', 'a', 'an'])
+const initialsOf = (name: string) => name.split(/\s+/).filter(w => w && !minorWords.has(w.toLowerCase())).map(w => w[0].toUpperCase()).slice(0, 2).join('') || name.slice(0, 2).toUpperCase()
+
 function PreviewDialog({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLElement | null>(null)
@@ -49,14 +56,19 @@ function PreviewDialog({ title, children, close }: { title: string; children: Re
 }
 
 export default function Organization({ isAdmin, initialTab = 'members' }: { isAdmin: boolean; initialTab?: 'members' | 'activity' | 'settings' }) {
-  const [org, setOrg] = useState(initialOrganization)
-  const [tab, setTab] = useState<'members' | 'activity' | 'settings'>(initialTab)
+  const [org, setOrgState] = useState(() => previewState ?? initialOrganization())
+  const setOrg = (next: OrganizationData) => { previewState = next; setOrgState(next) }
+  const [tab, setTabState] = useState<'members' | 'activity' | 'settings'>(initialTab)
+  const setTab = (next: typeof tab) => { setTabState(next); setNotice(''); setSettingsError('') }
+  const [settingsError, setSettingsError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All statuses')
   const [dialog, setDialog] = useState<DialogState>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const active = org.members.filter(member => member.status === 'Active')
+  const activeAdmins = active.filter(member => member.role === 'Administrator').length
+  const soleAdmin = (member: Member) => member.role === 'Administrator' && member.status === 'Active' && activeAdmins <= 1
   const invited = org.members.filter(member => member.status === 'Invited')
   const visibleMembers = org.members.filter(member =>
     `${member.name} ${member.email}`.toLowerCase().includes(search.toLowerCase()) &&
@@ -71,7 +83,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   function openDialog(next: DialogState) { setError(''); setDialog(next) }
   const avatar = (member: Member) => <span className="org-avatar" aria-hidden="true">{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span>
   const actions = (member: Member) => <div className="org-row-actions"><button aria-label={`Change role for ${member.name}`} onClick={() => openDialog({ type: 'role', member })}>Change role</button>
-    <button aria-label={`${member.status === 'Invited' ? 'Revoke invitation for' : member.status === 'Suspended' ? 'Restore' : 'Suspend'} ${member.name}`} onClick={() => openDialog({ type: 'status', member })}>{member.status === 'Invited' ? 'Revoke' : member.status === 'Suspended' ? 'Restore' : 'Suspend'}</button></div>
+    <button aria-label={`${member.status === 'Invited' ? 'Revoke invitation for' : member.status === 'Suspended' ? 'Restore' : 'Suspend'} ${member.name}`} disabled={soleAdmin(member)} title={soleAdmin(member) ? 'Make someone else an administrator first.' : undefined} onClick={() => openDialog({ type: 'status', member })}>{member.status === 'Invited' ? 'Revoke' : member.status === 'Suspended' ? 'Restore' : 'Suspend'}</button></div>
   const status = (member: Member) => <span className={`org-status org-status-${member.status.toLowerCase()}`}>{member.status}</span>
   function submitInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -97,14 +109,14 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   if (!isAdmin) return <main className="organization-page"><h1>Organization administration</h1><p>You must be an admin to preview this workspace.</p></main>
 
   return <main className="organization-page">
-    <div className="org-preview"><span>UI preview</span><p>A fictional organization and users. Changes reset on refresh; no emails, AWS changes, or real permissions.</p></div>
+    <div className="org-preview"><span>UI preview</span><p>A fictional organization and users. Changes reset when you refresh the page; no emails, AWS changes, or real permissions.</p></div>
     <header className="org-heading">
       <div><h1>Your organization.</h1></div>
     </header>
     <section className="org-workspace" aria-label={org.name}>
       <div className="org-identity"><span className="org-monogram" aria-hidden="true">{org.initials}</span>
         <div><h2>{org.name}</h2><p>Previewing organization administrator access</p></div>
-        <div className="org-counts"><span><strong>{active.length}</strong> active members</span><span><strong>{invited.length}</strong> pending invitations</span></div>
+        <div className="org-counts"><span><strong>{active.length}</strong> active {active.length === 1 ? 'member' : 'members'}</span><span><strong>{invited.length}</strong> pending {invited.length === 1 ? 'invitation' : 'invitations'}</span></div>
       </div>
       <nav className="org-tabs ws-pill-tabs" aria-label="Organization sections">
         <TabPill id="organization-preview-sections" />
@@ -139,9 +151,11 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
       {tab === 'settings' && <div className="org-section"><h3>Organization settings</h3><p>Preview preferences only. Backend enforcement and institutional SSO are not connected.</p>
         <form className="org-settings" onSubmit={event => {
           event.preventDefault(); const data = new FormData(event.currentTarget); const name = String(data.get('organizationName') ?? '').trim(); const days = Number(data.get('days'))
-          if (!name || !Number.isInteger(days) || days < 1 || days > 30) return
-          update({ ...org, name, reservationDays: days }, 'Organization settings saved for this preview only.')
-        }}><label>Organization name<input name="organizationName" defaultValue={org.name} maxLength={80} required /></label>
+          if (!name) { setNotice(''); setSettingsError('Enter an organization name.'); return }
+          if (!Number.isInteger(days) || days < 1 || days > 30) { setNotice(''); setSettingsError('Choose a reservation length from 1 to 30 days.'); return }
+          setSettingsError('')
+          update({ ...org, name, initials: name === org.name ? org.initials : initialsOf(name), reservationDays: days }, 'Organization settings saved for this preview only.')
+        }}>{settingsError && <p className="org-error" role="alert">{settingsError}</p>}<label>Organization name<input name="organizationName" defaultValue={org.name} maxLength={80} required /></label>
           <label>Default reservation length (days)<input name="days" type="number" defaultValue={org.reservationDays} min={1} max={30} required /></label>
           <div className="org-sso"><span>Institutional sign-in</span><strong>Not connected</strong><p>Cognito and institution approval are required before enabling SSO.</p></div>
           <button className="org-primary" type="submit">Save preview settings <HiOutlineArrowUpRight /></button>
@@ -161,7 +175,8 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         event.preventDefault(); const role: Role = new FormData(event.currentTarget).get('role') === 'Administrator' ? 'Administrator' : 'Member'
         changeMember(dialog.member, { role }, `${dialog.member.name}'s preview role changed to ${role.toLowerCase()}.`)
       }}><p>{dialog.member.name}&apos;s role in {org.name}.</p>
-        <label>Organization role<Select name="role" defaultValue={dialog.member.role} data-autofocus><option>Member</option><option>Administrator</option></Select></label>
+        <label>Organization role<Select name="role" defaultValue={dialog.member.role} data-autofocus><option disabled={soleAdmin(dialog.member)}>Member</option><option>Administrator</option></Select></label>
+        {soleAdmin(dialog.member) && <p className="org-scope-note">{dialog.member.name} is the only active administrator. Make someone else an administrator before changing this role.</p>}
         <div className="org-dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" type="submit">Save role</button></div>
       </form> : <div className="org-dialog-form"><p>{dialog.member.status === 'Invited' ? 'Remove this preview invitation' : dialog.member.status === 'Suspended' ? 'Restore this preview membership' : 'Suspend this preview membership'} for {dialog.member.name} in {org.name}? This does not delete their identity or affect another organization.</p>
         <div className="org-dialog-actions"><button data-autofocus onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" onClick={() => {
