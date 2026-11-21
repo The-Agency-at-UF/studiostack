@@ -281,21 +281,22 @@ body { min-width:0; }
 @media print { .ws-preview-controls { display:none; } }
 
 .app-content#workspace-content .production-page .production-step header h3 { font-size:var(--text-xl); }
-/* Brief steps: a segmented progress bar. Each step is a rounded segment; done fills, the current step half-fills. */
+/* Brief steps: a segmented progress bar. Each segment fills by the share of its fields filled in (--step-fill); steps ahead of the current one stay empty. */
 .app-content#workspace-content .production-page .production-steps nav button { position:relative; border:0; border-radius:0; padding:calc(6px + var(--space-3)) 0 var(--space-2); background:transparent; color:var(--muted); }
-.app-content#workspace-content .production-page .production-steps nav button::before { content:''; position:absolute; top:0; left:0; right:0; height:6px; border-radius:var(--radius-pill); background:var(--line); transition:background var(--motion-fast); }
+.app-content#workspace-content .production-page .production-steps nav button::before, .app-content#workspace-content .production-page .production-steps nav button::after { content:''; position:absolute; top:0; left:0; height:6px; border-radius:var(--radius-pill); }
+.app-content#workspace-content .production-page .production-steps nav button::before { right:0; background:var(--line); transition:background var(--motion-fast); }
+.app-content#workspace-content .production-page .production-steps nav button::after { width:var(--step-fill,0%); background:var(--accent); transition:width var(--motion-page) var(--ease-out), background var(--motion-fast); }
 .app-content#workspace-content .production-page .production-steps nav button b { display:none; }
-.app-content#workspace-content .production-page .production-steps nav button.is-complete::before { background:var(--accent); }
 .app-content#workspace-content .production-page .production-steps nav button[aria-current=step] { color:var(--ink); font-weight:var(--weight-bold); }
-.app-content#workspace-content .production-page .production-steps nav button[aria-current=step]::before { background:linear-gradient(90deg,var(--accent) 50%,var(--line) 50%); }
-.app-content#workspace-content .production-page .production-steps nav button.has-error:not([aria-current])::before { background:var(--danger); }
-.app-content#workspace-content .production-page .production-steps nav button:hover:not(:disabled):not(.is-complete):not(.has-error):not([aria-current])::before { background:var(--line-strong); }
+.app-content#workspace-content .production-page .production-steps nav button.has-error::after { background:var(--danger); }
+.app-content#workspace-content .production-page .production-steps nav button.has-error:not([aria-current])::before { background:color-mix(in srgb,var(--danger) 25%,var(--line)); }
+.app-content#workspace-content .production-page .production-steps nav button:hover:not(:disabled):not([aria-current])::before { background:var(--line-strong); }
 @media(max-width:760px) {
   /* Step names are hidden on phones, so the segment keeps its number (or ✓ / !) underneath. */
   .app-content#workspace-content .production-page .production-steps nav button b { display:inline; width:auto; height:auto; border:0; background:none; font-size:var(--text-xs); color:inherit; }
   .app-content#workspace-content .production-page .production-steps nav button.has-error b { color:var(--danger); }
 }
-@media(prefers-reduced-motion:reduce) { .app-content#workspace-content .production-page .production-steps nav button::before { transition:none; } }
+@media(prefers-reduced-motion:reduce) { .app-content#workspace-content .production-page .production-steps nav button::before, .app-content#workspace-content .production-page .production-steps nav button::after { transition:none; } }
 .app-content#workspace-content .production-page .production-steps nav small { display:block; margin-top:2px; font-size:var(--text-xs); font-weight:var(--weight-medium); color:var(--danger); }
 .app-content#workspace-content .production-page :is(input,textarea,select)[aria-invalid=true] { border-color:var(--danger); box-shadow:inset 0 0 0 1px var(--danger); }
 .app-content#workspace-content .production-page :is(input,textarea,select)[aria-invalid=true]:focus-visible { outline-color:color-mix(in srgb,var(--danger) 35%,transparent); }

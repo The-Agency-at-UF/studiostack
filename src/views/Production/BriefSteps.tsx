@@ -6,15 +6,15 @@ import { dateErrors, sectionId, visibleSections, type BriefData } from '../../ty
 
 import {RequestFields,type FieldHandlers,type Section} from './BriefFields'
 
-type Step = { id: string; title: string; intro: string; missing: string[]; section?: Section }
+type Step = { id: string; title: string; intro: string; missing: string[]; section?: Section; filled?: number; total?: number }
 function briefSteps(form: BriefData): Step[] {
   const dates = dateErrors(form)
   const request = (['projectName', 'client', 'managers', 'deliveryDate'] as const).filter(k => !form[k].trim()).map(k => ({projectName:'Project name',client:'Client',managers:'Account / project managers',deliveryDate:'Target delivery date'})[k])
   request.push(...dates.filter(error => error.key === 'deliveryDate').map(error => error.message))
   if (!form.productionTypes.length) request.push('Production type')
   return [
-    { id: 'request', title: 'Basics', intro: 'Name the project, say who it is for, and when it is due.', missing: request },
-    ...visibleSections(form).map(section => ({ id: sectionId(section.title), title: section.title, intro: section.fields.some(f => f.required) ? 'Fields marked * are required.' : 'Everything here is optional.', section, missing: [...section.fields.filter(f => f.required && !form.fields[f.key]?.trim()).map(f => f.label), ...dates.filter(error => section.fields.some(field => field.key === error.key)).map(error => error.message)] })),
+    { id: 'request', title: 'Basics', intro: 'Name the project, say who it is for, and when it is due.', missing: request, filled: (['projectName', 'client', 'managers', 'supervisor', 'deliveryDate'] as const).filter(k => form[k].trim()).length + (form.productionTypes.length ? 1 : 0), total: 6 },
+    ...visibleSections(form).map(section => ({ id: sectionId(section.title), title: section.title, intro: section.fields.some(f => f.required) ? 'Fields marked * are required.' : 'Everything here is optional.', section, missing: [...section.fields.filter(f => f.required && !form.fields[f.key]?.trim()).map(f => f.label), ...dates.filter(error => section.fields.some(field => field.key === error.key)).map(error => error.message)], filled: section.fields.filter(f => form.fields[f.key]?.trim()).length, total: section.fields.length })),
     {id:'brief-crew-requests',title:'Crew',intro:'Request the roles, dates and locations this production needs.',missing:[]},
     { id: 'brief-review', title: 'Review & submit', intro: 'Check what is still needed, then send the brief to Production.', missing: [] },
   ]
@@ -41,11 +41,14 @@ export default function BriefSteps({ form, clients, onChange, onClientAccount, d
   useEffect(() => { if (moved.current) { heading.current?.focus(); heading.current?.scrollIntoView?.({ block: 'nearest' }) } }, [stepId])
   const go = (id: string) => { if(disabled)return; moved.current = true; setChecked(c => new Set([...c, step.id, ...(id === 'brief-review' ? steps.map(s => s.id) : [])])); setVisited(v => new Set([...v, id])); setStepId(id) }
   const shows = (id: string) => checked.has(id)
+  // How full a step's bar segment is: the share of its fields filled in. Steps without fields fill once passed.
+  // Steps after the current one stay empty, so moving back hides the progress ahead and moving forward shows it again.
+  const fill = (s: Step, i: number) => i > index ? 0 : s.total ? Math.round(100 * (s.filled ?? 0) / s.total) : i < index ? 100 : 0
   const done = (s: Step, i: number) => i !== index && s.id !== 'brief-review' && visited.has(s.id) && !s.missing.length
   const blocker = missing.length ? `Fix all ${missing.length} ${missing.length === 1 ? 'item' : 'items'} still needed before submitting.` : dirty ? 'Save the draft before submitting.' : submitBlocked ? 'Wait for attachments to finish uploading before submitting.' : ''
   const submit = () => { if (blocker) { setAttempted(true); setChecked(new Set(steps.map(s => s.id))); summary.current?.focus(); return } onSubmit() }
   return <div className="production-steps">
-    <nav aria-label="Brief steps"><ol style={{ '--brief-step-count': steps.length } as CSSProperties}>{steps.map((s, i) => <li key={s.id}><button type="button" disabled={disabled} aria-current={i === index ? 'step' : undefined} className={shows(s.id) && s.missing.length ? 'has-error' : done(s, i) ? 'is-complete' : undefined} onClick={() => go(s.id)}><b aria-hidden="true">{shows(s.id) && s.missing.length ? '!' : done(s, i) ? '✓' : i + 1}</b><span className="production-step-name">{s.title}{s.missing.length > 0 && (shows(s.id) ? <small><span className="sr-only"> · </span>{s.missing.length} missing</small> : <span className="sr-only"> · {s.missing.length} missing</span>)}</span></button></li>)}</ol></nav>
+    <nav aria-label="Brief steps"><ol style={{ '--brief-step-count': steps.length } as CSSProperties}>{steps.map((s, i) => <li key={s.id}><button type="button" disabled={disabled} aria-current={i === index ? 'step' : undefined} className={shows(s.id) && s.missing.length && i <= index ? 'has-error' : done(s, i) ? 'is-complete' : undefined} style={{ '--step-fill': `${fill(s, i)}%` } as CSSProperties} onClick={() => go(s.id)}><b aria-hidden="true">{shows(s.id) && s.missing.length ? '!' : done(s, i) ? '✓' : i + 1}</b><span className="production-step-name">{s.title}{s.missing.length > 0 && (shows(s.id) ? <small><span className="sr-only"> · </span>{s.missing.length} missing</small> : <span className="sr-only"> · {s.missing.length} missing</span>)}</span></button></li>)}</ol></nav>
     <section className="production-step" aria-labelledby="brief-step-title">
       <header><p>Step {index + 1} of {steps.length}</p><h3 id="brief-step-title" ref={heading} tabIndex={-1}>{step.title === 'Basics' ? 'Start with the basics' : step.title}</h3><p>{step.intro}</p></header>
       {shows(step.id) && step.missing.length > 0 && step.id !== 'brief-review' && <p className="production-step-notice"><HiExclamationCircle aria-hidden="true" /><span><strong>{step.missing.length === 1 ? '1 item needs attention.' : `${step.missing.length} items need attention.`}</strong> You can keep going and return to this step before you submit.</span></p>}
