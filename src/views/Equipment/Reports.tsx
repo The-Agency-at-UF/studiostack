@@ -1,5 +1,7 @@
 'use client'
 import {DetailPanel,Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import {sentenceCase} from '../../utils/sentenceCase'
 import {useToast} from '../../components/workspace/Toast'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
@@ -43,11 +45,12 @@ function ReportsWorkspace({api,org,admin,create}:{api:DatabaseApi;org:string;adm
     setRows(v=>[row,...v.filter(r=>r.id!==row.id)]);setSelected(row.id);setAdding(false);toast.success('Report saved.');try{accept(await load())}catch(e){setError(equipmentError(e))}
   }
   const current=rows.find(r=>r.id===selected),visible=rows.filter(r=>filter==='all'||(filter==='resolved'?r.status==='resolved':r.status!=='resolved')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
+  const {pageRows,pagination}=usePagination(visible,[org,filter])
   return <main className="administration workspace-surface"><header><div><h1>Equipment reports</h1></div><div className="administration-actions"><button disabled={loading} onClick={()=>void refresh()}>Refresh</button><button className="ws-button-primary" onClick={()=>{setAdding(true);setSelected('');}}>Report an issue</button></div></header>
     {error&&<p role="alert">{error}</p>}
     {admin&&<p className="equipment-damage-summary">{(()=>{const open=rows.filter(r=>r.status!=='resolved'),high=open.filter(r=>r.severity==='high').length;return `${open.length} open ${open.length===1?'report':'reports'} · ${high} high severity${high?' (gear out of service)':''}`})()}</p>}
     <label className="equipment-filter">Show reports<Select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Active reports</option><option value="resolved">Resolved reports</option><option value="all">All reports</option></Select></label>
-    <div className="equipment-layout"><section className="administration-table">{loading&&!rows.length?<Skeleton label="Loading equipment reports…" variant="row" count={4}/>:<table><thead><tr><th>Issue / equipment</th><th>Severity</th><th>Status</th></tr></thead><tbody className="ws-stagger">{visible.map(r=><tr key={r.id}><td>{(()=>{const item=items.find(i=>i.id===r.equipmentId);return <div className="inventory-item">{item?<PhotoThumbnail api={api} organizationId={org} item={item}/>:<span className="inventory-thumb" aria-hidden="true"/>}<div><button className="equipment-item-link" onClick={()=>{setSelected(r.id);setAdding(false);}}>{r.title}</button><small>{item?.name??'Equipment item'}</small></div></div>})()}</td><td>{label(r.severity)}</td><td>{label(r.status)}</td></tr>)}</tbody></table>}{!loading&&!visible.length&&<p className="equipment-empty">No matching reports.</p>}</section>
+    <div className="equipment-layout"><section className="administration-table">{loading&&!rows.length?<Skeleton label="Loading equipment reports…" variant="row" count={4}/>:<table><thead><tr><th>Issue / equipment</th><th>Severity</th><th>Status</th></tr></thead><tbody className="ws-stagger">{pageRows.map(r=><tr key={r.id}><td>{(()=>{const item=items.find(i=>i.id===r.equipmentId);return <div className="inventory-item">{item?<PhotoThumbnail api={api} organizationId={org} item={item}/>:<span className="inventory-thumb" aria-hidden="true"/>}<div><button className="equipment-item-link" onClick={()=>{setSelected(r.id);setAdding(false);}}>{r.title}</button><small>{item?.name??'Equipment item'}</small></div></div>})()}</td><td>{label(r.severity)}</td><td>{label(r.status)}</td></tr>)}</tbody></table>}{!loading&&!visible.length&&<p className="equipment-empty">No matching reports.</p>}<Pagination label="Equipment reports" pagination={pagination}/></section>
     {!(loading&&!rows.length)&&(adding||current)&&<DetailPanel className="equipment-inspector equipment-report-inspector" label="Report details"><button className="equipment-item-link" onClick={()=>{setAdding(false);setSelected('')}}>Close details</button>{adding?<><h2>Report an equipment issue</h2><ReportForm api={api} org={org} items={items} bookings={bookings} onSaved={saved}/></>:current&&<ReportDetails key={current.id} api={api} org={org} admin={admin} report={current} item={items.find(i=>i.id===current.equipmentId)} onSaved={saved}/>}</DetailPanel>}
     </div>
   </main>

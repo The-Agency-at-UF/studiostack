@@ -1,6 +1,8 @@
 'use client'
 import { TabPill } from '../../components/workspace/TabPill'
 import {Select,Skeleton} from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import type {ClientAccount} from '../../types/production'
@@ -100,6 +102,15 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));toast.error(`The reservation was not cancelled. ${equipmentError(e)}`,{id:'reservation'});setBusy(false);return}
     try{await saved(row,'Reservation cancelled.')}finally{setBusy(false)}}
 
+  const needle=search.trim().toLowerCase()
+  const matches=rows.filter(r=>(!clientFilter||r.clientAccountId===clientFilter)&&(!needle||r.name.toLowerCase().includes(needle)||r.equipmentIds.some(id=>inventory.find(i=>i.id===id)?.name.toLowerCase().includes(needle))))
+  const count=(t:Tab)=>matches.filter(r=>tabOf(r)===t).length
+  const anchor=(r:EquipmentReservation)=>tab==='out'?r.endsAt:r.startsAt
+  const shown=matches.filter(r=>tabOf(r)===tab).sort((a,b)=>tab==='history'?Date.parse(b.startsAt)-Date.parse(a.startsAt):Date.parse(anchor(a))-Date.parse(anchor(b)))
+  const {pageRows,pagination}=usePagination(shown,[organizationId,tab,clientFilter,needle])
+  const days=[...new Set(pageRows.map(r=>new Date(anchor(r)).toDateString()))]
+  const filtered=Boolean(clientFilter||needle)
+
   const messages=<>{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}</>
   if(view.name==='new'&&(!locked||loading)||view.name==='edit'&&current){
     const reservation=view.name==='edit'?current:undefined
@@ -111,13 +122,6 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     <ReservationDetail reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',id:current.id})} onCancel={()=>void cancel()}/>
   </div></main>
 
-  const needle=search.trim().toLowerCase()
-  const matches=rows.filter(r=>(!clientFilter||r.clientAccountId===clientFilter)&&(!needle||r.name.toLowerCase().includes(needle)||r.equipmentIds.some(id=>inventory.find(i=>i.id===id)?.name.toLowerCase().includes(needle))))
-  const count=(t:Tab)=>matches.filter(r=>tabOf(r)===t).length
-  const anchor=(r:EquipmentReservation)=>tab==='out'?r.endsAt:r.startsAt
-  const shown=matches.filter(r=>tabOf(r)===tab).sort((a,b)=>tab==='history'?Date.parse(b.startsAt)-Date.parse(a.startsAt):Date.parse(anchor(a))-Date.parse(anchor(b)))
-  const days=[...new Set(shown.map(r=>new Date(anchor(r)).toDateString()))]
-  const filtered=Boolean(clientFilter||needle)
   return <main className="rsv"><div className="rsv-column">
     <header className="rsv-top"><div><h1>Reservations</h1></div><div className="rsv-top-actions"><button type="button" className="rsv-button rsv-quiet" disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div></header>
     {messages}
@@ -130,10 +134,11 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
         </div>
       </div>
       {!shown.length?<div className="rsv-empty rsv-empty-small"><h2>{filtered?'No matching reservations':tab==='upcoming'?'Nothing coming up':tab==='out'?'Nothing is out right now':'No past bookings yet'}</h2><p>{filtered?'Try a different search or client account.':tab==='history'?'Returned, cancelled and missed reservations move here.':'Bookings show up here as soon as they’re made.'}</p></div>
-      :days.map(day=><section className="rsv-day" key={day}><h2>{dayHeading(day)}</h2><div className="rsv-rows">{shown.filter(r=>new Date(anchor(r)).toDateString()===day).map(r=><button type="button" className="rsv-row" key={r.id} onClick={()=>open({name:'detail',id:r.id})}>
+      :days.map(day=><section className="rsv-day" key={day}><h2>{dayHeading(day)}</h2><div className="rsv-rows">{pageRows.filter(r=>new Date(anchor(r)).toDateString()===day).map(r=><button type="button" className="rsv-row" key={r.id} onClick={()=>open({name:'detail',id:r.id})}>
         <span className="rsv-row-time">{tab==='out'?`Due ${timeLabel(r.endsAt)}`:timeLabel(r.startsAt)}</span>
         <span className="rsv-row-main"><b>{r.name}</b><small>{clientName(r.clientAccountId)} · {plural(r.equipmentIds.length,'item')}</small></span>
         <StatusDot reservation={r}/><Chevron dir="right"/></button>)}</div></section>)}
+      <Pagination label="Reservations" pagination={pagination}/>
     </>}
   </div></main>
 }
