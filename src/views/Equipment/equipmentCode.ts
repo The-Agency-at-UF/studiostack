@@ -1,3 +1,5 @@
 import type {EquipmentCategory} from '../../types/database-api'
 /** A readable label code such as CAM-7KQ2; unambiguous characters only so it can be typed from a printed tag. */
-export function generatedEquipmentCode(category:EquipmentCategory,random=()=>Math.random()){const prefix=category.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase(),alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return `${prefix}-${Array.from({length:4},()=>alphabet[Math.floor(random()*alphabet.length)]).join('')}`}
+/** Printed labels may be typed in either case, so codes match without regard to case. */
+export const sameEquipmentCode=(a:string,b:string)=>a.trim().toUpperCase()===b.trim().toUpperCase()
+export function generatedEquipmentCode(category:EquipmentCategory,random=()=>Math.random()){const prefix=category.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'EQ',alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return `${prefix}-${Array.from({length:4},()=>alphabet[Math.floor(random()*alphabet.length)]).join('')}`}
