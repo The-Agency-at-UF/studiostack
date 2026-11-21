@@ -362,3 +362,17 @@ input[type=checkbox][aria-invalid=true] { border-color:var(--danger); }
 .ws-combo [role=option][aria-selected=true] { color:var(--accent); font-weight:var(--weight-medium); }
 .ws-combo-empty { padding:var(--space-2) var(--space-3); color:var(--muted); font-size:var(--text-sm); }
 @media(max-width:767px) { .ws-combo-search,.ws-combo [role=option] { font-size:var(--text-base); } }
+
+/* Sideways-scrolling strips and tables show a soft shadow on the edge that has more content, so hidden tabs and columns are discoverable. */
+.ws-pill-tabs,.ws-table-region,.ws-calendar-scroll {
+  background-image:linear-gradient(to right,var(--scroll-cover,var(--surface)) 30%,transparent),linear-gradient(to left,var(--scroll-cover,var(--surface)) 30%,transparent),radial-gradient(farthest-side at 0 50%,#19171e2e,transparent),radial-gradient(farthest-side at 100% 50%,#19171e2e,transparent);
+  background-position:left center,right center,left center,right center;
+  background-size:32px 100%,32px 100%,12px 100%,12px 100%;
+  background-repeat:no-repeat;
+  background-attachment:local,local,scroll,scroll;
+}
+.ws-pill-tabs { --scroll-cover:var(--surface-subtle); background-color:var(--surface-subtle); }
+/* Touch-sized tabs on phones and tablets. */
+@media (max-width:760px),(pointer:coarse) {
+  .app-content#workspace-content .ws-pill-tabs > :is(button,a),.ws-pill-tabs > :is(button,a) { min-height:40px; }
+}
