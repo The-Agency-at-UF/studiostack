@@ -6,7 +6,7 @@ export interface TableDigest { rows: number; md5: string }
 export type SchemaDigest = Record<string, TableDigest>
 
 const batchSize = 500
-const quoted = (name: string) => {
+export const quoted = (name: string) => {
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(name)) throw new Error('Unexpected table or column name')
   return `"${name}"`
 }
@@ -64,26 +64,37 @@ export async function copyAppData(source: Database, target: Database) {
         const { rows: [{ present }] } = await to.query<{ present: boolean }>(`SELECT EXISTS (SELECT 1 FROM app.${quoted(table)}) AS present`)
         if (present) throw new Error('Target database already has application data')
       }
-      // Row data is copied exactly as stored; triggers and FK checks would only re-validate it.
-      await to.query("SET LOCAL session_replication_role = 'replica'")
-      for (const table of tables) {
-        const columns = (await insertableColumns(to, table)).join(', ')
-        await from.query(`DECLARE copy_rows NO SCROLL CURSOR FOR SELECT to_jsonb(t) AS row FROM app.${quoted(table)} t`)
-        counts[table] = 0
-        for (;;) {
-          const { rows } = await from.query<{ row: unknown }>(`FETCH ${batchSize} FROM copy_rows`)
-          if (!rows.length) break
-          await to.query(`INSERT INTO app.${quoted(table)} (${columns}) OVERRIDING SYSTEM VALUE SELECT ${columns} FROM jsonb_populate_recordset(NULL::app.${quoted(table)}, $1::jsonb)`, [JSON.stringify(rows.map(r => r.row))])
-          counts[table] += rows.length
-        }
-        await from.query('CLOSE copy_rows')
-      }
-      const { rows: sequences } = await from.query<{ name: string; value: string | null }>(
-        "SELECT sequencename AS name, last_value::text AS value FROM pg_sequences WHERE schemaname = 'app'")
-      for (const sequence of sequences) if (sequence.value !== null) await to.query('SELECT setval($1::regclass, $2::bigint, true)', [`app.${quoted(sequence.name)}`, sequence.value])
+      Object.assign(counts, await copyRows(from, to, tables))
       return { ok: true, tables: tables.length, rows: Object.values(counts).reduce((a, b) => a + b, 0), counts }
     }, 'maintenance')
   }, 'maintenance')
+}
+
+/**
+ * Inserts every row of `tables` from one open transaction into another, then
+ * carries sequence positions over. Leaves `session_replication_role = replica`
+ * set on the target for the rest of its transaction.
+ */
+export async function copyRows(from: DatabaseClient, to: DatabaseClient, tables: string[]) {
+  const counts: Record<string, number> = {}
+  // Row data is copied exactly as stored; triggers and FK checks would only re-validate it.
+  await to.query("SET LOCAL session_replication_role = 'replica'")
+  for (const table of tables) {
+    const columns = (await insertableColumns(to, table)).join(', ')
+    await from.query(`DECLARE copy_rows NO SCROLL CURSOR FOR SELECT to_jsonb(t) AS row FROM app.${quoted(table)} t`)
+    counts[table] = 0
+    for (;;) {
+      const { rows } = await from.query<{ row: unknown }>(`FETCH ${batchSize} FROM copy_rows`)
+      if (!rows.length) break
+      await to.query(`INSERT INTO app.${quoted(table)} (${columns}) OVERRIDING SYSTEM VALUE SELECT ${columns} FROM jsonb_populate_recordset(NULL::app.${quoted(table)}, $1::jsonb)`, [JSON.stringify(rows.map(r => r.row))])
+      counts[table] += rows.length
+    }
+    await from.query('CLOSE copy_rows')
+  }
+  const { rows: sequences } = await from.query<{ name: string; value: string | null }>(
+    "SELECT sequencename AS name, last_value::text AS value FROM pg_sequences WHERE schemaname = 'app'")
+  for (const sequence of sequences) if (sequence.value !== null) await to.query('SELECT setval($1::regclass, $2::bigint, true)', [`app.${quoted(sequence.name)}`, sequence.value])
+  return counts
 }
 
 /** Row count and a content hash per table, plus the applied migrations; never row data. */

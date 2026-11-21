@@ -1,10 +1,12 @@
 'use client'
+import {sameEquipmentCode} from './equipmentCode'
 import {useState} from 'react'
 import {useToast} from '../../components/workspace/Toast'
 import {allPages,equipmentError,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {ConditionForm} from './Fulfillment'
 import {reservationLabel} from './Reservations'
+import {dateTimeLabel} from './format'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
 import {agencyCampus} from '../../types/campus'
 type ScannedHandoff={kind:'checkout'|'return';reservation:EquipmentReservation}|{kind:'none';reason:string}
@@ -15,14 +17,15 @@ export function handoffFor(item:EquipmentRecord,reservations:EquipmentReservatio
   if(item.status!=='available')return {kind:'none',reason:`${item.name} is ${item.status==='maintenance'?'in maintenance':'archived'} and cannot be checked out.`}
   const upcoming=mine.filter(r=>r.fulfillmentStatus==='reserved'&&Date.parse(r.endsAt)>now).sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt)),ready=upcoming.find(r=>Date.parse(r.startsAt)<=now+15*60000)
   if(ready)return {kind:'checkout',reservation:ready}
-  return {kind:'none',reason:upcoming[0]?`Pickup for ${upcoming[0].name} opens 15 minutes before ${new Date(upcoming[0].startsAt).toLocaleString()}.`:`No reservation includes ${item.name}. Book it before checking it out.`}
+  const missed=mine.filter(r=>r.fulfillmentStatus==='reserved'&&Date.parse(r.endsAt)<=now).sort((a,b)=>Date.parse(b.endsAt)-Date.parse(a.endsAt))[0]
+  return {kind:'none',reason:upcoming[0]?`Pickup for ${upcoming[0].name} opens 15 minutes before ${dateTimeLabel(upcoming[0].startsAt)}.`:missed?`${missed.name} ended ${dateTimeLabel(missed.endsAt)} without a pickup. Book ${item.name} again to check it out.`:`No reservation includes ${item.name}. Book it before checking it out.`}
 }
 type Scan={item:EquipmentRecord;handoff:ScannedHandoff}|{unknown:string}
 export default function ScanHandoff({api,organizationId,items,admin,onAdd,onSaved,onClose}:{api:DatabaseApi;organizationId:string;items:EquipmentRecord[];admin:boolean;onAdd:(code:string)=>void;onSaved:()=>Promise<void>;onClose:()=>void}){
   const [camera,setCamera]=useState(true),[code,setCode]=useState(''),[scan,setScan]=useState<Scan|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
   function lookUp(value:string){
     const trimmed=value.trim();if(!trimmed)return false
-    const item=items.find(i=>i.equipmentCode===trimmed);setCamera(false);setCode('');setError('');
+    const item=items.find(i=>sameEquipmentCode(i.equipmentCode,trimmed));setCamera(false);setCode('');setError('');
     if(!item){setScan({unknown:trimmed});return true}
     setBusy(true)
     allPages(after=>api.reservations(organizationId,{limit:100,after})).then(rows=>setScan({item,handoff:handoffFor(item,rows,Date.now())})).catch(e=>setError(equipmentError(e))).finally(()=>setBusy(false))
@@ -34,7 +37,7 @@ export default function ScanHandoff({api,organizationId,items,admin,onAdd,onSave
     toast.success(row.fulfillmentStatus==='returned'?`${name} returned${damaged?'. A damage report was created and damaged items were placed in maintenance':''}.`:`${name} checked out on ${row.name}.`);setScan(null)
     await onSaved()
   }
-  return <section className="equipment-scan" aria-label="Scan equipment"><div className="equipment-scan-header"><div><h2>Scan equipment</h2><p className="administration-hint">Scan a label to check equipment out or return it. Your location is confirmed on campus near {agencyCampus.name}.</p></div><button type="button" className="equipment-item-link" onClick={onClose}>Close scanner</button></div>
+  return <section className="equipment-scan" aria-label="Scan equipment"><div className="equipment-scan-header"><div><h2>Scan equipment</h2><p className="administration-hint">Scan a label to check equipment out or return it. Your location is confirmed on campus near {agencyCampus.name}.</p></div><button type="button" className="equipment-scan-close" onClick={onClose}>Close scanner</button></div>
     {error&&<p role="alert">{error}</p>}{busy&&<p role="status">Finding the reservation…</p>}
     {!scan&&!busy&&<>{camera?<EquipmentQrScanner onCancel={()=>setCamera(false)} onCode={lookUp}/>:<button type="button" onClick={()=>setCamera(true)}>Use camera</button>}
       <form className="equipment-scan-manual" onSubmit={e=>{e.preventDefault();lookUp(code)}}><label>Or enter equipment code<input value={code} autoComplete="off" onChange={e=>setCode(e.target.value)}/></label><button>Look up equipment</button></form></>}

@@ -6,13 +6,13 @@ import { selectedBuild } from './database-build'
 
 export interface DevMetadata { auth: Record<string, string>; network: Record<string, string>; masterSecrets: Record<'dev' | 'prod', string>; prefixListId: string }
 export async function readMetadata(): Promise<DevMetadata> { return JSON.parse(await readFile(`${devDirectory}/metadata.json`, 'utf8')) }
-export async function invokeMaintenance<T>(payload: unknown): Promise<T> {
+export async function invokeMaintenance<T>(payload: unknown, readTimeoutSeconds = 120): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    try { return await invoke<T>('studiostack-dev-database-setup', payload) }
+    try { return await invoke<T>('studiostack-dev-database-setup', payload, readTimeoutSeconds) }
     catch (error) {
       // A denied read is guaranteed to occur before the SQL callback starts.
       // Never retry a database operation or an ambiguous Lambda invocation.
-      if (!(error instanceof Error) || !/\((?:migrations|fixtures)\/secret\/AccessDenied[A-Za-z]+\)/.test(error.message) || attempt === 6) throw error
+      if (!(error instanceof Error) || !/\((?:migrations|fixtures|devcopy)\/secret\/AccessDenied[A-Za-z]+\)/.test(error.message) || attempt === 6) throw error
       console.log('Waiting for temporary dev credential-read permissions to propagate')
       await pause(20_000)
     }
@@ -41,17 +41,19 @@ export async function devVariables(metadata: DevMetadata) {
   return { STUDIOSTACK_ENV: 'dev', RDS_AWS_ACCOUNT_ID: account, RDS_HOST: cluster.Endpoint, RDS_DATABASE: 'studiostackdev', RDS_PORT: '5432', RDS_SECRET_ARN: metadata.network.DevSecretArn,
     RDS_CA_BUNDLE_PATH: '/var/task/certs/us-east-2-bundle.pem', RDS_CONNECT_TIMEOUT_MS: '18000', DATABASE_API_ID: 'vugf6fpl4k', COGNITO_USER_POOL_ID: metadata.auth.UserPoolId, COGNITO_APP_CLIENT_ID: metadata.auth.AppClientId, S3_PHOTOS_BUCKET: 'studio-stack-photos-dev' }
 }
-export async function withMaintenance<T>(metadata: DevMetadata, runId: string, operation: () => Promise<T>) {
-  const name = 'studiostack-dev-database-setup'
-  await applyStack('studiostack-database-connections', infrastructure(metadata.masterSecrets, ['dev'], { prefixListId: metadata.prefixListId }))
+/** `copySource` also lets the temporary function read a restore of production placed in dev's network, for copy-prod-to-dev.ts only. */
+export interface DevMaintenanceOptions { timeout?: number; copySource?: { host: string; secretArn: string } }
+export async function withMaintenance<T>(metadata: DevMetadata, runId: string, operation: () => Promise<T>, options: DevMaintenanceOptions = {}) {
+  const name = 'studiostack-dev-database-setup', extra = options.copySource ? [options.copySource.secretArn] : []
+  await applyStack('studiostack-database-connections', infrastructure({ ...metadata.masterSecrets, dev: [metadata.masterSecrets.dev, ...extra] }, ['dev'], { prefixListId: metadata.prefixListId }))
   try {
     const { Roles } = await aws<{ Roles: { RoleName: string }[] }>('iam', 'list-roles')
     if (Roles.some(r => r.RoleName === `${name}-role`)) throw new Error('Unexpected preexisting maintenance role; inspect ownership first')
     await aws('iam', 'create-role', ['--role-name', `${name}-role`, '--assume-role-policy-document', JSON.stringify(trust), '--tags', 'Key=ManagedBy,Value=StudioStack', 'Key=Temporary,Value=true'])
-    await aws('iam', 'put-role-policy', ['--role-name', `${name}-role`, '--policy-name', 'dev-temporary-schema', '--policy-document', JSON.stringify(executionPolicy(name, [metadata.masterSecrets.dev, metadata.network.DevSecretArn]))])
+    await aws('iam', 'put-role-policy', ['--role-name', `${name}-role`, '--policy-name', 'dev-temporary-schema', '--policy-document', JSON.stringify(executionPolicy(name, [metadata.masterSecrets.dev, metadata.network.DevSecretArn, ...extra]))])
     await pause(15_000)
-    const vars = { ...await devVariables(metadata), RDS_SECRET_ARN: metadata.masterSecrets.dev, RDS_APP_SECRET_ARN: metadata.network.DevSecretArn, RDS_CONNECT_TIMEOUT_MS: '45000', APPLY_DATABASE_API_SCHEMA: 'yes', FIXTURE_RUN_ID: runId }
-    await aws('lambda', 'create-function', ['--function-name', name, '--role', roleArn(`${name}-role`), '--handler', 'index.handler', '--runtime', 'nodejs24.x', '--architectures', 'arm64', '--timeout', '90', '--memory-size', '256', '--environment', JSON.stringify({ Variables: vars }), '--vpc-config', JSON.stringify({ SubnetIds: subnets, SecurityGroupIds: ['sg-06b804b6a003b95e0'] }), '--zip-file', `fileb://${(await selectedBuild('dev')).setup}`, '--tags', 'ManagedBy=StudioStack,Temporary=true'])
+    const vars = { ...await devVariables(metadata), RDS_SECRET_ARN: metadata.masterSecrets.dev, RDS_APP_SECRET_ARN: metadata.network.DevSecretArn, RDS_CONNECT_TIMEOUT_MS: '45000', APPLY_DATABASE_API_SCHEMA: 'yes', FIXTURE_RUN_ID: runId, ...(options.copySource ? { COPY_SOURCE_HOST: options.copySource.host, COPY_SOURCE_SECRET_ARN: options.copySource.secretArn, ALLOW_PROD_COPY: 'yes' } : {}) }
+    await aws('lambda', 'create-function', ['--function-name', name, '--role', roleArn(`${name}-role`), '--handler', 'index.handler', '--runtime', 'nodejs24.x', '--architectures', 'arm64', '--timeout', String(options.timeout ?? 90), '--memory-size', options.copySource ? '1024' : '256', '--environment', JSON.stringify({ Variables: vars }), '--vpc-config', JSON.stringify({ SubnetIds: subnets, SecurityGroupIds: ['sg-06b804b6a003b95e0'] }), '--zip-file', `fileb://${(await selectedBuild('dev')).setup}`, '--tags', 'ManagedBy=StudioStack,Temporary=true'])
     await waitFunction(name)
     // Endpoint policy changes and newly recreated IAM roles propagate separately
     // from CloudFormation/Lambda readiness. No SQL is replayed during this wait.

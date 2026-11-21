@@ -10,7 +10,8 @@ const actions:Record<PasswordFormStep,string>={'sign-in':'Sign in','sign-up':'Cr
 type Field='email'|'code'|'password'|'confirmation'
 type Values=Record<Field,string>
 const fieldOrder:Field[]=['email','code','password','confirmation']
-const passwordRuleText='Use at least 8 characters, one uppercase letter and one special character.'
+/** Names only what the password still lacks, so the error adds to the rule hint shown under the field instead of repeating it. */
+function passwordRuleText(value:string){const lacks=[value.length<8&&'at least 8 characters',!/[A-Z]/.test(value)&&'an uppercase letter',!/[^A-Za-z0-9\s]/.test(value)&&'a special character'].filter(Boolean) as string[];return `Still needed: ${lacks.length>1?`${lacks.slice(0,-1).join(', ')} and ${lacks.at(-1)}`:lacks[0]}.`}
 function stepFields(step:PasswordFormStep):Field[]{
   if(step==='forgot')return ['email']
   if(step==='confirm-sign-up')return ['email','code']
@@ -22,7 +23,7 @@ function fieldError(field:Field,values:Values,step:PasswordFormStep){
   const choosing=step==='reset'||step==='new-password'||step==='sign-up'
   if(field==='email'){const email=values.email.trim();return !email?'Enter your email address.':/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)?'':'Enter a valid email address, like name@example.com.'}
   if(field==='code'){const code=values.code.trim();return !code?'Enter the code from your email.':/^\d+$/.test(code)?'':'The code should contain numbers only.'}
-  if(field==='password')return !values.password?(choosing?'Choose a password.':'Enter your password.'):choosing&&!passwordRules(values.password)?passwordRuleText:''
+  if(field==='password')return !values.password?(choosing?'Choose a password.':'Enter your password.'):choosing&&!passwordRules(values.password)?passwordRuleText(values.password):''
   return !values.confirmation?'Re-enter your password to confirm it.':values.confirmation!==values.password?'The passwords do not match.':''
 }
 const serverField:Record<string,Field>={UsernameExistsException:'email',InvalidPasswordException:'password',CodeMismatchException:'code',ExpiredCodeException:'code'}

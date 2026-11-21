@@ -191,14 +191,6 @@
   overflow: hidden;
 }
 
-.workspace-surface::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 5px;
-  background: var(--accent);
-}
-
 .workspace-surface > div:first-child > h1 {
   margin: 0 0 32px;
   padding: 4px 76px 26px 0 !important;
@@ -364,6 +356,8 @@
 .login-password-form label { display:grid;gap:8px;color:var(--ink);font-size:12px;font-weight:600; }
 .login-password-form input { width:100%;font-weight:400;height:50px;padding:12px 14px;background:rgba(255,255,255,.65);border:1px solid var(--line);border-radius:0;color:var(--ink);font-size:15px;outline:none;transition:border-color .15s,box-shadow .15s; }
 .login-password-form input:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(113,56,184,.1); }
+/* Keyboard focus gets the same clear 2px ring as buttons and links. */
+.login-password-form input:focus-visible { outline:2px solid var(--accent);outline-offset:2px; }
 .login-password-form input:read-only { background:transparent;color:var(--muted); }
 .login-field { display:grid;gap:6px; }
 .login-password-form input[aria-invalid=true] { border-color:var(--danger,#a3232e); }
@@ -371,7 +365,7 @@
 .login-field-error { margin:0;color:var(--danger,#a3232e);font-size:12px;line-height:1.5; }
 .login-password-input { position:relative;display:block; }
 .login-password-input input { padding-right:46px; }
-.login-password-toggle { position:absolute;right:10px;top:0;height:50px;padding:0 4px;color:var(--muted); }
+.login-password-toggle { position:absolute;right:6px;top:3px;height:44px;min-width:44px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted); }
 .login-password-toggle svg { width:19px;height:19px; }
 .login-password-reveal { display:inline-flex;align-items:center;gap:7px;justify-self:start;margin-top:-8px;padding:2px 0;color:var(--muted);font-size:12px;font-weight:600; }
 .login-password-reveal:hover { color:var(--ink); }

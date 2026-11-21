@@ -31,7 +31,7 @@ export default function EquipmentQrScanner({ onCode, onCancel }: { onCode: (valu
       })()
     }
     starting.catch(() => {
-      if (!disposed) setError('Could not open the camera. Allow camera access over HTTPS or localhost, or enter the equipment ID manually.')
+      if (!disposed) setError('Could not open the camera. Allow camera access over HTTPS or localhost, or enter the equipment code manually.')
       void release()
     })
     return () => { disposed = true; void release() }

@@ -8,6 +8,7 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import type {ClientAccount} from '../../types/production'
 import type {FormEvent,KeyboardEvent,ReactNode} from 'react'
 import Link from 'next/link'
+import {useRouter} from 'next/navigation'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReservation,EquipmentAvailability} from '../../types/equipment'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
@@ -88,15 +89,19 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     setMaxDays(value.settings.reservationDays)
     setCached(cacheKey, value)
   },[cacheKey])
-  useEffect(()=>{let active=true;load().then(value=>{if(active){accept(value);const id=new URLSearchParams(window.location.search).get('reservation');if(id&&value.bookings.some(r=>r.id===id))setView({name:'detail',id})}}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
-  const open=(next:View)=>{setView(next);setFiltersOpen(false);if(typeof window!=='undefined')window.scrollTo?.(0,0)}
+  useEffect(()=>{let active=true;load().then(value=>{if(active){accept(value);const params=new URLSearchParams(window.location.search),id=params.get('reservation');if(id&&value.bookings.some(r=>r.id===id))setView({name:'detail',id});else if(params.get('new'))setView({name:'new'})}}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
+  const router=useRouter()
+  // The open booking lives in the address (?reservation= or ?new=1), so Back, Forward and refresh return to it.
+  const open=(next:View,push=true)=>{setView(next);setFiltersOpen(false);if(typeof window==='undefined')return;window.scrollTo?.(0,0);if(!push)return;const url=new URL(window.location.href);url.searchParams.delete('reservation');url.searchParams.delete('new');if(next.name==='detail'||next.name==='edit')url.searchParams.set('reservation',next.id);else if(next.name==='new'&&!create)url.searchParams.set('new','1');if(url.href!==window.location.href)window.history.pushState(window.history.state,'',url)}
+  const viewFromUrl=useRef<()=>void>(()=>{});viewFromUrl.current=()=>{const params=new URLSearchParams(window.location.search),id=params.get('reservation');open(id&&rows.some(r=>r.id===id)?{name:'detail',id}:params.get('new')||create?{name:'new'}:{name:'list'},false)}
+  useEffect(()=>{const pop=()=>viewFromUrl.current();window.addEventListener('popstate',pop);return()=>window.removeEventListener('popstate',pop)},[])
   const clientName=(id?:string|null)=>id?clients.find(c=>c.id===id)?.name??'Client account':'Internal use'
   const overdue=rows.filter(isOverdue),locked=!admin&&overdue.some(r=>!r.readOnly)
   const current=view.name==='detail'||view.name==='edit'?rows.find(r=>r.id===view.id):undefined
   async function refresh(){setError('');setLoading(true);try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
   function equipmentAdded(item:EquipmentRecord){setInventory(list=>[...list.filter(i=>i.id!==item.id),item]);for(const key of ['inventory','reservations','dashboard','reports','fulfillment','calendar'])invalidateCache(`${key}:${organizationId}`)}
   function clientAdded(client:ClientAccount){setClients(list=>[...list.filter(c=>c.id!==client.id),client]);invalidateCache(`reservations:${organizationId}`);invalidateCache(`production:${organizationId}`)}
-  async function saved(row:EquipmentReservation,message='Reservation saved.'){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);setView({name:'detail',id:row.id});toast.success(message,{id:'reservation'});invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
+  async function saved(row:EquipmentReservation,message='Reservation saved.'){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);if(create){toast.success(message,{id:'reservation'});invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');router.replace(`/reservations/?reservation=${encodeURIComponent(row.id)}`);return}open({name:'detail',id:row.id});toast.success(message,{id:'reservation'});invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
   // Optimistic: the booking reads as cancelled at once; the previous booking returns if the server rejects the cancellation.
   async function cancel(){if(!current||busy)return;const previous=current;setBusy(true);setError('');toast.dismiss('reservation');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');setRows(list=>list.map(r=>r.id===previous.id?{...r,status:'cancelled'}:r))
     let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));toast.error(`The reservation was not cancelled. ${equipmentError(e)}`,{id:'reservation'});setBusy(false);return}
@@ -165,7 +170,9 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
   const start=useMemo(()=>defaultPickup().toISOString(),[])
   const [name,setName]=useState(reservation?.name??''),[startsAt,setStartsAt]=useState(localTime(reservation?.startsAt??start)),[endsAt,setEndsAt]=useState(localTime(reservation?.endsAt??new Date(Date.parse(start)+HOUR).toISOString())),[ids,setIds]=useState(reservation?.equipmentIds??[]),[availability,setAvailability]=useState<EquipmentAvailability[]>([]),[checking,setChecking]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[availabilityError,setAvailabilityError]=useState(''),[showUnavailable,setShowUnavailable]=useState(false),[search,setSearch]=useState('')
   const mutation=useRef<{key:string;id:string}|null>(null),lifecycle=useMemo(()=>api.equipment(organizationId),[api,organizationId])
-  const length=Date.parse(endsAt)-Date.parse(startsAt),valid=Number.isFinite(length)&&length>0&&length<=maxDays*DAY
+  const length=Date.parse(endsAt)-Date.parse(startsAt)
+  const past=Date.parse(startsAt)<Date.now()&&(!reservation||startsAt!==localTime(reservation.startsAt))
+  const valid=Number.isFinite(length)&&length>0&&length<=maxDays*DAY&&!past
   useEffect(()=>{let active=true;setChecking(true);setAvailabilityError('');if(!valid){setChecking(false);return}const timer=setTimeout(()=>{allPages(after=>lifecycle.availability(new Date(startsAt).toISOString(),new Date(endsAt).toISOString(),after)).then(rows=>{if(active)setAvailability(rows)}).catch(e=>{if(active)setAvailabilityError(equipmentError(e))}).finally(()=>{if(active)setChecking(false)})},300);return()=>{active=false;clearTimeout(timer)}},[lifecycle,startsAt,endsAt,valid])
   const blocked=new Set(availability.filter(r=>r.id!==reservation?.id).flatMap(r=>r.equipmentIds))
   const why=(i:EquipmentRecord)=>blocked.has(i.id)?'Reserved during these dates':i.status!=='available'?`Not available · ${i.status.replace(/_/g,' ')}`:''
@@ -187,7 +194,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
         <div className="rsv-pair"><label className="rsv-field">Pick up<input className="rsv-input" type="datetime-local" value={startsAt} disabled={out} onChange={e=>changeStart(e.target.value)} required/></label><label className="rsv-field">Return<input className="rsv-input" type="datetime-local" value={endsAt} onChange={e=>setEndsAt(e.target.value)} required/></label></div>
         <div className="rsv-chips" role="group" aria-label="Quick lengths">{presets.map(([label,ms])=><button type="button" key={label} aria-pressed={length===ms} onClick={()=>setEndsAt(localTime(new Date(Date.parse(startsAt)+ms).toISOString()))} disabled={!Number.isFinite(Date.parse(startsAt))}>{label}</button>)}</div>
         <p className="rsv-length"><span>Length</span><b>{lengthLabel(length)}</b></p>
-        {!valid&&<p className="rsv-inline-error" role="alert">Choose a return time after pickup, within {plural(maxDays,'day')}.</p>}
+        {!valid&&<p className="rsv-inline-error" role="alert">{past?'Choose a pickup time that hasn’t passed yet.':`Choose a return time after pickup, within ${plural(maxDays,'day')}.`}</p>}
       </div>}
       {step===1&&<div className="rsv-question"><h2>What are you taking?</h2><p>{valid?`Showing what’s free ${rangeLabel(new Date(startsAt).toISOString(),new Date(endsAt).toISOString())}.`:''}</p>
         {checking&&<p className="rsv-hint" role="status">Checking availability…</p>}{availabilityError&&<p className="rsv-inline-error" role="alert">{availabilityError}</p>}
