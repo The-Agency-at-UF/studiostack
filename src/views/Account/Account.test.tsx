@@ -13,8 +13,18 @@ function renderAccount(overrides:Partial<AppSession>={},initialTab?:'security'|'
   return session
 }
 beforeEach(()=>{vi.clearAllMocks();mocks.list.mockResolvedValue({items:[]});mocks.accept.mockResolvedValue({organizationId:'studio'});mocks.code.mockResolvedValue({organizationId:'studio'});mocks.preferences.mockResolvedValue({equipmentEmail:false,version:0});mocks.update.mockResolvedValue({equipmentEmail:true,version:1});mocks.me.mockResolvedValue({id:'me',email:'roger@example.test',displayName:'roger@example.test',onboardedAt:null});mocks.register.mockImplementation(async(displayName:string)=>({id:'me',email:'roger@example.test',displayName,onboardedAt:null}))})
-afterEach(cleanup)
+afterEach(()=>{cleanup();window.history.replaceState(null,'','/account/')})
 describe('Account page',()=>{
+  it('reflects tab changes in the address and restores the tab on browser navigation',()=>{
+    window.history.replaceState(null,'','/account/?tab=profile')
+    renderAccount()
+    expect(screen.getByRole('heading',{name:'Profile'})).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button',{name:'Notifications'}))
+    expect(window.location.search).toBe('?tab=notifications')
+    window.history.replaceState(null,'','/account/?tab=profile')
+    fireEvent(window,new PopStateEvent('popstate'))
+    expect(screen.getByRole('heading',{name:'Profile'})).toBeInTheDocument()
+  })
   it('changes the name shown to teammates from the Profile tab',async()=>{
     renderAccount({},'profile')
     const input=await screen.findByRole('textbox',{name:'Name'})

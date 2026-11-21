@@ -28,7 +28,21 @@ export function OrganizationLogo({organization}:{organization:Pick<ApiOrganizati
 
 /** The signed-in person's account: profile, workspace memberships and joining, and sign-in. */
 export default function Account({initialTab='workspaces'}:{initialTab?:AccountTab}) {
-  const session=useAppSession(),[tab,setTab]=useState<AccountTab>(initialTab)
+  const session=useAppSession(),[tab,setTabState]=useState<AccountTab>(initialTab)
+  // The open tab is kept in ?tab=, so refresh and Back return to it.
+  useEffect(()=>{
+    const readTab=()=>{const value=new URLSearchParams(window.location.search).get('tab');setTabState(tabs.find(item=>item.value===value)?.value??initialTab)}
+    readTab()
+    window.addEventListener('popstate',readTab)
+    return ()=>window.removeEventListener('popstate',readTab)
+  },[initialTab])
+  const setTab=(next:AccountTab)=>{
+    if(next===tab)return
+    setTabState(next)
+    const url=new URL(window.location.href)
+    url.searchParams.set('tab',next)
+    window.history.pushState(window.history.state,'',url)
+  }
   const organizations=session.organizations??[]
   const current=organizations.find(o=>o.id===session.selectedOrganizationId)??organizations[0]
   const api=useMemo(()=>session.getAccessToken?createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken}):null,[session.getAccessToken])
@@ -62,7 +76,7 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
 function ProfileTab({name,onSave}:{name:string|null;onSave?:(name:string)=>Promise<void>}) {
   const session=useAppSession()
   return <section className="account-card" aria-labelledby="account-profile-title">
-    <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2><p>Your name and the email you sign in with. Workspace invitations are sent to this email.</p></div>
+    <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2><p>{onSave?'Your name and the email you sign in with.':'The email you sign in with.'} Workspace invitations are sent to this email.</p></div>
     <div className="account-card-body">
       {onSave&&name!==null&&<NameField initialName={name} onSave={onSave}/>}
       <label className="ws-field">Email<input type="email" value={session.email} readOnly/></label>
@@ -137,7 +151,7 @@ function WorkspacesTab() {
           <span className="account-workspace-name"><strong>{org.name}</strong><span>{roleLabel(org.role)}</span></span>
           {selected===org.id&&<span className="ws-status ws-status-accent">Current</span>}
         </label>)}
-      </fieldset>:<p className="account-empty">You are not in a workspace yet. Join one below.</p>}
+      </fieldset>:<p className="account-empty">{session.mode==='preview'?'This local preview uses a sample workspace. Sign in to see and switch between your own workspaces.':'You are not in a workspace yet. Join one below.'}</p>}
     </section>
     {session.mode==='preview'||session.getAccessToken?<JoinWorkspace previewPersonId={session.mode==='preview'?(session.previewPersonId??'preview-admin'):undefined} getAccessToken={session.getAccessToken} onJoined={async id=>{await session.refreshOrganizations?.();session.setSelectedOrganizationId?.(id)}}/>
       :<section className="account-card"><div className="account-card-heading"><h2>Join another workspace</h2><p>Sign in to see invitations for your email.</p></div></section>}
