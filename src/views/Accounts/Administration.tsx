@@ -8,6 +8,8 @@ import {useAppSession} from '../../context/AppSessionContext'
 import type {ApiPage} from '../../types/database-api'
 import type {JoinCode,OrganizationInvitation,OrganizationSettings,OrganizationActivity,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
 import {Skeleton} from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
 import JoinMethods,{AccessRequests,settled,type AdminLists,type Run} from './JoinMethods'
 import {uploadOrganizationPhoto} from '../../api/privatePhotos'
@@ -30,7 +32,6 @@ const ACTIVITY:Record<string,string>={
 }
 const activityLabel=(kind:string)=>ACTIVITY[kind]??kind.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase())
 const when=(iso:string)=>new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
-const ACTIVITY_PREVIEW=5
 
 export default function Administration() {
   const session=useAppSession(),org=session.selectedOrganizationId??session.organizations?.[0]?.id??(session.mode==='preview'?'preview':undefined)
@@ -39,7 +40,7 @@ export default function Administration() {
   const [settings,setSettings]=useState<OrganizationSettings|null>(null),[invitations,setInvitations]=useState<OrganizationInvitation[]>([]),[activity,setActivity]=useState<OrganizationActivity[]>([])
   const [requests,setRequests]=useState<PendingAccessRequest[]>([]),[codes,setCodes]=useState<JoinCode[]>([]),[domains,setDomains]=useState<WorkspaceDomain[]>([])
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
-  const [allActivity,setAllActivity]=useState(false),[current,setCurrent]=useState<string>('general')
+  const [current,setCurrent]=useState<string>('general')
   const generation=useRef(0),mutation=useRef<{key:string;id:string}|null>(null)
   // Background reloads can overlap; only the newest one, started after the latest change, may update the page.
   const loads=useRef(0)
@@ -79,7 +80,9 @@ export default function Administration() {
     return()=>{cancelAnimationFrame(frame);window.removeEventListener('scroll',schedule);window.removeEventListener('resize',schedule)}
   },[ready])
   const waiting=requests.length+invitations.filter(i=>i.status==='pending'&&Date.parse(i.expiresAt)>Date.now()).length
-  const events=[...activity].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),shownEvents=allActivity?events:events.slice(0,ACTIVITY_PREVIEW)
+  const events=[...activity].sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
+  const activityPage=usePagination(events,[org])
+  const invitationPage=usePagination(invitations,[org])
   return <main className="administration administration-settings-page workspace-surface">
     <OrganizationHeader settings={settings} active="settings"/>
     {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
@@ -100,19 +103,20 @@ export default function Administration() {
         </section>
         <section id="invitations" className="administration-panel" aria-labelledby="invitations-title">
           <header className="administration-panel-header"><h2 id="invitations-title">Invitations &amp; requests</h2><p>Invitations you’ve sent and what happened to them. Send new ones from People.</p></header>
-          <AccessRequests busy={busy} run={run} requests={requests}/>
+          <AccessRequests key={org} busy={busy} run={run} requests={requests}/>
           {invitations.length>0&&<div className="administration-group">{requests.length>0&&<h3>Invitations</h3>}
-            <ul className="administration-list">{invitations.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role==='admin'?'Admin':'Member'}</span><small>{pending?`Waiting to accept · ${({queued:'Email queued',sending:'Email sending',sent:'Email sent',failed:'Email failed to send',uncertain:'Email delivery unconfirmed'} as const)[i.deliveryStatus]} · Expires ${new Date(i.expiresAt).toLocaleDateString()}`:i.status==='accepted'?'Joined':i.status==='revoked'?'Revoked':'Expired'}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}),{apply:l=>({...l,invitations:l.invitations.map(v=>v.id===i.id?{...v,status:'revoked'}:v)}),settle:(l,saved)=>({...l,invitations:settled(l.invitations,'id',saved)})})}>Revoke invitation</button></div>}</li>})}</ul>
+            <ul className="administration-list">{invitationPage.pageRows.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role==='admin'?'Admin':'Member'}</span><small>{pending?`Waiting to accept · ${({queued:'Email queued',sending:'Email sending',sent:'Email sent',failed:'Email failed to send',uncertain:'Email delivery unconfirmed'} as const)[i.deliveryStatus]} · Expires ${new Date(i.expiresAt).toLocaleDateString()}`:i.status==='accepted'?'Joined':i.status==='revoked'?'Revoked':'Expired'}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}),{apply:l=>({...l,invitations:l.invitations.map(v=>v.id===i.id?{...v,status:'revoked'}:v)}),settle:(l,saved)=>({...l,invitations:settled(l.invitations,'id',saved)})})}>Revoke invitation</button></div>}</li>})}</ul>
+            <Pagination label="Invitations" pagination={invitationPage.pagination}/>
             {invitations.some(i=>i.status==='pending'&&i.deliveryStatus==='uncertain')&&<p className="administration-hint">When delivery is unconfirmed the email may still have arrived. Check with the teammate before retrying.</p>}
           </div>}
           {!requests.length&&!invitations.length&&<p className="administration-empty"><span>Nothing waiting. Access requests and open invitations show up here.</span></p>}
         </section>
         <section id="activity" className="administration-panel" aria-labelledby="activity-title">
-          <header className="administration-panel-header administration-panel-header-row"><div><h2 id="activity-title">Activity</h2><p>Changes to members, access and settings.</p></div>
-            {events.length>ACTIVITY_PREVIEW&&<button type="button" className="administration-secondary" aria-expanded={allActivity} aria-controls="activity-list" onClick={()=>setAllActivity(v=>!v)}>{allActivity?'Show recent':`Show all ${events.length}`}</button>}</header>
+          <header className="administration-panel-header"><h2 id="activity-title">Activity</h2><p>Changes to members, access and settings.</p></header>
           {events.length>0
-            ?<ul id="activity-list" className="administration-list administration-activity">{shownEvents.map(event=><li key={event.id}><div><strong>{activityLabel(event.kind)}</strong><span><span className="ws-sr-only">By </span>{event.actorName} · <time dateTime={event.createdAt}>{when(event.createdAt)}</time></span></div></li>)}</ul>
+            ?<ul className="administration-list administration-activity">{activityPage.pageRows.map(event=><li key={event.id}><div><strong>{activityLabel(event.kind)}</strong><span><span className="ws-sr-only">By </span>{event.actorName} · <time dateTime={event.createdAt}>{when(event.createdAt)}</time></span></div></li>)}</ul>
             :<p className="administration-empty"><span>No administration activity yet.</span></p>}
+          <Pagination label="Activity" pagination={activityPage.pagination}/>
         </section>
       </div>
     </div>}

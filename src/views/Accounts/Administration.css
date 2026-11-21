@@ -63,7 +63,6 @@
 .administration-layout .administration-panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:var(--space-8); margin:0; }
 .administration-layout header.administration-panel-header { display:block; padding:0 0 var(--space-5); margin:0 0 var(--space-6); border-bottom:1px solid var(--line); }
 .app-content#workspace-content .administration .administration-panel-header { padding-bottom:var(--space-5); }
-.administration-layout header.administration-panel-header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:var(--space-4); }
 .administration-layout .administration-panel h2 { font-size:var(--text-lg); font-weight:var(--weight-bold); line-height:var(--line-heading); margin:0; }
 .administration-layout .administration-panel-header p { color:var(--muted); font-size:var(--text-sm); margin-top:var(--space-1); max-width:62ch; }
 .administration-group + .administration-group { margin-top:var(--space-8); }
@@ -112,7 +111,6 @@
   .administration-settings { grid-template-columns:minmax(0,1fr); }
   .administration-settings .administration-logo { flex-wrap:wrap; }
   .administration-form-footer { flex-wrap:wrap; }
-  .administration-layout header.administration-panel-header-row { flex-direction:column; }
 }
 @media(prefers-reduced-motion:reduce){ .administration-index a { transition:none; } }
 

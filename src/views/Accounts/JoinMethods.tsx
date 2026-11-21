@@ -3,6 +3,8 @@ import {useState} from 'react'
 import type {AccountClient} from '../../api/accounts'
 import type {JoinCode,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
 import {Select} from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
 import type {OrganizationInvitation} from '../../types/accounts'
 /** The lists an administration action can change before the server confirms it. */
@@ -16,10 +18,12 @@ export function settled<T>(list:T[],key:keyof T,saved:unknown):T[]{const record=
 /** People waiting for an admin to let them in. */
 const decided=(id:string):Optimistic=>({apply:l=>({...l,requests:l.requests.filter(r=>r.id!==id)})})
 export function AccessRequests({busy,run,requests}:{busy:boolean;run:Run;requests:PendingAccessRequest[]}) {
+  const {pageRows,pagination}=usePagination(requests)
   if(!requests.length)return null
   return <div className="administration-group"><h3>Access requests</h3>
-    <ul className="administration-list">{requests.map(r=><li key={r.id}><div><strong>{r.displayName??r.email}</strong><span>{r.email} · requested {new Date(r.createdAt).toLocaleDateString()}</span>{r.message&&<small>“{r.message}”</small>}</div>
+    <ul className="administration-list">{pageRows.map(r=><li key={r.id}><div><strong>{r.displayName??r.email}</strong><span>{r.email} · requested {new Date(r.createdAt).toLocaleDateString()}</span>{r.message&&<small>“{r.message}”</small>}</div>
       <div className="administration-actions"><button className="ws-button-primary" disabled={busy} onClick={()=>void run(`approve:${r.id}:${r.version}`,(c,requestId)=>c.decideAccessRequest(r.id,'approve',{version:r.version,requestId}),decided(r.id))}>Approve {r.displayName??r.email}</button><button className="administration-secondary" disabled={busy} onClick={()=>void run(`deny:${r.id}:${r.version}`,(c,requestId)=>c.decideAccessRequest(r.id,'deny',{version:r.version,requestId}),decided(r.id))}>Deny</button></div></li>)}</ul>
+    <Pagination label="Access requests" pagination={pagination}/>
     <p className="administration-hint">Approved people join as members. Change their role from People afterward.</p>
   </div>
 }
