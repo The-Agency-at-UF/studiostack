@@ -363,6 +363,28 @@ input[type=checkbox][aria-invalid=true] { border-color:var(--danger); }
 .ws-combo-empty { padding:var(--space-2) var(--space-3); color:var(--muted); font-size:var(--text-sm); }
 @media(max-width:767px) { .ws-combo-search,.ws-combo [role=option] { font-size:var(--text-base); } }
 
+.ws-pagination {
+  position: sticky;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.ws-pagination-range { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.ws-pagination-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+#workspace-content .ws-pagination .ws-button { min-height: var(--control-height); }
+#workspace-content .ws-pagination .ws-button[aria-disabled="true"] {
+  background: var(--surface-subtle);
+  color: var(--muted);
+  cursor: default;
+  transform: none;
+}
+@media print { .ws-pagination { display: none !important; } }
+
 /* Sideways-scrolling strips and tables show a soft shadow on the edge that has more content, so hidden tabs and columns are discoverable. */
 .ws-pill-tabs,.ws-table-region,.ws-calendar-scroll {
   background-image:linear-gradient(to right,var(--scroll-cover,var(--surface)) 30%,transparent),linear-gradient(to left,var(--scroll-cover,var(--surface)) 30%,transparent),radial-gradient(farthest-side at 0 50%,#19171e2e,transparent),radial-gradient(farthest-side at 100% 50%,#19171e2e,transparent);

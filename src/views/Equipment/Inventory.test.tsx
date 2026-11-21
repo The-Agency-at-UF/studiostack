@@ -18,6 +18,31 @@ describe('Authenticated inventory',()=>{
    const view=render(<LiveInventory/>);try{await screen.findByRole('button',{name:'Live camera'});await new Promise(resolve=>setTimeout(resolve,30));expect(mocks.inventory).toHaveBeenCalledTimes(1)}finally{view.unmount();invalidateCache()}
  })
 
+ it('filters across API pages and resets the visible page when the search changes',async()=>{
+   invalidateCache()
+   const cameras=Array.from({length:40},(_,index)=>({...item,id:`camera-${index}`,equipmentCode:`CAM-${index}`,name:`Camera ${index+1}`}))
+   const light={...item,id:'light',equipmentCode:'LIG-1',name:'Studio light'}
+   mocks.inventory.mockImplementation(async(_org,{after})=>after
+     ? {items:[...cameras.slice(20),light],nextCursor:null}
+     : {items:cameras.slice(0,20),nextCursor:'equipment-cursor'})
+   const user=userEvent.setup(),view=render(<LiveInventory/>)
+   try{
+     expect(await screen.findByText('Showing 1–10 of 41')).toBeInTheDocument()
+     expect(screen.queryByRole('button',{name:'Studio light'})).not.toBeInTheDocument()
+     await user.click(screen.getByRole('button',{name:'Next'}))
+     expect(screen.getByText('Showing 11–20 of 41')).toBeInTheDocument()
+     await user.type(screen.getByRole('searchbox',{name:'Search equipment'}),'Camera')
+     expect(screen.getByText('Showing 1–10 of 40')).toBeInTheDocument()
+     await user.clear(screen.getByRole('searchbox',{name:'Search equipment'}))
+     await user.type(screen.getByRole('searchbox',{name:'Search equipment'}),'Studio light')
+     expect(screen.getByRole('button',{name:'Studio light'})).toBeInTheDocument()
+     expect(screen.queryByRole('navigation',{name:'Equipment pagination'})).not.toBeInTheDocument()
+   }finally{
+     view.unmount()
+     invalidateCache()
+   }
+ })
+
  it('creates equipment through the selected organization API',async()=>{const user=userEvent.setup();render(<LiveInventory/>);await screen.findByRole('button',{name:'Live camera'});await user.click(screen.getByRole('button',{name:'Add item'}));await user.type(screen.getByLabelText('Equipment code'),'NEW-1');await user.type(screen.getByLabelText('Item name'),'New camera');await user.click(screen.getByRole('button',{name:'Create equipment'}));await waitFor(()=>expect(mocks.createEquipment).toHaveBeenCalledWith('org',{equipmentCode:'NEW-1',name:'New camera',category:'Camera & Accessories'}))})
  it('loads photos through short-lived authenticated download authorization',async()=>{mocks.inventory.mockResolvedValue({items:[{...item,photoId:'private'}],nextCursor:null});mocks.photo.mockResolvedValue({url:'https://private.example.test/signed',expiresIn:60});render(<LiveInventory/>);fireEvent.click(await screen.findByRole('button',{name:'Live camera'}));expect(await screen.findByAltText('Live camera')).toHaveAttribute('src','https://private.example.test/signed');expect(mocks.photo).toHaveBeenCalledWith('org','camera')})
  it('renders cached photos immediately on inspection without waiting for the network',async()=>{

@@ -1,6 +1,8 @@
 'use client'
 import { TabPill } from '../../components/workspace/TabPill'
 import {DetailPanel,Select,Skeleton,StatusLabel} from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
 import {HiMagnifyingGlass,HiXMark,HiOutlinePlus} from 'react-icons/hi2'
 import type {EquipmentRecord} from '../../types/equipment'
@@ -59,6 +61,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   const counts=useMemo(()=>Object.fromEntries(inventoryViews.map(([id])=>[id,items.filter(i=>matchesView(i,id)).length])) as Record<InventoryView,number>,[items])
   const needle=query.trim().toLowerCase()
   const filtered=items.filter(i=>matchesView(i,view)&&(!category||i.category===category)&&`${i.name} ${i.equipmentCode}`.toLowerCase().includes(needle))
+  const {pageRows,pagination}=usePagination(filtered,[organizationId,view,category,needle])
   const filtering=Boolean(needle||category)
   const closeDetails=()=>{setSelected(null);setAdding(false);setAdded('')}
   const inspect=(id:string)=>{setSelected(id);setAdding(false);setAdded('')}
@@ -85,7 +88,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
       <section className="administration-table inventory-table" aria-label="Equipment list">
         {loading?<Skeleton label="Loading equipment…" variant="row" count={5}/>:filtered.length?<table>
           <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Condition</th><th scope="col">Status</th></tr></thead>
-          <tbody className="ws-stagger">{filtered.map(i=>{const status=serviceStatus(i);return <tr key={i.id} className={i.id===selected?'is-selected':undefined} onClick={()=>inspect(i.id)}>
+          <tbody className="ws-stagger">{pageRows.map(i=>{const status=serviceStatus(i);return <tr key={i.id} className={i.id===selected?'is-selected':undefined} onClick={()=>inspect(i.id)}>
             <td><div className="inventory-item"><PhotoThumbnail api={api} organizationId={organizationId} item={i}/><div><button type="button" className="equipment-item-link" aria-current={i.id===selected?'true':undefined} onClick={e=>{e.stopPropagation();inspect(i.id)}}>{i.name}</button><small className="inventory-code">{i.equipmentCode}</small></div></div></td>
             <td>{i.category}{i.colorTag&&<small className="equipment-color-tag"><span className={`equipment-color equipment-color-${i.colorTag}`} aria-hidden="true"/>{i.colorTag}</small>}</td>
             <td><span className={`inventory-condition inventory-condition-${i.condition}`}>{capitalize(i.condition)}</span>{reported.has(i.id)&&<a className="inventory-open-report" href="/reports/" onClick={e=>e.stopPropagation()}>Open report</a>}</td>
@@ -95,6 +98,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
           {items.length?<><p>No equipment matches these filters.</p>{filtering?<button type="button" onClick={()=>{setQuery('');setCategory('')}}>Clear filters</button>:<button type="button" onClick={()=>setView('all')}>Show all equipment</button>}</>
           :<><p>No equipment yet.</p><span>{admin?'Add an item or scan an existing label to start tracking gear.':'An administrator can add equipment for this organization.'}</span></>}
         </div>}
+        {!loading&&<Pagination label="Equipment" pagination={pagination}/>}
       </section>
       {(current||adding)&&<DetailPanel className="equipment-inspector" label="Equipment details">
         <div className="inventory-inspector-head">

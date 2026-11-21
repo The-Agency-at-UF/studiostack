@@ -6,6 +6,8 @@ import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './li
 import type {AppAlert} from '../../types/alerts'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import {Skeleton} from '../../components/workspace/WorkspaceUI'
+import { Pagination } from '../../components/workspace/Pagination'
+import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
 import '../Accounts/Administration.css'
 import './Equipment.css'
@@ -28,8 +30,9 @@ function AlertsWorkspace({api,org}:{api:DatabaseApi;org:string}){
  // Optimistic: the row reads as read at once; the server row replaces it, or the previous read state returns on failure.
  async function markRead(row:AppAlert,open=false){if(pending.has(row.id))return;const previous=row.readAt;track(row.id,true);setError('');if(!previous)setRows(v=>v.map(r=>r.id===row.id?{...r,readAt:new Date().toISOString()}:r));try{const saved=await client.read(row.id);invalidateCache(`alerts:${org}`);invalidateCache(`dashboard:${org}`);setRows(v=>v.map(r=>r.id===saved.id?saved:r));if(open&&(/^\/(report-summary|reservations|check-in-out)\/\?(report|reservation)=[a-f0-9-]{36}$/.test(saved.targetPath)||/^\/production\/\?brief=[a-f0-9-]{36}$/.test(saved.targetPath)))router.push(saved.targetPath)}catch(e){setRows(v=>v.map(r=>r.id===row.id?{...r,readAt:previous}:r));toast.error(`The alert was not marked as read. ${equipmentError(e)}`,{id:'alerts'})}finally{track(row.id,false)}}
  const visible=rows.filter(r=>!unreadOnly||!r.readAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
+ const {pageRows,pagination}=usePagination(visible,[org,unreadOnly])
  return <main className="administration workspace-surface"><header><div><h1>Alerts</h1><p>{rows.filter(r=>!r.readAt).length} unread</p></div><button disabled={loading||pending.size>0} onClick={()=>void refresh()}>Refresh</button></header>{error&&<p role="alert">{error}</p>}
   {org!=='preview'&&<p className="administration-hint">Want these by email? <Link href="/account/notifications/">Manage notifications</Link></p>}
-  <section><label className="administration-checkbox"><input type="checkbox" checked={unreadOnly} onChange={e=>setUnread(e.target.checked)}/>Unread only</label>{loading&&!rows.length?<Skeleton label="Loading alerts…" variant="row" count={4}/>:<ul className="equipment-alert-list ws-stagger">{visible.map(row=><li key={row.id} className={row.readAt?'':'unread'}><div><h2>{row.title}</h2><p>{row.message}</p><small>{new Date(row.createdAt).toLocaleString()}{row.readAt?' · Read':' · Unread'}</small></div><div className="administration-actions"><button disabled={pending.has(row.id)} onClick={()=>void markRead(row,true)}>Open</button>{!row.readAt&&<button disabled={pending.has(row.id)} onClick={()=>void markRead(row)}>Mark read</button>}</div></li>)}</ul>}{!loading&&!error&&!visible.length&&<p className="equipment-empty">{unreadOnly?'You’re caught up.':'No alerts yet.'}</p>}</section>
+  <section><label className="administration-checkbox"><input type="checkbox" checked={unreadOnly} onChange={e=>setUnread(e.target.checked)}/>Unread only</label>{loading&&!rows.length?<Skeleton label="Loading alerts…" variant="row" count={4}/>:<ul className="equipment-alert-list ws-stagger">{pageRows.map(row=><li key={row.id} className={row.readAt?'':'unread'}><div><h2>{row.title}</h2><p>{row.message}</p><small>{new Date(row.createdAt).toLocaleString()}{row.readAt?' · Read':' · Unread'}</small></div><div className="administration-actions"><button disabled={pending.has(row.id)} onClick={()=>void markRead(row,true)}>Open</button>{!row.readAt&&<button disabled={pending.has(row.id)} onClick={()=>void markRead(row)}>Mark read</button>}</div></li>)}</ul>}{!loading&&!error&&!visible.length&&<p className="equipment-empty">{unreadOnly?'You’re caught up.':'No alerts yet.'}</p>}<Pagination label="Alerts" pagination={pagination}/></section>
  </main>
 }
