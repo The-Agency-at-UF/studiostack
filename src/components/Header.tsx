@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTour } from './tour/TourContext'
 import StudioStack from '../assets/StudioStack.png'
-import { HiOutlineArrowUpRight, HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineWrenchScrewdriver, HiOutlineChartBar, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb, HiOutlineQuestionMarkCircle, HiOutlineBookOpen, HiOutlineRocketLaunch } from 'react-icons/hi2'
+import { HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineWrenchScrewdriver, HiOutlineChartBar, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb, HiOutlineQuestionMarkCircle, HiOutlineBookOpen, HiOutlineRocketLaunch } from 'react-icons/hi2'
 import { closeWithExit } from './workspace/closeWithExit'
 import '../styles/shell.css'
 
@@ -107,7 +107,6 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
             {onReportBug && <button className="account-report-bug" onClick={() => { closeMenus(); onReportBug() }}><HiOutlineBugAnt aria-hidden="true" />Report a bug</button>}
             {onRequestFeature && <button className="account-request-feature" onClick={() => { closeMenus(); onRequestFeature() }}><HiOutlineLightBulb aria-hidden="true" />Request a feature</button>}
           </MenuPopover>
-          <Link href="/create-reservation" className="header-cta" data-tour="book-gear" onClick={closeMenus}>Book gear <HiOutlineArrowUpRight aria-hidden="true" /></Link>
           <MenuPopover id="account-panel" tour="account" open={menu === 'account'} onOpen={() => setMenu('account')} onClose={() => setMenu(open => open === 'account' ? null : open)} triggerRef={accountTrigger}
             trigger={props => <button {...props} className="account-trigger" aria-label="Account"><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>}>
             <div className="account-identity"><strong>Your account</strong></div>

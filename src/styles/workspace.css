@@ -190,7 +190,7 @@ body { font-family:var(--font-ui); line-height:var(--line-body); }
   .login-page .login-form-area { padding:var(--space-8) 0; }
 }
 /* Press feedback: controls shrink slightly while held, and settle back on release. */
-:is(.ws-button,.ws-confirm-actions button,.welcome-primary,.login-primary,.org-primary,.header-cta,.administration button,.production-page button):active:not(:disabled) { scale:.97; }
+:is(.ws-button,.ws-confirm-actions button,.welcome-primary,.login-primary,.org-primary,.administration button,.production-page button):active:not(:disabled) { scale:.97; }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .ws-button { transition:none; } }
 @media print {
   .app-content#workspace-content > :is(.administration,.production-page,.organization-page,.ws-calendar-page) { min-height:0; padding:0; max-width:none; }
