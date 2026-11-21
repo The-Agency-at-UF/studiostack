@@ -26,6 +26,8 @@
 .ws-confirm-actions button:hover:not(:disabled) { background: var(--surface-hover); }
 .ws-confirm-actions .ws-confirm-destructive { background: var(--danger); border-color: var(--danger); color: var(--on-frame); }
 .ws-confirm-actions .ws-confirm-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, black); }
+.ws-confirm-actions .ws-confirm-primary { background: var(--accent); border-color: var(--accent); color: var(--on-frame); }
+.ws-confirm-actions .ws-confirm-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, black); }
 .ws-confirm-actions button:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--focus-offset); }
 .ws-confirm-actions button:disabled { opacity: .5; cursor: not-allowed; }
 @keyframes ws-confirm-in { from { opacity: 0; scale: .96; } }

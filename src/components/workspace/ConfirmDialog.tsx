@@ -10,11 +10,13 @@ type ConfirmDialogProps = {
   subject?: string
   confirmLabel: string
   busy?: boolean
+  /** Red for actions that remove or refuse something; accent for ones that only redo work. */
+  tone?: 'danger' | 'default'
   onCancel: () => void
   onConfirm: () => void
 }
 
-export default function ConfirmDialog({ title, description, subject, confirmLabel, busy = false, onCancel, onConfirm }: ConfirmDialogProps) {
+export default function ConfirmDialog({ title, description, subject, confirmLabel, busy = false, tone = 'danger', onCancel, onConfirm }: ConfirmDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
   const id = useId()
@@ -39,7 +41,7 @@ export default function ConfirmDialog({ title, description, subject, confirmLabe
     </div>
     <div className="ws-confirm-actions">
       <button ref={cancel} type="button" disabled={busy} onClick={dismiss}>Cancel</button>
-      <button type="button" className="ws-confirm-destructive" disabled={busy} onClick={onConfirm}>{busy ? 'Deleting…' : confirmLabel}</button>
+      <button type="button" className={tone === 'danger' ? 'ws-confirm-destructive' : 'ws-confirm-primary'} disabled={busy} onClick={onConfirm}>{busy ? 'Deleting…' : confirmLabel}</button>
     </div>
   </dialog>, document.body)
 }
