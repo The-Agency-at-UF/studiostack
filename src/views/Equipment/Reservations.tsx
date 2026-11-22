@@ -160,14 +160,14 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     const reservation=view.name==='edit'?view.reservation:undefined
     return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} canAddEquipment={admin} reported={reported} onClientAdded={clientAdded} maxDays={maxDays} limitKnown={limitKnown} reservation={reservation} onDirtyChange={setFlowDirty} onClose={()=>{const go=()=>{setFlowDirty(false);open(reservation?{name:'detail',id:reservation.id}:{name:'list'})};if(flowDirty.current)setPendingLeave(()=>go);else go()}} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
   }
-  if(view.name==='detail'&&current) return <main className="rsv"><div className="rsv-column">
+  if(view.name==='detail'&&current) return <main className="rsv">
     <button type="button" className="rsv-back" onClick={()=>open({name:'list'})}><Chevron dir="left"/>Reservations</button>
     {messages}
     <ReservationDetail api={api} organizationId={organizationId} reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',reservation:current})} onCancel={()=>setConfirmingCancel(true)}/>
     {confirmingCancel&&<ConfirmDialog title="Cancel this reservation?" subject={current.name} description={`${rangeLabel(current.startsAt,current.endsAt)}, ${plural(current.equipmentIds.length,'item')}. The equipment is released for others to book. This can’t be undone.`} confirmLabel="Cancel reservation" cancelLabel="Keep reservation" busy={busy} returnFocus={()=>document.querySelector<HTMLElement>('.rsv-detail-head h1')} onCancel={()=>setConfirmingCancel(false)} onConfirm={()=>{setConfirmingCancel(false);void cancel()}}/>}
-  </div></main>
+  </main>
 
-  return <main className="rsv"><div className="rsv-column">
+  return <main className="rsv">
     <header className="rsv-top"><div><h1>Reservations</h1></div><div className="rsv-top-actions"><Button disabled={loading||busy} aria-busy={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div></header>
     {messages}
     {overdue.length>0&&<div className="rsv-overdue" role="status"><span aria-hidden="true"/><p>{overdue.length===1?<><b>{overdue[0].name}</b> is overdue. It was due back {dateLabel(overdue[0].endsAt)} at {timeLabel(overdue[0].endsAt)}.</>:<><b>{overdue.length} bookings</b> are overdue.</>}</p><button type="button" className="rsv-link" onClick={()=>overdue.length===1?open({name:'detail',id:overdue[0].id}):setTab('out')}>Review</button></div>}
@@ -200,7 +200,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
       <Pagination label="Reservations" pagination={pagination}/>
       </div>
     </>}
-  </div></main>
+  </main>
 }
 
 type DetailTone='reserved'|'missed'|'out'|'overdue'|'returned'|'cancelled'
