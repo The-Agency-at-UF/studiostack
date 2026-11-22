@@ -71,6 +71,31 @@ describe('production workspace',()=>{
     try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('tab',{name:'Client accounts'}));expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
   })
 
+  it('opens a print preview from the brief toolbar and preserves unsaved edits',async()=>{
+    const user = userEvent.setup()
+    const print = vi.fn()
+    vi.stubGlobal('print', print)
+    renderPreview()
+    await user.click(await screen.findByRole('button', { name: 'New brief' }))
+    const projectName = await screen.findByLabelText('Project name *')
+    await user.type(projectName, 'Unsaved print title')
+
+    const back = screen.getByRole('button', { name: /Back to briefs/ })
+    const preview = screen.getByRole('button', { name: 'Print or save as PDF' })
+    const remove = screen.getByRole('button', { name: 'Delete draft' })
+    expect(back.nextElementSibling).toBe(preview)
+    expect(remove.previousElementSibling).toHaveTextContent('Not submitted yet')
+    expect(remove.parentElement?.querySelector('.production-status')).toHaveTextContent('Draft')
+
+    await user.click(preview)
+    expect(print).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'Unsaved print title' })).toBeInTheDocument()
+    expect(projectName).not.toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Close print preview' }))
+    expect(projectName).toBeVisible()
+    expect(projectName).toHaveValue('Unsaved print title')
+  })
   it('supports a complete edit-only draft and submission with conditional fields',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     await user.click(screen.getByRole('button',{name:/New brief/}));await screen.findByRole('heading',{name:'New production brief'})

@@ -106,6 +106,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const lastOpened = useRef<string | null>(null)
   const [error, setError] = useState(''), [deliveries, setDeliveries] = useState<Delivery[]>(cached?.deliveries ?? [])
   const [pendingDelete, setPendingDelete] = useState<ProductionBrief | null>(null)
+  const [printPreview, setPrintPreview] = useState(false)
   /** Where to go once the person agrees to discard unsaved brief edits. */
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null)
   const [pendingApprove, setPendingApprove] = useState<ProductionBrief | null>(null)
@@ -204,7 +205,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const leaveThen = (go: () => void) => { if (dirty || reviewDraft) setPendingLeave(() => go); else go() }
   const discardAndLeave = () => { const go = pendingLeave; setPendingLeave(null); if (selected) clearDraft(selected.id); setDirty(false); setReviewDraft(false); setRestorable(null); go?.() }
   const accept = (brief: ProductionBrief) => {
-    setSelected(brief); setForm(structuredClone(brief.data)); setDirty(false); setSnapshot(null)
+    setSelected(brief); setForm(structuredClone(brief.data)); setDirty(false); setSnapshot(null); setPrintPreview(false)
     const stash = readDraft(brief.id)
     if (stash && stash.version === brief.version && JSON.stringify(stash.data) !== JSON.stringify(brief.data)) setRestorable(stash)
     else { setRestorable(null); if (stash) clearDraft(brief.id) }
@@ -329,7 +330,8 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     else void run(client => client.create(emptyBrief(), requestId('create')), 'Brief created.')
   }
   const selectView = (next: typeof tab) => leaveThen(() => { setTab(next); setSelected(null); setDirty(false); setSnapshot(null) })
-  return <main className={calendarPage ? 'production-page ws-calendar-page' : 'production-page'}>
+  const showingPrintPreview = !!selected && printPreview
+  return <main className={`production-page${calendarPage ? ' ws-calendar-page' : ''}${showingPrintPreview ? ' is-print-preview' : ''}`}>
     {pendingLeave && <ConfirmDialog title="Discard unsaved changes?" subject={form.projectName || 'Untitled brief'} description={dirty ? 'Your edits to this brief haven’t been saved. Save the draft first to keep them.' : 'Your comment hasn’t been posted yet.'} confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={() => setPendingLeave(null)} onConfirm={discardAndLeave} />}
     {pendingRemoval && <ConfirmDialog title="Remove this attachment?" subject={pendingRemoval.name} description="It will be removed from the current brief. Submitted revisions keep their files." confirmLabel="Remove attachment" onCancel={() => setPendingRemoval(null)} onConfirm={() => { const { briefId, id } = pendingRemoval; setPendingRemoval(null); void run(async client => { await client.discard(briefId,id); return client.get(briefId) }, 'Attachment removed.') }} />}
     {pendingApprove && <ConfirmDialog tone="default" title="Approve this brief?" subject={pendingApprove.data.projectName || 'Untitled brief'} description={`${briefShootLabel(pendingApprove)}. The author and Executive Leadership Team are emailed about the decision.`} confirmLabel="Approve brief" cancelLabel="Keep reviewing" busy={busy} onCancel={() => setPendingApprove(null)} onConfirm={() => { const b = pendingApprove; setPendingApprove(null); void run(client => client.action(b.id, { action: 'approve', version: b.version, requestId: requestId(JSON.stringify({ approve: b.id, version: b.version })) }), 'Brief approved.') }} />}
@@ -341,7 +343,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     {configurationError && <p role="alert" className="production-error">{configurationError}</p>}
     {!calendarPage && <WorkspaceTabs label="Production views" active={tab} disabled={busy} items={(['briefs','clients','ideas',...(access?.canReview?['queue']:[]), ...(access?.isExecutive || access?.canReview || access?.canAdminister ? ['decisions'] : []), ...(access?.canAdminister ? ['settings'] : [])]).map(value=>({value,label:({ clients:'Client accounts',ideas:'Ideas & pitches',queue:'Brief review queue',briefs:'Briefs',decisions:'Decisions & delivery',settings:'Production roles' } as Record<string,string>)[value]}))} onChange={value=>selectView(value as typeof tab)}/>}
     <div className="production-feedback">{error && <Notice kind="error" role="alert" action={<Button disabled={busy} onClick={reload}>Reload</Button>}>{error}</Notice>}</div>
-    <div {...(calendarPage ? {} : tabPanelProps('Production views', tab))}>
+    <div className="production-view-panel" {...(calendarPage ? {} : tabPanelProps('Production views', tab))}>
     {loading ? <Skeleton label="Loading production workspace…" variant="row" count={5} /> : !api ? null : !access ? (
       <div className="production-empty">
         <h2>Production workspace unavailable</h2>
@@ -355,9 +357,20 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
         <div className="production-filter-summary" aria-live="polite"><span>{filtered.length} {filtered.length===1?'brief':'briefs'}{query||filter!=='all'||clientFilter||authorFilter?' (Filters applied)':''}</span>{(query||filter!=='all'||clientFilter||authorFilter)&&<button onClick={()=>{setQuery('');setFilter('all');setClientFilter('');setAuthorFilter('')}}>Clear filters</button>}</div>
         <TableRegion className="production-table-wrap" label="Production briefs"><table className="production-table"><thead><tr><th scope="col">Project / client</th><th scope="col">Status</th><th scope="col">Requested by</th><th scope="col">Shoot</th><th scope="col">Delivery</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead><tbody className="ws-stagger">{briefsPage.pageRows.map(b => <tr key={b.id} className="production-row" onClick={e => { if (!busy && !(e.target as Element).closest('button,a,input,select,label')) void open(b.id) }}><td><button className="production-row-title" data-brief-row={b.id} disabled={busy} onClick={() => void open(b.id)}>{b.data.projectName || 'Untitled brief'}</button>{productionReadiness(b).flagged&&(b.ownerId===access.userId||access.canAdminister||access.canReview)&&<span className="production-error"><HiOutlineFlag aria-hidden="true"/> Readiness needs attention</span>}<span>{b.data.client || 'Client not added'}{!b.data.projectName && `, started ${dateLabel(b.createdAt)}`}</span></td><td><span className={`production-status status-${b.status}`}>{statusLabels[b.status]}</span></td><td>{b.ownerName}</td><td>{b.shootStartsAt ? dateLabel(b.shootStartsAt) : briefShootLabel(b)}</td><td>{b.data.deliveryDate ? dateLabel(b.data.deliveryDate) : 'Not set'}</td><td><div className="production-row-actions">{tab==='queue'&&b.status==='submitted'&&<><button disabled={busy} onClick={()=>setPendingApprove(b)}>Approve</button><button disabled={busy} className="production-danger" onClick={()=>{setTab('queue');void open(b.id)}}>Deny with reason</button></>}{deletable(b) && <button className="production-row-delete" disabled={busy} aria-label={`Delete ${b.data.projectName || 'untitled brief'}`} onClick={() => remove(b)}>Delete</button>}</div></td></tr>)}</tbody></table>{!filtered.length && <div className="production-empty"><h2>{tab === 'queue' ? 'Nothing to review' : briefs.length ? 'No matching briefs' : 'Start with a brief'}</h2><p>{tab === 'queue' ? 'Submitted briefs wait here for a Production Lead’s decision.' : briefs.length ? 'Try another search or status.' : 'Create a production request to share the scope, dates, and deliverables with Production leadership.'}</p></div>}<Pagination label={tab === 'queue' ? 'Review queue' : 'Production briefs'} pagination={briefsPage.pagination} /></TableRegion>
       </>)}
-      {selected && <div className="production-detail ws-enter"><div className="production-detail-header"><button disabled={busy} onClick={() => leaveThen(() => { setSelected(null); setDirty(false) })}>← Back to {tab === 'calendar' ? 'calendar' : 'briefs'}</button><span className={`production-status status-${selected.status}`}>{statusLabels[selected.status]}</span><span>{selected.submission ? `Submitted ${selected.submission === 1 ? 'once' : `${selected.submission} times`}` : 'Not submitted yet'}</span><button disabled={busy} onClick={() => window.print()}>Print or save as PDF</button>{deletable(selected) && <button className="production-danger" disabled={busy} onClick={() => remove(selected)}>{selected.status === 'draft' ? 'Delete draft' : 'Delete brief'}</button>}</div>
-        {restorable && <Notice kind="warning" action={<><Button onClick={() => { setForm(structuredClone(restorable.data)); setDirty(true); setRestorable(null) }}>Restore edits</Button><Button variant="quiet" onClick={() => { clearDraft(selected.id); setRestorable(null) }}>Discard</Button></>}>This brief has unsaved edits from {dateTimeLabel(restorable.savedAt)} that were never saved.</Notice>}
-        <div className={inspector?'production-detail-grid':'production-detail-grid is-single'}><div>
+      {selected && <div className="production-detail ws-enter">
+        <div className="production-detail-header">
+          <div className="production-detail-actions">
+            <button disabled={busy} onClick={() => leaveThen(() => { setSelected(null); setDirty(false) })}>← Back to {tab === 'calendar' ? 'calendar' : 'briefs'}</button>
+            <button disabled={busy} aria-expanded={showingPrintPreview} aria-controls="production-print-preview" onClick={() => setPrintPreview(!printPreview)}>{showingPrintPreview ? 'Close print preview' : 'Print or save as PDF'}</button>
+          </div>
+          <div className="production-detail-actions">
+            <span className={`production-status status-${selected.status}`}>{statusLabels[selected.status]}</span>
+            <span>{selected.submission ? `Submitted ${selected.submission === 1 ? 'once' : `${selected.submission} times`}` : 'Not submitted yet'}</span>
+            {deletable(selected) && <button className="production-danger" disabled={busy} onClick={() => remove(selected)}>{selected.status === 'draft' ? 'Delete draft' : 'Delete brief'}</button>}
+          </div>
+        </div>
+        {!showingPrintPreview && restorable && <Notice kind="warning" action={<><Button onClick={() => { setForm(structuredClone(restorable.data)); setDirty(true); setRestorable(null) }}>Restore edits</Button><Button variant="quiet" onClick={() => { clearDraft(selected.id); setRestorable(null) }}>Discard</Button></>}>This brief has unsaved edits from {dateTimeLabel(restorable.savedAt)} that were never saved.</Notice>}
+        <div className={inspector?'production-detail-grid':'production-detail-grid is-single'} hidden={showingPrintPreview}><div>
           {!editable&&<nav className="production-section-nav" aria-label="Brief sections"><a href="#brief-resources">Templates & guide</a><a href="#brief-request">Request details</a>{visibleSections(form).map(section=><a key={section.title} href={`#brief-${section.title.toLowerCase().replaceAll(' ','-')}`}>{section.title}</a>)}<a href="#brief-crew">Crew</a></nav>}
           <form className="production-form" onSubmit={e => { e.preventDefault(); if(!clientCreating)void save() }}>
             <h2 tabIndex={-1}>{selected.data.projectName || 'New production brief'}</h2><p className="production-muted">Created by {selected.ownerName} on {dateLabel(selected.createdAt)}</p>
@@ -371,18 +384,37 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
 <CrewRequests requests={form.crewRequests??[]} disabled={!editable||busy} onChange={crewRequests=>{setForm(f=>({...f,crewRequests}));setDirty(true)}}/></>}
 
           </form>
-          {!editable&&<SoftHolds key={`holds:${selected.id}:${selected.version}`} brief={selected} canPropose={(selected.ownerId===access.userId||access.canReview)&&!['denied','withdrawn'].includes(selected.status)} disabled={busy||dirty} onAction={action}/>}{crewVisible&&<div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={async assignments=>{await run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}),'Crew assignments saved.')}}/></div>}<article className="production-print"><h2>{selected.data.projectName || 'Production brief'}</h2><p>{selected.data.client}, {statusLabels[selected.status]}, Revision {selected.version}</p><p>Requested by {selected.ownerName}. Managers: {selected.data.managers}. Production supervisor: {selected.data.supervisor || 'Not assigned'}</p><p>Delivery: {selected.data.deliveryDate ? dateLabel(selected.data.deliveryDate) : 'Not set'}. Production: {selected.data.productionTypes.join(', ')}</p>{selected.shootStartsAt && <p>Confirmed shoot: {dateLabel(selected.shootStartsAt)} – {dateLabel(new Date(Date.parse(selected.shootEndsAt!) - 1).toISOString())}</p>}{visibleSections(selected.data).map(s => <section key={s.title}><h3>{s.title}</h3><dl>{s.fields.filter(f=>selected.data.fields[f.key]).map(f=><div key={f.key}><dt>{f.label}</dt><dd>{selected.data.fields[f.key]}</dd></div>)}</dl></section>)}</article>
+          {!editable&&<SoftHolds key={`holds:${selected.id}:${selected.version}`} brief={selected} canPropose={(selected.ownerId===access.userId||access.canReview)&&!['denied','withdrawn'].includes(selected.status)} disabled={busy||dirty} onAction={action}/>}{crewVisible&&<div id="brief-crew"><ProductionCrew key={`${selected.id}:${selected.version}`} brief={selected} canAssign={access.canReview} disabled={busy||dirty} loadMembers={loadMembers} onAssign={async assignments=>{await run(client=>client.assign(selected.id,{assignments,version:selected.version,requestId:requestId(JSON.stringify({crew:selected.id,version:selected.version,assignments}))}),'Crew assignments saved.')}}/></div>}
 
         </div>{inspector&&<DetailPanel className="production-inspector" label="Review and activity">
           <ReadinessChecklist brief={selected}/><ReviewPanel brief={selected} access={access} busy={busy} dirty={dirty} onAction={action} onDraftChange={setReviewDraft} />
           {!access.canReview&&!access.canAdminister&&!access.isExecutive&&selected.events.filter(e=>e.comment&&['denied','changes_requested','approved'].includes(e.kind)).slice(-1).map(e=><section key={e.id}><h3>Decision reason</h3><blockquote>{e.comment}</blockquote></section>)}
           {(access.canReview||access.canAdminister||access.isExecutive)&&<section className="production-history"><h3>Activity & revisions</h3>{[...selected.events].reverse().map(e => { const sending = e.id.startsWith('pending:'); return <article key={e.id} className={sending ? 'is-sending' : undefined} aria-busy={sending || undefined}><div><strong>{statusLabel(e.kind)}</strong><small>{sending ? 'Sending…' : dateTimeLabel(e.createdAt)}</small></div><p>{e.actorName}{e.section ? ` in ${e.section}` : ''}</p>{e.comment && <blockquote>{e.comment}</blockquote>}{e.snapshot && <button onClick={() => setSnapshot(e)}>View revision {e.version}</button>}</article> })}</section>}
         </DetailPanel>}</div>
-        {snapshot && <section className="production-snapshot" aria-label="Submission snapshot"><div><h3>Recorded revision {snapshot.version}</h3><button onClick={() => setSnapshot(null)}>Close snapshot</button></div><p>This preserves the brief at this point in its review history.</p><dl>{snapshotFields.map(([k, label]) => <div key={k}><dt>{label}</dt><dd>{k === 'deliveryDate' ? (snapshot.snapshot![k] ? dateLabel(snapshot.snapshot![k]) : 'Not set') : snapshot.snapshot![k] || 'Not added'}</dd></div>)}<div><dt>Production types</dt><dd>{snapshot.snapshot!.productionTypes.join(', ')}</dd></div>{briefSections.flatMap(s => s.fields).filter(f => snapshot.snapshot!.fields[f.key]).map(f => <div key={f.key}><dt>{f.label}</dt><dd>{snapshot.snapshot!.fields[f.key]}</dd></div>)}</dl>{snapshot.attachments?.map(a => <button key={a.id} disabled={busy} onClick={() => void run(async client => { const file = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = file.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() }, null)}>Download {a.name}</button>)}</section>}
+        <div className="production-print" id="production-print-preview">
+          {showingPrintPreview && <p className="production-print-help">Use your browser’s Print command (⌘P or Ctrl+P) to print or save as PDF.</p>}
+          <BriefPrint brief={selected} data={showingPrintPreview ? form : selected.data} />
+        </div>
+        {snapshot && <section hidden={showingPrintPreview} aria-label="Submission snapshot"><div><h3>Recorded revision {snapshot.version}</h3><button onClick={() => setSnapshot(null)}>Close snapshot</button></div><p>This preserves the brief at this point in its review history.</p><dl>{snapshotFields.map(([k, label]) => <div key={k}><dt>{label}</dt><dd>{k === 'deliveryDate' ? (snapshot.snapshot![k] ? dateLabel(snapshot.snapshot![k]) : 'Not set') : snapshot.snapshot![k] || 'Not added'}</dd></div>)}<div><dt>Production types</dt><dd>{snapshot.snapshot!.productionTypes.join(', ')}</dd></div>{briefSections.flatMap(s => s.fields).filter(f => snapshot.snapshot!.fields[f.key]).map(f => <div key={f.key}><dt>{f.label}</dt><dd>{snapshot.snapshot!.fields[f.key]}</dd></div>)}</dl>{snapshot.attachments?.map(a => <button key={a.id} disabled={busy} onClick={() => void run(async client => { const file = await client.download(selected.id,a.id); const link = document.createElement('a'); link.href = file.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click() }, null)}>Download {a.name}</button>)}</section>}
       </div>}
     </>}
     </div>
   </main>
+}
+function BriefPrint({ brief, data }: { brief: ProductionBrief; data: BriefData }) {
+  return <article>
+    <h2>{data.projectName || 'Production brief'}</h2>
+    <p>{[data.client, statusLabels[brief.status], `Revision ${brief.version}`].filter(Boolean).join(', ')}</p>
+    <p>Requested by {brief.ownerName}. Managers: {data.managers}. Production supervisor: {data.supervisor || 'Not assigned'}</p>
+    <p>Delivery: {data.deliveryDate ? dateLabel(data.deliveryDate) : 'Not set'}. Production: {data.productionTypes.join(', ')}</p>
+    {brief.shootStartsAt && brief.shootEndsAt && <p>Confirmed shoot: {dateLabel(brief.shootStartsAt)} – {dateLabel(new Date(Date.parse(brief.shootEndsAt) - 1).toISOString())}</p>}
+    {visibleSections(data).map(section => <section key={section.title}>
+      <h3>{section.title}</h3>
+      <dl>{section.fields.filter(field => data.fields[field.key]).map(field => <div key={field.key}>
+        <dt>{field.label}</dt><dd>{data.fields[field.key]}</dd>
+      </div>)}</dl>
+    </section>)}
+  </article>
 }
 function ReviewPanel({ brief, access, busy, dirty, onAction, onDraftChange }: { brief: ProductionBrief; access: ProductionAccess; busy: boolean; dirty: boolean; onAction: (command: Omit<BriefCommand,'version'|'requestId'>) => Promise<boolean>; onDraftChange: (hasDraft: boolean) => void }) {
   const [comment,setComment] = useState(''), [section,setSection] = useState(''), [start,setStart] = useState(''), [end,setEnd] = useState(''), [hold,setHold]=useState('')
