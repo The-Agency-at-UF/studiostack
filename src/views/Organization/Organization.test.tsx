@@ -9,7 +9,7 @@ describe('Organization preview', () => {
   it('opens settings directly from the account settings route', () => {
     render(<Organization isAdmin initialTab="settings" />)
     expect(screen.getByLabelText('Organization name')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('keeps dialogs open in strict mode and restores keyboard focus', async () => {
@@ -55,7 +55,7 @@ describe('Organization preview', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create preview invitation' }))
     expect(screen.getByText('Avery Test')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('No email was sent')
-    await user.click(screen.getByRole('button', { name: 'Activity' }))
+    await user.click(screen.getByRole('tab', { name: 'Activity' }))
     expect(screen.getAllByText(/Preview invitation created for Avery Test/).length).toBeGreaterThan(0)
   })
 
@@ -96,10 +96,10 @@ describe('Organization preview', () => {
     expect(within(screen.getByRole('region', { name: 'Members' })).queryByText('Alex Rivera')).not.toBeInTheDocument()
     const row = within(screen.getByRole('region', { name: 'Admin' })).getByText('Alex Rivera').closest('li')!
     await user.click(screen.getByRole('button', { name: 'Suspend Alex Rivera' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm preview change' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^(Suspend|Restore) Alex Rivera$|^Revoke invitation$/ }))
     expect(within(row).getByText('Suspended')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Restore Alex Rivera' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm preview change' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^(Suspend|Restore) Alex Rivera$|^Revoke invitation$/ }))
     expect(within(row).getByText('Active')).toBeInTheDocument()
   })
 
@@ -107,17 +107,17 @@ describe('Organization preview', () => {
     const user = userEvent.setup()
     render(<Organization isAdmin />)
     await user.click(screen.getByRole('button', { name: 'Revoke invitation for Taylor Chen' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Keep as is' }))
     expect(screen.getByText('Taylor Chen')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Revoke invitation for Taylor Chen' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm preview change' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^(Suspend|Restore) Alex Rivera$|^Revoke invitation$/ }))
     expect(screen.queryByText('Taylor Chen')).not.toBeInTheDocument()
   })
 
   it('saves preview settings', async () => {
     const user = userEvent.setup()
     render(<Organization isAdmin />)
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByRole('tab', { name: 'Settings' }))
     await user.clear(screen.getByLabelText('Organization name'))
     await user.type(screen.getByLabelText('Organization name'), 'UF Preview Studio')
     await user.click(screen.getByRole('button', { name: 'Save preview settings' }))
@@ -130,7 +130,7 @@ describe('Organization preview changes', () => {
   it('keeps changes when the page is opened again and follows a rename', async () => {
     const user = userEvent.setup()
     const { unmount } = render(<Organization isAdmin />)
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByRole('tab', { name: 'Settings' }))
     const name = screen.getByLabelText('Organization name')
     await user.clear(name); await user.type(name, 'Renamed Org')
     await user.click(screen.getByRole('button', { name: /Save preview settings/ }))
@@ -142,7 +142,7 @@ describe('Organization preview changes', () => {
   it('explains why a blank name is not saved', async () => {
     const user = userEvent.setup()
     render(<Organization isAdmin />)
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByRole('tab', { name: 'Settings' }))
     const name = screen.getByLabelText('Organization name')
     await user.clear(name); await user.type(name, '   ')
     await user.click(screen.getByRole('button', { name: /Save preview settings/ }))

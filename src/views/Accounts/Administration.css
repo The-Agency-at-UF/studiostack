@@ -1,32 +1,33 @@
 .administration { max-width:1200px;margin:32px auto;padding:32px;background:var(--surface);color:var(--ink); }
 .administration header { display:flex;justify-content:space-between;align-items:center;gap:24px;padding-bottom:24px; }
-.administration h1 { font-size:30px;line-height:1.2;font-weight:650;letter-spacing:-.8px; }
-.administration header p:last-child { margin-top:10px;color:var(--muted);font-size:14px; }
+.administration h1 { font-size:var(--text-title);line-height:1.2;font-weight:var(--weight-medium);letter-spacing:-.8px; }
+.administration header p:last-child { margin-top:10px;color:var(--muted);font-size:var(--text-sm); }
 .administration section { border-top:1px solid var(--line);padding:24px 0; }
-.administration h2 { font-size:18px;font-weight:600;margin-bottom:18px; }
+.administration h2 { font-size:var(--text-lg);font-weight:600;margin-bottom:18px; }
 .administration-form { display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px; }
-.administration label { display:flex;flex-direction:column;gap:7px;font-size:13px; }
-.administration input { border:1px solid var(--line-strong);border-radius:var(--radius-pill);background:white;padding:10px 12px;color:var(--ink);max-width:100%; }
-.administration button { background:var(--accent);color:white;border-radius:var(--radius-pill);padding:10px 16px;font-size:13px;transition:background var(--motion-fast),scale var(--motion-press) var(--ease-out); }
+.administration label { display:flex;flex-direction:column;gap:7px;font-size:var(--text-sm); }
+.administration input { border:1px solid var(--line-control);border-radius:var(--radius-pill);background:var(--surface);padding:10px 12px;color:var(--ink);max-width:100%; }
+.administration button { background:var(--accent);color:var(--on-frame);border-radius:var(--radius-pill);padding:10px 16px;font-size:var(--text-sm);transition:background var(--motion-fast),scale var(--motion-press) var(--ease-out); }
 .administration button:hover { background:var(--accent-hover); }
 .administration button:disabled { opacity:.45;cursor:default; }
-.administration [role=alert] { color:#9b2435;padding:14px 0; }
-.administration [role=status] { padding:12px 0;color:#4c6356; }
-.administration-hint { font-size:12px;color:var(--muted);margin-top:14px;max-width:720px; }
+/* Bare inline messages only; :where() keeps these at zero specificity so Notice and component classes win. */
+:where(.administration) :where(p,div):where([role=alert]):not([class]) { color:var(--danger);padding:var(--space-3) 0; }
+:where(.administration) :where(p,div):where([role=status]):not([class]) { padding:var(--space-3) 0;color:var(--success); }
+.administration-hint { font-size:var(--text-xs);color:var(--muted);margin-top:14px;max-width:720px; }
 .administration-table { overflow:auto; }
-.administration table { width:100%;border-collapse:collapse;font-size:13px; }
-.administration th { text-align:left;font-weight:500;color:var(--muted); }
+.administration table { width:100%;border-collapse:collapse;font-size:var(--text-sm); }
+.administration th { text-align:left;font-weight:var(--weight-regular);color:var(--muted); }
 .administration th,.administration td { padding:12px 14px 12px 0;border-bottom:1px solid var(--line); }
 .administration td small,.administration-list span,.administration-list small { display:block;color:var(--muted);margin-top:4px; }
-.administration-list li { display:flex;justify-content:space-between;align-items:center;gap:24px;padding:15px 0;border-bottom:1px solid var(--line);font-size:13px; }
+.administration-list li { display:flex;justify-content:space-between;align-items:center;gap:24px;padding:15px 0;border-bottom:1px solid var(--line);font-size:var(--text-sm); }
 .administration-actions { display:flex;gap:10px; }
 .administration .administration-checkbox { flex-direction:row;align-items:center; }
 .administration-checkbox input { width:16px;height:16px;accent-color:var(--accent); }
-@media(max-width:700px){.administration{margin:16px;padding:20px}.administration h1{font-size:25px}.administration-list li{align-items:flex-start;flex-direction:column}.administration-form label{width:100%}.administration-actions{flex-wrap:wrap}}
+@media(max-width:767px){.administration{margin:16px;padding:20px}.administration h1{font-size:var(--text-xl)}.administration-list li{align-items:flex-start;flex-direction:column}.administration-form label{width:100%}.administration-actions{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.administration button{transition:none}}
-.administration.workspace-surface { background:#fff; }
-.administration.workspace-surface header h1 { font-family:var(--font-ui);font-size:clamp(38px,4vw,58px);font-weight:800;line-height:.95;letter-spacing:-.055em; }
-@media(max-width:700px){.administration.workspace-surface header h1{font-size:36px}}
+.administration.workspace-surface { background:var(--surface); }
+.administration.workspace-surface header h1 { font-family:var(--font-ui);font-size:clamp(38px,4vw,58px);font-weight:var(--weight-bold);line-height:.95;letter-spacing:-.055em; }
+@media(max-width:767px){.administration.workspace-surface header h1{font-size:2.25rem}}
 /* The Organization settings page uses the shared Organization header instead of the page header above. */
 .administration.workspace-surface header.org-header { justify-content:flex-start;align-items:center;flex-direction:row;padding-bottom:0; }
 .administration.workspace-surface header.org-header h1 { font-size:var(--text-title);font-weight:var(--weight-bold);line-height:var(--line-heading);letter-spacing:normal; }
@@ -34,15 +35,15 @@
 .administration .org-header-tabs { margin:var(--space-6) 0; }
 .administration .administration-secondary { background:transparent;color:var(--ink);border:1px solid var(--line-strong); }
 .administration .administration-secondary:hover { background:var(--line); }
-.administration-count { display:inline-block;min-width:22px;margin-left:10px;padding:2px 7px;border-radius:999px;background:var(--accent);color:white;font-size:12px;text-align:center;vertical-align:middle; }
+.administration-count { display:inline-block;min-width:22px;margin-left:10px;padding:2px 7px;border-radius:999px;background:var(--accent);color:var(--on-frame);font-size:var(--text-xs);text-align:center;vertical-align:middle; }
 .administration-code { display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:18px;padding:16px;border:1px dashed var(--line-strong);border-radius:6px; }
-.administration-code code { font-size:20px;font-weight:650;letter-spacing:.12em; }
+.administration-code code { font-size:var(--text-lg);font-weight:var(--weight-medium);letter-spacing:.12em; }
 .administration-code small { flex-basis:100%;color:var(--muted); }
-.administration-code-value { margin-left:8px;font-weight:650;letter-spacing:.08em; }
+.administration-code-value { margin-left:8px;font-weight:var(--weight-medium);letter-spacing:.08em; }
 
 .administration td button + button { margin-left:10px; }
 .administration .administration-logo { flex-basis:100%; display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin:0; padding:0; border:0; }
-.administration .administration-logo legend { padding:0; margin-bottom:8px; font-size:13px; font-weight:600; }
+.administration .administration-logo legend { padding:0; margin-bottom:8px; font-size:var(--text-sm); font-weight:600; }
 .administration .administration-logo .account-org-logo { width:56px; height:56px; font-size:var(--text-xl); }
 .administration .administration-logo-pick { position:relative; flex-direction:row; align-items:center; min-height:var(--control-height); padding:0 16px; border:1px solid var(--line-strong); border-radius:4px; background:var(--surface); font-weight:600; cursor:pointer; }
 .administration .administration-logo-pick:focus-within { outline:var(--focus-width) solid var(--accent); outline-offset:var(--focus-offset); }
@@ -56,7 +57,7 @@
 .administration-index { position:sticky; top:var(--space-6); display:grid; gap:2px; }
 .administration-index a { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); min-height:40px; padding:var(--space-2) var(--space-3); border-radius:var(--radius-control); color:var(--muted); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; transition:background var(--motion-fast),color var(--motion-fast); }
 .administration-index a:hover { color:var(--ink); background:var(--surface-tray); }
-.administration-index a[aria-current] { color:var(--ink); background:var(--surface); box-shadow:0 1px 2px #19171e14; }
+.administration-index a[aria-current] { color:var(--ink); background:var(--surface); box-shadow:0 1px 2px color-mix(in srgb,var(--ink) 8%,transparent); }
 .administration-index .administration-count { margin-left:0; }
 .administration-sections { display:grid; gap:var(--space-6); min-width:0; }
 .administration-sections > section { scroll-margin-top:var(--space-6); }
@@ -106,7 +107,7 @@
   /* Clear the fixed mobile top bar when jumping to a section. */
   .administration-sections > section { scroll-margin-top:calc(var(--header-height) + var(--space-4)); }
 }
-@media(max-width:700px){
+@media(max-width:767px){
   .administration-layout .administration-panel { padding:var(--space-5); }
   .administration-settings { grid-template-columns:minmax(0,1fr); }
   .administration-settings .administration-logo { flex-wrap:wrap; }

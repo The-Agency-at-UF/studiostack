@@ -3,24 +3,28 @@ import Link from 'next/link'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {createPreviewDatabaseApi} from '../../preview/database'
 import {createDatabaseApiClient,DatabaseApiClientError} from '../../api/database'
+import {serverMessage} from '../../api/errorText'
 import {authConfiguration} from '../../auth/cognito'
 import {useAppSession} from '../../context/AppSessionContext'
 import type {ApiPage} from '../../types/database-api'
 import type {JoinCode,OrganizationInvitation,OrganizationSettings,OrganizationActivity,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
-import {Skeleton} from '../../components/workspace/WorkspaceUI'
+import {Skeleton,LoadError} from '../../components/workspace/WorkspaceUI'
+import ConfirmDialog from '../../components/workspace/ConfirmDialog'
+import {useUnsavedGuard} from '../../components/workspace/useUnsavedGuard'
 import { Pagination } from '../../components/workspace/Pagination'
 import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
-import JoinMethods,{AccessRequests,settled,type AdminLists,type Run} from './JoinMethods'
+import JoinMethods,{AccessRequests,ConfirmChange,settled,type AdminLists,type PendingConfirm,type Run} from './JoinMethods'
 import {uploadOrganizationPhoto} from '../../api/privatePhotos'
 import {OrganizationLogo} from '../Account/Account'
 import OrganizationHeader from '../Organization/OrganizationHeader'
-import './Administration.css'
+import { dateLabel } from '../../format'
 /** What each administration change says once it is saved, keyed by the prefix of its request key. */
 const savedMessages:[string,string][]=[['retry:','Invitation email queued to send again.'],['revoke:','Invitation revoked.'],['approve:','Access request approved.'],['deny:','Access request denied.'],['{"code"','Join code created.'],['{"domain"','Domain added.'],['domain:','Domain setting updated.'],['remove-domain:','Domain removed.'],['revoke-code:','Join code revoked.']]
 const savedMessage=(key:string)=>savedMessages.find(([prefix])=>key.startsWith(prefix))?.[1]??'Organization settings saved.'
 async function all<T>(read:(after?:string)=>Promise<ApiPage<T>>){const items:T[]=[];let after:string|undefined;do{const page=await read(after);items.push(...page.items);after=page.nextCursor??undefined}while(after);return items}
-const message=(error:unknown)=>error instanceof DatabaseApiClientError?({403:'Your account cannot manage this organization.',409:'The record changed or the action is unavailable. Refresh before trying again.',400:'Check the form values and active team members.',401:'Your session expired. Sign in again.'}[error.status]??'The service is unavailable. Your changes have not been confirmed.'):'The service is unavailable. Your changes have not been confirmed.'
+/** Administration failures: the server's own reason when it gave one, otherwise what happened and what to do. */
+const message=(error:unknown,kind:'load'|'save'='save')=>kind==='load'&&!(error instanceof DatabaseApiClientError&&[401,403].includes(error.status))?'This couldn’t load. Check your connection, then try again.':serverMessage(error)??(error instanceof DatabaseApiClientError?({403:'Your account can’t manage this organization. Ask an owner for admin access.',409:'Someone else changed this just now. Refresh, then try again.',400:'Some details weren’t accepted. Check the form and the active team members, then try again.',401:'Your session expired. Sign in again to continue.'} as Record<number,string>)[error.status]??'StudioStack couldn’t confirm the change. Check your connection, then try again.':'StudioStack couldn’t confirm the change. Check your connection, then try again.')
 
 const SECTIONS=[{id:'general',label:'General'},{id:'joining',label:'How people join'},{id:'invitations',label:'Invitations & requests'},{id:'activity',label:'Activity'}] as const
 const ACTIVITY:Record<string,string>={
@@ -50,7 +54,8 @@ export default function Administration() {
     const [rows,pending,joinCodes,owned,events]=await Promise.all([all(api.invitations),all(api.accessRequests),all(api.joinCodes),s.role==='owner'?all(api.domains):Promise.resolve([]),all(api.activity)])
     if(!stale()){setInvitations(rows);setRequests(pending);setCodes(joinCodes);setDomains(owned);setActivity(events)}
   },[api])
-  useEffect(()=>{const g=++generation.current;setSettings(null);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load])
+  const [attempt,setAttempt]=useState(0),[pending,setPending]=useState<PendingConfirm|null>(null)
+  useEffect(()=>{const g=++generation.current;setSettings(null);setInvitations([]);setActivity([]);setRequests([]);setCodes([]);setDomains([]);setError('');setBusy(false);setLoading(true);load().catch(e=>{if(g===generation.current)setError(message(e,'load'))}).finally(()=>{if(g===generation.current)setLoading(false)});return()=>{generation.current++}},[load,attempt])
   const lists=():AdminLists=>({invitations,requests,codes,domains})
   const put=(l:AdminLists)=>{setInvitations(l.invitations);setRequests(l.requests);setCodes(l.codes);setDomains(l.domains)}
   /**
@@ -85,27 +90,28 @@ export default function Administration() {
   const invitationPage=usePagination(invitations,[org])
   return <main className="administration administration-settings-page workspace-surface">
     <OrganizationHeader settings={settings} active="settings"/>
-    {error&&<p role="alert">{error}</p>}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
+    <ConfirmChange pending={pending} onDone={()=>setPending(null)}/>
+    {error&&(!settings&&!loading?<LoadError what="Organization settings" message={error} onRetry={()=>setAttempt(n=>n+1)}/>:<p role="alert">{error}</p>)}{loading&&<Skeleton label="Loading organization…" variant="row" count={4}/>}
     {!loading&&settings&&!admin&&<p>Only organization owners and administrators can manage the organization.</p>}
     {ready&&<div className="administration-layout">
       <nav className="administration-index" aria-label="Settings sections">
-        {SECTIONS.map(s=><a key={s.id} href={`#${s.id}`} aria-current={current===s.id?'location':undefined} onClick={()=>setCurrent(s.id)}>{s.label}{s.id==='invitations'&&waiting>0&&<span className="administration-count" aria-label={`${waiting} pending`}>{waiting}</span>}</a>)}
+        {SECTIONS.map(s=><a key={s.id} href={`#${s.id}`} aria-current={current===s.id?'location':undefined} onClick={()=>setCurrent(s.id)}>{s.label}{s.id==='invitations'&&waiting>0&&<><span className="administration-count" aria-hidden="true">{waiting}</span><span className="ws-sr-only">, {waiting} pending</span></>}</a>)}
       </nav>
       <div className="administration-sections">
         <section id="general" className="administration-panel ws-enter" aria-labelledby="general-title">
-          <header className="administration-panel-header"><h2 id="general-title">General</h2><p>How your workspace appears to members and to people searching for it.</p></header>
+          <header className="administration-panel-header"><h2 id="general-title">General</h2><p>How your organization appears to members and to people searching for it.</p></header>
           <SettingsForm key={settings.version} settings={settings} busy={busy} run={run} logoUrl={session.organizations?.find(o=>o.id===org)?.logoUrl??null} uploadLogo={async file=>{if(!database||!org)throw new Error('Sign in to upload a logo');return (await uploadOrganizationPhoto(file,org,database)).photoId}}/>
           <p className="administration-hint">Production Leads and Executive Leadership Team members are chosen in <Link href="/production/">Production</Link> → Production roles.</p>
         </section>
         <section id="joining" className="administration-panel" aria-labelledby="joining-title">
-          <header className="administration-panel-header"><h2 id="joining-title">How people join</h2><p>Self-service routes into the workspace. Everyone who joins this way starts as a member.</p></header>
+          <header className="administration-panel-header"><h2 id="joining-title">How people join</h2><p>Self-service ways into the organization. Everyone who joins this way starts as a member.</p></header>
           <JoinMethods owner={owner} busy={busy} run={run} codes={codes} domains={domains}/>
         </section>
         <section id="invitations" className="administration-panel" aria-labelledby="invitations-title">
           <header className="administration-panel-header"><h2 id="invitations-title">Invitations &amp; requests</h2><p>Invitations you’ve sent and what happened to them. Send new ones from People.</p></header>
           <AccessRequests key={org} busy={busy} run={run} requests={requests}/>
           {invitations.length>0&&<div className="administration-group">{requests.length>0&&<h3>Invitations</h3>}
-            <ul className="administration-list">{invitationPage.pageRows.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role==='admin'?'Admin':'Member'}</span><small>{pending?`Waiting to accept · ${({queued:'Email queued',sending:'Email sending',sent:'Email sent',skipped:'Email skipped',failed:'Email failed to send',uncertain:'Email delivery unconfirmed'} as const)[i.deliveryStatus]} · Expires ${new Date(i.expiresAt).toLocaleDateString()}`:i.status==='accepted'?'Joined':i.status==='revoked'?'Revoked':'Expired'}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}),{apply:l=>({...l,invitations:l.invitations.map(v=>v.id===i.id?{...v,status:'revoked'}:v)}),settle:(l,saved)=>({...l,invitations:settled(l.invitations,'id',saved)})})}>Revoke invitation</button></div>}</li>})}</ul>
+            <ul className="administration-list">{invitationPage.pageRows.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role==='admin'?'Admin':'Member'}</span><small>{pending?`Waiting to accept · ${({queued:'Email queued',sending:'Email sending',sent:'Email sent',skipped:'Email skipped',failed:'Email failed to send',uncertain:'Email delivery unconfirmed'} as const)[i.deliveryStatus]} · Expires ${dateLabel(i.expiresAt)}`:i.status==='accepted'?'Joined':i.status==='revoked'?'Revoked':'Expired'}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>setPending({title:'Revoke this invitation?',subject:`${i.displayName} · ${i.email}`,description:'The link in their email stops working. You can invite them again later.',confirmLabel:'Revoke invitation',returnFocus:()=>document.getElementById('invitations-title'),go:()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}),{apply:l=>({...l,invitations:l.invitations.map(v=>v.id===i.id?{...v,status:'revoked'}:v)}),settle:(l,saved)=>({...l,invitations:settled(l.invitations,'id',saved)})})})}>Revoke invitation<span className="ws-sr-only"> for {i.displayName}</span></button></div>}</li>})}</ul>
             <Pagination label="Invitations" pagination={invitationPage.pagination}/>
             {invitations.some(i=>i.status==='pending'&&i.deliveryStatus==='uncertain')&&<p className="administration-hint">When delivery is unconfirmed the email may still have arrived. Check with the teammate before retrying.</p>}
           </div>}
@@ -129,16 +135,20 @@ function SettingsForm({settings,busy,run,logoUrl,uploadLogo}:{settings:Organizat
   useEffect(()=>{if(!logo){setPreview(null);return}const url=URL.createObjectURL(logo);setPreview(url);return()=>URL.revokeObjectURL(url)},[logo])
   const shownLogo=logo===null?null:preview??(settings.logoPhotoId?logoUrl:null)
   const dirty=edited||logo!==undefined
-  return <form className="administration-settings" onInput={()=>setEdited(true)} onReset={()=>{setEdited(false);setLogo(undefined)}} onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),value={name:String(f.get('name')),reservationDays:Number(f.get('days')),location:String(f.get('location')).trim()||null,version:settings.version},file=logo
+  const form=useRef<HTMLFormElement>(null)
+  // Leaving with unsaved settings asks first; Discard is the only quiet way out.
+  const [leave,setLeave]=useState<(()=>void)|null>(null)
+  useUnsavedGuard(dirty,proceed=>setLeave(()=>proceed))
+  return <>{leave&&<ConfirmDialog title="Discard unsaved settings?" description="Your changes to the organization’s name, location, reservation limit or logo haven’t been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={()=>setLeave(null)} onConfirm={()=>{const go=leave;setLeave(null);form.current?.reset();go()}}/>}<form ref={form} className="administration-settings" onInput={()=>setEdited(true)} onReset={()=>{setEdited(false);setLogo(undefined)}} onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),value={name:String(f.get('name')),reservationDays:Number(f.get('days')),location:String(f.get('location')).trim()||null,version:settings.version},file=logo
     void run(JSON.stringify({...value,logo:file===undefined?'keep':file&&[file.name,file.size,file.lastModified]}),async(c,requestId)=>c.saveSettings({...value,...(file===undefined?{}:{logoPhotoId:file?await uploadLogo(file):null}),requestId}))}}>
-    <fieldset className="administration-logo"><legend>Workspace logo</legend>
+    <fieldset className="administration-logo"><legend>Organization logo</legend>
       <OrganizationLogo organization={{name:settings.name,logoUrl:shownLogo}}/>
       <div className="administration-logo-controls">
         <div className="administration-actions">
           <label className="administration-logo-pick">{shownLogo?'Replace logo':'Upload logo'}<input type="file" accept="image/*,.heic,.heif,.avif" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)setLogo(file);e.target.value=''}}/></label>
           {shownLogo&&<button type="button" className="administration-quiet administration-danger" disabled={busy} onClick={()=>setLogo(null)}>Remove logo</button>}
         </div>
-        <small>{logo===undefined?'A square image works best. Members see it next to the workspace name.':logo?'New logo selected. Save settings to apply it.':'The logo will be removed when you save settings.'}</small>
+        <small>{logo===undefined?'A square image works best. Members see it next to the organization name.':logo?'New logo selected. Save settings to apply it.':'The logo will be removed when you save settings.'}</small>
       </div>
     </fieldset>
     <label>Organization name<input name="name" maxLength={120} defaultValue={settings.name} required/></label>
@@ -147,7 +157,7 @@ function SettingsForm({settings,busy,run,logoUrl,uploadLogo}:{settings:Organizat
     <div className="administration-form-footer">
       {dirty&&<span className="administration-dirty">Unsaved changes</span>}
       <button type="reset" className="administration-secondary" disabled={busy||!dirty}>Discard</button>
-      <button type="submit" disabled={busy}>Save settings</button>
+      <button type="submit" className="ws-button-primary" disabled={busy}>Save settings</button>
     </div>
-  </form>
+  </form></>
 }

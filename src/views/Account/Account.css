@@ -1,4 +1,4 @@
-.account-page { box-sizing:border-box; width:100%; max-width:1104px; margin:0 auto; padding:var(--space-8); color:var(--ink); font-family:var(--font-ui); font-size:var(--text-sm); line-height:var(--line-body); }
+.account-page { box-sizing:border-box; width:100%; max-width:var(--workspace-max); margin:0 auto; padding:var(--space-8); color:var(--ink); font-family:var(--font-ui); font-size:var(--text-sm); line-height:var(--line-body); }
 .account-page .sr-only { position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 .account-page h1,.account-page h2 { font-family:var(--font-ui); letter-spacing:-.02em; font-weight:var(--weight-bold); line-height:var(--line-heading); margin:0; }
 .account-page h1 { font-size:var(--text-title); overflow-wrap:anywhere; }
@@ -9,13 +9,13 @@
 .account-subtitle { margin:var(--space-1) 0 0; color:var(--muted); }
 
 .account-layout { display:grid; grid-template-columns:200px minmax(0,1fr); gap:var(--space-6); align-items:start; }
-.account-sections { display:flex; flex-direction:column; gap:2px; }
+.account-sections,.account-tablist { display:flex; flex-direction:column; gap:2px; }
 .account-sections button { min-height:var(--control-height); padding:var(--space-2) var(--space-3); border:0; border-radius:var(--radius-control); background:transparent; color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
 .account-sections button:hover { background:var(--surface-hover); }
-.account-sections button[aria-current=page] { background:var(--accent-soft); color:var(--accent); font-weight:var(--weight-medium); }
+.account-sections [role=tab][aria-selected=true] { background:var(--accent-soft); color:var(--accent); font-weight:var(--weight-medium); }
 .account-sections hr { width:100%; border:0; border-top:1px solid var(--line); margin:var(--space-3) 0; }
-.account-sections .account-signout-link { color:var(--danger); font-weight:var(--weight-medium); }
-.account-sections .account-signout-link:hover { background:var(--danger-soft); }
+.account-sections .account-signout-link { color:var(--ink); font-weight:var(--weight-medium); }
+.account-sections .account-signout-link:hover { background:var(--surface-hover); }
 .account-sections button:focus-visible,.account-workspace:focus-within { outline:var(--focus-width) solid var(--accent); outline-offset:var(--focus-offset); }
 
 .account-content { display:flex; flex-direction:column; gap:var(--space-6); min-width:0; }
@@ -24,7 +24,7 @@
 .account-card-heading p { margin:var(--space-1) 0 0; color:var(--muted); }
 .account-card-body { display:flex; flex-direction:column; gap:var(--space-4); padding:var(--space-5) var(--space-6); }
 .account-card-body .ws-notice { margin:0; }
-.account-page .ws-field input { min-height:var(--control-height); box-sizing:border-box; padding:0 var(--space-4); border:1px solid var(--line-strong); border-radius:var(--radius-pill); background:var(--surface); color:var(--ink); font:inherit; font-weight:var(--weight-regular); }
+.account-page .ws-field input { min-height:var(--control-height); box-sizing:border-box; padding:0 var(--space-4); border:1px solid var(--line-control); border-radius:var(--radius-pill); background:var(--surface); color:var(--ink); font:inherit; font-weight:var(--weight-regular); }
 .account-page .ws-field input[readonly] { background:var(--surface-subtle); border-color:var(--line); color:var(--muted); }
 .account-page .ws-field input[aria-invalid=true] { border-color:var(--danger); }
 .account-page .ws-field { font-weight:var(--weight-medium); }
@@ -61,21 +61,22 @@
 .account-page .ws-button-danger-solid:not(:disabled):hover { background:var(--danger); filter:brightness(.9); }
 .account-page .ws-button-danger-solid:disabled { opacity:.5; cursor:not-allowed; }
 
-@media (max-width: 767px) {
+@media (max-width:767px) {
   .account-page { padding:var(--space-6) var(--space-4); }
   .account-header { margin-bottom:var(--space-6); }
   .account-page h1 { font-size:var(--text-xl); }
   .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
   .account-sections { flex-direction:row; overflow-x:auto; border-bottom:1px solid var(--line); gap:var(--space-4); }
+  .account-tablist { flex-direction:row; gap:var(--space-4); }
   .account-sections button { flex:none; border-radius:0; padding:var(--space-2) 0; border-bottom:2px solid transparent; }
-  .account-sections button[aria-current=page] { background:transparent; border-bottom-color:var(--accent); }
+  .account-sections [role=tab][aria-selected=true] { background:transparent; border-bottom-color:var(--accent); }
   .account-sections { scrollbar-width:none; }
   .account-sections :is(hr,.account-signout-link) { display:none; }
   .account-card-heading,.account-card-body,.account-workspace,.account-row { padding-left:var(--space-4); padding-right:var(--space-4); }
 }
 .account-toggle { cursor:pointer; flex-wrap:nowrap; }
 .account-toggle input { flex:none; width:1.125rem; height:1.125rem; accent-color:var(--accent); }
-@media (max-width:760px) {
+@media (max-width:767px) {
   /* Shadow on the edge with more sections, so the scrolled-off tabs are discoverable. */
   .account-sections { background-image:linear-gradient(to right,var(--canvas) 30%,transparent),linear-gradient(to left,var(--canvas) 30%,transparent),radial-gradient(farthest-side at 0 50%,#19171e2e,transparent),radial-gradient(farthest-side at 100% 50%,#19171e2e,transparent); background-position:left center,right center,left center,right center; background-size:32px 100%,32px 100%,12px 100%,12px 100%; background-repeat:no-repeat; background-attachment:local,local,scroll,scroll; }
 }

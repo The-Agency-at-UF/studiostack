@@ -4,6 +4,6 @@
 .org-header p { margin:var(--space-1) 0 0; color:var(--muted); font-size:var(--text-sm); }
 .org-header-monogram { width:52px; height:52px; display:grid; place-items:center; flex-shrink:0; border-radius:var(--radius-panel); background:var(--ink); color:var(--surface); font-family:var(--font-ui); font-size:var(--text-lg); font-weight:var(--weight-bold); }
 .org-header-logo { object-fit:cover; background:none; }
-@media (max-width:700px) {
+@media (max-width:767px) {
   .org-header > .ws-button { width:100%; justify-content:center; }
 }

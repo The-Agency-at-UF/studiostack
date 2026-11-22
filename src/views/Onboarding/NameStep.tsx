@@ -9,6 +9,6 @@ export default function NameStep({initialName,email,onSave,onSignOut}:{initialNa
     <label>Your name<input value={name} onChange={e=>{setName(e.target.value);setError('')}} maxLength={120} autoComplete="name" aria-invalid={Boolean(error)} aria-describedby={error?'welcome-name-error':undefined} autoFocus/></label>
     {error&&<p id="welcome-name-error" className="login-error" role="alert">{error}</p>}
     {email&&<label>Email<input value={email} readOnly/></label>}
-    <WelcomeActions primary={busy?'Saving…':'Continue'} busy={busy} secondary={<button type="button" className="login-text-action" onClick={onSignOut}>Sign out</button>}/>
+    <WelcomeActions primary={busy?'Saving name…':'Save name'} busy={busy} secondary={<button type="button" className="login-text-action" onClick={onSignOut}>Sign out</button>}/>
   </form>
 }

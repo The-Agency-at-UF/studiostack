@@ -9,10 +9,11 @@ import type {ApiOrganization} from '../../types/database-api'
 import EmailVerification from '../Production/EmailVerification'
 import NotificationsTab from './Notifications'
 import {useToast} from '../../components/workspace/Toast'
-import './Account.css'
+import { dateLabel, roleLabel as formatRole } from '../../format'
+import { tabKeys } from '../../components/workspace/tabs'
 
 type AccountTab='profile'|'workspaces'|'notifications'|'security'
-const tabs:{value:AccountTab;label:string}[]=[{value:'profile',label:'Profile'},{value:'workspaces',label:'Workspaces'},{value:'notifications',label:'Notifications'},{value:'security',label:'Sign-in and security'}]
+const tabs:{value:AccountTab;label:string}[]=[{value:'profile',label:'Profile'},{value:'workspaces',label:'Organizations'},{value:'notifications',label:'Notifications'},{value:'security',label:'Sign-in and security'}]
 const roleLabel=(role:ApiOrganization['role'])=>role[0].toUpperCase()+role.slice(1)
 const initials=(email:string)=>(email.split('@')[0].match(/[a-z]+/gi)??['?']).slice(0,2).map(part=>part[0].toUpperCase()).join('')
 const minorWords=new Set(['the','a','an','of','at','and','for'])
@@ -51,7 +52,7 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
     // Registration stores the sign-in label, which is often the email; treat that as no name yet.
     api.me().then(user=>{if(active)setName(user.displayName&&user.displayName!==user.email?user.displayName:'')}).catch(()=>{if(active)setName('')})
     return()=>{active=false}},[api])
-  return <div className="account-page">
+  return <main className="account-page">
     <header className="account-header">
       <span className="account-avatar" aria-hidden="true">{initials(session.email||'?')}</span>
       <div><h1>{name||session.email||'Your account'}</h1>
@@ -59,18 +60,18 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
     </header>
     <div className="account-layout">
       <nav className="account-sections" aria-label="Account sections">
-        {tabs.map(item=><button key={item.value} type="button" aria-current={tab===item.value?'page':undefined} onClick={()=>setTab(item.value)}>{item.label}</button>)}
+        <div className="account-tablist" role="tablist" aria-label="Account sections" aria-orientation="vertical" onKeyDown={tabKeys}>{tabs.map(item=><button key={item.value} type="button" role="tab" id={`account-tab-${item.value}`} aria-controls="account-panel" aria-selected={tab===item.value} tabIndex={tab===item.value?0:-1} onClick={()=>setTab(item.value)}>{item.label}</button>)}</div>
         <hr/>
         <button type="button" className="account-signout-link" onClick={()=>void session.signOut?.()}>Sign out</button>
       </nav>
-      <div className="account-content">
+      <div className="account-content" id="account-panel" role="tabpanel" aria-labelledby={`account-tab-${tab}`}>
         {tab==='profile'&&<ProfileTab name={name} onSave={api?async value=>{const user=await api.register(value);setName(user.displayName??value)}:undefined}/>}
         {tab==='workspaces'&&<WorkspacesTab/>}
         {tab==='notifications'&&<NotificationsTab/>}
         {tab==='security'&&<SecurityTab/>}
       </div>
     </div>
-  </div>
+  </main>
 }
 
 function ProfileTab({name,onSave}:{name:string|null;onSave?:(name:string)=>Promise<void>}) {
@@ -124,11 +125,11 @@ function DeleteAccount({email,getAccessToken,previewPersonId,onDeleted}:{email:s
     try{await api.deleteAccount();onDeleted()}
     catch(e){const sent=e instanceof DatabaseApiClientError&&e.status===409?(e.payload as {error?:unknown}|undefined)?.error:undefined;setError(typeof sent==='string'?sent:'Your account could not be deleted right now. Try again.');setBusy(false)}
   }
-  if(!open)return <div className="account-row"><div><strong>Delete account</strong><span>Remove your sign-in and leave every workspace. This cannot be undone.</span></div>
+  if(!open)return <div className="account-row"><div><strong>Delete account</strong><span>Remove your sign-in and leave every organization. This can’t be undone.</span></div>
     <button type="button" className="ws-button ws-button-secondary ws-button-danger" onClick={()=>setOpen(true)}>Delete account</button></div>
   return <form className="account-row account-delete" noValidate aria-labelledby="account-delete-title" onSubmit={e=>{e.preventDefault();void remove()}}>
     <div><strong id="account-delete-title">Delete your account?</strong>
-      <span>You will be signed out and removed from every workspace. Reservations and history you created stay with each workspace without your name or email. If you are the only owner of a workspace, make someone else an owner first.</span></div>
+      <span>You will be signed out and removed from every organization. Reservations and history you created stay with each organization without your name or email. If you are the only owner of an organization, make someone else an owner first.</span></div>
     {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
     <label className="ws-field">Type {email} to confirm<input type="email" value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy}/></label>
     <div className="account-delete-actions">
@@ -143,18 +144,18 @@ function WorkspacesTab() {
   const selected=organizations.some(o=>o.id===session.selectedOrganizationId)?session.selectedOrganizationId:organizations[0]?.id
   return <>
     <section className="account-card" aria-labelledby="account-workspaces-title">
-      <div className="account-card-heading"><h2 id="account-workspaces-title">Your workspaces</h2><p>Choose the workspace you are working in.</p></div>
-      {organizations.length?<fieldset className="account-workspaces"><legend className="sr-only">Current workspace</legend>
+      <div className="account-card-heading"><h2 id="account-workspaces-title">Your organizations</h2><p>Choose the organization you’re working in.</p></div>
+      {organizations.length?<fieldset className="account-workspaces"><legend className="sr-only">Current organization</legend>
         {organizations.map(org=><label key={org.id} className="account-workspace">
           <input type="radio" name="account-workspace" value={org.id} checked={selected===org.id} onChange={()=>{session.setSelectedOrganizationId?.(org.id);toast.success(`Switched to ${org.name}.`,{id:'account-workspace'})}}/>
           <OrganizationLogo organization={org}/>
           <span className="account-workspace-name"><strong>{org.name}</strong><span>{roleLabel(org.role)}</span></span>
           {selected===org.id&&<span className="ws-status ws-status-accent">Current</span>}
         </label>)}
-      </fieldset>:<p className="account-empty">{session.mode==='preview'?'This local preview uses a sample workspace. Sign in to see and switch between your own workspaces.':'You are not in a workspace yet. Join one below.'}</p>}
+      </fieldset>:<p className="account-empty">{session.mode==='preview'?'This local preview uses a sample organization. Sign in to see and switch between your own organizations.':'You aren’t in an organization yet. Join one below.'}</p>}
     </section>
     {session.mode==='preview'||session.getAccessToken?<JoinWorkspace previewPersonId={session.mode==='preview'?(session.previewPersonId??'preview-admin'):undefined} getAccessToken={session.getAccessToken} onJoined={async id=>{await session.refreshOrganizations?.();session.setSelectedOrganizationId?.(id)}}/>
-      :<section className="account-card"><div className="account-card-heading"><h2>Join another workspace</h2><p>Sign in to see invitations for your email.</p></div></section>}
+      :<section className="account-card"><div className="account-card-heading"><h2>Join another organization</h2><p>Sign in to see invitations for your email.</p></div></section>}
   </>
 }
 
@@ -169,27 +170,27 @@ function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken
   async function joined(name:string,organizationId:string){toast.success(`Joined ${name}.`,{id:'account-join'});try{await onJoined(organizationId)}catch{toast.error(`You joined ${name}, but your workspace list could not reload. Refresh the page to switch to it.`,{id:'account-join-reload'})}}
   async function accept(invitation:PendingInvitation){setBusy(true);setError('');try{try{await api.acceptInvitation(invitation.id,invitation.organizationId)}catch{setError('The invitation could not be accepted. Check again before retrying.');return}setInvitations(items=>items.filter(i=>i.id!==invitation.id));await joined(invitation.organizationName,invitation.organizationId)}finally{setBusy(false)}}
   async function joinWithCode(){
-    if(!code.trim()){setCodeError('Enter the join code from your workspace administrator.');return}
+    if(!code.trim()){setCodeError('Enter the join code from your organization admin.');return}
     setBusy(true);setError('');setCodeError('')
     let organizationId:string
     try{({organizationId}=await api.joinByCode(code.trim()));setCode('')}
-    catch(e){if(e instanceof DatabaseApiClientError&&[400,404].includes(e.status))setCodeError('That join code is not valid. Check it with your workspace administrator.');else if(e instanceof DatabaseApiClientError&&e.status===409)setCodeError('You were removed from this workspace, so a join code can’t add you back. Ask an administrator to invite you.');else setError(e instanceof DatabaseApiClientError&&e.status===429?'Too many join code attempts. Try again in an hour.':'Join codes could not be checked right now. Try again.');setBusy(false);return}
+    catch(e){if(e instanceof DatabaseApiClientError&&[400,404].includes(e.status))setCodeError('That join code is not valid. Check it with your organization admin.');else if(e instanceof DatabaseApiClientError&&e.status===409)setCodeError('You were removed from this workspace, so a join code can’t add you back. Ask an administrator to invite you.');else setError(e instanceof DatabaseApiClientError&&e.status===429?'Too many join code attempts. Try again in an hour.':'Join codes could not be checked right now. Try again.');setBusy(false);return}
     try{await joined('the workspace',organizationId)}finally{setBusy(false)}
   }
   return <section className="account-card" aria-labelledby="account-join-title">
-    <div className="account-card-heading"><h2 id="account-join-title">Join another workspace</h2><p>Invitations sent to your verified email appear here.</p></div>
+    <div className="account-card-heading"><h2 id="account-join-title">Join another organization</h2><p>Invitations sent to your verified email appear here.</p></div>
     <div className="account-card-body">
       {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
       {invitations.length>0&&<ul className="account-workspaces account-invitation-list">{invitations.map(invitation=><li key={invitation.id} className="account-workspace">
         <OrganizationLogo organization={{name:invitation.organizationName}}/>
-        <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {invitation.role} · expires {new Date(invitation.expiresAt).toLocaleDateString()}</span></span>
+        <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {formatRole(invitation.role).toLowerCase()} · expires {dateLabel(invitation.expiresAt)}</span></span>
         <button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={()=>void accept(invitation)}>Join {invitation.organizationName}</button>
       </li>)}</ul>}
-      {loaded&&!invitations.length&&<div className="account-empty-invitations"><span>No pending invitations. Ask a workspace administrator to invite this account.</span>
+      {loaded&&!invitations.length&&<div className="account-empty-invitations"><span>No pending invitations. Ask an organization admin to invite this account.</span>
         <button type="button" className="ws-button ws-button-secondary" disabled={busy} onClick={()=>void load()}>{busy?'Checking…':'Check again'}</button></div>}
       <form className="account-code" noValidate onSubmit={e=>{e.preventDefault();void joinWithCode()}}>
         <label className="ws-field">Have a join code?<input value={code} onChange={e=>{setCode(e.target.value);setCodeError('')}} placeholder="ABCDE-FGHJK" maxLength={32} autoComplete="off" spellCheck={false} aria-invalid={codeError?true:undefined} aria-describedby={codeError?'account-code-error':undefined}/></label>
-        <button type="submit" className="ws-button ws-button-primary" disabled={busy}>Join workspace</button>
+        <button type="submit" className="ws-button ws-button-primary" disabled={busy}>Join organization</button>
         {codeError&&<p id="account-code-error" className="account-field-error" role="alert">{codeError}</p>}
       </form>
     </div>
