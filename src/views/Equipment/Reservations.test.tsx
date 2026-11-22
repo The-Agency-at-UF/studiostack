@@ -24,6 +24,17 @@ describe('Reservation list and booking page',()=>{
   expect(screen.queryByRole('button',{name:'Cancel reservation'})).not.toBeInTheDocument()
   expect(screen.queryByRole('link',{name:'Check out'})).not.toBeInTheDocument()
  })
+ it('explains a missed pickup and offers to reschedule or check out now',async()=>{
+  m.admin=true
+  m.reservations.mockResolvedValue({items:[{...reservation,startsAt:new Date(Date.now()-7200000).toISOString(),endsAt:new Date(Date.now()-3600000).toISOString()}],nextCursor:null})
+  const user=userEvent.setup();render(<LiveReservations/>)
+  await user.click(await screen.findByRole('tab',{name:/History/}));await openBooking(user)
+  expect(screen.getByRole('heading',{name:'Pickup missed'})).toBeInTheDocument()
+  expect(screen.getByText(/Nothing was checked out before the window closed/)).toBeInTheDocument()
+  expect(screen.getByRole('link',{name:'Check out now'})).toHaveAttribute('href',expect.stringContaining('reservation=booking'))
+  await user.click(screen.getByRole('button',{name:'Reschedule'}))
+  expect(await screen.findByRole('heading',{name:'Edit reservation'})).toBeInTheDocument()
+ })
  it('calls out an overdue checkout above the list',async()=>{m.reservations.mockResolvedValue({items:[{...reservation,fulfillmentStatus:'checked_out',startsAt:new Date(Date.now()-7200000).toISOString(),endsAt:new Date(Date.now()-3600000).toISOString()}],nextCursor:null});const user=userEvent.setup();render(<LiveReservations/>);expect(await screen.findByText(/is overdue/)).toBeInTheDocument();await user.click(screen.getByRole('button',{name:'Review'}));expect(screen.getByRole('link',{name:'Return equipment'})).toBeInTheDocument();expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0)})
  it('combines the visible equipment and client filters with search and clears all three',async()=>{
   m.clients.mockResolvedValue({items:[{id:'studio',name:'Bloom Studio'}],nextCursor:null})
