@@ -15,12 +15,13 @@ const descriptions:Record<Step,string>={name:'Confirm the name your team sees on
 export default function Welcome({getAccessToken,onFinished,onSignOut,previewClient}:{getAccessToken?:()=>Promise<string>;previewClient?:PreviewDatabase;onFinished:(organizationId:string)=>Promise<void>;onSignOut:()=>void}) {
   const api=useMemo(()=>previewClient??createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:getAccessToken!}),[getAccessToken,previewClient])
   const [account,setAccount]=useState<{name:string;email:string;verified:boolean;skipVerify:boolean}|null>(null),[step,setStep]=useState<Step>('name'),[title,setTitle]=useState(titles.name),[error,setError]=useState('')
-  useEffect(()=>{let active=true
+  const [attempt,setAttempt]=useState(0)
+  useEffect(()=>{let active=true;setError('')
     Promise.all([api.me(),previewClient?api.me().then(u=>({email:u.email??'',verified:true})):emailStatus(getAccessToken!)]).then(([user,status])=>{if(!active)return
       // Registration stores the sign-in label, which is often the email; ask for a real name instead.
       const name=user.displayName&&user.displayName!==status.email?user.displayName:''
-      setAccount({name,email:status.email,verified:status.verified,skipVerify:status.verified})}).catch(()=>{if(active)setError('Your account could not be loaded. Refresh to try again.')})
-    return()=>{active=false}},[api,getAccessToken,previewClient])
+      setAccount({name,email:status.email,verified:status.verified,skipVerify:status.verified})}).catch(()=>{if(active)setError('Your account couldn’t load. Check your connection, then try again.')})
+    return()=>{active=false}},[api,getAccessToken,previewClient,attempt])
   // The step count is fixed at arrival so verifying mid-flow doesn't renumber the steps.
   const steps:Step[]=account?.skipVerify?['name','organization']:['name','verify','organization']
   const go=(next:Step)=>{setStep(next);setTitle(titles[next])}
@@ -28,11 +29,13 @@ export default function Welcome({getAccessToken,onFinished,onSignOut,previewClie
   const finish=useCallback(async(organizationId:string)=>{await api.completeOnboarding();await onFinished(organizationId)},[api,onFinished])
   const index=steps.indexOf(step)
   return <AuthLayout className="welcome-page">
+    {/* Each step change is read out: focus jumps into the new step's first field, past the heading. */}
     <span className="login-section-number">Step {index+1} of {steps.length}</span>
+    <p className="login-sr-only" aria-live="polite">{`Step ${index+1} of ${steps.length}: ${title}`}</p>
     <div className="welcome-progress" aria-hidden="true">{steps.map((s,i)=><span key={s} className={i<=index?'is-done':undefined}/>)}</div>
     <h1 id="login-title">{title}</h1>
-    {step==='verify'?<p className="login-description">We sent a 6-digit code to <strong>{account?.email}</strong>.</p>:title===titles[step]&&<p className="login-description">{descriptions[step]}</p>}
-    {error&&<p className="login-error" role="alert">{error}</p>}
+    {step==='verify'?<p className="login-description" id="welcome-verify-desc">We sent a 6-digit code to <strong>{account?.email}</strong>.</p>:title===titles[step]&&<p className="login-description">{descriptions[step]}</p>}
+    {error&&<p className="login-error" role="alert">{error}{!account&&<> <button type="button" className="login-text-action" onClick={()=>setAttempt(n=>n+1)}>Try again</button></>}</p>}
     {!account?!error&&<p className="login-security-note" role="status">Loading your account…</p>
       :step==='name'?<NameStep initialName={account.name} email={account.email} onSignOut={onSignOut} onSave={async name=>{await api.register(name);setAccount({...account,name});go(account.verified?'organization':'verify')}}/>
       :step==='verify'?<VerifyEmailStep email={account.email} getAccessToken={getAccessToken!} onBack={()=>go('name')} onVerified={()=>{setAccount({...account,verified:true});go('organization')}}/>

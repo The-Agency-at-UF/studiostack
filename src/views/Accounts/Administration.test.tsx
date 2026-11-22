@@ -28,14 +28,14 @@ describe('Organization access and settings',()=>{
   it('revokes a pending invitation',async()=>{
     m.invitations.mockResolvedValue({items:[{id:'i',email:'new@example.test',displayName:'New Person',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:3,createdAt:future}],nextCursor:null});m.revokeInvitation.mockResolvedValue({})
     const user=userEvent.setup();view();expect(await screen.findByText('New Person')).toBeInTheDocument()
-    await user.click(screen.getByRole('button',{name:'Revoke invitation'}))
+    await user.click(screen.getByRole('button',{name:/^Revoke invitation for/}));await user.click(within(await screen.findByRole('dialog',{name:'Revoke this invitation?'})).getByRole('button',{name:'Revoke invitation'}))
     await waitFor(()=>expect(m.revokeInvitation).toHaveBeenCalledWith('i',expect.objectContaining({version:3})))
   })
   it('lists the main code beside a new one-time code, and approves a pending access request',async()=>{
     m.joinCodes.mockResolvedValue({items:[{id:'main',label:'Agency join code',maxUses:null,uses:4,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-01T12:00:00Z',code:'MAIN1-CODE2'}],nextCursor:null})
     m.accessRequests.mockResolvedValue({items:[{id:'request',userId:'u',email:'asker@studio.example.edu',displayName:'Asker',message:'Fall crew',status:'pending',version:1,createdAt:'2026-10-30T12:00:00Z',decidedAt:null}],nextCursor:null})
     m.createJoinCode.mockResolvedValue({id:'code',label:'Spring crew',maxUses:5,uses:0,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-31T12:00:00Z',code:'ABCDE-FGHJK'});m.decideAccessRequest.mockResolvedValue({})
-    const user=userEvent.setup();view();expect(await screen.findByLabelText('1 pending')).toBeInTheDocument();expect(screen.getByText('“Fall crew”')).toBeInTheDocument()
+    const user=userEvent.setup();view();const invitationsLink=await screen.findByRole('link',{name:/^Invitations & requests.*1 pending$/});expect(invitationsLink).not.toHaveAccessibleName(/requests1/);expect(screen.getByText('“Fall crew”')).toBeInTheDocument()
     expect(screen.getByText('MAIN1-CODE2')).toBeInTheDocument();expect(screen.getByText(/4 used · No use limit or expiry/)).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:/Revoke/})).not.toBeInTheDocument();expect(screen.queryByText('No active join codes.')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'New join code'}));await user.type(screen.getByLabelText('Code label'),'Spring crew');await user.type(screen.getByLabelText('Maximum uses'),'5');await user.click(screen.getByRole('button',{name:'Create join code'}))
@@ -80,7 +80,7 @@ describe('Organization access and settings',()=>{
     await user.type(await screen.findByLabelText(/^Location/),'  Gainesville ');await user.click(screen.getByRole('button',{name:'Save settings'}))
     await waitFor(()=>expect(m.saveSettings).toHaveBeenCalledWith(expect.objectContaining({name:'Agency',reservationDays:14,location:'Gainesville',version:1})))
   })
-  it('shows service failures without showing partial settings',async()=>{m.invitations.mockRejectedValue(new Error('private details'));view();expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByText('private details')).not.toBeInTheDocument()})
+  it('shows service failures without showing partial settings',async()=>{m.invitations.mockRejectedValue(new Error('private details'));view();expect(await screen.findByRole('alert')).toHaveTextContent('couldn’t load');expect(screen.queryByText('private details')).not.toBeInTheDocument()})
   it('uploads a new workspace logo when settings are saved and removes a saved one',async()=>{
     Object.assign(URL,{createObjectURL:vi.fn(()=>'blob:logo'),revokeObjectURL:vi.fn()})
     photos.upload.mockResolvedValue({photoId:'photo'});m.saveSettings.mockResolvedValue({...settings,logoPhotoId:'photo',version:2})
@@ -114,11 +114,11 @@ describe('Optimistic administration actions',()=>{
   it('puts a revoked invitation back when the server rejects the change',async()=>{
     m.invitations.mockResolvedValue({items:[{id:'i',email:'new@example.test',displayName:'New Person',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:3,createdAt:future}],nextCursor:null})
     let fail!:(error:unknown)=>void;m.revokeInvitation.mockReturnValue(new Promise((_,reject)=>{fail=reject}))
-    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:'Revoke invitation'}))
-    expect(screen.queryByRole('button',{name:'Revoke invitation'})).not.toBeInTheDocument()
+    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:/^Revoke invitation for/}));await user.click(within(await screen.findByRole('dialog',{name:'Revoke this invitation?'})).getByRole('button',{name:'Revoke invitation'}))
+    expect(screen.queryByRole('button',{name:/^Revoke invitation for/})).not.toBeInTheDocument()
     fail(new Error('offline'))
-    expect(await screen.findByText('The service is unavailable. Your changes have not been confirmed.')).toBeInTheDocument()
-    expect(screen.getByRole('button',{name:'Revoke invitation'})).toBeInTheDocument()
+    expect(await screen.findByText('StudioStack couldn’t confirm the change. Check your connection, then try again.')).toBeInTheDocument()
+    expect(screen.getByRole('button',{name:/^Revoke invitation for/})).toBeInTheDocument()
   })
   it('ignores an older background reload that answers after a newer change',async()=>{
     const invitation={id:'i',email:'new@example.test',displayName:'New Person',role:'member',status:'pending',deliveryStatus:'sent',attempts:1,expiresAt:future,version:3,createdAt:future}
@@ -126,7 +126,7 @@ describe('Optimistic administration actions',()=>{
     let late!:(value:unknown)=>void
     m.accessRequests.mockResolvedValueOnce({items:[asker],nextCursor:null}).mockReturnValueOnce(new Promise(resolve=>{late=resolve})).mockResolvedValue({items:[],nextCursor:null})
     m.revokeInvitation.mockResolvedValue({...invitation,status:'revoked',version:4});m.decideAccessRequest.mockResolvedValue({...asker,status:'approved',version:2})
-    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:'Revoke invitation'}))
+    const user=userEvent.setup();view();await user.click(await screen.findByRole('button',{name:/^Revoke invitation for/}));await user.click(within(await screen.findByRole('dialog',{name:'Revoke this invitation?'})).getByRole('button',{name:'Revoke invitation'}))
     // The revoke's reload is still paging when the next change is made.
     await waitFor(()=>expect(m.accessRequests).toHaveBeenCalledTimes(2))
     m.invitations.mockResolvedValue({items:[{...invitation,status:'revoked',version:4}],nextCursor:null})

@@ -16,7 +16,6 @@ import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import type { AccountClient } from '../../api/accounts'
 import type { ApiPage } from '../../types/database-api'
 import type { OrganizationSettings } from '../../types/accounts'
-import './OrganizationDirectory.css'
 import OrganizationHeader from './OrganizationHeader'
 import OrganizationJoinCode from './OrganizationJoinCode'
 
@@ -75,13 +74,14 @@ export default function OrganizationDirectory() {
     setSettings(s)
   }, [api])
 
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     const g = ++generation.current
     setSettings(null); setPeople([]); setPendingInvitations(0); setError(''); setBusy(false); setInviting(false)
     setSearch(''); setRoleFilter('all'); setSelectedId(null); setLoading(true)
     load().catch(e => { if (g === generation.current) setError(loadMessage(e)) }).finally(() => { if (g === generation.current) setLoading(false) })
     return () => { generation.current++ }
-  }, [load])
+  }, [load, attempt])
 
   // `apply` shows the change in the roster before the server answers; a rejected change restores the previous roster.
   async function run(key: string, done: string, task: (client: AccountClient, requestId: string) => Promise<unknown>, apply?: (list: Person[]) => Person[]) {
@@ -141,7 +141,7 @@ export default function OrganizationDirectory() {
     <OrganizationHeader settings={settings} active="people"
       summary={settings && <>{people.length} {people.length === 1 ? 'person' : 'people'} · {plural(adminCount, 'admin')} · You&apos;re {settings.role === 'member' ? 'a member' : `an ${settings.role}`}</>}
       action={manager && <button type="button" className="ws-button ws-button-primary org-directory-invite" aria-expanded={inviting} aria-controls="org-invite" onClick={() => setInviting(open => !open)}><HiOutlinePlus aria-hidden="true" />Invite people</button>} />
-    {error && <Notice kind="error">{error}</Notice>}
+    {error && <Notice kind="error" action={!settings && !loading && <button type="button" className="ws-button" onClick={() => setAttempt(n => n + 1)}>Retry</button>}>{error}</Notice>}
     {loading && <Skeleton label="Loading organization…" variant="row" count={4} />}
     {!org && !loading && <EmptyState title="Select an organization to continue." />}
     {settings && <>
@@ -154,7 +154,7 @@ export default function OrganizationDirectory() {
       <div className="org-directory-layout">
       <section className="org-directory-card org-directory-people" aria-labelledby="org-people">
         <div className="org-directory-card-heading">
-          <h2 id="org-people">People</h2>
+          <h2 id="org-people" tabIndex={-1}>People</h2>
           <p>{owner ? 'Manage roles and remove members or admins. Change an owner’s role before removing them.' : manager ? 'Admins manage member and admin roles, and remove members. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
         </div>
         <div className="org-directory-filters">
@@ -221,9 +221,9 @@ function InviteForm({ busy, onCancel, onInvite }: { busy: boolean; onCancel: () 
 
 type Change = (person: Person, role: Role, status: Status, done: string) => void
 const roleDetails: Record<Role, string> = {
-  member: 'Books gear and joins productions.',
+  member: 'Reserves equipment and joins productions.',
   admin: 'Also manages people, equipment and settings.',
-  owner: 'Full control, including other owners and workspace domains.',
+  owner: 'Full control, including other owners and the organization’s email domains.',
 }
 function PersonPanel({ person, owner, canRemove, busy, organization, change, onClose }: { person: Person; owner: boolean;canRemove:boolean; busy: boolean; organization: string; change: Change; onClose: () => void }) {
   // The draft belongs to the version it was made against, so a reload after saving shows the confirmed role.
@@ -262,15 +262,15 @@ function PersonPanel({ person, owner, canRemove, busy, organization, change, onC
       </form>
       {canRemove&&<section className="org-person-section" aria-labelledby="org-person-remove">
         <h3 id="org-person-remove">Remove from {organization}</h3>
-        <p className="org-person-note">They lose access to this organization. Their bookings and history are kept, and you can invite them back.</p>
+        <p className="org-person-note">They lose access to this organization. Their reservations and history are kept, and you can invite them back.</p>
         <button type="button" className="ws-button ws-button-danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove from organization</button>
       </section>}
     </div>
-    {confirm === 'remove' && <ConfirmDialog title={`Remove from ${organization}?`} subject={person.name} confirmLabel="Remove"
-      description="They lose access to this organization and its productions right away. Their bookings and history are kept. To bring them back, send a new invitation."
+    {confirm === 'remove' && <ConfirmDialog title={`Remove from ${organization}?`} subject={person.name} confirmLabel={`Remove ${person.name}`} cancelLabel="Keep member" returnFocus={() => document.getElementById('org-people')}
+      description="They lose access to this organization and its productions right away. Their reservations and history are kept. To bring them back, send a new invitation."
       onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'member', 'suspended', `${person.name} was removed from ${organization}.`) }} />}
     {confirm === 'owner' && <ConfirmDialog title="Make this person an owner?" subject={person.name} confirmLabel="Make owner"
-      description="Owners manage roles, remove members and admins, and manage workspace domains. Another owner must change an owner’s role before removal."
+      description="Owners manage roles, remove members and admins, and manage the organization’s email domains. Another owner must change an owner’s role before removal."
       onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); change(person, 'owner', 'active', `${person.name} is now an owner.`) }} />}
   </DetailPanel>
 }

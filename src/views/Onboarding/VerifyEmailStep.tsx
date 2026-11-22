@@ -15,13 +15,13 @@ export default function VerifyEmailStep({email,getAccessToken,onVerified,onBack}
   return <form className="login-password-form welcome-form" noValidate onSubmit={e=>{e.preventDefault();const code=digits.join('')
     if(code.length<length){setError('Enter all 6 digits from the email.');return}
     setBusy(true);setError('');confirmEmailCode(getAccessToken,code).then(onVerified).catch(e=>{setError(emailCodeError(e));setBusy(false)})}}>
-    <fieldset>
+    <fieldset aria-describedby={error?'welcome-code-error':'welcome-verify-desc'}>
       <legend className="welcome-legend">Verification code</legend>
-      <div className="welcome-code">{digits.map((digit,i)=><input key={i} ref={el=>{boxes.current[i]=el}} value={digit} inputMode="numeric" autoComplete={i===0?'one-time-code':'off'} aria-label={`Digit ${i+1}`} aria-invalid={Boolean(error)} autoFocus={i===0}
+      <div className="welcome-code">{digits.map((digit,i)=><input key={i} ref={el=>{boxes.current[i]=el}} value={digit} inputMode="numeric" autoComplete={i===0?'one-time-code':'off'} aria-label={`Digit ${i+1} of ${length}`} aria-invalid={Boolean(error)||undefined} aria-describedby={error?'welcome-code-error':undefined} autoFocus={i===0}
         onChange={e=>fill(i,e.target.value)} onPaste={e=>{e.preventDefault();fill(i,e.clipboardData.getData('text'))}}
         onKeyDown={e=>{if(e.key==='Backspace'&&!digit&&i>0)boxes.current[i-1]?.focus()}}/>)}</div>
     </fieldset>
-    {error&&<p className="login-error" role="alert">{error}</p>}
+    {error&&<p className="login-error" id="welcome-code-error" role="alert">{error}</p>}
     <WelcomeActions primary={busy?'Verifying…':'Verify email'} busy={busy} secondary={<span className="welcome-links">
       <button type="button" className="login-text-action" onClick={onBack}>Back</button>
       <button type="button" className="login-text-action" onClick={()=>{setDigits(Array(length).fill(''));void send()}}>Send another code</button></span>}/>

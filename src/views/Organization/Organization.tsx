@@ -7,6 +7,7 @@ import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutli
 import { Select } from '../../components/workspace/WorkspaceUI'
 import { closeWithExit } from '../../components/workspace/closeWithExit'
 import { emailPattern } from '../../types/patterns'
+import { tabKeys } from '../../components/workspace/tabs'
 
 type Role = 'Administrator' | 'Member'
 type Status = 'Active' | 'Invited' | 'Suspended'
@@ -106,22 +107,22 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
     setDialog(null)
   }
 
-  if (!isAdmin) return <main className="organization-page"><h1>Organization administration</h1><p>You must be an admin to preview this workspace.</p></main>
+  if (!isAdmin) return <main className="organization-page"><h1>Organization administration</h1><p>You must be an admin to preview this organization.</p></main>
 
   return <main className="organization-page">
     <div className="org-preview"><span>UI preview</span><p>A fictional organization and users. Changes reset when you refresh the page; no emails, AWS changes, or real permissions.</p></div>
     <header className="org-heading">
-      <div><h1>Your organization.</h1></div>
+      <div><h1>Your organization</h1></div>
     </header>
     <section className="org-workspace" aria-label={org.name}>
       <div className="org-identity"><span className="org-monogram" aria-hidden="true">{org.initials}</span>
         <div><h2>{org.name}</h2><p>Previewing organization administrator access</p></div>
         <div className="org-counts"><span><strong>{active.length}</strong> active {active.length === 1 ? 'member' : 'members'}</span><span><strong>{invited.length}</strong> pending {invited.length === 1 ? 'invitation' : 'invitations'}</span></div>
       </div>
-      <nav className="org-tabs ws-pill-tabs" aria-label="Organization sections">
+      <div className="org-tabs ws-pill-tabs" role="tablist" aria-label="Organization sections" onKeyDown={tabKeys}>
         <TabPill id="organization-preview-sections" />
-        {(['members', 'activity', 'settings'] as const).map(item => <button key={item} className={tab === item ? 'selected' : ''} aria-pressed={tab === item} onClick={() => setTab(item)}>{item === 'members' ? 'Members & access' : item === 'activity' ? 'Activity' : 'Settings'}</button>)}
-      </nav>
+        {(['members', 'activity', 'settings'] as const).map(item => <button key={item} type="button" role="tab" aria-selected={tab === item} tabIndex={tab === item ? 0 : -1} className={tab === item ? 'selected' : ''} onClick={() => setTab(item)}>{item === 'members' ? 'Members & access' : item === 'activity' ? 'Activity' : 'Settings'}</button>)}
+      </div>
       {notice && <p className="org-notice" role="status">{notice}</p>}
       {tab === 'members' && <>
         <div className="org-section-heading"><div><h3>Members & access</h3><p>Manage membership for {org.name} only.</p></div><button className="org-primary" onClick={() => openDialog({ type: 'invite' })}><HiOutlinePlus /> Invite member</button></div>
@@ -162,7 +163,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         </form>
       </div>}
     </section>
-    <p className="org-page-note">StudioStack / Organization workspace</p>
+    <p className="org-page-note">StudioStack / Organization</p>
     {dialog && <PreviewDialog title={dialog.type === 'invite' ? 'Invite a member' : dialog.type === 'role' ? 'Change organization role' : dialog.member.status === 'Invited' ? 'Revoke invitation' : dialog.member.status === 'Suspended' ? 'Restore membership' : 'Suspend membership'} close={() => setDialog(null)}>
       {error && <p className="org-error" role="alert">{error}</p>}
       {dialog.type === 'invite' ? <form className="org-dialog-form" onSubmit={submitInvite}>
@@ -179,10 +180,10 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         {soleAdmin(dialog.member) && <p className="org-scope-note">{dialog.member.name} is the only active administrator. Make someone else an administrator before changing this role.</p>}
         <div className="org-dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" type="submit">Save role</button></div>
       </form> : <div className="org-dialog-form"><p>{dialog.member.status === 'Invited' ? 'Remove this preview invitation' : dialog.member.status === 'Suspended' ? 'Restore this preview membership' : 'Suspend this preview membership'} for {dialog.member.name} in {org.name}? This does not delete their identity or affect another organization.</p>
-        <div className="org-dialog-actions"><button data-autofocus onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" onClick={() => {
+        <div className="org-dialog-actions"><button data-autofocus onClick={() => setDialog(null)}>Keep as is</button><button className={dialog.member.status === 'Suspended' ? 'org-primary' : 'org-primary org-danger'} onClick={() => {
           if (dialog.member.status === 'Invited') { update({ ...org, members: org.members.filter(member => member.id !== dialog.member.id) }, `Preview invitation revoked for ${dialog.member.name}.`); setDialog(null) }
           else { const status = dialog.member.status === 'Suspended' ? 'Active' : 'Suspended'; changeMember(dialog.member, { status }, `${dialog.member.name}'s preview membership ${status === 'Active' ? 'restored' : 'suspended'}.`) }
-        }}>Confirm preview change</button></div>
+        }}>{dialog.member.status === 'Invited' ? 'Revoke invitation' : dialog.member.status === 'Suspended' ? `Restore ${dialog.member.name}` : `Suspend ${dialog.member.name}`}</button></div>
       </div>}
     </PreviewDialog>}
   </main>

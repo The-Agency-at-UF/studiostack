@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { OrganizationSettings } from '../../types/accounts'
 import { useAppSession } from '../../context/AppSessionContext'
 import { TabPill } from '../../components/workspace/TabPill'
-import './OrganizationHeader.css'
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '?'
 
@@ -15,9 +15,12 @@ export default function OrganizationHeader({ settings, summary, active, action }
   const session = useAppSession()
   const selectedId = session.selectedOrganizationId ?? session.organizations?.[0]?.id
   const logoUrl = settings?.logoPhotoId ? session.organizations?.find(org => org.id === selectedId)?.logoUrl : null
+  // An expired or missing logo falls back to the monogram instead of an empty box.
+  const [logoFailed, setLogoFailed] = useState(false)
+  useEffect(() => setLogoFailed(false), [logoUrl])
   return <>
     <header className="org-header">
-      {logoUrl ? <img className="org-header-monogram org-header-logo" src={logoUrl} alt="" /> : <span className="org-header-monogram" aria-hidden="true">{settings ? initials(settings.name) : ''}</span>}
+      {logoUrl && !logoFailed ? <img className="org-header-monogram org-header-logo" src={logoUrl} alt="" onError={() => setLogoFailed(true)} /> : <span className="org-header-monogram" aria-hidden="true">{settings ? initials(settings.name) : ''}</span>}
       <div className="org-header-title">
         <h1>{settings?.name ?? 'Your organization'}</h1>
         {settings && <p>{summary ?? <>You&apos;re {settings.role === 'member' ? 'a member' : `an ${settings.role}`}</>}</p>}
