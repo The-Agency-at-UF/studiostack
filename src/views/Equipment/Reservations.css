@@ -1,7 +1,6 @@
 /* Reservations: a calm list, a booking page, and a one-question-at-a-time booking flow. */
-.rsv { --rsv-column:880px; color:var(--ink); width:100%; max-width:var(--workspace-max); margin:0 auto; padding:var(--space-8); }
-/* The column keeps a calm reading width but starts at the same left edge as every other page title. */
-.rsv-column { max-width:var(--rsv-column); margin:0; }
+/* Same width and padding as every other workspace page, so titles, tabs and lists line up across tabs. */
+.rsv { color:var(--ink); width:100%; max-width:var(--workspace-max); margin:0 auto; padding:var(--space-8); }
 .rsv h1,.rsv h2 { font-family:var(--font-ui); font-weight:var(--weight-bold); line-height:var(--line-heading); letter-spacing:-.01em; margin:0; }
 :where(.rsv) :is(p,dl,dd,ul) { margin:0; }
 :where(.rsv) ul { padding:0; list-style:none; }
@@ -26,7 +25,7 @@
 .rsv-flow .ws-select { width:100%; min-height:48px; font-size:var(--text-base); }
 .rsv .rsv-hint { color:var(--muted); font-size:var(--text-sm); }
 .rsv .rsv-inline-error { color:var(--danger); font-size:var(--text-sm); font-weight:var(--weight-medium); margin-top:var(--space-3); }
-.rsv-message { max-width:var(--rsv-column); margin:0 auto var(--space-5); padding:var(--space-3) var(--space-4); border-radius:var(--radius-panel); background:var(--success-soft); color:var(--success); font-weight:var(--weight-medium); }
+.rsv-message { margin:0 0 var(--space-5); padding:var(--space-3) var(--space-4); border-radius:var(--radius-panel); background:var(--success-soft); color:var(--success); font-weight:var(--weight-medium); }
 .rsv-message-error { background:var(--danger-soft); color:var(--danger); }
 .rsv-flow ~ .rsv-message,.rsv > .rsv-message { margin-top:0; }
 
