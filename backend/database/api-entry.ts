@@ -1,5 +1,6 @@
 import {feedbackRequest,feedbackTask} from '../email/feedback'
 import {alertOutboxRequest,alertOutboxTask} from '../alerts/outbox'
+import {reconcileAlertsTask} from '../alerts/reconciliation'
 import {bugReportOutboxRequest,bugReportOutboxTask} from '../bug-reports/outbox'
 import { outboxTask, parseOutboxRequest } from '../production/outbox'
 import {directoryRequest,directoryTask} from '../accounts/directory'
@@ -37,6 +38,7 @@ function getRuntime() {
 /** IAM-only maintenance tasks, invoked with a `task` name and never through API Gateway. */
 const tasks = new Map<string, (client: DatabaseClient, input: unknown) => Promise<unknown>>([
   ['email-feedback', (client, input) => feedbackTask(client, feedbackRequest(input))],
+  ['app-alert-reconciliation', reconcileAlertsTask],
   ['app-alert-outbox', (client, input) => alertOutboxTask(client, alertOutboxRequest(input))],
   ['bug-report-outbox', (client, input) => bugReportOutboxTask(client, bugReportOutboxRequest(input))],
   ['account-invitation-queue', (client, input) => invitationQueueTask(client, invitationQueueRequest(input))],

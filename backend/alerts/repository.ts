@@ -1,6 +1,5 @@
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object} from '../database/api-validation'
-import {reconcileAlerts} from './records'
 import type {AlertRequest} from './routes'
 import {pageOf} from '../database/repository-utils'
 const columns='id,kind,title,message,target_path AS "targetPath",created_at AS "createdAt",read_at AS "readAt",email_status AS "emailStatus"'
@@ -14,7 +13,6 @@ export async function dispatchAlerts(client:DatabaseClient,r:AlertRequest,{organ
   return (await client.query('SELECT equipment_email AS "equipmentEmail",version FROM app.alert_preferences WHERE organization_id=$1 AND user_id=$2',[org,user.id])).rows[0]??{equipmentEmail:false,version:0}
  }
  if(r.resource==='read'){object(r.body,[]);const value=await client.query('UPDATE app.user_alerts SET read_at=coalesce(read_at,now()) WHERE organization_id=$1 AND recipient_id=$2 AND id=$3 RETURNING '+columns,[org,user.id,r.alertId]);if(!value.rows.length)throw new ApiError(404,'Alert not found');return value.rows[0]}
- await reconcileAlerts(client,org)
  const result=await client.query('SELECT '+columns+' FROM app.user_alerts WHERE organization_id=$1 AND recipient_id=$2 AND ($3::uuid IS NULL OR id>$3) ORDER BY id LIMIT $4',[org,user.id,r.page.after,r.page.limit+1])
  return pageOf(result.rows,r.page.limit)
 }

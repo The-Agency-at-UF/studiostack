@@ -32,8 +32,6 @@ export async function acknowledgeLease(client: DatabaseClient, outbox: LeasedOut
 
 interface ClaimSteps<Org, Job> {
   organizations: string
-  /** Runs in each organization before expired leases are released. */
-  prepare?: (org: Org) => Promise<unknown>
   /** Marks undeliverable rows independently of the five-job claim limit. */
   cleanup: (org: Org) => Promise<unknown>
   /** Selects up to $2 deliverable rows of organization $1 with FOR UPDATE SKIP LOCKED. */
@@ -45,7 +43,6 @@ export async function claimLeases<Org extends { id: string }, Job>(client: Datab
   const { table, status } = outbox, jobs: Job[] = []
   for (const org of (await client.query(steps.organizations)).rows as Org[]) {
     await setOrganization(client, org.id)
-    await steps.prepare?.(org)
     await client.query(`UPDATE app.${table} SET
       ${status}=CASE WHEN send_started_at IS NULL THEN '${outbox.pending}' ELSE 'uncertain' END,
       attempts=CASE WHEN send_started_at IS NULL THEN greatest(attempts-1,0) ELSE attempts END,

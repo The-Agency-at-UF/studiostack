@@ -233,12 +233,14 @@ describe('private database Lambda connection check', () => {
 })
 
 describe('scheduled retention', () => {
-  it('runs only the fixed purge function in one transaction and returns its counts', async () => {
+  it('runs the fixed purge functions in one transaction and returns the existing counts', async () => {
     const { client } = fixture()
     const counts = { photoUploads: 1, joinCodeAttempts: 2, readAlerts: 3 }
     client.query.mockImplementation(async (sql: string) => ({ rows: sql.includes('purge_expired_rows') ? [counts] : [], rowCount: 0 }))
     expect(await retentionTask(client as unknown as DatabaseClient, {})).toEqual(counts)
-    expect(client.query.mock.calls.map(call => String(call[0]).split(' ')[0])).toEqual(['BEGIN', 'SELECT', 'COMMIT'])
+    expect(client.query.mock.calls.map(([sql])=>sql)).toEqual([
+      'BEGIN','SELECT app.purge_expired_search_attempts()',expect.stringContaining('FROM app.purge_expired_rows()'),'COMMIT'
+    ])
   })
   it('rejects task input, since retention windows are not caller-controlled', async () => {
     const { client } = fixture()
