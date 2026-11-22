@@ -138,3 +138,20 @@ describe('Optimistic administration actions',()=>{
     expect(screen.queryByRole('button',{name:'Approve Asker'})).not.toBeInTheDocument()
   })
 })
+
+it('LOGIC-025: offers to replace a join code when creation replays without plaintext',async()=>{
+ const code={id:'code',label:'Spring crew',maxUses:null,uses:0,expiresAt:null,revokedAt:null,version:1,createdAt:future}
+ m.createJoinCode.mockRejectedValueOnce(new Error('Response missing')).mockResolvedValueOnce(code)
+ m.revokeJoinCode.mockResolvedValue({...code,revokedAt:future,version:2})
+ const user=userEvent.setup();view();await ready()
+ await user.click(screen.getByRole('button',{name:'New join code'}))
+ await user.type(screen.getByLabelText('Code label'),code.label)
+ await user.click(screen.getByRole('button',{name:'Create join code'}))
+ await screen.findByRole('alert')
+ await user.click(screen.getByRole('button',{name:'Create join code'}))
+ const replace=await screen.findByRole('button',{name:'Revoke and replace Spring crew'})
+ expect(m.createJoinCode.mock.calls[1][0].requestId).toBe(m.createJoinCode.mock.calls[0][0].requestId)
+ await user.click(replace)
+ expect(await screen.findByLabelText('Code label')).toBeInTheDocument()
+ expect(m.revokeJoinCode).toHaveBeenCalledWith(code.id,expect.objectContaining({version:code.version}))
+})
