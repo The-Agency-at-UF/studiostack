@@ -8,6 +8,7 @@
   --surface: #ffffff;
   --surface-subtle: #f5f5f7;
   --surface-hover: #f7f5fd;
+  --surface-muted: #fafafb;
   --frame: #000000;
   --frame-raised: #17151c;
   --on-frame: #ffffff;
@@ -19,8 +20,11 @@
   --accent-soft: #f0ebff;
   --accent-muted: #382457;
   --accent-rgb: 83, 2, 216;
+  --accent-ink: #3d1a8f;
   --line: #e2e0e7;
   --line-strong: #b8b3c2;
+  /* Boundaries of fields, checkboxes and other controls: 3.86:1 on white, 3.26:1 on canvas (WCAG 1.4.11). Dividers keep --line / --line-strong. */
+  --line-control: #857f90;
   --muted: #625d6d;
   --danger: #a32135;
   --danger-soft: #fff0f2;
@@ -28,6 +32,11 @@
   --success-soft: #eaf5ed;
   --warning: #78520d;
   --warning-soft: #fff5dd;
+  --warning-strong: #c58a1a;
+  --warning-line: #ecd39c;
+  /* Calendar event fills: reserved equipment and tentative production dates. */
+  --event-reserved: #7138b8;
+  --event-tentative: #6f4fd8;
   --overlay: #00000099;
   --space-1: 4px;
   --space-2: 8px;
@@ -44,18 +53,24 @@
   --radius-card: 12px;
   --radius-tray: 16px;
   --radius-pill: 999px;
-  --text-xs: 12px;
-  --text-sm: 14px;
-  --text-base: 16px;
-  --text-lg: 20px;
-  --text-xl: 24px;
-  --text-title: 32px;
+  /* Type scale in rem so it follows the reader's browser font size (12/14/16/20/24/32px at the default 16px). */
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-title: 2rem;
   --weight-regular: 400;
   --weight-medium: 600;
   --weight-bold: 700;
   --line-body: 1.5;
   --line-heading: 1.2;
   --control-height: 44px;
+  /* Compact controls are allowed only for fine pointers; touch keeps --control-height. */
+  --control-height-compact: 36px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
   --sidebar-width: 240px;
   --header-height: 64px;
   --workspace-max: 1440px;
@@ -72,6 +87,19 @@
   --shadow-menu: 0 8px 32px #19171e1a;
   --shadow-card: 0 1px 2px #19171e14, 0 4px 8px #19171e0a, 0 16px 32px -4px #19171e24;
   --shadow-tray: 0 2px 4px #19171e0f, 0 24px 48px -12px #19171e2e;
+  --shadow-modal: 0 24px 64px #19171e3d;
+  --radius-modal: var(--radius-card);
+  /* Stacking order, lowest to highest. */
+  --z-raised: 1;
+  --z-sticky: 10;
+  --z-dropdown: 30;
+  --z-sheet: 50;
+  --z-header: 100;
+  --z-backdrop: 101;
+  --z-drawer: 102;
+  --z-skip: 200;
+  --z-tour: 300;
+  --z-toast: 400;
 }
 :root {
   --gear-red: #a32135;
@@ -83,3 +111,4 @@
   --gear-black: #19171e;
   --gear-white: #ffffff;
 }
+/* Breakpoints (media queries cannot read custom properties). Use only these max-widths: 639px phones, 767px small tablets, 1023px (rail becomes a drawer), 1279px laptops; min-width 1280px for wide-only rules. */

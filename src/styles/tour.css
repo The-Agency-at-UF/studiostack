@@ -26,6 +26,6 @@
 .tour-card .tour-close svg { width:20px; height:20px; }
 .tour-card .tour-close:hover { background:var(--surface-subtle); color:var(--ink); }
 @media(max-width:639px) {
-  .tour-layer .tour-card,.tour-layer[data-centered] .tour-card { top:auto!important; left:var(--space-4)!important; right:var(--space-4); bottom:var(--space-4); width:auto; transform:none; }
+  .tour-layer .tour-card,.tour-layer[data-centered] .tour-card { top:auto!important; left:var(--space-4)!important; right:var(--space-4); bottom:calc(var(--space-4) + env(safe-area-inset-bottom)); width:auto; transform:none; }
 }
 @media(prefers-reduced-motion:reduce) { .tour-spotlight,.tour-card { transition:none; } }
