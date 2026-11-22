@@ -39,6 +39,10 @@ export function briefData(input: unknown): BriefData {
   if (Buffer.byteLength(JSON.stringify(result)) > 48_000) bad('Brief exceeds 48 KiB')
   return result
 }
+export function validateShootWindow(start:string,end:string) {
+  const duration=Date.parse(end)-Date.parse(start)
+  if(!Number.isFinite(duration)||duration<=0||duration>31*86400_000)bad('Shoot end must follow start within 31 days')
+}
 export function briefCommand(input: unknown): BriefCommand {
   const v = object(input, ['action', 'version', 'requestId', 'comment', 'section', 'shootStartsAt', 'shootEndsAt', 'softHolds', 'softHoldId'])
   if (!['submit', 'approve', 'request_changes', 'deny', 'comment', 'withdraw', 'reopen', 'schedule', 'propose_dates'].includes(String(v.action))) bad('Invalid action')
@@ -51,12 +55,12 @@ export function briefCommand(input: unknown): BriefCommand {
       if (typeof v[key] !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d{1,3})?)?(?:Z|[+-]\d\d:\d\d)$/.test(v[key]) || !Number.isFinite(Date.parse(v[key]))) bad('Shoot times require valid timestamps and a timezone')
       result[key] = timestamp(v[key])
     }
-    if (Date.parse(result.shootEndsAt!) <= Date.parse(result.shootStartsAt!) || Date.parse(result.shootEndsAt!) - Date.parse(result.shootStartsAt!) > 31 * 86400_000) bad('Shoot end must follow start within 31 days')
+    validateShootWindow(result.shootStartsAt!,result.shootEndsAt!)
   }
   if (v.softHoldId !== undefined) { if (!['approve','schedule'].includes(result.action) || v.shootStartsAt !== undefined) bad('Choose a soft hold or enter dates'); result.softHoldId = v.softHoldId === 'projected' ? 'projected' : uuid(v.softHoldId) }
   if (result.action === 'propose_dates') {
     if (!Array.isArray(v.softHolds) || v.softHolds.length > 10) bad('Choose up to 10 soft holds')
-    result.softHolds = (v.softHolds as unknown[]).map(value => { const hold = object(value,['id','startsAt','endsAt']); const startsAt=timestamp(hold.startsAt), endsAt=timestamp(hold.endsAt); if (Date.parse(endsAt)<=Date.parse(startsAt)||Date.parse(endsAt)-Date.parse(startsAt)>31*86400000) bad('Soft hold end must follow start within 31 days'); return {id:uuid(hold.id),startsAt,endsAt} })
+    result.softHolds = (v.softHolds as unknown[]).map(value => { const hold = object(value,['id','startsAt','endsAt']); const startsAt=timestamp(hold.startsAt), endsAt=timestamp(hold.endsAt); validateShootWindow(startsAt,endsAt); return {id:uuid(hold.id),startsAt,endsAt} })
     if (new Set(result.softHolds.map(h=>h.id)).size !== result.softHolds.length) bad('Soft hold IDs must be unique')
   } else if (v.softHolds !== undefined) bad('Soft holds are only accepted when proposing dates')
   if (result.action === 'schedule' && !result.shootStartsAt && !result.softHoldId) bad('Confirmed shoot times are required')

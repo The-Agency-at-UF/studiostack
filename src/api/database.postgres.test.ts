@@ -1521,6 +1521,22 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(stored.version).toBe(b.version+1)
     expect((await operator.query("SELECT id FROM app.production_brief_events WHERE brief_id=$1 AND kind='attachment_removed'",[b.id])).rows).toHaveLength(1)
   })
+  it('LOGIC-021: a projected window uses the same 31-day cap at confirmation',async()=>{
+    let b=await draft()
+    const now=Date.now(), day=(offset:number)=>new Date(now+offset*86400000).toISOString().slice(0,10)
+    const data={...b.data,deliveryDate:day(75),fields:{...b.data.fields,proposedStart:day(4),proposedEnd:day(48)}}
+    b=await production(member,{resource:'briefs',method:'PATCH',briefId:b.id,body:{data,version:b.version,requestId:randomUUID()}}) as ProductionBrief
+    b=await command(member,b,'submit')
+    await expect(command(owner,b,'approve')).rejects.toMatchObject({status:400})
+  })
+  it('LOGIC-022: archived client history survives idea edits and creation replay',async()=>{
+    const c=await production(owner,{resource:'clients',method:'POST',body:{name:'Historical idea client'}}) as {id:string;name:string;version:number}
+    const input={id:randomUUID(),title:'Pitch',pitch:'Make a short film',clientAccountId:c.id}
+    await production(member,{resource:'ideas',method:'POST',body:input})
+    await production(owner,{resource:'clients',method:'PATCH',clientId:c.id,body:{name:c.name,deleted:true,version:c.version}})
+    await expect(production(member,{resource:'ideas',method:'POST',body:input})).resolves.toMatchObject({id:input.id})
+    await expect(production(member,{resource:'ideas',method:'PATCH',ideaId:input.id,body:{title:'Revised pitch',pitch:input.pitch,clientAccountId:c.id,status:'pitched',version:1}})).resolves.toMatchObject({title:'Revised pitch',clientAccountId:c.id})
+  })
   it('LOGIC-023: feedback only updates the corresponding delivery attempt',async()=>{
     const row=await repository.execute(member,{operation:'bugReport',organizationId,kind:'bug',title:'Attempt fixture',description:'Delivery test.',pagePath:'/reports/',requestId:randomUUID()}) as {id:string}
     const job=(await bugReportQueue({action:'claim'})).jobs!.find(candidate=>candidate.id===row.id)!
@@ -1562,6 +1578,11 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect((await sweepAlerts()).created).toBeGreaterThan(0)
     expect((await alerts<ApiPage<AppAlert>>(owner)).items.some(a=>a.targetPath.endsWith(r.id))).toBe(true)
     expect(await sweepAlerts()).toEqual({created:0})
+  })
+  it('LOGIC-029: status-only client authority leaves the client name protected',async()=>{
+    const {rows:[c]}=await operator.query("INSERT INTO app.client_accounts(organization_id,name,created_by) VALUES($1,'Original title',$2) RETURNING id,version",[organizationId,profiles.member.id])
+    await expect(production(member,{resource:'clients',method:'PATCH',clientId:c.id,body:{name:'Updated title',deleted:true,version:c.version}})).rejects.toMatchObject({status:403})
+    await expect(production(member,{resource:'clients',method:'PATCH',clientId:c.id,body:{name:'Original title',deleted:true,version:c.version}})).resolves.toMatchObject({name:'Original title',deletedAt:expect.any(Date)})
   })
 
 })
