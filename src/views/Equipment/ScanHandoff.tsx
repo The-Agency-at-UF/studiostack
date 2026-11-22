@@ -8,7 +8,6 @@ import {ConditionForm} from './Fulfillment'
 import {reservationLabel} from './Reservations'
 import {dateTimeLabel} from './format'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
-import {agencyCampus} from '../../types/campus'
 type ScannedHandoff={kind:'checkout'|'return';reservation:EquipmentReservation}|{kind:'none';reason:string}
 /** Picks the reservation a scanned item belongs to: its open checkout when it is out, otherwise the earliest pickup that is open now. */
 export function handoffFor(item:EquipmentRecord,reservations:EquipmentReservation[],now:number):ScannedHandoff{
@@ -41,7 +40,7 @@ export default function ScanHandoff({api,organizationId,items,admin,onAdd,onSave
     toast.success(row.fulfillmentStatus==='returned'?`${name} returned${damaged?'. A damage report was created and damaged items were placed in maintenance':''}.`:`${name} checked out on ${row.name}.`);setScan(null)
     await onSaved()
   }
-  return <section className="equipment-scan" aria-label="Scan equipment"><div className="equipment-scan-header"><div><h2>Scan equipment</h2><p className="administration-hint">Scan a label to check equipment out or return it. Your location is confirmed on campus near {agencyCampus.name}.</p></div><button type="button" className="equipment-scan-close" onClick={onClose}>Close scanner</button></div>
+  return <section className="equipment-scan" aria-label="Scan equipment"><div className="equipment-scan-header"><div><h2>Scan equipment</h2></div><button type="button" className="equipment-scan-close" onClick={onClose}>Close scanner</button></div>
     {error&&<p role="alert">{error}</p>}{busy&&<p role="status">Finding the reservation…</p>}
     {!scan&&!busy&&<>{camera?<EquipmentQrScanner onCancel={()=>setCamera(false)} onCode={lookUp}/>:<button type="button" onClick={()=>setCamera(true)}>Use camera</button>}
       <form className="equipment-scan-manual" onSubmit={e=>{e.preventDefault();lookUp(code)}}><label>Or enter equipment code<input value={code} autoComplete="off" autoCapitalize="characters" spellCheck={false} enterKeyHint="search" maxLength={128} onChange={e=>setCode(e.target.value)}/></label><button>Look up equipment</button></form></>}

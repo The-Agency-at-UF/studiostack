@@ -77,7 +77,7 @@ export default function Account({initialTab='workspaces'}:{initialTab?:AccountTa
 function ProfileTab({name,onSave}:{name:string|null;onSave?:(name:string)=>Promise<void>}) {
   const session=useAppSession()
   return <section className="account-card" aria-labelledby="account-profile-title">
-    <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2><p>{onSave?'Your name and the email you sign in with.':'The email you sign in with.'} Workspace invitations are sent to this email.</p></div>
+    <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2></div>
     <div className="account-card-body">
       {onSave&&name!==null&&<NameField initialName={name} onSave={onSave}/>}
       <label className="ws-field">Email<input type="email" value={session.email} readOnly/></label>
@@ -144,7 +144,7 @@ function WorkspacesTab() {
   const selected=organizations.some(o=>o.id===session.selectedOrganizationId)?session.selectedOrganizationId:organizations[0]?.id
   return <>
     <section className="account-card" aria-labelledby="account-workspaces-title">
-      <div className="account-card-heading"><h2 id="account-workspaces-title">Your organizations</h2><p>Choose the organization you’re working in.</p></div>
+      <div className="account-card-heading"><h2 id="account-workspaces-title">Your organizations</h2></div>
       {organizations.length?<fieldset className="account-workspaces"><legend className="sr-only">Current organization</legend>
         {organizations.map(org=><label key={org.id} className="account-workspace">
           <input type="radio" name="account-workspace" value={org.id} checked={selected===org.id} onChange={()=>{session.setSelectedOrganizationId?.(org.id);toast.success(`Switched to ${org.name}.`,{id:'account-workspace'})}}/>
@@ -178,7 +178,7 @@ function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken
     try{await joined('the workspace',organizationId)}finally{setBusy(false)}
   }
   return <section className="account-card" aria-labelledby="account-join-title">
-    <div className="account-card-heading"><h2 id="account-join-title">Join another organization</h2><p>Invitations sent to your verified email appear here.</p></div>
+    <div className="account-card-heading"><h2 id="account-join-title">Join another organization</h2></div>
     <div className="account-card-body">
       {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
       {invitations.length>0&&<ul className="account-workspaces account-invitation-list">{invitations.map(invitation=><li key={invitation.id} className="account-workspace">

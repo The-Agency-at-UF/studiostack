@@ -77,7 +77,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
   {loading&&!hasAnyData&&<Skeleton label="Loading workspace…" variant="tile" count={4}/>}
   <>
     {statistics?<>{summary}
-      <section><h2>Bookings by month</h2><p className="administration-hint">Confirmed reservations by scheduled start, including returned equipment. Cancelled bookings are excluded.</p>
+      <section><h2>Bookings by month</h2>
         {errors.bookings?<div className="section-inline-error"><p role="alert">{errors.bookings}</p><button disabled={retrying==='bookings'} onClick={()=>retrySection('bookings')}>{retrying==='bookings'?'Retrying…':'Retry reservations'}</button></div>:bookings===null&&loading?<Skeleton label="Loading reservations…" variant="row" count={4}/>:<ol className="equipment-chart ws-enter" aria-label="Confirmed reservations by month">{months.map(m=><li key={m.key}><span>{m.label}</span><div><span style={{width:Math.max(m.count?1:0,m.count/max*100)+'%'}}/></div><strong>{m.count}</strong></li>)}</ol>}
       </section>
       <section><h2>Equipment by category</h2>

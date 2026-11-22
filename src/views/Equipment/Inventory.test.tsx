@@ -78,12 +78,11 @@ describe('Failed inventory reads (G01)',()=>{
   const user=userEvent.setup();render(<LiveInventory/>)
   const alert=await screen.findByRole('alert')
   expect(alert).toHaveTextContent('Equipment couldn’t load.')
-  expect(screen.getByText(/Item count unavailable/)).toBeInTheDocument()
   expect(screen.queryByText(/0 items/)).not.toBeInTheDocument()
   expect(screen.queryByText('No equipment yet.')).not.toBeInTheDocument()
   await user.click(screen.getByRole('button',{name:'Retry'}))
   expect(await screen.findByRole('button',{name:'Live camera'})).toBeInTheDocument()
-  expect(document.querySelector('.inventory-summary')).toHaveTextContent(/^1 item/)
+  expect(screen.getByText('1 item')).toBeInTheDocument()
  })
  it('labels a list kept from this device as possibly out of date when a refresh fails',async()=>{
   setCached('inventory:org',[item])

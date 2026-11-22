@@ -117,7 +117,6 @@ export default function OrganizationDirectory() {
   const manager = owner || settings?.role === 'admin'
   const me = session.email?.trim().toLowerCase()
   const sorted = [...people].sort((a, b) => rank[a.role] - rank[b.role] || a.name.localeCompare(b.name))
-  const adminCount = people.filter(p => p.role !== 'member').length
   const query = search.trim().toLowerCase()
   const visible = sorted.filter(p => `${p.name} ${p.email ?? ''}`.toLowerCase().includes(query)
     && (roleFilter === 'all' || (roleFilter === 'admins') === (p.role !== 'member')))
@@ -139,7 +138,6 @@ export default function OrganizationDirectory() {
 
   return <main className="org-directory workspace-surface">
     <OrganizationHeader settings={settings} active="people"
-      summary={settings && <>{people.length} {people.length === 1 ? 'person' : 'people'} · {plural(adminCount, 'admin')} · You&apos;re {settings.role === 'member' ? 'a member' : `an ${settings.role}`}</>}
       action={manager && <button type="button" className="ws-button ws-button-primary org-directory-invite" aria-expanded={inviting} aria-controls="org-invite" onClick={() => setInviting(open => !open)}><HiOutlinePlus aria-hidden="true" />Invite people</button>} />
     {error && <Notice kind="error" action={!settings && !loading && <button type="button" className="ws-button" onClick={() => setAttempt(n => n + 1)}>Retry</button>}>{error}</Notice>}
     {loading && <Skeleton label="Loading organization…" variant="row" count={4} />}
@@ -155,7 +153,6 @@ export default function OrganizationDirectory() {
       <section className="org-directory-card org-directory-people" aria-labelledby="org-people">
         <div className="org-directory-card-heading">
           <h2 id="org-people" tabIndex={-1}>People</h2>
-          <p>{owner ? 'Manage roles and remove members or admins. Change an owner’s role before removing them.' : manager ? 'Admins manage member and admin roles, and remove members. Only owners can change an owner.' : 'Owners and admins manage people and settings.'}</p>
         </div>
         <div className="org-directory-filters">
           <label className="org-directory-search"><HiOutlineMagnifyingGlass aria-hidden="true" /><input aria-label="Search people" placeholder={manager ? 'Search by name or email' : 'Search by name'} value={search} onChange={event => setSearch(event.target.value)} /></label>

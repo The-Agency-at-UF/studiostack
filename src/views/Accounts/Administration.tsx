@@ -99,16 +99,16 @@ export default function Administration() {
       </nav>
       <div className="administration-sections">
         <section id="general" className="administration-panel ws-enter" aria-labelledby="general-title">
-          <header className="administration-panel-header"><h2 id="general-title">General</h2><p>How your organization appears to members and to people searching for it.</p></header>
+          <header className="administration-panel-header"><h2 id="general-title">General</h2></header>
           <SettingsForm key={settings.version} settings={settings} busy={busy} run={run} logoUrl={session.organizations?.find(o=>o.id===org)?.logoUrl??null} uploadLogo={async file=>{if(!database||!org)throw new Error('Sign in to upload a logo');return (await uploadOrganizationPhoto(file,org,database)).photoId}}/>
           <p className="administration-hint">Production Leads and Executive Leadership Team members are chosen in <Link href="/production/">Production</Link> → Production roles.</p>
         </section>
         <section id="joining" className="administration-panel" aria-labelledby="joining-title">
-          <header className="administration-panel-header"><h2 id="joining-title">How people join</h2><p>Self-service ways into the organization. Everyone who joins this way starts as a member.</p></header>
+          <header className="administration-panel-header"><h2 id="joining-title">How people join</h2></header>
           <JoinMethods owner={owner} busy={busy} run={run} codes={codes} domains={domains}/>
         </section>
         <section id="invitations" className="administration-panel" aria-labelledby="invitations-title">
-          <header className="administration-panel-header"><h2 id="invitations-title">Invitations &amp; requests</h2><p>Invitations you’ve sent and what happened to them. Send new ones from People.</p></header>
+          <header className="administration-panel-header"><h2 id="invitations-title">Invitations &amp; requests</h2></header>
           <AccessRequests key={org} busy={busy} run={run} requests={requests}/>
           {invitations.length>0&&<div className="administration-group">{requests.length>0&&<h3>Invitations</h3>}
             <ul className="administration-list">{invitationPage.pageRows.map(i=>{const pending=i.status==='pending'&&Date.parse(i.expiresAt)>Date.now();return <li key={i.id}><div><strong>{i.displayName}</strong><span>{i.email} · {i.role==='admin'?'Admin':'Member'}</span><small>{pending?`Waiting to accept · ${({queued:'Email queued',sending:'Email sending',sent:'Email sent',skipped:'Email skipped',failed:'Email failed to send',uncertain:'Email delivery unconfirmed'} as const)[i.deliveryStatus]} · Expires ${dateLabel(i.expiresAt)}`:i.status==='accepted'?'Joined':i.status==='revoked'?'Revoked':'Expired'}</small></div>{pending&&<div className="administration-actions">{['failed','uncertain'].includes(i.deliveryStatus)&&<button className="administration-secondary" disabled={busy} onClick={()=>void run(`retry:${i.id}:${i.version}`,(c,requestId)=>c.retryInvitation(i.id,{version:i.version,requestId}))}>Retry delivery</button>}<button className="administration-quiet administration-danger" disabled={busy} onClick={()=>setPending({title:'Revoke this invitation?',subject:`${i.displayName} · ${i.email}`,description:'The link in their email stops working. You can invite them again later.',confirmLabel:'Revoke invitation',returnFocus:()=>document.getElementById('invitations-title'),go:()=>void run(`revoke:${i.id}:${i.version}`,(c,requestId)=>c.revokeInvitation(i.id,{version:i.version,requestId}),{apply:l=>({...l,invitations:l.invitations.map(v=>v.id===i.id?{...v,status:'revoked'}:v)}),settle:(l,saved)=>({...l,invitations:settled(l.invitations,'id',saved)})})})}>Revoke invitation<span className="ws-sr-only"> for {i.displayName}</span></button></div>}</li>})}</ul>
@@ -118,7 +118,7 @@ export default function Administration() {
           {!requests.length&&!invitations.length&&<p className="administration-empty"><span>Nothing waiting. Access requests and open invitations show up here.</span></p>}
         </section>
         <section id="activity" className="administration-panel" aria-labelledby="activity-title">
-          <header className="administration-panel-header"><h2 id="activity-title">Activity</h2><p>Changes to members, access and settings.</p></header>
+          <header className="administration-panel-header"><h2 id="activity-title">Activity</h2></header>
           {events.length>0
             ?<ul className="administration-list administration-activity">{activityPage.pageRows.map(event=><li key={event.id}><div><strong>{activityLabel(event.kind)}</strong><span><span className="ws-sr-only">By </span>{event.actorName} · <time dateTime={event.createdAt}>{when(event.createdAt)}</time></span></div></li>)}</ul>
             :<p className="administration-empty"><span>No administration activity yet.</span></p>}
