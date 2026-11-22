@@ -27,6 +27,7 @@ async function all<T>(read:(after?:string)=>Promise<ApiPage<T>>){const items:T[]
 const message=(error:unknown,kind:'load'|'save'='save')=>kind==='load'&&!(error instanceof DatabaseApiClientError&&[401,403].includes(error.status))?'This couldn’t load. Check your connection, then try again.':serverMessage(error)??(error instanceof DatabaseApiClientError?({403:'Your account can’t manage this organization. Ask an owner for admin access.',409:'Someone else changed this just now. Refresh, then try again.',400:'Some details weren’t accepted. Check the form and the active team members, then try again.',401:'Your session expired. Sign in again to continue.'} as Record<number,string>)[error.status]??'StudioStack couldn’t confirm the change. Check your connection, then try again.':'StudioStack couldn’t confirm the change. Check your connection, then try again.')
 
 const SECTIONS=[{id:'general',label:'General'},{id:'joining',label:'How people join'},{id:'invitations',label:'Invitations & requests'},{id:'activity',label:'Activity'}] as const
+type SettingsSection=(typeof SECTIONS)[number]['id']
 const ACTIVITY:Record<string,string>={
   organization_updated:'Updated organization settings',member_updated:'Updated a member',member_removed:'Removed a member',
   member_joined_code:'Someone joined with a code',member_joined_domain:'Someone joined from an email domain',member_joined_signup:'Someone joined at sign-up',
@@ -44,7 +45,7 @@ export default function Administration() {
   const [settings,setSettings]=useState<OrganizationSettings|null>(null),[invitations,setInvitations]=useState<OrganizationInvitation[]>([]),[activity,setActivity]=useState<OrganizationActivity[]>([])
   const [requests,setRequests]=useState<PendingAccessRequest[]>([]),[codes,setCodes]=useState<JoinCode[]>([]),[domains,setDomains]=useState<WorkspaceDomain[]>([])
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),toast=useToast()
-  const [current,setCurrent]=useState<string>('general')
+  const [current,setCurrent]=useState<SettingsSection>('general')
   const generation=useRef(0),mutation=useRef<{key:string;id:string}|null>(null)
   // Background reloads can overlap; only the newest one, started after the latest change, may update the page.
   const loads=useRef(0)
@@ -72,18 +73,12 @@ export default function Administration() {
     catch(e){if(g===generation.current){if(optimistic)put(before);toast.error(message(e),{id:'organization-settings'})}}finally{if(g===generation.current)setBusy(false)}}
   const owner=settings?.role==='owner',admin=owner||settings?.role==='admin'
   const ready=!loading&&admin&&!!settings
-  // Highlight the index entry for the section the reader has scrolled into; the last one once the page bottoms out.
   useEffect(()=>{
-    if(!ready)return
-    let frame=0
-    const update=()=>{frame=0
-      const atEnd=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2
-      const passed=SECTIONS.filter(({id})=>(document.getElementById(id)?.getBoundingClientRect().top??Infinity)<=window.innerHeight*.3)
-      setCurrent(atEnd?SECTIONS[SECTIONS.length-1].id:passed[passed.length-1]?.id??SECTIONS[0].id)}
-    const schedule=()=>{if(!frame)frame=requestAnimationFrame(update)}
-    update();window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',schedule)
-    return()=>{cancelAnimationFrame(frame);window.removeEventListener('scroll',schedule);window.removeEventListener('resize',schedule)}
-  },[ready])
+    const update=()=>setCurrent(SECTIONS.find(({id})=>`#${id}`===window.location.hash)?.id??'general')
+    update()
+    window.addEventListener('hashchange',update)
+    return()=>window.removeEventListener('hashchange',update)
+  },[])
   const waiting=requests.length+invitations.filter(i=>i.status==='pending'&&Date.parse(i.expiresAt)>Date.now()).length
   const events=[...activity].sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
   const activityPage=usePagination(events,[org])
@@ -95,19 +90,19 @@ export default function Administration() {
     {!loading&&settings&&!admin&&<p>Only organization owners and administrators can manage the organization.</p>}
     {ready&&<div className="administration-layout">
       <nav className="administration-index" aria-label="Settings sections">
-        {SECTIONS.map(s=><a key={s.id} href={`#${s.id}`} aria-current={current===s.id?'location':undefined} onClick={()=>setCurrent(s.id)}>{s.label}{s.id==='invitations'&&waiting>0&&<><span className="administration-count" aria-hidden="true">{waiting}</span><span className="ws-sr-only">, {waiting} pending</span></>}</a>)}
+        {SECTIONS.map(s=><a key={s.id} href={`#${s.id}`} aria-current={current===s.id?'location':undefined}>{s.label}{s.id==='invitations'&&waiting>0&&<><span className="administration-count" aria-hidden="true">{waiting}</span><span className="ws-sr-only">, {waiting} pending</span></>}</a>)}
       </nav>
       <div className="administration-sections">
-        <section id="general" className="administration-panel ws-enter" aria-labelledby="general-title">
+        <section id="general" className="administration-panel" aria-labelledby="general-title" hidden={current!=='general'}>
           <header className="administration-panel-header"><h2 id="general-title">General</h2></header>
           <SettingsForm key={settings.version} settings={settings} busy={busy} run={run} logoUrl={session.organizations?.find(o=>o.id===org)?.logoUrl??null} uploadLogo={async file=>{if(!database||!org)throw new Error('Sign in to upload a logo');return (await uploadOrganizationPhoto(file,org,database)).photoId}}/>
           <p className="administration-hint">Production Leads and Executive Leadership Team members are chosen in <Link href="/production/">Production</Link> → Production roles.</p>
         </section>
-        <section id="joining" className="administration-panel" aria-labelledby="joining-title">
+        <section id="joining" className="administration-panel" aria-labelledby="joining-title" hidden={current!=='joining'}>
           <header className="administration-panel-header"><h2 id="joining-title">How people join</h2></header>
           <JoinMethods owner={owner} busy={busy} run={run} codes={codes} domains={domains}/>
         </section>
-        <section id="invitations" className="administration-panel" aria-labelledby="invitations-title">
+        <section id="invitations" className="administration-panel" aria-labelledby="invitations-title" hidden={current!=='invitations'}>
           <header className="administration-panel-header"><h2 id="invitations-title">Invitations &amp; requests</h2></header>
           <AccessRequests key={org} busy={busy} run={run} requests={requests}/>
           {invitations.length>0&&<div className="administration-group">{requests.length>0&&<h3>Invitations</h3>}
@@ -117,7 +112,7 @@ export default function Administration() {
           </div>}
           {!requests.length&&!invitations.length&&<p className="administration-empty"><span>Nothing waiting. Access requests and open invitations show up here.</span></p>}
         </section>
-        <section id="activity" className="administration-panel" aria-labelledby="activity-title">
+        <section id="activity" className="administration-panel" aria-labelledby="activity-title" hidden={current!=='activity'}>
           <header className="administration-panel-header"><h2 id="activity-title">Activity</h2></header>
           {events.length>0
             ?<ul className="administration-list administration-activity">{activityPage.pageRows.map(event=><li key={event.id}><div><strong>{activityLabel(event.kind)}</strong><span><span className="ws-sr-only">By </span>{event.actorName} · <time dateTime={event.createdAt}>{when(event.createdAt)}</time></span></div></li>)}</ul>

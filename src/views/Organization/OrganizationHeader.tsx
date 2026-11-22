@@ -29,7 +29,9 @@ export default function OrganizationHeader({ settings, active, action }: { setti
     {manager && <nav className="org-header-tabs ws-pill-tabs" aria-label="Organization sections">
       <TabPill id="organization-sections" />
       <Link href="/organization" aria-current={active === 'people' ? 'page' : undefined}>People</Link>
-      <Link href="/organization/settings" aria-current={active === 'settings' ? 'page' : undefined}>Access &amp; settings</Link>
+      {active === 'settings'
+        ? <a href="#general" aria-current="page">Access &amp; settings</a>
+        : <Link href="/organization/settings">Access &amp; settings</Link>}
     </nav>}
   </>
 }

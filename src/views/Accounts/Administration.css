@@ -50,16 +50,16 @@
 .administration .administration-logo-pick input { position:absolute; inset:0; opacity:0; cursor:pointer; padding:0; }
 .administration .administration-logo small { flex-basis:100%; color:var(--muted); }
 
-/* Access & settings: a sticky section index beside one card per section.
+/* Access & settings uses a sticky section menu beside the selected card.
    workspace-surface hides overflow, which would stop the index sticking; clip keeps the clipping without a scroll container. */
 .workspace-surface.administration-settings-page { overflow:clip; }
 .administration-layout { display:grid; grid-template-columns:216px minmax(0,1fr); gap:var(--space-8); align-items:start; }
 .administration-index { position:sticky; top:var(--space-6); display:grid; gap:2px; }
-.administration-index a { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); min-height:40px; padding:var(--space-2) var(--space-3); border-radius:var(--radius-control); color:var(--muted); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; transition:background var(--motion-fast),color var(--motion-fast); }
+.administration-index a { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); min-height:var(--control-height); padding:var(--space-2) var(--space-3); border-radius:var(--radius-control); color:var(--muted); font-size:var(--text-sm); font-weight:var(--weight-medium); text-decoration:none; transition:background var(--motion-fast),color var(--motion-fast); }
 .administration-index a:hover { color:var(--ink); background:var(--surface-tray); }
 .administration-index a[aria-current] { color:var(--ink); background:var(--surface); box-shadow:0 1px 2px color-mix(in srgb,var(--ink) 8%,transparent); }
 .administration-index .administration-count { margin-left:0; }
-.administration-sections { display:grid; gap:var(--space-6); min-width:0; }
+.administration-sections { min-width:0; }
 .administration-sections > section { scroll-margin-top:var(--space-6); }
 .administration-layout .administration-panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:var(--space-8); margin:0; }
 .administration-layout header.administration-panel-header { display:block; padding:0 0 var(--space-5); margin:0 0 var(--space-6); border-bottom:1px solid var(--line); }
@@ -102,8 +102,7 @@
 
 @media(max-width:1023px){
   .administration-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
-  .administration-index { position:static; display:flex; gap:var(--space-1); overflow-x:auto; padding-bottom:var(--space-1); }
-  .administration-index a { flex:none; }
+  .administration-index { position:static; display:flex; flex-wrap:wrap; gap:var(--space-2); }
   /* Clear the fixed mobile top bar when jumping to a section. */
   .administration-sections > section { scroll-margin-top:calc(var(--header-height) + var(--space-4)); }
 }
