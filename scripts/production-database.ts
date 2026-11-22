@@ -4,18 +4,29 @@ import {readMetadata,type DevMetadata} from './deploy-dev-api'
 import {productionMetadata,type ProductionMetadata} from './prod-aws'
 import {selectedBuild} from './database-build'
 import {productionRds} from './prod-rds'
-export async function productionVariables(metadata:ProductionMetadata){
- const common={STUDIOSTACK_ENV:'prod',RDS_AWS_ACCOUNT_ID:'423563856930',RDS_DATABASE:'studiostackprod',RDS_PORT:'5432',RDS_CA_BUNDLE_PATH:'/var/task/certs/us-east-2-bundle.pem',RDS_CONNECT_TIMEOUT_MS:'18000',DATABASE_API_ID:metadata.apiId,COGNITO_USER_POOL_ID:metadata.auth.UserPoolId,COGNITO_APP_CLIENT_ID:metadata.auth.AppClientId,S3_PHOTOS_BUCKET:'studio-stack-photos-prod'}
- // After the cutover every redeploy must keep the runtime on RDS with IAM login, never revert it to Aurora.
- const rds=await productionRds()
- if(rds?.cutoverAt){
-  const {DBInstances:[instance]}=await aws<{DBInstances:{DBInstanceStatus:string;Engine:string;DBName:string;IAMDatabaseAuthenticationEnabled:boolean;Endpoint:{Address:string};VpcSecurityGroups:{VpcSecurityGroupId:string}[]}[]}>('rds','describe-db-instances',['--db-instance-identifier',rds.InstanceId])
-  if(instance.DBInstanceStatus!=='available'||instance.Engine!=='postgres'||instance.DBName!=='studiostackprod'||!instance.IAMDatabaseAuthenticationEnabled||instance.Endpoint.Address!==rds.Endpoint||instance.VpcSecurityGroups.length!==1||instance.VpcSecurityGroups[0].VpcSecurityGroupId!=='sg-062d80daa895fb7b6')throw new Error('Unexpected production database')
-  return {...common,RDS_HOST:rds.Endpoint,RDS_AUTH:'iam',RDS_IAM_USER:'studiostack_prod_app'}
+const productionSecurityGroup = 'sg-062d80daa895fb7b6'
+type ProductionDatabaseTarget = {
+  variables: Record<string,string>
+  masterSecretArn: string
+}
+
+export async function productionDatabaseTarget(): Promise<ProductionDatabaseTarget> {
+ const {Environment:{Variables:live}} = await aws<{Environment:{Variables:Record<string,string>}}> ('lambda','get-function-configuration',['--function-name','studiostack-prod-database'])
+ const recorded = await productionRds()
+ if(live.RDS_AUTH==='iam'){
+  const {DBInstances:[instance]}=await aws<{DBInstances:{DBInstanceStatus:string;Engine:string;DBName:string;IAMDatabaseAuthenticationEnabled:boolean;Endpoint:{Address:string};MasterUserSecret:{SecretArn:string};VpcSecurityGroups:{VpcSecurityGroupId:string}[]}[]}>('rds','describe-db-instances',['--db-instance-identifier','studiostack-prod-pg'])
+  if(instance?.DBInstanceStatus!=='available'||instance.Engine!=='postgres'||instance.DBName!=='studiostackprod'||!instance.IAMDatabaseAuthenticationEnabled||instance.Endpoint.Address!==live.RDS_HOST||recorded&&instance.Endpoint.Address!==recorded.Endpoint||live.RDS_IAM_USER!=='studiostack_prod_app'||!instance.MasterUserSecret?.SecretArn||instance.VpcSecurityGroups.length!==1||instance.VpcSecurityGroups[0].VpcSecurityGroupId!==productionSecurityGroup)throw new Error('Unexpected live production RDS target')
+  return {variables:{RDS_HOST:instance.Endpoint.Address,RDS_AUTH:'iam',RDS_IAM_USER:live.RDS_IAM_USER},masterSecretArn:instance.MasterUserSecret.SecretArn}
  }
+ if(recorded?.cutoverAt || (live.RDS_AUTH && live.RDS_AUTH!=='secret')) throw new Error('Live production database disagrees with the recorded target')
  const shared=await readMetadata(),{DBClusters:[cluster]}=await aws<{DBClusters:{Endpoint:string;DatabaseName:string;Status:string;Engine:string;MasterUserSecret:{SecretArn:string};VpcSecurityGroups:{VpcSecurityGroupId:string}[]}[]}>('rds','describe-db-clusters',['--db-cluster-identifier','studiostack-prod-db'])
- if(cluster.Status!=='available'||cluster.Engine!=='aurora-postgresql'||cluster.DatabaseName!=='studiostackprod'||cluster.VpcSecurityGroups.length!==1||cluster.VpcSecurityGroups[0].VpcSecurityGroupId!=='sg-062d80daa895fb7b6'||cluster.MasterUserSecret.SecretArn!==shared.masterSecrets.prod)throw new Error('Unexpected production database')
- return {...common,RDS_HOST:cluster.Endpoint,RDS_SECRET_ARN:shared.network.ProdSecretArn}
+ if(cluster?.Status!=='available'||cluster.Engine!=='aurora-postgresql'||cluster.DatabaseName!=='studiostackprod'||cluster.Endpoint!==live.RDS_HOST||live.RDS_SECRET_ARN!==shared.network.ProdSecretArn||cluster.VpcSecurityGroups.length!==1||cluster.VpcSecurityGroups[0].VpcSecurityGroupId!==productionSecurityGroup||cluster.MasterUserSecret.SecretArn!==shared.masterSecrets.prod)throw new Error('Unexpected live production Aurora target')
+ return {variables:{RDS_HOST:cluster.Endpoint,RDS_SECRET_ARN:shared.network.ProdSecretArn},masterSecretArn:cluster.MasterUserSecret.SecretArn}
+}
+
+export async function productionVariables(metadata:ProductionMetadata,target?:ProductionDatabaseTarget){
+ const common={STUDIOSTACK_ENV:'prod',RDS_AWS_ACCOUNT_ID:'423563856930',RDS_DATABASE:'studiostackprod',RDS_PORT:'5432',RDS_CA_BUNDLE_PATH:'/var/task/certs/us-east-2-bundle.pem',RDS_CONNECT_TIMEOUT_MS:'18000',DATABASE_API_ID:metadata.apiId,COGNITO_USER_POOL_ID:metadata.auth.UserPoolId,COGNITO_APP_CLIENT_ID:metadata.auth.AppClientId,S3_PHOTOS_BUCKET:'studio-stack-photos-prod'}
+ return {...common,...(target??await productionDatabaseTarget()).variables}
 }
 async function removeProductionMaintenance(){
  const name='studiostack-prod-database-setup',role=name+'-role',{Functions}=await aws<{Functions:{FunctionName:string}[]}>('lambda','list-functions')
@@ -26,15 +37,15 @@ async function removeProductionMaintenance(){
 /** `cutoverTarget` additionally lets the temporary function read the new instance's master secret, for the Aurora to RDS copy only. */
 export interface MaintenanceOptions {timeout?:number;cutoverTarget?:{host:string;masterSecretArn:string}}
 export async function withProductionMaintenance<T>(operation:()=>Promise<T>,options:MaintenanceOptions={}){
- const shared:DevMetadata=await readMetadata(),metadata=await productionMetadata(),name='studiostack-prod-database-setup',build=await selectedBuild('prod'),rds=await productionRds()
+ const shared:DevMetadata=await readMetadata(),metadata=await productionMetadata(),name='studiostack-prod-database-setup',build=await selectedBuild('prod'),target=await productionDatabaseTarget()
  // Maintenance logs in as the master user of whichever database production runs on.
- const master=rds?.cutoverAt?rds.MasterSecretArn:shared.masterSecrets.prod,masters=[master,...(options.cutoverTarget?[options.cutoverTarget.masterSecretArn]:[])]
+ const master=target.masterSecretArn,masters=[master,...(options.cutoverTarget?[options.cutoverTarget.masterSecretArn]:[])]
  const existing=await aws<{Functions:{FunctionName:string}[]}>('lambda','list-functions');if(existing.Functions.some(f=>f.FunctionName===name))throw new Error('Inspect pre-existing production maintenance before proceeding')
  await applyStack('studiostack-database-connections',infrastructure({...shared.masterSecrets,prod:masters},['prod'],{prefixListId:shared.prefixListId}))
  try{
   await aws('iam','create-role',['--role-name',name+'-role','--assume-role-policy-document',JSON.stringify(trust),'--tags','Key=ManagedBy,Value=StudioStack','Key=Temporary,Value=true'])
   await aws('iam','put-role-policy',['--role-name',name+'-role','--policy-name','production-temporary-schema','--policy-document',JSON.stringify(executionPolicy(name,[...masters,shared.network.ProdSecretArn]))]);await pause(15000)
-  const {RDS_IAM_USER:_iamUser,...runtime}=await productionVariables(metadata) as Record<string,string>;void _iamUser
+  const {RDS_IAM_USER:_iamUser,...runtime}=await productionVariables(metadata,target) as Record<string,string>;void _iamUser
   const vars={...runtime,RDS_AUTH:'secret',RDS_SECRET_ARN:master,RDS_APP_SECRET_ARN:shared.network.ProdSecretArn,RDS_CONNECT_TIMEOUT_MS:'45000',APPLY_DATABASE_API_SCHEMA:'yes',ALLOW_PRODUCTION_SCHEMA:'yes',ALLOW_PRODUCTION_OWNER_BOOTSTRAP:'yes',...(options.cutoverTarget?{TARGET_RDS_HOST:options.cutoverTarget.host,TARGET_RDS_SECRET_ARN:options.cutoverTarget.masterSecretArn,ALLOW_RDS_CUTOVER:'yes'}:{})}
   await aws('lambda','create-function',['--function-name',name,'--role',roleArn(name+'-role'),'--handler','index.handler','--runtime','nodejs24.x','--architectures','arm64','--timeout',String(options.timeout??90),'--memory-size',options.cutoverTarget?'1024':'256','--environment',JSON.stringify({Variables:vars}),'--vpc-config',JSON.stringify({SubnetIds:subnets,SecurityGroupIds:['sg-0852d29f6cdd33552']}),'--zip-file',`fileb://${build.setup}`,'--tags','ManagedBy=StudioStack,Temporary=true']);await waitFunction(name);await pause(45000)
   return await operation()
