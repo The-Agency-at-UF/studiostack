@@ -4,11 +4,9 @@ import type {EquipmentRecord,EquipmentReservation,EquipmentEvent,EquipmentReport
 import type {CreateReservation,ApiOrganization} from '../types/database-api'
 import {campusProximity,campusProximityMessage} from '../types/campus'
 import {isOverdue,isServiceable} from '../equipment/reservationPolicy'
-import {createPreviewProductionClient} from '../production/preview'
+import {createPreviewProductionClient,readPreviewProductionState} from '../production/preview'
 import {productionReadiness} from '../production/readiness'
 import {createPreviewAccounts} from './accounts'
-import {readPreview} from './storage'
-import type {ClientAccount,ProductionSettings} from '../types/production'
 import {defaultPreviewPerson} from './people'
 import {previewFileUrl,previewPhotoKey,readPreviewFile} from './media'
 import {readWorkspace,mutateWorkspace,memberFor,previewIdentity,previewAdmin,requirePreviewAdmin,previewVersion,previewReceipt,addPreviewAlert,previewActivity,type PreviewWorkspace} from './workspace'
@@ -29,14 +27,14 @@ function validateBooking(s:PreviewWorkspace,input:CreateReservation,old?:Equipme
  if(!input.equipmentIds.length||input.equipmentIds.length>50||new Set(input.equipmentIds).size!==input.equipmentIds.length)throw new PreviewError('Select 1 to 50 different equipment items.')
  const start=Date.parse(input.startsAt),end=Date.parse(input.endsAt)
  if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||end<=Date.now()||!old&&start<Date.now()||end-start>s.settings.reservationDays*86400000)throw new PreviewError(`Choose valid dates within ${s.settings.reservationDays} days.`)
- if(input.clientAccountId){const clients=readPreview<{clients?:ClientAccount[]}>('studiostack-production-preview-v1',()=>({})).clients??[];if(!clients.some(c=>c.id===input.clientAccountId&&(!c.deletedAt||old?.clientAccountId===c.id)))throw new PreviewError('Choose an active client account.')}
+ if(input.clientAccountId){const clients=readPreviewProductionState(s).clients??[];if(!clients.some(c=>c.id===input.clientAccountId&&(!c.deletedAt||old?.clientAccountId===c.id)))throw new PreviewError('Choose an active client account.')}
  for(const id of input.equipmentIds){const item=s.inventory.find(i=>i.id===id);if(!item||!isServiceable(item))throw new PreviewError('Selected equipment is unavailable.');if(s.reservations.some(r=>r.id!==old?.id&&r.status==='confirmed'&&r.fulfillmentStatus!=='returned'&&r.equipmentIds.includes(id)&&(isOverdue(r)||Date.parse(r.startsAt)<end&&Date.parse(r.endsAt)>start)))throw new PreviewError('Equipment is already reserved or overdue on another checkout.')}
 }
 export function createPreviewDatabaseApi(person=defaultPreviewPerson):PreviewDatabase {
  const current=()=>{const s=readWorkspace();memberFor(person,s);return s}
  const production=createPreviewProductionClient(person)
- const leadership=()=>{const state=readPreview<{settings?:ProductionSettings}>('studiostack-production-preview-v1',()=>({}));return previewAdmin(person)||(state.settings?.reviewerIds??['preview-reviewer']).includes(person)}
- const reservation=(s:PreviewWorkspace,id:string,write=false)=>{const row=s.reservations.find(r=>r.id===id)??missing();if(!previewAdmin(person,s)&&row.userId!==person&&(write||!leadership())||!leadership()&&history(row))return missing();return row}
+ const leadership=(s:PreviewWorkspace)=>previewAdmin(person,s)||readPreviewProductionState(s).settings.reviewerIds.includes(person)
+ const reservation=(s:PreviewWorkspace,id:string,write=false)=>{const row=s.reservations.find(r=>r.id===id)??missing();if(!previewAdmin(person,s)&&row.userId!==person&&(write||!leadership(s))||!leadership(s)&&history(row))return missing();return row}
  const inventory=(s:PreviewWorkspace)=>s.inventory.map(i=>({...i,checkedOut:s.reservations.some(r=>r.status==='confirmed'&&r.fulfillmentStatus==='checked_out'&&r.equipmentIds.includes(i.id))}))
  const mutate=<T>(input:unknown,requestId:string,run:(s:PreviewWorkspace)=>T)=>mutateWorkspace(s=>{memberFor(person,s);return previewReceipt(s,person,requestId,input,()=>run(s))})
  const handoff=(id:string,input:FulfillReservation,returning:boolean)=>mutate({id,input:{...input,location:undefined},returning},input.requestId,s=>{
@@ -62,7 +60,7 @@ export function createPreviewDatabaseApi(person=defaultPreviewPerson):PreviewDat
   inventory:async()=>page(inventory(current())),
   createEquipment:async(_org,input)=>mutateWorkspace(s=>{requirePreviewAdmin(person,s);if(s.inventory.some(i=>i.equipmentCode.toUpperCase()===input.equipmentCode.toUpperCase()))throw new PreviewError('Equipment code already exists.');if(input.photoId&&!s.photos[input.photoId]?.ready)throw new PreviewError('Complete the photo upload first.');const row:EquipmentRecord={...input,id:input.equipmentCode,name:text(input.name,120),status:'available',condition:'good',version:1,checkedOut:false,photoId:input.photoId??null,createdAt:new Date().toISOString()};s.inventory.push(row);return row}),
   updateEquipment:async(_org,id,input)=>mutateWorkspace(s=>{requirePreviewAdmin(person,s);const row=s.inventory.find(i=>i.id===id)??missing();previewVersion(row,input.version);if(input.status&&input.status!=='available'&&s.reservations.some(r=>r.status==='confirmed'&&r.fulfillmentStatus!=='returned'&&r.equipmentIds.includes(id)&&(Date.parse(r.endsAt)>Date.now()||r.fulfillmentStatus==='checked_out')))throw new PreviewError('Cancel bookings and return equipment before archiving or taking it out of service.');if(input.status==='available'&&row.condition==='damaged')throw new PreviewError('Record a repaired condition before restoring service.');if(input.status==='available'&&s.reports.some(r=>r.equipmentId===id&&r.severity==='high'&&r.status!=='resolved'))throw new PreviewError('Resolve high-severity reports before restoring service.');if(input.photoId&&!s.photos[input.photoId]?.ready)throw new PreviewError('Complete the photo upload first.');Object.assign(row,input,{version:row.version+1});return row}),
-  reservations:async()=>{const s=current();return page(s.reservations.filter(r=>leadership()||r.userId===person&&!history(r)).map(r=>({...r,readOnly:!previewAdmin(person,s)&&r.userId!==person})))},
+  reservations:async()=>{const s=current();return page(s.reservations.filter(r=>leadership(s)||r.userId===person&&!history(r)).map(r=>({...r,readOnly:!previewAdmin(person,s)&&r.userId!==person})))},
   reservation:async(_org,id)=>{const s=current(),r=reservation(s,id);return {...structuredClone(r),readOnly:!previewAdmin(person,s)&&r.userId!==person}},
   createReservation:async(_org,input)=>mutate(input,input.requestId,s=>{if(!previewAdmin(person,s)&&s.reservations.some(r=>r.userId===person&&isOverdue(r)))throw new PreviewError('Return your overdue equipment before making a new reservation.');validateBooking(s,input);const r:EquipmentReservation={...input,id:crypto.randomUUID(),userId:person,name:text(input.name,120),status:'confirmed',fulfillmentStatus:'reserved',version:1,createdAt:new Date().toISOString(),checkedOutAt:null,returnedAt:null};s.reservations.push(r);event(s,person,'reservation_created',{name:r.name},{reservationId:r.id});return r}),
   cancelReservation:async(_org,id,version)=>mutateWorkspace(s=>{memberFor(person,s);const r=s.reservations.find(r=>r.id===id)??missing();if(!previewAdmin(person,s)&&r.userId!==person)return missing();if(r.status==='cancelled'&&r.version===version+1)return r;previewVersion(r,version);if(r.fulfillmentStatus!=='reserved')throw new PreviewError('Return equipment before closing this reservation.');if(r.status!=='cancelled'){r.status='cancelled';r.version++;event(s,person,'reservation_cancelled',{}, {reservationId:id})}return r}),
