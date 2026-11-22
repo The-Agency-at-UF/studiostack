@@ -151,11 +151,18 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
     }
   }, [api, cacheKey, cached])
   useEffect(() => {
-    const effectGeneration = ++generation.current; selection.current++; setPendingDelete(null); setSelected(null); setError(''); setDirty(false)
+    const effectGeneration = ++generation.current, initialSelection = ++selection.current
+    const id = new URLSearchParams(window.location.search).get('brief')
+    setPendingDelete(null); setSelected(null); setError(''); setDirty(false)
     setBriefs(cached?.briefs ?? []); setAccess(cached?.access ?? null); setClients(cached?.clients ?? []); setDeliveries(cached?.deliveries ?? [])
     setLoading(!cached)
     let active = true
-    refresh().then(async () => { const id = new URLSearchParams(window.location.search).get('brief'); if (id && api) { const b = await api.get(id); if (active) accept(b) } }).catch(e => { if (active) setError(errorText(e)) }).finally(() => { if (active) setLoading(false) })
+    const mayOpenLink = () => active && generation.current===effectGeneration && selection.current===initialSelection && !dirtyRef.current
+    refresh().then(async () => {
+      if (!id || !api || !mayOpenLink()) return
+      const brief = await api.get(id)
+      if (mayOpenLink()) accept(brief)
+    }).catch(e => { if (mayOpenLink()) setError(errorText(e)) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false; generation.current = effectGeneration + 1 }
   }, [refresh,api,cached])
   useEffect(()=>{const guard=(event:Event)=>{if(!dirty)return;event.preventDefault();const proceed=(event as CustomEvent<{proceed?:()=>void}>).detail?.proceed;if(proceed)setPendingLeave(()=>proceed)};window.addEventListener('preview-account-change',guard);return()=>window.removeEventListener('preview-account-change',guard)},[dirty])
@@ -194,6 +201,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const run = async (task: (client: ProductionClient) => Promise<ProductionBrief | void>, done: string | null) => {
     if (!api || busy) return false
     const g = generation.current
+    selection.current++
     setBusy(true); setError(''); toast.dismiss('production')
     try {
       const b = await task(api); if (g !== generation.current) return false
@@ -222,7 +230,7 @@ export default function Production({ view = 'workspace' }: { view?: 'workspace' 
   const remove = (brief: ProductionBrief) => setPendingDelete(brief)
   const confirmDelete = async () => {
     if (!pendingDelete || busy) return
-    await run(async client => { await client.remove(pendingDelete.id); setBriefs(list => list.filter(b => b.id !== pendingDelete.id)); setSelected(null); setDirty(false); setSnapshot(null); focusNewBrief.current = true }, 'Brief deleted.')
+    await run(async client => { await client.remove(pendingDelete.id,pendingDelete.version); setBriefs(list => list.filter(b => b.id !== pendingDelete.id)); setSelected(null); setDirty(false); setSnapshot(null); focusNewBrief.current = true }, 'Brief deleted.')
     setPendingDelete(null)
   }
   const update = (key: keyof BriefData, value: string | string[]) => { setForm(f => ({ ...f, [key]: value })); setDirty(true) }

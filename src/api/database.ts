@@ -92,6 +92,17 @@ export function createDatabaseApiClient(options: ClientOptions) {
     }
     return response.json() as Promise<T>
   }
+  async function revisionedWrite<T>(resource:string,method:string,{version,...fields}:{version:number}) {
+    try {
+      return await request<T>(resource,method,{...fields,version})
+    } catch (error) {
+      // The previous API rejects unknown fields during request parsing, before
+      // running a write. Only this exact response permits legacy web rollout.
+      if(!(error instanceof DatabaseApiClientError)||error.status!==400||
+        (error.payload as {error?:string}|null)?.error!=='Invalid request fields')throw error
+      return request<T>(resource,method,fields)
+    }
+  }
   /** Organization-scoped sender for one feature's API prefix. */
   const scoped = (org: string, prefix: (resource: string) => string): Send => (resource, method, body) => request(path(org, prefix(resource)), method, body)
   return {
@@ -118,11 +129,11 @@ export function createDatabaseApiClient(options: ClientOptions) {
     members: (org: string, page?: PageOptions) => request<ApiPage<ApiMember>>(paged(path(org, 'members'), page)),
     inventory: (org: string, page?: PageOptions) => request<ApiPage<EquipmentRecord>>(paged(path(org, 'inventory'), page)),
     createEquipment: (org: string, input: CreateEquipment) => request<EquipmentRecord>(path(org, 'inventory'), 'POST', input),
-    updateEquipment: (org: string, itemId: string, input: UpdateEquipment) => request<EquipmentRecord>(path(org, `inventory/${encodeURIComponent(itemId)}`), 'PATCH', input),
+    updateEquipment: (org: string, itemId: string, input: UpdateEquipment) => revisionedWrite<EquipmentRecord>(path(org, `inventory/${encodeURIComponent(itemId)}`), 'PATCH', input),
     reservations: (org: string, page?: PageOptions) => request<ApiPage<EquipmentReservation>>(paged(path(org, 'reservations'), page)),
     reservation: (org: string, id: string) => request<EquipmentReservation>(path(org, `reservations/${encodeURIComponent(id)}`)),
     createReservation: (org: string, input: CreateReservation) => request<EquipmentReservation>(path(org, 'reservations'), 'POST', input),
-    cancelReservation: (org: string, id: string) => request<EquipmentReservation>(path(org, `reservations/${encodeURIComponent(id)}/cancel`), 'POST', {}),
+    cancelReservation: (org: string, id: string, version:number) => revisionedWrite<EquipmentReservation>(path(org, `reservations/${encodeURIComponent(id)}/cancel`), 'POST', {version}),
     createPhotoUpload: (input: CreatePhotoUpload) => request<ApiPhotoUpload>('/photos/uploads', 'POST', input),
     completePhoto: (org: string, id: string) => request<ApiCompletedPhoto>(path(org, `photos/${encodeURIComponent(id)}/complete`), 'POST', {}),
     photo: (org: string, itemId: string) => request<ApiPhotoDownload>(path(org, `inventory/${encodeURIComponent(itemId)}/photo`)),

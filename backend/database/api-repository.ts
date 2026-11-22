@@ -1,3 +1,4 @@
+import {isServiceable} from '../../src/equipment/reservationPolicy'
 import {dispatchAlerts} from '../alerts/repository'
 import type {AlertRequest} from '../alerts/routes'
 import {dispatchReports} from '../equipment/reports'
@@ -35,7 +36,8 @@ export type ApiRequest =
   | { operation: 'createEquipment'; organizationId: string; input: CreateEquipment }
   | { operation: 'updateEquipment'; organizationId: string; itemId: string; input: UpdateEquipment }
   | { operation: 'createReservation'; organizationId: string; input: CreateReservation }
-  | { operation: 'reservation' | 'cancelReservation'; organizationId: string; reservationId: string }
+  | { operation: 'reservation'; organizationId: string; reservationId: string }
+  | { operation: 'cancelReservation'; organizationId: string; reservationId: string; version:number }
   | { operation: 'photoUpload'; organizationId: string; input: CreatePhotoUpload }
   | { operation: 'completePhoto'; organizationId: string; photoId: string }
   | { operation: 'downloadPhoto'; organizationId: string; itemId: string }
@@ -134,14 +136,16 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       }
       case 'updateEquipment': {
         admin(membership)
-        const locked = await client.query('SELECT id FROM app.inventory WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, request.itemId])
+        const locked = await client.query<{version:number;condition:string}>('SELECT id,version,condition FROM app.inventory WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, request.itemId])
         if (!locked.rows.length) throw new ApiError(404, 'Equipment not found')
+        if(locked.rows[0].version!==request.input.version)throw new ApiError(409,'Equipment changed. Refresh before saving')
         if (request.input.status && request.input.status !== 'available') {
           const booked = await client.query(`SELECT 1 FROM app.reservation_items i JOIN app.reservations r ON r.organization_id = i.organization_id AND r.id = i.reservation_id
             WHERE i.organization_id = $1 AND i.equipment_id = $2 AND r.status = 'confirmed' AND r.fulfillment_status<>'returned' AND (r.ends_at > now() OR r.fulfillment_status='checked_out') LIMIT 1`, [organizationId, request.itemId])
           if (booked.rows.length) throw new ApiError(409, 'Cancel active or future reservations before taking equipment out of service')
         }
         if(request.input.status==='available'){
+          if(locked.rows[0].condition==='damaged')throw new ApiError(409,'Record a repaired condition before restoring service')
           const reports=await client.query("SELECT 1 FROM app.equipment_reports WHERE organization_id=$1 AND equipment_id=$2 AND severity='high' AND status<>'resolved' LIMIT 1",[organizationId,request.itemId])
           if(reports.rows.length)throw new ApiError(409,'Resolve high-severity reports before restoring service')
         }
@@ -168,7 +172,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
           return {...reservation,readOnly}
         }
         if(reservation.fulfillmentStatus&&reservation.fulfillmentStatus!=='reserved')throw new ApiError(409,'Return checked-out equipment before closing a reservation')
-        if(reservation.status==='cancelled')return reservation
+        if(reservation.status==='cancelled'&&reservation.version===request.version+1)return reservation
+        if(reservation.version!==request.version||reservation.status==='cancelled')throw new ApiError(409,'Reservation changed. Refresh before cancelling')
         // Idempotent cancellation preserves the record/history; no hard deletion.
         return { ...reservation, ...(await client.query('UPDATE app.reservations SET status = $3,version=version+1 WHERE organization_id = $1 AND id = $2 RETURNING status,version', [organizationId, request.reservationId, 'cancelled'])).rows[0] }
       }
@@ -188,8 +193,8 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
         const policy=(await client.query('SELECT reservation_days AS days FROM app.organizations WHERE id=$1',[organizationId])).rows[0]
         if(!policy||Date.parse(input.endsAt)-Date.parse(input.startsAt)>policy.days*86400000)throw new ApiError(400,'Reservation exceeds the organization maximum length')
         if (Date.parse(input.startsAt) < now()) throw new ApiError(400, 'Reservations must start in the future')
-        const items = await client.query<{ id: string; status: string }>('SELECT id, status FROM app.inventory WHERE organization_id = $1 AND id = ANY($2::uuid[]) ORDER BY id FOR UPDATE', [organizationId, input.equipmentIds])
-        if (items.rows.length !== input.equipmentIds.length || items.rows.some(item => item.status !== 'available')) throw new ApiError(409, 'Equipment is missing or out of service')
+        const items = await client.query<{ id: string; status: string; condition: string }>('SELECT id, status, condition FROM app.inventory WHERE organization_id = $1 AND id = ANY($2::uuid[]) ORDER BY id FOR UPDATE', [organizationId, input.equipmentIds])
+        if (items.rows.length !== input.equipmentIds.length || items.rows.some(item => !isServiceable(item))) throw new ApiError(409, 'Equipment is missing or out of service')
         const conflicts = await client.query(`SELECT 1 FROM app.reservation_items i JOIN app.reservations r ON r.organization_id = i.organization_id AND r.id = i.reservation_id
           WHERE i.organization_id = $1 AND i.equipment_id = ANY($2::uuid[]) AND r.status = 'confirmed' AND r.fulfillment_status<>'returned' AND ((r.starts_at < $4::timestamptz AND r.ends_at > $3::timestamptz) OR (r.fulfillment_status='checked_out' AND r.ends_at<now())) LIMIT 1`, [organizationId, input.equipmentIds, input.startsAt, input.endsAt])
         if (conflicts.rows.length) throw new ApiError(409, 'Equipment is already reserved for this time')

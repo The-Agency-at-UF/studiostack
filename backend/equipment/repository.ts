@@ -1,3 +1,4 @@
+import {isServiceable} from '../../src/equipment/reservationPolicy'
 import {reportAlerts} from '../alerts/records'
 import type {DatabaseClient} from '../database/client'
 import {ApiError,object,pagination,date} from '../database/api-validation'
@@ -17,28 +18,55 @@ export async function dispatchEquipment(client:DatabaseClient,request:EquipmentR
     return pageOf(rows,page.limit)
   }
   const get=async(lock=false)=>{const row=(await client.query(`SELECT ${reservationColumns} FROM app.reservations r WHERE r.organization_id=$1 AND r.id=$2${lock?' FOR UPDATE OF r':''}`,[org,request.reservationId])).rows[0] as EquipmentReservation|undefined;if(!row||!admin&&row.userId!==user.id)throw new ApiError(404,'Reservation not found');return row}
-  if(request.resource==='activity'){await get();if(!admin)return {items:[],nextCursor:null};const page=pagination(request.query),{rows}=await client.query(`SELECT ${eventColumns} FROM app.equipment_events e JOIN app.users u ON u.id=e.actor_id WHERE e.organization_id=$1 AND e.reservation_id=$2 AND ($3::uuid IS NULL OR e.id>$3) ORDER BY e.id LIMIT $4`,[org,request.reservationId,page.after,page.limit+1]);return pageOf(rows,page.limit)}
+  if(request.resource==='activity'){
+    await get()
+    if(!admin)return {items:[],nextCursor:null}
+    const page=pagination(request.query)
+    const {rows}=await client.query(`SELECT ${eventColumns} FROM app.equipment_events e JOIN app.users u ON u.id=e.actor_id WHERE e.organization_id=$1 AND e.reservation_id=$2 AND ($3::uuid IS NULL OR e.id>$3) ORDER BY e.id LIMIT $4`,[org,request.reservationId,page.after,page.limit+1])
+    const events=pageOf(rows,page.limit)
+    if(events.items.some(e=>e.kind==='checked_out'||e.kind==='returned')){
+      const checkouts=(await client.query('SELECT equipment_id,checkout_notes,return_notes FROM app.equipment_checkouts WHERE organization_id=$1 AND reservation_id=$2',[org,request.reservationId])).rows
+      const byItem=new Map(checkouts.map(row=>[row.equipment_id,row]))
+      for(const e of events.items){
+        if((e.kind==='checked_out'||e.kind==='returned')&&Array.isArray(e.details.conditions))
+          e.details.conditions=e.details.conditions.map((c:{equipmentId:string;notes?:string})=>({...c,notes:c.notes??(e.kind==='returned'?byItem.get(c.equipmentId)?.return_notes:byItem.get(c.equipmentId)?.checkout_notes)??''}))
+      }
+    }
+    return events
+  }
   const editing=request.method==='PATCH',input=editing?editReservation(request.body):fulfillReservation(request.body),hash=requestHash({resource:request.resource,reservationId:request.reservationId,input:{...input,location:undefined}})
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`equipment:${org}:${user.id}:${input.requestId}`])
   const r=await get(true),previous=(await client.query('SELECT request_hash FROM app.equipment_events WHERE organization_id=$1 AND actor_id=$2 AND request_id=$3',[org,user.id,input.requestId])).rows[0]
   if(previous){if(previous.request_hash!==hash)throw new ApiError(409,'Request ID was used for another equipment action');return get()}
   if(r.version!==input.version||r.status!=='confirmed'||r.fulfillmentStatus==='returned')throw new ApiError(409,'Refresh the current reservation before changing it')
   const itemIds=editing?[...new Set([...r.equipmentIds,...editReservation(request.body).equipmentIds])].sort():r.equipmentIds
-  const inventory=(await client.query('SELECT id,name,status,condition FROM app.inventory WHERE organization_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE',[org,itemIds])).rows
+  const inventory=(await client.query<{id:string;name:string;status:string;condition:string}>('SELECT id,name,status,condition FROM app.inventory WHERE organization_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE',[org,itemIds])).rows
   let kind='',details:Record<string,unknown>={}
   if(editing){const v=editReservation(request.body),sameStart=new Date(r.startsAt).getTime()===Date.parse(v.startsAt),sameItems=JSON.stringify([...r.equipmentIds].sort())===JSON.stringify(v.equipmentIds)
     if(Date.parse(v.endsAt)<=now()||!sameStart&&Date.parse(v.startsAt)<now()||r.fulfillmentStatus==='checked_out'&&(!sameStart||!sameItems))throw new ApiError(409,'Checked-out reservations can change their end time, but cannot change their start or equipment')
     const days=(await client.query('SELECT reservation_days AS days FROM app.organizations WHERE id=$1',[org])).rows[0].days
     if(Date.parse(v.endsAt)-Date.parse(v.startsAt)>days*86400000)throw new ApiError(400,'Reservation exceeds the organization maximum length')
-    if(v.equipmentIds.some(id=>!inventory.some(item=>item.id===id&&item.status==='available')))throw new ApiError(409,'Selected equipment is unavailable')
+    if(v.equipmentIds.some(id=>!inventory.some(item=>item.id===id&&isServiceable(item))))throw new ApiError(409,'Selected equipment is unavailable')
     const conflicts=await client.query(`SELECT 1 FROM app.reservation_items i JOIN app.reservations r ON r.organization_id=i.organization_id AND r.id=i.reservation_id WHERE i.organization_id=$1 AND i.equipment_id=ANY($2::uuid[]) AND r.id<>$3 AND r.status='confirmed' AND r.fulfillment_status<>'returned' AND ((r.starts_at<$5 AND r.ends_at>$4) OR (r.fulfillment_status='checked_out' AND r.ends_at<now())) LIMIT 1`,[org,v.equipmentIds,r.id,v.startsAt,v.endsAt]);if(conflicts.rows.length)throw new ApiError(409,'Equipment is reserved for the requested time')
     if(v.clientAccountId&&v.clientAccountId!==r.clientAccountId){const c=await client.query('SELECT id FROM app.client_accounts WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR SHARE',[org,v.clientAccountId]);if(!c.rows.length)throw new ApiError(400,'Choose an active client account in this organization')}
     await client.query('UPDATE app.reservations SET name=$3,starts_at=$4,ends_at=$5,client_account_id=CASE WHEN $6 THEN $7 ELSE client_account_id END,version=version+1 WHERE organization_id=$1 AND id=$2',[org,r.id,v.name,v.startsAt,v.endsAt,v.clientAccountId!==undefined,v.clientAccountId??null]);await client.query('DELETE FROM app.reservation_items WHERE organization_id=$1 AND reservation_id=$2',[org,r.id]);await client.query('INSERT INTO app.reservation_items(organization_id,reservation_id,equipment_id) SELECT $1,$2,unnest($3::uuid[])',[org,r.id,v.equipmentIds]);kind='reservation_edited';details={before:{name:r.name,startsAt:r.startsAt,endsAt:r.endsAt,equipmentIds:r.equipmentIds},after:{name:v.name,startsAt:v.startsAt,endsAt:v.endsAt,equipmentIds:v.equipmentIds}}
-  }else{const v=fulfillReservation(request.body),returning=request.resource==='return',proximity=campusProximity(v.location)
+  }else{const v=fulfillReservation(request.body),returning=request.resource==='return',proximity=campusProximity(v.location),currentTime=now()
     if(!proximity.allowed)throw new ApiError(403,campusProximityMessage(proximity))
     if(JSON.stringify(v.conditions.map(c=>c.equipmentId))!==JSON.stringify([...r.equipmentIds].sort()))throw new ApiError(400,'Record the condition of every reserved item')
-    if(returning?r.fulfillmentStatus!=='checked_out':r.fulfillmentStatus!=='reserved'||new Date(r.startsAt).getTime()>now()+15*60000||new Date(r.endsAt).getTime()<=now())throw new ApiError(409,'The reservation is not ready for this checkout or return')
-    if(!returning){if(inventory.length!==r.equipmentIds.length||inventory.some(item=>item.status!=='available')||v.conditions.some(c=>c.condition==='damaged'))throw new ApiError(409,'Damaged or out-of-service equipment cannot be checked out');const active=await client.query('SELECT id FROM app.equipment_checkouts WHERE organization_id=$1 AND equipment_id=ANY($2::uuid[]) AND returned_at IS NULL LIMIT 1',[org,r.equipmentIds]);if(active.rows.length)throw new ApiError(409,'Equipment is still checked out on another reservation')}
+    if(returning?r.fulfillmentStatus!=='checked_out':r.fulfillmentStatus!=='reserved'||new Date(r.startsAt).getTime()>currentTime+15*60000||new Date(r.endsAt).getTime()<=currentTime)throw new ApiError(409,'The reservation is not ready for this checkout or return')
+    if(!returning){
+      if(inventory.length!==r.equipmentIds.length||inventory.some(item=>!isServiceable(item))||v.conditions.some(c=>c.condition==='damaged'))throw new ApiError(409,'Damaged or out-of-service equipment cannot be checked out')
+      const active=await client.query('SELECT id FROM app.equipment_checkouts WHERE organization_id=$1 AND equipment_id=ANY($2::uuid[]) AND returned_at IS NULL LIMIT 1',[org,r.equipmentIds])
+      if(active.rows.length)throw new ApiError(409,'Equipment is still checked out on another reservation')
+      if (new Date(r.startsAt).getTime()>currentTime) {
+        const earlier=await client.query(`SELECT 1 FROM app.reservation_items i
+          JOIN app.reservations previous ON previous.organization_id=i.organization_id AND previous.id=i.reservation_id
+          WHERE i.organization_id=$1 AND i.equipment_id=ANY($2::uuid[]) AND previous.id<>$3
+            AND previous.status='confirmed' AND previous.fulfillment_status='reserved'
+            AND previous.starts_at<=$4::timestamptz AND previous.ends_at>$4::timestamptz LIMIT 1`,[org,r.equipmentIds,r.id,new Date(currentTime).toISOString()])
+        if(earlier.rows.length)throw new ApiError(409,'Another reservation still has this equipment booked')
+      }
+    }
     const reports:string[]=[]
     for(const c of v.conditions){
       if(returning){const result=await client.query('UPDATE app.equipment_checkouts SET returned_by=$4,returned_at=now(),return_condition=$5,return_notes=$6 WHERE organization_id=$1 AND reservation_id=$2 AND equipment_id=$3 AND returned_at IS NULL RETURNING id',[org,r.id,c.equipmentId,user.id,c.condition,c.notes]);if(result.rows.length!==1)throw new ApiError(409,'Checkout history changed. Refresh before returning equipment')}
@@ -46,7 +74,7 @@ export async function dispatchEquipment(client:DatabaseClient,request:EquipmentR
       await client.query("UPDATE app.inventory SET condition=$3,status=CASE WHEN $3='damaged' THEN 'maintenance' ELSE status END,version=version+1 WHERE organization_id=$1 AND id=$2",[org,c.equipmentId,c.condition])
       if(returning&&c.condition==='damaged'){const item=inventory.find(i=>i.id===c.equipmentId)!;const row=(await client.query("INSERT INTO app.equipment_reports(organization_id,equipment_id,reservation_id,reported_by,title,description,severity) VALUES($1,$2,$3,$4,$5,$6,'high') RETURNING id",[org,c.equipmentId,r.id,user.id,`${item.name} returned damaged`.slice(0,120),c.notes||'Damage recorded during equipment return.'])).rows[0];reports.push(row.id);const reportHash=requestHash({automaticReport:row.id,returnRequestId:input.requestId});await client.query("INSERT INTO app.equipment_events(organization_id,actor_id,reservation_id,equipment_id,report_id,kind,details,request_id,request_hash) VALUES($1,$2,$3,$4,$5,'report_created',$6,$5,$7)",[org,user.id,r.id,c.equipmentId,row.id,{title:item.name+' returned damaged',severity:'high',source:'return'},reportHash]);await reportAlerts(client,org,row.id,row.id,user.id)}
     }
-    await client.query(`UPDATE app.reservations SET fulfillment_status=$3,${returning?'returned_at':'checked_out_at'}=now(),version=version+1 WHERE organization_id=$1 AND id=$2`,[org,r.id,returning?'returned':'checked_out']);kind=returning?'returned':'checked_out';details={conditions:v.conditions,reportIds:reports,campusDistanceMeters:proximity.distanceMeters}
+    await client.query(`UPDATE app.reservations SET fulfillment_status=$3,${returning?'returned_at':'checked_out_at'}=now(),version=version+1 WHERE organization_id=$1 AND id=$2`,[org,r.id,returning?'returned':'checked_out']);kind=returning?'returned':'checked_out';details={conditions:v.conditions.map(({equipmentId,condition})=>({equipmentId,condition})),reportIds:reports,campusDistanceMeters:proximity.distanceMeters}
   }
   await client.query('INSERT INTO app.equipment_events(organization_id,actor_id,reservation_id,kind,details,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7)',[org,user.id,r.id,kind,details,input.requestId,hash]);return get()
 }

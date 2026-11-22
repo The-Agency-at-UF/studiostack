@@ -104,8 +104,8 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   })
   it('persists admin inventory changes and refuses member writes', async () => {
     const item = await equipment()
-    expect(await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { name: 'Updated camera' } })).toMatchObject({ id: item.id, name: 'Updated camera' })
-    await expect(repository.execute(member, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { status: 'retired' } })).rejects.toMatchObject({ status: 403 })
+    expect(await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { name: 'Updated camera', version: 1 } })).toMatchObject({ id: item.id, name: 'Updated camera' })
+    await expect(repository.execute(member, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { status: 'retired', version: 1 } })).rejects.toMatchObject({ status: 403 })
     const list = await repository.execute(member, { operation: 'inventory', organizationId, page: { limit: 1, after: null } }) as ApiPage<ApiEquipment>
     expect(list.items).toHaveLength(1)
     if (list.nextCursor) expect((await repository.execute(member, { operation: 'inventory', organizationId, page: { limit: 1, after: list.nextCursor } }) as ApiPage<ApiEquipment>).items[0].id).not.toBe(list.items[0].id)
@@ -120,14 +120,14 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const uploaded = await repository.execute(owner, { operation: 'photoUpload', organizationId, input }) as { photoId: string }
     expect(await repository.execute(owner, { operation: 'photoUpload', organizationId, input })).toMatchObject({ photoId: uploaded.photoId })
     const item = await equipment()
-    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: uploaded.photoId } })).rejects.toMatchObject({ status: 409 })
+    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: uploaded.photoId, version: 1 } })).rejects.toMatchObject({ status: 409 })
     expect(await repository.execute(owner, { operation: 'completePhoto', organizationId, photoId: uploaded.photoId })).toMatchObject({ photoId: uploaded.photoId, width: 80 })
-    expect(await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: uploaded.photoId } })).toMatchObject({ photoId: uploaded.photoId })
+    expect(await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: uploaded.photoId, version: 1 } })).toMatchObject({ photoId: uploaded.photoId })
     expect(await repository.execute(member, { operation: 'downloadPhoto', organizationId, itemId: item.id })).toMatchObject({ photoId: uploaded.photoId, expiresIn: 60 })
     await expect(repository.execute(outsider, { operation: 'downloadPhoto', organizationId, itemId: item.id })).rejects.toMatchObject({ status: 403 })
     const second = await equipment()
-    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: second.id, input: { photoId: uploaded.photoId } })).rejects.toMatchObject({ status: 409 })
-    await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: null } })
+    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: second.id, input: { photoId: uploaded.photoId, version: 1 } })).rejects.toMatchObject({ status: 409 })
+    await repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { photoId: null, version: 2 } })
     await expect(repository.execute(member, { operation: 'downloadPhoto', organizationId, itemId: item.id })).rejects.toMatchObject({ status: 404 })
   })
   it.each([outsider, suspended])('rejects unauthorized membership $subject', async identity => {
@@ -160,7 +160,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(repository.execute(secondMember, { operation: 'reservation', organizationId, reservationId: result.id })).rejects.toMatchObject({ status: 404 })
     const ownList = await repository.execute(secondMember, { operation: 'reservations', organizationId, page: listPage }) as ApiPage<ApiReservation>
     expect(ownList.items.every(reservation => reservation.userId === profiles[secondMember.subject].id)).toBe(true)
-    expect(await repository.execute(owner, { operation: 'cancelReservation', organizationId, reservationId: result.id })).toMatchObject({ status: 'cancelled' })
+    expect(await repository.execute(owner, { operation: 'cancelReservation', organizationId, reservationId: result.id, version: 1 })).toMatchObject({ status: 'cancelled' })
     await expect(repository.execute(member, { operation: 'reservation', organizationId, reservationId: result.id })).rejects.toMatchObject({status:404})
     expect(await repository.execute(owner, { operation: 'reservation', organizationId, reservationId: result.id })).toMatchObject({ status: 'cancelled' })
     expect(await repository.execute(secondMember, { operation: 'createReservation', organizationId, input: booking(item) })).toMatchObject({ status: 'confirmed' })
@@ -168,7 +168,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('refuses to retire an item with a future confirmed reservation', async () => {
     const item = await equipment()
     await repository.execute(member, { operation: 'createReservation', organizationId, input: booking(item) })
-    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { status: 'retired' } })).rejects.toMatchObject({ status: 409 })
+    await expect(repository.execute(owner, { operation: 'updateEquipment', organizationId, itemId: item.id, input: { status: 'retired', version: 1 } })).rejects.toMatchObject({ status: 409 })
   })
   it('enforces RLS without context and excludes other organizations with context', async () => {
     await equipment()
@@ -361,15 +361,15 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   })
   it('production: authors and administrators delete inactive briefs, which are hidden rather than removed',async()=>{
     const b=await draft()
-    await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:b.id})).rejects.toMatchObject({status:404})
-    expect(await production(member,{resource:'briefs',method:'DELETE',briefId:b.id})).toEqual({id:b.id})
+    await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:b.id,body:{version:b.version}})).rejects.toMatchObject({status:404})
+    expect(await production(member,{resource:'briefs',method:'DELETE',briefId:b.id,body:{version:b.version}})).toEqual({id:b.id})
     await expect(production(member,{resource:'briefs',method:'GET',briefId:b.id})).rejects.toMatchObject({status:404})
     expect((await production(member,{resource:'briefs',method:'GET'}) as {items:ProductionBrief[]}).items.some(x=>x.id===b.id)).toBe(false)
     const submitted=await command(member,await draft(),'submit')
-    await expect(production(member,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:409})
-    await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:submitted.id})).rejects.toMatchObject({status:403})
+    await expect(production(member,{resource:'briefs',method:'DELETE',briefId:submitted.id,body:{version:submitted.version}})).rejects.toMatchObject({status:409})
+    await expect(production(secondMember,{resource:'briefs',method:'DELETE',briefId:submitted.id,body:{version:submitted.version}})).rejects.toMatchObject({status:403})
     const withdrawn=await command(member,submitted,'withdraw')
-    expect(await production(owner,{resource:'briefs',method:'DELETE',briefId:withdrawn.id})).toEqual({id:withdrawn.id})
+    expect(await production(owner,{resource:'briefs',method:'DELETE',briefId:withdrawn.id,body:{version:withdrawn.version}})).toEqual({id:withdrawn.id})
     await expect(production(member,{resource:'briefs',method:'GET',briefId:withdrawn.id})).rejects.toMatchObject({status:404})
   })
   it('production: administrators edit another author’s draft, other members cannot',async()=>{
@@ -663,7 +663,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect(await workflow(member,r.id,'checkout',{...body,location:{...onCampus,latitude:29.6482}})).toMatchObject({version:out.version})
     expect((await operator.query("SELECT details->>'campusDistanceMeters' AS distance FROM app.equipment_events WHERE reservation_id=$1 AND kind='checked_out'",[r.id])).rows[0].distance).toBe('0')
     expect((await operator.query('SELECT id FROM app.equipment_checkouts WHERE reservation_id=$1',[r.id])).rows).toHaveLength(1)
-    await expect(repository.execute(member,{operation:'cancelReservation',organizationId,reservationId:r.id})).rejects.toMatchObject({status:409})
+    await expect(repository.execute(member,{operation:'cancelReservation',organizationId,reservationId:r.id,version:out.version})).rejects.toMatchObject({status:409})
     await expect(workflow(outsider,r.id,'checkout',body)).rejects.toMatchObject({status:403})
   })
   it('equipment: a damaged return creates one report and takes the item out of service atomically',async()=>{
@@ -1370,6 +1370,30 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     } finally { await worker.end() }
   })
 
+  it('LOGIC-010: damage resolution preserves retirement and requires repair before restoring service', async () => {
+    const retired = await equipment()
+    await operator.query("UPDATE app.inventory SET status='retired' WHERE id=$1",[retired.id])
+    const record = await issue(retired,'high')
+    await report(owner,{method:'PATCH',reportId:record.id,body:{version:record.version,status:'resolved',resolution:'Repaired',restoreService:true,condition:'good',requestId:randomUUID()}})
+    expect((await operator.query('SELECT status FROM app.inventory WHERE id=$1',[retired.id])).rows[0].status).toBe('retired')
+    const damaged = await equipment()
+    await operator.query("UPDATE app.inventory SET status='maintenance',condition='damaged' WHERE id=$1",[damaged.id])
+    await expect(repository.execute(owner,{operation:'updateEquipment',organizationId,itemId:damaged.id,input:{status:'available',version:1}})).rejects.toMatchObject({status:409})
+  })
+  it('LOGIC-011: adjacent booking cannot check out during the current borrower’s slot', async () => {
+    const item = await equipment()
+    const later = await nearBooking(item,secondMember)
+    const start = new Date(Date.now()+1000).toISOString()
+    await repository.execute(owner,{operation:'createReservation',organizationId,input:{...booking(item),startsAt:start,endsAt:new Date(later.startsAt).toISOString()}})
+    await operator.query("UPDATE app.reservations SET starts_at=now()-interval '1 minute' WHERE organization_id=$1 AND id<>$2 AND id IN (SELECT reservation_id FROM app.reservation_items WHERE equipment_id=$3)",[organizationId,later.id,item.id])
+    await expect(workflow(secondMember,later.id,'checkout',{version:later.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})).rejects.toMatchObject({status:409})
+  })
+  it('LOGIC-012: a stale inventory edit cannot overwrite a newer revision', async () => {
+    const item = await equipment()
+    await repository.execute(owner,{operation:'updateEquipment',organizationId,itemId:item.id,input:{version:1,name:'New name'}})
+    await expect(repository.execute(owner,{operation:'updateEquipment',organizationId,itemId:item.id,input:{version:1,name:'Old revision'}})).rejects.toMatchObject({status:409})
+    expect((await operator.query('SELECT name FROM app.inventory WHERE id=$1',[item.id])).rows[0].name).toBe('New name')
+  })
   it('LOGIC-013: an author can discard an administrator’s abandoned pending upload', async () => {
     const brief = await draft()
     const id = randomUUID()
@@ -1378,6 +1402,18 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     await expect(production(member,{resource:'attachments',method:'DELETE',briefId:brief.id,attachmentId:id})).resolves.toEqual({id})
     const updated = await production(member,{resource:'briefs',method:'GET',briefId:brief.id}) as ProductionBrief
     await expect(command(member,updated,'submit')).resolves.toMatchObject({status:'submitted'})
+  })
+  it('LOGIC-014: maximum-size multiline returns fit the activity event and keep history notes', async () => {
+    const items = await Promise.all(Array.from({length:50},() => equipment()))
+    const start = new Date(Date.now()+60_000).toISOString()
+    const r = await repository.execute(owner,{operation:'createReservation',organizationId,input:{name:'Large return',startsAt:start,endsAt:new Date(Date.parse(start)+3600000).toISOString(),equipmentIds:items.map(i=>i.id),requestId:randomUUID()}}) as EquipmentReservation
+    const checkedOut = await workflow(owner,r.id,'checkout',{version:r.version,requestId:randomUUID(),location:onCampus,conditions:items.map(i=>({equipmentId:i.id,condition:'good'}))})
+    const notes = 'a'.repeat(790)+'\n'.repeat(209)+'a'
+    const payload = {version:checkedOut.version,requestId:randomUUID(),location:onCampus,conditions:items.map(i=>({equipmentId:i.id,condition:'damaged',notes}))}
+    expect(Buffer.byteLength(JSON.stringify(payload))).toBeLessThanOrEqual(65536)
+    await expect(workflow(owner,r.id,'return',payload)).resolves.toMatchObject({fulfillmentStatus:'returned'})
+    const history = await workflow<ApiPage<{kind:string;details:{conditions?:{notes:string}[]}}>>(owner,r.id,'activity',undefined,'GET')
+    expect(history.items.find(event=>event.kind==='returned')?.details.conditions).toEqual(items.map(()=>expect.objectContaining({notes})))
   })
   it('LOGIC-006 and LOGIC-007: a pending provider deletion blocks profile reuse and prunes former Production roles', async () => {
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
@@ -1440,6 +1476,21 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await deciding?.catch(()=>undefined)
       await decision.end()
     }
+  })
+  it('LOGIC-012: cancellation and deletion reject stale revisions and replay a completed command', async () => {
+    const item=await equipment(),reservation=await nearBooking(item,owner)
+    const next=await workflow(owner,reservation.id,'{reservationId}',{name:'Updated reservation',startsAt:new Date(reservation.startsAt).toISOString(),endsAt:new Date(reservation.endsAt).toISOString(),equipmentIds:[item.id],version:reservation.version,requestId:randomUUID()},'PATCH')
+    const cancel=(version:number)=>repository.execute(owner,{operation:'cancelReservation',organizationId,reservationId:reservation.id,version})
+    await expect(cancel(reservation.version)).rejects.toMatchObject({status:409})
+    await expect(cancel(next.version)).resolves.toMatchObject({status:'cancelled'})
+    await expect(cancel(next.version)).resolves.toMatchObject({status:'cancelled',version:next.version+1})
+
+    const brief=await draft()
+    const edited=await production(member,{resource:'briefs',method:'PATCH',briefId:brief.id,body:{version:brief.version,data:{...brief.data,projectName:'Updated brief'},requestId:randomUUID()}}) as ProductionBrief
+    const remove=(version:number)=>production(member,{resource:'briefs',method:'DELETE',briefId:brief.id,body:{version}})
+    await expect(remove(brief.version)).rejects.toMatchObject({status:409})
+    await expect(remove(edited.version)).resolves.toEqual({id:brief.id})
+    await expect(remove(edited.version)).resolves.toEqual({id:brief.id})
   })
   it('LOGIC-018: finalization intent survives a failed commit and retains an expired upload for recovery',async()=>{
     const input={organizationId,contentType:'image/jpeg' as const,size:500,requestId:randomUUID()}

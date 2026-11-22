@@ -1,4 +1,5 @@
 'use client'
+import {reservationInstants,reservationLocalTime as localTime} from '../../equipment/wallTime'
 import { TabPill } from '../../components/workspace/TabPill'
 import {Select,Skeleton} from '../../components/workspace/WorkspaceUI'
 import { Pagination } from '../../components/workspace/Pagination'
@@ -20,7 +21,6 @@ import './Equipment.css'
 import './Reservations.css'
 
 const HOUR=3600000,DAY=86400000
-const localTime=(iso:string)=>{const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 export const reservationLabel=(r:EquipmentReservation)=>r.status==='cancelled'?'Cancelled':r.fulfillmentStatus==='checked_out'?'Checked out':r.fulfillmentStatus==='returned'?'Returned':isMissed(r)?'Missed pickup':'Reserved'
 const isOverdue=(r:EquipmentReservation)=>r.status==='confirmed'&&r.fulfillmentStatus==='checked_out'&&Date.parse(r.endsAt)<Date.now()
 const statusTone=(r:EquipmentReservation)=>isOverdue(r)?'overdue':r.status==='cancelled'?'cancelled':r.fulfillmentStatus==='checked_out'?'out':r.fulfillmentStatus==='returned'?'returned':isMissed(r)?'cancelled':'reserved'
@@ -35,7 +35,7 @@ const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`
 
 type CachedReservations = { settings: { reservationDays: number }; items: EquipmentRecord[]; bookings: EquipmentReservation[]; clients: ClientAccount[]; canAddClients: boolean; reported?: string[] }
 type Tab='upcoming'|'out'|'history'
-type View={name:'list'}|{name:'detail';id:string}|{name:'new'}|{name:'edit';id:string}
+type View={name:'list'}|{name:'detail';id:string}|{name:'new'}|{name:'edit';reservation:EquipmentReservation}
 const tabOf=(r:EquipmentReservation):Tab=>r.status==='cancelled'||r.fulfillmentStatus==='returned'||isMissed(r)?'history':r.fulfillmentStatus==='checked_out'?'out':'upcoming'
 
 export default function LiveReservations({create=false}:{create?:boolean}){const context=useLiveOrganization();return context?<ReservationWorkspace key={context.organization.id} api={context.api} organizationId={context.organization.id} admin={context.admin} create={create}/>:<main className="administration"><h1>Reservations</h1><p>Select an active organization in your account to reserve equipment.</p></main>}
@@ -89,22 +89,32 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     setMaxDays(value.settings.reservationDays)
     setCached(cacheKey, value)
   },[cacheKey])
-  useEffect(()=>{let active=true;load().then(value=>{if(active){accept(value);const params=new URLSearchParams(window.location.search),id=params.get('reservation');if(id&&value.bookings.some(r=>r.id===id))setView({name:'detail',id});else if(params.get('new'))setView({name:'new'})}}).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[load,accept])
+  const navigation=useRef(0)
+  useEffect(()=>{
+    let active=true
+    const initialNavigation=navigation.current, id=new URLSearchParams(window.location.search).get('reservation')
+    load().then(value=>{
+      if(!active)return
+      accept(value)
+      if(navigation.current===initialNavigation&&id&&value.bookings.some(r=>r.id===id))setView({name:'detail',id})
+    }).catch(e=>{if(active)setError(equipmentError(e))}).finally(()=>{if(active)setLoading(false)})
+    return()=>{active=false}
+  },[load,accept])
   const router=useRouter()
   // The open booking lives in the address (?reservation= or ?new=1), so Back, Forward and refresh return to it.
-  const open=(next:View,push=true)=>{setView(next);setFiltersOpen(false);if(typeof window==='undefined')return;window.scrollTo?.(0,0);if(!push)return;const url=new URL(window.location.href);url.searchParams.delete('reservation');url.searchParams.delete('new');if(next.name==='detail'||next.name==='edit')url.searchParams.set('reservation',next.id);else if(next.name==='new'&&!create)url.searchParams.set('new','1');if(url.href!==window.location.href)window.history.pushState(window.history.state,'',url)}
+  const open=(next:View,push=true)=>{navigation.current++;setView(next);setFiltersOpen(false);if(typeof window==='undefined')return;window.scrollTo?.(0,0);if(!push)return;const url=new URL(window.location.href);url.searchParams.delete('reservation');url.searchParams.delete('new');if(next.name==='detail'||next.name==='edit')url.searchParams.set('reservation',next.name==='edit'?next.reservation.id:next.id);else if(next.name==='new'&&!create)url.searchParams.set('new','1');if(url.href!==window.location.href)window.history.pushState(window.history.state,'',url)}
   const viewFromUrl=useRef<()=>void>(()=>{});viewFromUrl.current=()=>{const params=new URLSearchParams(window.location.search),id=params.get('reservation');open(id&&rows.some(r=>r.id===id)?{name:'detail',id}:params.get('new')||create?{name:'new'}:{name:'list'},false)}
   useEffect(()=>{const pop=()=>viewFromUrl.current();window.addEventListener('popstate',pop);return()=>window.removeEventListener('popstate',pop)},[])
   const clientName=(id?:string|null)=>id?clients.find(c=>c.id===id)?.name??'Client account':'Internal use'
   const overdue=rows.filter(isOverdue),locked=!admin&&overdue.some(r=>!r.readOnly)
-  const current=view.name==='detail'||view.name==='edit'?rows.find(r=>r.id===view.id):undefined
+  const current=view.name==='detail'?rows.find(r=>r.id===view.id):undefined
   async function refresh(){setError('');setLoading(true);try{accept(await load())}catch(e){setError(equipmentError(e))}finally{setLoading(false)}}
   function equipmentAdded(item:EquipmentRecord){setInventory(list=>[...list.filter(i=>i.id!==item.id),item]);for(const key of ['inventory','reservations','dashboard','reports','fulfillment','calendar'])invalidateCache(`${key}:${organizationId}`)}
   function clientAdded(client:ClientAccount){setClients(list=>[...list.filter(c=>c.id!==client.id),client]);invalidateCache(`reservations:${organizationId}`);invalidateCache(`production:${organizationId}`)}
   async function saved(row:EquipmentReservation,message='Reservation saved.'){setRows(list=>[row,...list.filter(r=>r.id!==row.id)]);if(create){toast.success(message,{id:'reservation'});invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');router.replace(`/reservations/?reservation=${encodeURIComponent(row.id)}`);return}open({name:'detail',id:row.id});toast.success(message,{id:'reservation'});invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');try{accept(await load())}catch(e){setError(equipmentError(e))}}
   // Optimistic: the booking reads as cancelled at once; the previous booking returns if the server rejects the cancellation.
   async function cancel(){if(!current||busy)return;const previous=current;setBusy(true);setError('');toast.dismiss('reservation');invalidateCache(`reservations:${organizationId}`);invalidateCache('dashboard:');setRows(list=>list.map(r=>r.id===previous.id?{...r,status:'cancelled'}:r))
-    let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));toast.error(`The reservation was not cancelled. ${equipmentError(e)}`,{id:'reservation'});setBusy(false);return}
+    let row:EquipmentReservation;try{row=await api.cancelReservation(organizationId,previous.id,previous.version)}catch(e){setRows(list=>list.map(r=>r.id===previous.id?previous:r));toast.error(`The reservation was not cancelled. ${equipmentError(e)}`,{id:'reservation'});setBusy(false);return}
     try{await saved(row,'Reservation cancelled.')}finally{setBusy(false)}}
 
   const needle=search.trim().toLowerCase()
@@ -117,14 +127,14 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const filtered=Boolean(clientFilter||needle)
 
   const messages=<>{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<p className="rsv-message rsv-message-error" role="alert">{error}</p>}</>
-  if(view.name==='new'&&(!locked||loading)||view.name==='edit'&&current){
-    const reservation=view.name==='edit'?current:undefined
+  if(view.name==='new'&&(!locked||loading)||view.name==='edit'){
+    const reservation=view.name==='edit'?view.reservation:undefined
     return <main className="rsv">{messages}<BookingFlow key={reservation?`${reservation.id}:${reservation.version}`:'new'} api={api} organizationId={organizationId} inventory={inventory} clients={clients} canAddClients={canAddClients} canAddEquipment={admin} reported={reported} onClientAdded={clientAdded} maxDays={maxDays} reservation={reservation} onClose={()=>open(reservation?{name:'detail',id:reservation.id}:{name:'list'})} onSaved={row=>saved(row,reservation?'Reservation saved.':'Reservation created.')} onEquipmentAdded={equipmentAdded}/></main>
   }
   if(view.name==='detail'&&current) return <main className="rsv"><div className="rsv-column">
     <button type="button" className="rsv-back" onClick={()=>open({name:'list'})}><Chevron dir="left"/>Reservations</button>
     {messages}
-    <ReservationDetail reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',id:current.id})} onCancel={()=>void cancel()}/>
+    <ReservationDetail reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',reservation:current})} onCancel={()=>void cancel()}/>
   </div></main>
 
   return <main className="rsv"><div className="rsv-column">
@@ -169,34 +179,55 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
   const [clientId,setClientId]=useState(reservation?.clientAccountId??''),[addingClient,setAddingClient]=useState(false)
   const start=useMemo(()=>defaultPickup().toISOString(),[])
   const [name,setName]=useState(reservation?.name??''),[startsAt,setStartsAt]=useState(localTime(reservation?.startsAt??start)),[endsAt,setEndsAt]=useState(localTime(reservation?.endsAt??new Date(Date.parse(start)+HOUR).toISOString())),[ids,setIds]=useState(reservation?.equipmentIds??[]),[availability,setAvailability]=useState<EquipmentAvailability[]>([]),[checking,setChecking]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[availabilityError,setAvailabilityError]=useState(''),[showUnavailable,setShowUnavailable]=useState(false),[search,setSearch]=useState('')
+  const [startChoice,setStartChoice]=useState(''),[endChoice,setEndChoice]=useState('')
   const mutation=useRef<{key:string;id:string}|null>(null),lifecycle=useMemo(()=>api.equipment(organizationId),[api,organizationId])
-  const length=Date.parse(endsAt)-Date.parse(startsAt)
-  const past=Date.parse(startsAt)<Date.now()&&(!reservation||startsAt!==localTime(reservation.startsAt))
+  const pickupOptions=reservationInstants(startsAt,reservation?.startsAt)
+  const returnOptions=reservationInstants(endsAt,reservation?.endsAt)
+  const pickup=pickupOptions.length===1?pickupOptions[0]:startChoice
+  const dropoff=returnOptions.length===1&&!(endChoice&&localTime(endChoice)===endsAt)?returnOptions[0]:endChoice
+  const length=Date.parse(dropoff)-Date.parse(pickup)
+  const past=Date.parse(pickup)<Date.now()&&(!reservation||Date.parse(pickup)!==Date.parse(reservation.startsAt))
   const valid=Number.isFinite(length)&&length>0&&length<=maxDays*DAY&&!past
-  useEffect(()=>{let active=true;setChecking(true);setAvailabilityError('');if(!valid){setChecking(false);return}const timer=setTimeout(()=>{allPages(after=>lifecycle.availability(new Date(startsAt).toISOString(),new Date(endsAt).toISOString(),after)).then(rows=>{if(active)setAvailability(rows)}).catch(e=>{if(active)setAvailabilityError(equipmentError(e))}).finally(()=>{if(active)setChecking(false)})},300);return()=>{active=false;clearTimeout(timer)}},[lifecycle,startsAt,endsAt,valid])
+  useEffect(()=>{let active=true;setChecking(true);setAvailabilityError('');if(!valid){setChecking(false);return}const timer=setTimeout(()=>{allPages(after=>lifecycle.availability(pickup,dropoff,after)).then(rows=>{if(active)setAvailability(rows)}).catch(e=>{if(active)setAvailabilityError(equipmentError(e))}).finally(()=>{if(active)setChecking(false)})},300);return()=>{active=false;clearTimeout(timer)}},[lifecycle,pickup,dropoff,valid])
   const blocked=new Set(availability.filter(r=>r.id!==reservation?.id).flatMap(r=>r.equipmentIds))
   const why=(i:EquipmentRecord)=>blocked.has(i.id)?'Reserved during these dates':i.status!=='available'?`Not available · ${i.status.replace(/_/g,' ')}`:''
   const unavailable=ids.some(id=>{const i=inventory.find(x=>x.id===id);return !i||Boolean(why(i))}),out=reservation?.fulfillmentStatus==='checked_out'
-  function changeStart(value:string){const previous=Date.parse(startsAt),next=Date.parse(value),span=Date.parse(endsAt)-previous;setStartsAt(value);if(!Number.isFinite(next))return;const keep=Number.isFinite(span)&&span>0&&span<=maxDays*DAY?span:HOUR;setEndsAt(localTime(new Date(next+keep).toISOString()))}
+  function setReturnFromInstant(instant:string){setEndsAt(localTime(instant));setEndChoice(instant)}
+  function moveReturn(instant:string){
+    const keep=Number.isFinite(length)&&length>0&&length<=maxDays*DAY?length:HOUR
+    setReturnFromInstant(new Date(Date.parse(instant)+keep).toISOString())
+  }
+  function changeStart(value:string){
+    setStartsAt(value);setStartChoice('')
+    const choices=reservationInstants(value,reservation?.startsAt)
+    if(choices.length===1)moveReturn(choices[0])
+  }
+  const occurrence=(label:string,choices:string[],choice:string,update:(value:string)=>void)=>choices.length>1&&
+    <label className="rsv-field">{label}<Select value={choice} onChange={event=>update(event.target.value)} required>
+      <option value="">Choose which occurrence</option>
+      {choices.map((instant,index)=><option key={instant} value={instant}>{index===0?'Earlier occurrence':'Later occurrence'} ({new Date(instant).toLocaleTimeString(undefined,{timeZoneName:'short'})})</option>)}
+    </Select></label>
+
   const presets=([['2 hours',2*HOUR],['Half day',4*HOUR],['Full day',DAY],['3 days',3*DAY],[`${maxDays} days`,maxDays*DAY]] as const).filter(([,ms],i,all)=>ms<=maxDays*DAY&&all.findIndex(p=>p[1]===ms)===i)
   const canContinue=[valid,valid&&ids.length>0&&!unavailable&&!checking&&!availabilityError,name.trim().length>0][step]
-  async function submit(e:FormEvent){e.preventDefault();if(step<2){if(canContinue)setStep(step+1);return}if(busy||checking||!valid||unavailable||!ids.length||!name.trim())return;setBusy(true);setError('');try{const value={clientAccountId:clientId||null,name:name.trim(),startsAt:new Date(startsAt).toISOString(),endsAt:new Date(endsAt).toISOString(),equipmentIds:[...ids].sort()},key=JSON.stringify({...value,version:reservation?.version});if(mutation.current?.key!==key)mutation.current={key,id:crypto.randomUUID()};const input={...value,requestId:mutation.current.id},row=reservation?await lifecycle.edit(reservation.id,{...input,version:reservation.version}):await api.createReservation(organizationId,input);mutation.current=null;await onSaved(row)}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
+  async function submit(e:FormEvent){e.preventDefault();if(step<2){if(canContinue)setStep(step+1);return}if(busy||checking||!valid||unavailable||!ids.length||!name.trim())return;setBusy(true);setError('');try{const value={clientAccountId:clientId||null,name:name.trim(),startsAt:pickup,endsAt:dropoff,equipmentIds:[...ids].sort()},key=JSON.stringify({...value,version:reservation?.version});if(mutation.current?.key!==key)mutation.current={key,id:crypto.randomUUID()};const input={...value,requestId:mutation.current.id},row=reservation?await lifecycle.edit(reservation.id,{...input,version:reservation.version}):await api.createReservation(organizationId,input);mutation.current=null;await onSaved(row)}catch(e){setError(equipmentError(e))}finally{setBusy(false)}}
   const needle=search.trim().toLowerCase()
   const listed=inventory.filter(i=>!needle||i.name.toLowerCase().includes(needle)||i.equipmentCode.toLowerCase().includes(needle))
   const free=listed.filter(i=>!why(i)||ids.includes(i.id)),taken=listed.filter(i=>why(i)&&!ids.includes(i.id))
   const item=(i:EquipmentRecord)=>{const reason=why(i);return <label className={`rsv-item${reason&&!ids.includes(i.id)?' is-off':''}`} key={i.id}><input type="checkbox" className="rsv-check" checked={ids.includes(i.id)} disabled={Boolean(reason)&&!ids.includes(i.id)} onChange={e=>setIds(current=>e.target.checked?[...current,i.id]:current.filter(id=>id!==i.id))}/><span className="rsv-item-main"><b>{i.name}</b><small>{i.equipmentCode} · {i.category}{i.checkedOut?' · Currently checked out':''}{reported.includes(i.id)?' · Has an open damage report':''}</small></span>{reason&&<span className="rsv-item-why">{reason}</span>}</label>}
-  const summary=step===0?(valid?`${dateLabel(new Date(startsAt).toISOString())} · ${lengthLabel(length)}`:''):step===1?(ids.length?`${plural(ids.length,'item')} selected`:'Pick at least one item'):''
+  const summary=step===0?(valid?`${dateLabel(pickup)} · ${lengthLabel(length)}`:''):step===1?(ids.length?`${plural(ids.length,'item')} selected`:'Pick at least one item'):''
   return <form className="rsv-flow" onSubmit={submit} aria-label={reservation?'Edit reservation':'New reservation'}>
     <div className="rsv-flow-bar"><button type="button" className="rsv-button rsv-quiet" onClick={onClose}><CloseIcon/>{reservation?'Discard changes':'Cancel'}</button><h1>{reservation?'Edit reservation':'New reservation'}</h1><span className="rsv-flow-step">Step {step+1} of {STEPS.length}</span></div>
     <div className="rsv-progress" aria-hidden="true"><i style={{width:`${(step+1)/STEPS.length*100}%`}}/></div>
     <fieldset className="rsv-flow-body" disabled={busy}>
       {step===0&&<div className="rsv-question"><h2>When do you need it?</h2><p>Up to {plural(maxDays,'day')}. Times use your device’s local timezone.{out?' Checked-out bookings keep their pickup time and equipment.':''}</p>
-        <div className="rsv-pair"><label className="rsv-field">Pick up<input className="rsv-input" type="datetime-local" value={startsAt} disabled={out} onChange={e=>changeStart(e.target.value)} required/></label><label className="rsv-field">Return<input className="rsv-input" type="datetime-local" value={endsAt} onChange={e=>setEndsAt(e.target.value)} required/></label></div>
-        <div className="rsv-chips" role="group" aria-label="Quick lengths">{presets.map(([label,ms])=><button type="button" key={label} aria-pressed={length===ms} onClick={()=>setEndsAt(localTime(new Date(Date.parse(startsAt)+ms).toISOString()))} disabled={!Number.isFinite(Date.parse(startsAt))}>{label}</button>)}</div>
+        <div className="rsv-pair"><label className="rsv-field">Pick up<input className="rsv-input" type="datetime-local" value={startsAt} disabled={out} onChange={e=>changeStart(e.target.value)} required/></label><label className="rsv-field">Return<input className="rsv-input" type="datetime-local" value={endsAt} onChange={e=>{setEndsAt(e.target.value);setEndChoice('')}} required/></label></div>
+        <div className="rsv-pair">{occurrence('Pickup time occurrence',pickupOptions,startChoice,value=>{setStartChoice(value);if(value)moveReturn(value)})}{occurrence('Return time occurrence',returnOptions,endChoice,setEndChoice)}</div>
+        <div className="rsv-chips" role="group" aria-label="Quick lengths">{presets.map(([label,ms])=><button type="button" key={label} aria-pressed={length===ms} onClick={()=>setReturnFromInstant(new Date(Date.parse(pickup)+ms).toISOString())} disabled={!pickup}>{label}</button>)}</div>
         <p className="rsv-length"><span>Length</span><b>{lengthLabel(length)}</b></p>
-        {!valid&&<p className="rsv-inline-error" role="alert">{past?'Choose a pickup time that hasn’t passed yet.':`Choose a return time after pickup, within ${plural(maxDays,'day')}.`}</p>}
+        {!valid&&<p className="rsv-inline-error" role="alert">{past?'Choose a pickup time that hasn’t passed yet.':startsAt&&!pickupOptions.length||endsAt&&!returnOptions.length?'That local time does not exist. Choose a different time.':!pickup||!dropoff?'Choose the occurrence for each repeated local time.':`Choose a return time after pickup, within ${plural(maxDays,'day')}.`}</p>}
       </div>}
-      {step===1&&<div className="rsv-question"><h2>What are you taking?</h2><p>{valid?`Showing what’s free ${rangeLabel(new Date(startsAt).toISOString(),new Date(endsAt).toISOString())}.`:''}</p>
+      {step===1&&<div className="rsv-question"><h2>What are you taking?</h2><p>{valid?`Showing what’s free ${rangeLabel(pickup,dropoff)}.`:''}</p>
         {checking&&<p className="rsv-hint" role="status">Checking availability…</p>}{availabilityError&&<p className="rsv-inline-error" role="alert">{availabilityError}</p>}
         {out?<><p className="rsv-hint">This booking is checked out, so its equipment can’t change.</p><ul className="rsv-items">{ids.map(id=><li className="rsv-item" key={id}><span className="rsv-item-main"><b>{inventory.find(i=>i.id===id)?.name??'Equipment item'}</b></span></li>)}</ul></>:<>
           {inventory.length>0&&<label className="rsv-field rsv-search"><span className="ws-sr-only">Search equipment</span><input className="rsv-input" value={search} placeholder="Search by name or code" onChange={e=>setSearch(e.target.value)}/></label>}
@@ -210,7 +241,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
         <div className="rsv-stack"><label className="rsv-field">Reservation name<input className="rsv-input" value={name} maxLength={120} placeholder="e.g. Spring reel b-roll" onChange={e=>setName(e.target.value)} required autoFocus/></label>
         <div className="rsv-client"><label className="rsv-field">Client account<Select value={addingClient?NEW_CLIENT:clientId} onChange={e=>{if(e.target.value===NEW_CLIENT)setAddingClient(true);else{setAddingClient(false);setClientId(e.target.value)}}}><option value="">No client · internal use</option>{clients.filter(c=>!c.deletedAt||c.id===clientId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}{canAddClients&&<option value={NEW_CLIENT}>+ Add a new client account…</option>}</Select></label>
         {addingClient&&<NewClientAccount api={api} organizationId={organizationId} onCancel={()=>setAddingClient(false)} onAdded={client=>{onClientAdded(client);setClientId(client.id);setAddingClient(false)}}/>}</div></div>
-        <dl className="rsv-review"><div><dt>When</dt><dd>{valid?rangeLabel(new Date(startsAt).toISOString(),new Date(endsAt).toISOString()):'—'}</dd><button type="button" className="rsv-link" onClick={()=>setStep(0)}>Change<span className="ws-sr-only"> dates</span></button></div>
+        <dl className="rsv-review"><div><dt>When</dt><dd>{valid?rangeLabel(pickup,dropoff):'—'}</dd><button type="button" className="rsv-link" onClick={()=>setStep(0)}>Change<span className="ws-sr-only"> dates</span></button></div>
           <div><dt>Equipment</dt><dd>{ids.map(id=><span key={id}>{inventory.find(i=>i.id===id)?.name??'Equipment item'}</span>)}</dd><button type="button" className="rsv-link" onClick={()=>setStep(1)}>Change<span className="ws-sr-only"> equipment</span></button></div></dl>
         {error&&<p className="rsv-inline-error" role="alert">{error}</p>}
       </div>}

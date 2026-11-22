@@ -14,7 +14,7 @@ export type FeedbackKind = 'bug' | 'feature'
 export interface ApiBugReport {id:string;title:string;description:string;pagePath:string;createdAt:string}
 export interface ApiPage<T> { items: T[]; nextCursor: string | null }
 export interface CreateEquipment { colorTag?: EquipmentColor | null; equipmentCode: string; name: string; category: EquipmentCategory; photoId?: string }
-export interface UpdateEquipment { colorTag?: EquipmentColor | null; name?: string; category?: EquipmentCategory; status?: EquipmentStatus; photoId?: string | null }
+export interface UpdateEquipment { version:number; colorTag?: EquipmentColor | null; name?: string; category?: EquipmentCategory; status?: EquipmentStatus; photoId?: string | null }
 export interface CreateReservation { clientAccountId?:string|null; name: string; startsAt: string; endsAt: string; equipmentIds: string[]; requestId: string }
 export interface CreatePhotoUpload { organizationId: string; contentType: 'image/jpeg' | 'image/webp'; size: number; requestId: string }
 export interface ApiPhotoUpload { photoId: string; url: string; fields: Record<string, string> }

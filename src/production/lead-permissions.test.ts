@@ -26,7 +26,7 @@ import {createApiRepository} from '../../backend/database/api-repository'
 function bookings(designated=true,active=true){
  const query=vi.fn(async(sql:string,values:unknown[]=[])=>{void values;return {rows:sql.includes('FROM app.users WHERE')?[{id:lead}]:sql.includes('SELECT m.role FROM')?(active?[{role:'member'}]:[]):sql.includes('SELECT 1 FROM app.production_settings')?(designated?[{}]:[]):sql.includes('FROM app.reservations r WHERE')?[{id,userId:'another-member',name:'Organization shoot',equipmentIds:['camera']}]:[]}})
  const repository=createApiRepository({withClient:async(fn: (c:DatabaseClient)=>Promise<unknown>)=>fn({query} as unknown as DatabaseClient)} as Parameters<typeof createApiRepository>[0])
- const run=(operation:'reservations'|'reservation'|'cancelReservation')=>repository.execute({issuer:'issuer',subject:'subject',email:null},operation==='reservations'?{operation,organizationId:org,page:{limit:100,after:null}}:{operation,organizationId:org,reservationId:id})
+ const run=(operation:'reservations'|'reservation'|'cancelReservation')=>repository.execute({issuer:'issuer',subject:'subject',email:null},operation==='reservations'?{operation,organizationId:org,page:{limit:100,after:null}}:operation==='cancelReservation'?{operation,organizationId:org,reservationId:id,version:1}:{operation,organizationId:org,reservationId:id})
  return {query,run}
 }
 it('lets a designated lead list named organization bookings as read-only',async()=>{

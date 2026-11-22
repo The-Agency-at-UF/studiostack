@@ -47,11 +47,11 @@ function repoFixture(role = 'member') {
     else if(sql.startsWith('SELECT reservation_days AS days'))rows=[{days:7}]
     else if (sql.includes('SELECT m.role FROM')) rows = values[0] === org ? [{ role }] : []
     else if (sql.includes('r.request_hash')) rows = existing ? [existing] : []
-    else if (sql.includes('SELECT id, status FROM app.inventory')) rows = [{ id: itemId, status: available ? 'available' : 'maintenance' }]
-    else if (sql.startsWith('SELECT id FROM app.inventory')) rows = values[1] === itemId ? [{ id: itemId }] : []
+    else if (sql.includes('SELECT id, status, condition FROM app.inventory')) rows = [{ id: itemId, status: available ? 'available' : 'maintenance' }]
+    else if (sql.startsWith('SELECT id,version,condition FROM app.inventory')) rows = values[1] === itemId ? [{ id: itemId, version: 1 }] : []
     else if (sql.startsWith('SELECT 1 FROM app.reservation_items')) rows = overlap ? [{ value: 1 }] : []
     else if (sql.startsWith('INSERT INTO app.reservations')) rows = [{ id: reservationId }]
-    else if (sql.includes('FROM app.reservations r WHERE')) rows = [{ id: reservationId, userId, status: 'confirmed', equipmentIds: [itemId] }]
+    else if (sql.includes('FROM app.reservations r WHERE')) rows = [{ id: reservationId, userId, version: 1, status: 'confirmed', equipmentIds: [itemId] }]
     else if (sql.startsWith('UPDATE app.reservations')) rows = [{ status: 'cancelled' }]
     return { rows, rowCount: rows.length }
   })
@@ -183,7 +183,7 @@ describe('tenant authorization and atomic repository operations', () => {
     const { repository, query } = repoFixture()
     const request = operation === 'members' ? { operation, organizationId: org, page: { limit: 50, after: null } }
       : operation === 'createEquipment' ? { operation, organizationId: org, input: { equipmentCode: 'QR1', name: 'Camera', category: 'Audio' as const } }
-      : { operation, organizationId: org, itemId, input: { name: 'Changed' } }
+      : { operation, organizationId: org, itemId, input: { name: 'Changed', version: 1 } }
     await expect(repository.execute(identity, request)).rejects.toMatchObject({ status: 403 })
     expect(query.mock.calls.some(call => /^(INSERT|UPDATE)/.test(call[0]))).toBe(false)
   })
@@ -239,17 +239,17 @@ describe('tenant authorization and atomic repository operations', () => {
     const fixture = repoFixture()
     fixture.query.mockImplementation(async sql => ({ rows: sql.includes('FROM app.users WHERE') ? [user]
       : sql.includes('SELECT m.role FROM') ? [{ role: 'member' }] : sql.includes('FROM app.reservations r WHERE') ? [{ id: reservationId, userId: 'another-user' }] : [], rowCount: 0 }))
-    await expect(fixture.repository.execute(identity, { operation: 'cancelReservation', organizationId: org, reservationId })).rejects.toMatchObject({ status: 404 })
+    await expect(fixture.repository.execute(identity, { operation: 'cancelReservation', organizationId: org, reservationId, version: 1 })).rejects.toMatchObject({ status: 404 })
     expect(fixture.query.mock.calls.some(call => call[0].startsWith('UPDATE'))).toBe(false)
   })
   it('cancels without deleting the reservation', async () => {
     const fixture = repoFixture()
-    expect(await fixture.repository.execute(identity, { operation: 'cancelReservation', organizationId: org, reservationId })).toMatchObject({ status: 'cancelled' })
+    expect(await fixture.repository.execute(identity, { operation: 'cancelReservation', organizationId: org, reservationId, version: 1 })).toMatchObject({ status: 'cancelled' })
     expect(fixture.query.mock.calls.some(call => call[0].startsWith('DELETE'))).toBe(false)
   })
   it('refuses to retire booked equipment', async () => {
     const fixture = repoFixture('admin'); fixture.setOverlap()
-    await expect(fixture.repository.execute(identity, { operation: 'updateEquipment', organizationId: org, itemId, input: { status: 'retired' } })).rejects.toMatchObject({ status: 409 })
+    await expect(fixture.repository.execute(identity, { operation: 'updateEquipment', organizationId: org, itemId, input: { status: 'retired', version: 1 } })).rejects.toMatchObject({ status: 409 })
     expect(fixture.query.mock.calls.some(call => call[0].startsWith('UPDATE'))).toBe(false)
   })
   it('maps unique violations to a generic conflict and rolls back', async () => {

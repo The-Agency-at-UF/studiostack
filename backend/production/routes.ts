@@ -23,5 +23,5 @@ export function productionRequest(event: APIGatewayProxyEventV2WithJWTAuthorizer
     ...(event.pathParameters?.ideaId ? {ideaId:uuid(event.pathParameters.ideaId)} : {}),
     ...(event.pathParameters?.clientId ? {clientId:uuid(event.pathParameters.clientId)} : {}),
     ...(event.pathParameters?.briefId ? { briefId: uuid(event.pathParameters.briefId) } : {}), ...(event.pathParameters?.attachmentId ? { attachmentId: uuid(event.pathParameters.attachmentId) } : {}),
-    ...(event.pathParameters?.deliveryId ? { deliveryId: uuid(event.pathParameters.deliveryId) } : {}), ...(['POST', 'PATCH'].includes(method) ? { body: body() } : {}) }
+    ...(event.pathParameters?.deliveryId ? { deliveryId: uuid(event.pathParameters.deliveryId) } : {}), ...(['POST', 'PATCH'].includes(method)||method==='DELETE'&&resource==='briefs' ? { body: body() } : {}) }
 }

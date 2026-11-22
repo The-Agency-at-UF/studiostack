@@ -51,6 +51,22 @@ describe('Client accounts in the booking flow',()=>{
 
 describe('Optimistic reservation cancel',()=>{
  function deferred(){let resolve!:(v:unknown)=>void,reject!:(e:unknown)=>void;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject}}
- it('shows the booking as cancelled before the server confirms it',async()=>{const d=deferred();m.cancel.mockReturnValue(d.promise);const user=userEvent.setup();render(<LiveReservations/>);await openBooking(user);await user.click(screen.getByRole('button',{name:'Cancel reservation'}));expect(m.cancel).toHaveBeenCalledWith('org','booking');expect(screen.getByText('Cancelled')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Cancel reservation'})).not.toBeInTheDocument();m.reservations.mockResolvedValue({items:[{...reservation,status:'cancelled',version:2}],nextCursor:null});d.resolve({...reservation,status:'cancelled',version:2});expect(await screen.findByText('Reservation cancelled.')).toBeInTheDocument();expect(screen.getByText('Cancelled')).toBeInTheDocument()})
+ it('shows the booking as cancelled before the server confirms it',async()=>{const d=deferred();m.cancel.mockReturnValue(d.promise);const user=userEvent.setup();render(<LiveReservations/>);await openBooking(user);await user.click(screen.getByRole('button',{name:'Cancel reservation'}));expect(m.cancel).toHaveBeenCalledWith('org','booking',1);expect(screen.getByText('Cancelled')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Cancel reservation'})).not.toBeInTheDocument();m.reservations.mockResolvedValue({items:[{...reservation,status:'cancelled',version:2}],nextCursor:null});d.resolve({...reservation,status:'cancelled',version:2});expect(await screen.findByText('Reservation cancelled.')).toBeInTheDocument();expect(screen.getByText('Cancelled')).toBeInTheDocument()})
  it('restores the booking and explains the failure when cancelling fails',async()=>{const d=deferred();m.cancel.mockReturnValue(d.promise);const user=userEvent.setup();render(<LiveReservations/>);await openBooking(user);await user.click(screen.getByRole('button',{name:'Cancel reservation'}));expect(screen.getByText('Cancelled')).toBeInTheDocument();d.reject(new Error('private detail'));expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable');expect(screen.queryByText('Cancelled')).not.toBeInTheDocument();expect(screen.getAllByText('Reserved').length).toBeGreaterThan(0);expect(screen.getByRole('button',{name:'Cancel reservation'})).toBeEnabled();expect(screen.queryByText('Reservation cancelled.')).not.toBeInTheDocument()})
+})
+
+it('LOGIC-020: keeps the exact saved timestamps during a name-only edit',async()=>{
+ const saved={...reservation,startsAt:new Date(Date.now()+86400000).toISOString().replace(/:\d{2}\.\d{3}Z$/,':25.123Z'),endsAt:new Date(Date.now()+90000000).toISOString().replace(/:\d{2}\.\d{3}Z$/,':27.456Z')}
+ m.reservations.mockResolvedValue({items:[saved],nextCursor:null})
+ const user=userEvent.setup()
+ render(<LiveReservations/>)
+ await openBooking(user)
+ await user.click(screen.getByRole('button',{name:'Edit reservation'}))
+ await next(user)
+ await next(user)
+ const name=screen.getByLabelText('Reservation name')
+ await user.clear(name)
+ await user.type(name,'Updated shoot')
+ await user.click(screen.getByRole('button',{name:'Save reservation'}))
+ await waitFor(()=>expect(m.edit).toHaveBeenCalledWith(saved.id,expect.objectContaining({startsAt:saved.startsAt,endsAt:saved.endsAt})))
 })
