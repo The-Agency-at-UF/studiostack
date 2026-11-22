@@ -7,6 +7,7 @@ import type {AccountRequest} from './routes'
 import type {ApiOrganization} from '../../src/types/database-api'
 import {isAdmin,pageOf,requestHash} from '../database/repository-utils'
 import {canChangeMemberAccess} from '../../src/accounts/member-permissions'
+import {lockOrganizationAdministration,pruneProductionRoles,requireAnotherActiveOwner} from './ownership'
 type Context={organizationId:string;user:{id:string};membership:{role:ApiOrganization['role']}}
 const memberColumns='u.id,u.email,u.display_name AS "displayName",m.role,m.status,m.version'
 const forbidden=():never=>{throw new ApiError(403,'Organization owner or administrator access required')}
@@ -17,7 +18,7 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
   async function settings(){return (await client.query('SELECT id,name,slug,reservation_days AS "reservationDays",location,logo_photo_id AS "logoPhotoId",version FROM app.organizations WHERE id=$1',[organizationId])).rows[0]}
   async function member(id:string){const row=(await client.query(`SELECT ${memberColumns} FROM app.organization_memberships m JOIN app.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND m.user_id=$2`,[organizationId,id])).rows[0];if(!row)throw new ApiError(404,'Member not found');return row}
   if(method!=='GET') {
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`organization-admin:${organizationId}`])
+    await lockOrganizationAdministration(client,organizationId)
     const actor=(await client.query("SELECT role FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'",[organizationId,user.id])).rows[0]
     if(!actor)forbidden();role=actor.role
   }
@@ -60,19 +61,14 @@ export async function dispatchAccounts(client:DatabaseClient,request:AccountRequ
     const v=changeMember(request.body),current=await member(request.memberId!);targetId=current.id
     if(current.version!==v.version)conflict()
     if(current.status==='invited')throw new ApiError(409,'An invited person must accept their invitation first')
+    if(v.status==='active'&&(await client.query('SELECT 1 FROM app.users WHERE id=$1 AND deletion_requested_at IS NOT NULL',[current.id])).rows.length)
+      throw new ApiError(409,'This account has been retired')
     if(role!=='owner'&&(current.role==='owner'||v.role==='owner'))forbidden()
-    if(current.role==='owner'&&current.status==='active'&&(v.role!=='owner'||v.status!=='active')) {
-      const owners=await client.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'",[organizationId])
-      if(owners.rows.length<2)throw new ApiError(409,'Keep at least one active organization owner')
-    }
+    if(current.role==='owner'&&current.status==='active'&&(v.role!=='owner'||v.status!=='active'))
+      await requireAnotherActiveOwner(client,organizationId,current.id)
     if(v.status!==current.status&&!canChangeMemberAccess(role,current.role))forbidden()
     await client.query('UPDATE app.organization_memberships SET role=$3,status=$4,version=version+1 WHERE organization_id=$1 AND user_id=$2',[organizationId,current.id,v.role,v.status]);kind='member_updated';details={fromRole:current.role,role:v.role,fromStatus:current.status,status:v.status}
-    if(v.status!=='active'){
-      // Production review and ELT roles end with the membership; restoring it does not restore them.
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`production-settings:${organizationId}`])
-      const pruned=await client.query('UPDATE app.production_settings SET reviewer_ids=array_remove(reviewer_ids,$2),executive_ids=array_remove(executive_ids,$2),version=version+1 WHERE organization_id=$1 AND $2::uuid=ANY(reviewer_ids||executive_ids) RETURNING version',[organizationId,current.id])
-      if(pruned.rows.length)details.productionRolesRemoved=true
-    }
+    if(v.status!=='active'&&await pruneProductionRoles(client,organizationId,current.id))details.productionRolesRemoved=true
   }
   await client.query('INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7)',[organizationId,user.id,kind,targetId,details,input.requestId,fingerprint])
   return resource==='settings'?{...await settings(),role}:member(targetId)

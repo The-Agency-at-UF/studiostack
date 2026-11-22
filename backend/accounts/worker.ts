@@ -1,6 +1,7 @@
+import {reconcileDeletion,deletionTask,type DeletionRequest} from './deletion'
 import {assertRecipientAllowed} from '../email/feedback'
 import {deliverLeased} from '../email/delivery'
-import {AdminCreateUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,DeleteUserCommand,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
+import {AdminCreateUserCommand,AdminDeleteUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,DeleteUserCommand,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
@@ -11,7 +12,7 @@ import type {InvitationJob,InvitationQueueRequest} from './queue'
 import {directoryRoutes} from './routes'
 import {emailPattern,userPoolPattern} from '../../src/types/patterns'
 type Attributes={Name?:string;Value?:string}[]
-export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes}>;store(request:DirectoryRequest):Promise<unknown>;signInState?(subject:string):Promise<'deleted'|'active'>;deleteUser?(token:string):Promise<unknown>}) {
+export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthorizer,config:ApiConfiguration,deps:{getUser(token:string):Promise<{UserAttributes?:Attributes;Username?:string}>;store(request:DirectoryRequest):Promise<unknown>;signInState?(subject:string):Promise<'deleted'|'active'>;deleteUser?(token:string):Promise<unknown>;completeDeletion?(request:Extract<DeletionRequest,{action:'complete'}>):Promise<unknown>}) {
   try {
     const identity=trustedIdentity(event,config,Date.now())
     if(!directoryRoutes.includes(event.routeKey)||event.requestContext.http.method!==event.routeKey.split(' ')[0])throw new ApiError(404,'Account operation not found')
@@ -24,11 +25,15 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
       if(!deps.deleteUser)throw new ApiError(503,'Account deletion is unavailable')
       let body:unknown;try{body=JSON.parse(event.isBase64Encoded?Buffer.from(event.body??'','base64').toString():event.body??'')}catch{throw new ApiError(400,'Invalid account request')}
       object(body,[])
-      // Clear StudioStack data first: once Cognito deletes the user this token stops working.
-      // The database step is idempotent, so a failed Cognito call can simply be retried.
-      const result=await deps.store({action:'delete-account',identity:{...identity,email:''}}) as {statusCode?:number;error?:string}
+      // Record a durable deletion operation before calling Cognito.
+      const result=await deps.store({action:'delete-account',identity:{...identity,email:''},deletionUsername:user.Username??identity.subject}) as {statusCode?:number;error?:string}
       if(result.statusCode)return response(result.statusCode,{error:result.error})
-      await deps.deleteUser(token)
+      if(!('deleted' in result)||result.deleted!==true)throw new Error('Account deletion receipt unavailable')
+      try { await deps.deleteUser(token) }
+      catch(error) { if(!(error instanceof Error)||error.name!=='UserNotFoundException')throw error }
+      // If acknowledgment is unavailable, the recovery sweep verifies provider absence.
+      await deps.completeDeletion?.({action:'complete',issuer:identity.issuer,subject:identity.subject})
+        .catch(()=>console.log(JSON.stringify({type:'account-deletion-ack-pending'})))
       return response(200,{deleted:true})
     }
     if(attrs.sub!==identity.subject||attrs.email_verified!=='true'||!attrs.email||!emailPattern.test(attrs.email))throw new ApiError(403,'Verify your sign-in email before accepting invitations')
@@ -68,7 +73,7 @@ export async function handler(event:Record<string,unknown>={}) {
   const lambda=new LambdaClient({region:'us-east-2',maxAttempts:1}),cognito=new CognitoIdentityProviderClient({region:'us-east-2',maxAttempts:1}),ses=new SESv2Client({region:'us-east-2',maxAttempts:1})
   async function invoke<T>(task:string,body:unknown):Promise<T>{const result=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task,...body as object}))}));if(result.FunctionError||!result.Payload)throw new Error('Private account operation failed');const value=JSON.parse(Buffer.from(result.Payload).toString());if(task==='account-invitation-queue'&&(!value||value.statusCode))throw new Error('Private invitation queue failed');return value as T}
   try {
-    if('requestContext'in event||'version'in event)return await handleDirectory(event as unknown as APIGatewayProxyEventV2WithJWTAuthorizer,apiConfiguration(),{getUser:token=>cognito.send(new GetUserCommand({AccessToken:token})),deleteUser:token=>cognito.send(new DeleteUserCommand({AccessToken:token})),store:input=>invoke('account-directory',input),signInState:async subject=>((await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = ${JSON.stringify(subject)}`,Limit:1}))).Users??[]).length?'active':'deleted'})
+    if('requestContext'in event||'version'in event)return await handleDirectory(event as unknown as APIGatewayProxyEventV2WithJWTAuthorizer,apiConfiguration(),{getUser:token=>cognito.send(new GetUserCommand({AccessToken:token})),deleteUser:token=>cognito.send(new DeleteUserCommand({AccessToken:token})),store:input=>invoke('account-directory',input),completeDeletion:async input=>{const result=await invoke<{completed?:boolean}>('account-deletion',input);if(typeof result.completed!=='boolean')throw new Error('Deletion acknowledgment unavailable')},signInState:async subject=>((await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = ${JSON.stringify(subject)}`,Limit:1}))).Users??[]).length?'active':'deleted'})
     let ready=false
     for(let attempt=0;attempt<2;attempt++) {
       const probe=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from('{}')})),value=probe.Payload?JSON.parse(Buffer.from(probe.Payload).toString()):null
@@ -76,6 +81,26 @@ export async function handler(event:Record<string,unknown>={}) {
       if(attempt===0)await new Promise(resolve=>setTimeout(resolve,15000))
     }
     if(!ready)throw new Error('Database was not ready for invitation delivery')
+    const deletions=await invoke<Awaited<ReturnType<typeof deletionTask>>>('account-deletion',{action:'claim'})
+    if(!('jobs'in deletions)||!Array.isArray(deletions.jobs))throw new Error('Account deletion queue unavailable')
+    let completed=0
+    for(const job of deletions.jobs){
+      try {
+        await reconcileDeletion(job,`https://cognito-idp.us-east-2.amazonaws.com/${pool}`,{
+          get:async username=>{
+            const user=await cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))
+            return {subject:user.UserAttributes?.find(attribute=>attribute.Name==='sub')?.Value}
+          },
+          remove:async subject=>{await cognito.send(new AdminDeleteUserCommand({UserPoolId:pool,Username:subject}))},
+        })
+        const result=await invoke<{completed?:boolean}>('account-deletion',{action:'complete',issuer:job.issuer,subject:job.subject})
+        if(result.completed!==true)throw new Error('Deletion acknowledgment unavailable')
+        completed++
+      } catch {
+        // Log counts only. Claimed operations become eligible again after their retry delay.
+      }
+    }
+    console.log(JSON.stringify({service:'account-deletion',completed,pending:deletions.jobs.length-completed}))
     const result=await deliverInvitations({store:input=>invoke('account-invitation-queue',input),send:async job=>{
       await assertRecipientAllowed(job.email,request=>invoke('email-feedback',request))
       const users=(await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`email = ${JSON.stringify(job.email)}`,Limit:2}))).Users??[]

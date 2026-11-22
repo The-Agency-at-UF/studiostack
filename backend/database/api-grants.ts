@@ -26,7 +26,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE(equipment_email,version) ON app.alert_preferences TO ${role};
     GRANT UPDATE(read_at,email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at) ON app.user_alerts TO ${role};
     GRANT SELECT, INSERT ON app.users TO ${role};
-    GRANT UPDATE (email, display_name, onboarded_at) ON app.users TO ${role};
+    GRANT UPDATE (email, display_name, onboarded_at, deletion_requested_at, deletion_completed_at, deletion_username, deletion_retry_at) ON app.users TO ${role};
     GRANT SELECT ON app.organizations, app.organization_memberships, app.user_group_memberships TO ${role};
     GRANT UPDATE (name, reservation_days, version, logo_photo_id, logo_key, location) ON app.organizations TO ${role};
     GRANT UPDATE (role, status, version) ON app.organization_memberships TO ${role};

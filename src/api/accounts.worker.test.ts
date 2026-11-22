@@ -1,6 +1,7 @@
 // @vitest-environment node
 import {describe,expect,it,vi} from 'vitest'
 import type {APIGatewayProxyEventV2WithJWTAuthorizer} from 'aws-lambda'
+import {reconcileDeletion} from '../../backend/accounts/deletion'
 import {deliverInvitations,handleDirectory} from '../../backend/accounts/worker'
 import {accountInfrastructure} from '../../infra/production/accounts'
 const id='11111111-1111-4111-8111-111111111111',org='22222222-2222-4222-8222-222222222222'
@@ -64,7 +65,7 @@ describe('verified invitation bridge and delivery',()=>{
     const order:string[]=[],store=vi.fn(async()=>{order.push('store');return {deleted:true}}),remove=vi.fn(async()=>{order.push('cognito')})
     const getUser=vi.fn().mockResolvedValue({UserAttributes:attributes.filter(a=>a.Name==='sub')})
     expect((await handleDirectory(event({},'POST /account/delete'),config,{getUser,store,deleteUser:remove})).statusCode).toBe(200)
-    expect(store).toHaveBeenCalledExactlyOnceWith({action:'delete-account',identity:{issuer:config.issuer,subject:id,email:''}})
+    expect(store).toHaveBeenCalledExactlyOnceWith({action:'delete-account',identity:{issuer:config.issuer,subject:id,email:''},deletionUsername:id})
     expect(remove).toHaveBeenCalledExactlyOnceWith('synthetic-token');expect(order).toEqual(['store','cognito'])
   })
   it('keeps the Cognito user when the database refuses the deletion or the subject does not match',async()=>{
@@ -87,4 +88,28 @@ describe('verified invitation bridge and delivery',()=>{
     expect(routes).toHaveLength(9);expect(routes.every(r=>r.Properties.AuthorizationType==='JWT')).toBe(true)
     expect((template.Resources.Recovery as {Properties:{ScheduleExpression:string}}).Properties.ScheduleExpression).toBe('cron(0 9 * * ? *)')
   })
+})
+
+
+it('LOGIC-006: an interrupted provider deletion can recover by verified immutable subject',async()=>{
+ const completeDeletion=vi.fn().mockResolvedValue(undefined),deleteUser=vi.fn().mockRejectedValue(new Error('Provider temporarily unavailable'))
+ const store=vi.fn().mockResolvedValue({deleted:true})
+ const response=await handleDirectory(event({},'POST /account/delete'),config,{
+  getUser:async()=>({UserAttributes:attributes,Username:'old-login'}),store,deleteUser,completeDeletion
+ })
+ expect(response.statusCode).toBe(503)
+ expect(store).toHaveBeenCalledWith(expect.objectContaining({action:'delete-account',deletionUsername:'old-login'}))
+ expect(completeDeletion).not.toHaveBeenCalled()
+ const get=vi.fn().mockResolvedValue({subject:id}),remove=vi.fn().mockResolvedValue(undefined)
+ await reconcileDeletion({issuer:config.issuer,subject:id,username:'old-login'},config.issuer,{get,remove})
+ expect(get).toHaveBeenCalledExactlyOnceWith(id)
+ expect(remove).toHaveBeenCalledExactlyOnceWith(id)
+})
+
+it('LOGIC-006: recovery leaves a reassigned provider username untouched',async()=>{
+ const notFound=Object.assign(new Error('Subject no longer exists'),{name:'UserNotFoundException'})
+ const get=vi.fn().mockRejectedValueOnce(notFound).mockResolvedValueOnce({subject:org}),remove=vi.fn()
+ await reconcileDeletion({issuer:config.issuer,subject:id,username:'reused-login'},config.issuer,{get,remove})
+ expect(remove).not.toHaveBeenCalled()
+ expect(get.mock.calls).toEqual([[id],['reused-login']])
 })

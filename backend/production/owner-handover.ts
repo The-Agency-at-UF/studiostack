@@ -2,6 +2,7 @@ import type { createDatabase } from '../database/client'
 import type { DatabaseConfig } from '../database/config'
 import { createHash, randomUUID } from 'node:crypto'
 import { object } from '../database/api-validation'
+import { lockOrganizationAdministration } from '../accounts/ownership'
 
 // Approved by Roger on 2026-11-13: the UF account owns The Agency at UF again. The Gmail account
 // (owner since the 2026-10-31 handover) stays an owner; it is only demoted if passed as formerOwner.
@@ -23,7 +24,8 @@ export async function handOverAgencyOwnership(database: ReturnType<typeof create
   return database.transaction(async client => {
     const org = (await client.query<{ id: string }>("SELECT id FROM app.organizations WHERE slug='agency-uf'")).rows[0]
     if (!org) throw new Error('Agency organization not found')
-    const userId = async (who: Identity) => (await client.query<{ id: string }>('SELECT id FROM app.users WHERE cognito_issuer=$1 AND cognito_subject=$2', [issuer, who.subject])).rows[0]?.id
+    await lockOrganizationAdministration(client,org.id)
+    const userId = async (who: Identity) => (await client.query<{ id: string }>('SELECT id FROM app.users WHERE cognito_issuer=$1 AND cognito_subject=$2 AND deletion_requested_at IS NULL', [issuer, who.subject])).rows[0]?.id
     const ownerId = await userId(owner)
     // Registration happens on first sign-in; the new owner must have signed in to this environment once.
     if (!ownerId) throw new Error('New owner has not signed in yet')

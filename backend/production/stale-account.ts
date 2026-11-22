@@ -2,6 +2,7 @@ import type { createDatabase } from '../database/client'
 import type { DatabaseConfig } from '../database/config'
 import { createHash, randomUUID } from 'node:crypto'
 import { object } from '../database/api-validation'
+import { lockOrganizationAdministration, pruneProductionRoles, requireAnotherActiveOwner } from '../accounts/ownership'
 
 // Approved by Roger on 2026-11-13. His UF sign-in was recreated on 2026-11-04, so the account it
 // registered has no email while an older account, whose sign-in no longer exists, still holds it
@@ -37,6 +38,8 @@ export async function retireStaleAccount(database: ReturnType<typeof createDatab
     const stale = (await client.query<Account>('SELECT id,cognito_subject AS subject,email FROM app.users WHERE cognito_issuer=$1 AND email=$2 AND id<>$3 FOR UPDATE', [issuer, email, live.id])).rows[0]
     if (!stale) return { ok: true, changed: false, liveAccount: live.id, liveHasEmail: live.email === email, staleAccount: null }
     if (stale.subject === current.subject) throw new Error('Stale account uses the live sign-in')
+    const organizations = (await client.query<{organization_id:string}>('SELECT organization_id FROM app.organization_memberships WHERE user_id=$1 ORDER BY organization_id', [stale.id])).rows
+    for (const {organization_id} of organizations) await lockOrganizationAdministration(client,organization_id)
     const memberships = (await client.query<Membership>('SELECT organization_id,role,status FROM app.organization_memberships WHERE user_id=$1 ORDER BY organization_id FOR UPDATE', [stale.id])).rows
     const plan = { liveAccount: live.id, staleAccount: stale.id, staleSubject: stale.subject, memberships: memberships.map(m => ({ organizationId: m.organization_id, role: m.role, status: m.status })) }
     // Applying needs the caller to have confirmed this exact sign-in is gone from Cognito.
@@ -46,11 +49,10 @@ export async function retireStaleAccount(database: ReturnType<typeof createDatab
     await client.query('UPDATE app.users SET email=NULL WHERE id=$1', [stale.id])
     await client.query('UPDATE app.users SET email=$2 WHERE id=$1', [live.id, email])
     for (const m of memberships) {
+      await pruneProductionRoles(client,m.organization_id,stale.id)
       if (m.status !== 'suspended' || m.role !== 'member') {
+        if (m.role === 'owner' && m.status === 'active') await requireAnotherActiveOwner(client,m.organization_id,stale.id)
         await client.query("UPDATE app.organization_memberships SET role='member',status='suspended',version=version+1 WHERE organization_id=$1 AND user_id=$2", [m.organization_id, stale.id])
-        // Retiring an active owner must leave the organization another active owner.
-        const owners = m.role === 'owner' && m.status === 'active' ? (await client.query<{ count: number }>("SELECT count(*)::int AS count FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'", [m.organization_id])).rows[0].count : 1
-        if (owners < 1) throw new Error('Keep at least one active organization owner')
         // Audit actors must belong to the organization; the live account does when it is a member.
         const liveMember = (await client.query('SELECT 1 FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2', [m.organization_id, live.id])).rows.length > 0
         const body = JSON.stringify({ fromRole: m.role, role: 'member', fromStatus: m.status, status: 'suspended', reason: 'stale-sign-in-retired', source: 'maintenance' })

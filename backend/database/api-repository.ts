@@ -61,13 +61,17 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       // Email is attached only by the verified directory claim, which keeps it unique per account.
       const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, display_name) VALUES ($1, $2, $3)
         ON CONFLICT (cognito_issuer, cognito_subject) DO UPDATE SET
-        display_name = COALESCE(EXCLUDED.display_name, app.users.display_name) RETURNING ${userColumns}`,
+        display_name = COALESCE(EXCLUDED.display_name, app.users.display_name)
+        WHERE app.users.deletion_requested_at IS NULL RETURNING ${userColumns}`,
       [identity.issuer, identity.subject, request.displayName])
+      if(!result.rows.length)throw new ApiError(403,'This account has been retired')
       return result.rows[0]
     }
-    const users = await client.query<User>(`SELECT ${userColumns} FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])
-    const user = users.rows[0]
-    if (!user) throw new ApiError(404, 'User profile not registered; POST /me first')
+    const users = await client.query<User & {deletionRequestedAt?:Date}>(`SELECT ${userColumns}, deletion_requested_at AS "deletionRequestedAt" FROM app.users WHERE cognito_issuer = $1 AND cognito_subject = $2`, [identity.issuer, identity.subject])
+    const record=users.rows[0]
+    if(!record)throw new ApiError(404,'User profile not registered; POST /me first')
+    const {deletionRequestedAt,...user}=record
+    if(deletionRequestedAt)throw new ApiError(403,'This account has been retired')
     if (request.operation === 'me') return user
     if (request.operation === 'completeOnboarding') {
       const active = await client.query("SELECT 1 FROM app.organization_memberships WHERE user_id = $1 AND status = 'active' LIMIT 1", [user.id])

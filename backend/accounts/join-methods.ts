@@ -89,12 +89,14 @@ export async function dispatchJoinMethods(client:DatabaseClient,request:AccountR
   } else {
     const current=await accessRequest(request.accessRequestId!),v=input as {version:number}
     if(current.version!==v.version||current.status!=='pending')throw new ApiError(409,'The request changed or was already decided')
+    if(request.action!=='approve'&&request.action!=='deny')throw new ApiError(404,'Access request action not found')
+    const decision=await client.query("UPDATE app.organization_access_requests SET status=$3,decided_by=$4,decided_at=now(),version=version+1 WHERE organization_id=$1 AND id=$2 AND status='pending' AND version=$5 RETURNING id",[org,current.id,request.action==='approve'?'approved':'denied',actor.id,v.version])
+    if(!decision.rows.length)throw new ApiError(409,'The request changed or was already decided')
     if(request.action==='approve') {
       const existing=(await client.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[org,current.userId])).rows[0]
       if(existing&&existing.status!=='active')throw new ApiError(409,'Restore the existing membership from Members instead')
       if(!existing)await client.query("INSERT INTO app.organization_memberships(organization_id,user_id,role,status) VALUES($1,$2,'member','active')",[org,current.userId])
-    } else if(request.action!=='deny')throw new ApiError(404,'Access request action not found')
-    await client.query('UPDATE app.organization_access_requests SET status=$3,decided_by=$4,decided_at=now(),version=version+1 WHERE organization_id=$1 AND id=$2',[org,current.id,request.action==='approve'?'approved':'denied',actor.id])
+    }
     targetId=current.id;kind=request.action==='approve'?'access_request_approved':'access_request_denied';details={userId:current.userId,email:current.email};result=await accessRequest(current.id)
   }
   await client.query('INSERT INTO app.organization_audit_events(organization_id,actor_id,kind,target_id,details,request_id,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7)',[org,actor.id,kind,targetId,details,input.requestId,hash])
