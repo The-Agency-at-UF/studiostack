@@ -6,7 +6,7 @@ import { productionRoutes, productionRequest } from '../production/routes'
 import {accountRoutes,accountRequest,joinMethodRoutes} from '../accounts/routes'
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
 import type { createApiRepository, ApiRequest, Identity } from './api-repository'
-import { ApiError, jsonResponse, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text, feedbackKind } from './api-validation'
+import { ApiError, jsonResponse, createEquipment, updateEquipment, createReservation, createPhotoUpload, pagination, uuid, object, text, feedbackKind, expectedVersion } from './api-validation'
 import { DatabaseUnavailableError } from './client'
 import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 
@@ -98,9 +98,10 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
     case 'PATCH /organizations/{organizationId}/inventory/{itemId}': return { operation: 'updateEquipment', organizationId, itemId: uuid(event.pathParameters?.itemId), input: updateEquipment(json(event)) }
     case 'POST /organizations/{organizationId}/reservations': return { operation: 'createReservation', organizationId, input: createReservation(json(event)) }
     case 'GET /organizations/{organizationId}/reservations/{reservationId}': return { operation: 'reservation', organizationId, reservationId: uuid(event.pathParameters?.reservationId) }
-    case 'POST /organizations/{organizationId}/reservations/{reservationId}/cancel':
-      object(json(event), [])
-      return { operation: 'cancelReservation', organizationId, reservationId: uuid(event.pathParameters?.reservationId) }
+    case 'POST /organizations/{organizationId}/reservations/{reservationId}/cancel': {
+      const body = object(json(event), ['version'])
+      return { operation: 'cancelReservation', organizationId, reservationId: uuid(event.pathParameters?.reservationId), version: expectedVersion(body.version) }
+    }
     case 'POST /organizations/{organizationId}/photos/{photoId}/complete':
       object(json(event), [])
       return { operation: 'completePhoto', organizationId, photoId: uuid(event.pathParameters?.photoId) }

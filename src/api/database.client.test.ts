@@ -98,7 +98,7 @@ describe('authenticated database browser client', () => {
   it('does not leak response details and does not replay a failed booking', async () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ private: 'SECRET' }) })
     const client = createDatabaseApiClient({ baseUrl: 'https://example.com', getAccessToken: async () => 'token', fetch: fetcher })
-    await expect(client.cancelReservation('org', 'reservation')).rejects.toMatchObject({ status: 409 })
+    await expect(client.cancelReservation('org', 'reservation', 1)).rejects.toMatchObject({ status: 409 })
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
   it('encodes path components and bounded list options', async () => {
@@ -127,4 +127,18 @@ describe('authenticated database browser client', () => {
     await client.reports('org/id').list();expect(fetcher.mock.calls[0][0]).toBe('https://example.com/organizations/org%2Fid/equipment/reports?limit=100')
   })
 
+})
+
+
+it('supports web-first rollout only after the previous API rejects the revision before writing',async()=>{
+  const fetcher=vi.fn().mockImplementation(async(_url,init)=>{
+    const body=JSON.parse(String(init?.body))
+    return 'version' in body
+      ?new Response(JSON.stringify({error:'Invalid request fields'}),{status:400})
+      :new Response(JSON.stringify({id:'saved'}))
+  })
+  const client=createDatabaseApiClient({baseUrl:'https://example.com',getAccessToken:async()=> 'token',fetch:fetcher})
+  await expect(client.updateEquipment('org','gear',{version:3,name:'Camera'})).resolves.toEqual({id:'saved'})
+  await expect(client.cancelReservation('org','booking',5)).resolves.toEqual({id:'saved'})
+  expect(fetcher.mock.calls.map(([,init])=>JSON.parse(init.body))).toEqual([{name:'Camera',version:3},{name:'Camera'},{version:5},{}])
 })

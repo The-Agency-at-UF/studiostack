@@ -46,11 +46,16 @@ export function createEquipment(value: unknown): CreateEquipment {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(equipmentCode)) throw new ApiError(400, 'Invalid equipment code')
   return { ...(body.colorTag !== undefined ? {colorTag: colorTag(body.colorTag)} : {}), equipmentCode, name: text(body.name, 120), category: category(body.category), ...(body.photoId !== undefined ? { photoId: uuid(body.photoId) } : {}) }
 }
+export function expectedVersion(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 2147483647) throw new ApiError(400,'A valid expected version is required')
+  return value
+}
 export function updateEquipment(value: unknown): UpdateEquipment {
-  const body = object(value, ['name', 'category', 'status', 'photoId', 'colorTag'])
-  if (!Object.keys(body).length) throw new ApiError(400, 'At least one field is required')
+  const body = object(value, ['version', 'name', 'category', 'status', 'photoId', 'colorTag'])
+  if (!Object.keys(body).some(key=>key!=='version')) throw new ApiError(400, 'At least one field is required')
   if (body.status !== undefined && !['available', 'maintenance', 'retired'].includes(String(body.status))) throw new ApiError(400, 'Invalid equipment status')
   return {
+    version: expectedVersion(body.version),
     ...(body.colorTag !== undefined ? {colorTag: colorTag(body.colorTag)} : {}),
     ...(body.name !== undefined ? { name: text(body.name, 120) } : {}),
     ...(body.category !== undefined ? { category: category(body.category) } : {}),

@@ -15,6 +15,32 @@ function renderPreview(){return render(<PreviewHarness/>)}
 beforeEach(()=>{localStorage.clear();window.history.replaceState(null,'','/production/');vi.restoreAllMocks()})
 afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals()})
 describe('production workspace',()=>{
+  it('LOGIC-016: a delayed deep link cannot replace a draft opened and edited from the cached list',async()=>{
+    invalidateCache()
+    window.history.replaceState(null,'','/production/?brief=first')
+    const brief=(id:string,projectName:string)=>({id,organizationId:'cache-org',ownerId:'member',ownerName:'Member',status:'draft',version:1,submission:0,data:{...emptyBrief(),projectName},shootStartsAt:null,shootEndsAt:null,createdAt:'2026-11-01T00:00:00Z',updatedAt:'2026-11-01T00:00:00Z',events:[],attachments:[]})
+    const first=brief('first','Linked draft'),second=brief('second','Chosen draft')
+    const access={userId:'member',canReview:false,canAdminister:false,isExecutive:false}
+    setCached('production:cache-org',{briefs:[first,second],clients:[],deliveries:[],access})
+    let resolveFirst!: (response:Response)=>void
+    const pending = new Promise<Response>(resolve=>{resolveFirst=resolve})
+    const fetcher=vi.fn(async(url:string)=>{
+      if(url.endsWith('/briefs/first'))return pending
+      if(url.endsWith('/briefs/second'))return Response.json(second)
+      if(url.endsWith('/access'))return Response.json(access)
+      return Response.json({items:url.includes('/briefs?')?[first,second]:[],nextCursor:null})
+    })
+    vi.stubGlobal('fetch',fetcher)
+    render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
+    await waitFor(()=>expect(fetcher.mock.calls.some(([url])=>url.endsWith('/briefs/first'))).toBe(true))
+    const user=userEvent.setup()
+    await user.click(screen.getByRole('button',{name:'Chosen draft'}))
+    const input=await screen.findByLabelText('Project name *')
+    await user.type(input,' with edits')
+    await act(async()=>{resolveFirst(Response.json(first))})
+    expect(screen.getByLabelText('Project name *')).toHaveValue('Chosen draft with edits')
+    invalidateCache()
+  })
   it('keeps cached production usable while a return visit refresh is pending',async()=>{
     setCached('production:cache-org',{briefs:[],clients:[],deliveries:[],access:{userId:'member',canReview:false,canAdminister:false,isExecutive:false}})
     vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})))

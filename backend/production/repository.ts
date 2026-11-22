@@ -4,7 +4,7 @@ import {dispatchClients} from './clients'
 import {decisionRecipientEligible} from './outbox'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseClient } from '../database/client'
-import { ApiError, object, uuid } from '../database/api-validation'
+import { ApiError, expectedVersion, object, uuid } from '../database/api-validation'
 import type { Page } from '../database/api-repository'
 import { briefData, briefCommand, productionSettings, version } from './validation'
 import { attachmentCategories, submissionErrors, type BriefCommand, type BriefData, type ProductionBrief, type ProductionSettings } from '../../src/types/production'
@@ -27,9 +27,9 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
   // Owners and administrators may edit or delete any brief the author could; submitting stays with the author.
   const manageable = (brief: ProductionBrief) => (admin || brief.ownerId === user.id) && ['draft', 'changes_requested'].includes(brief.status)
   const readable = (brief: ProductionBrief) => admin || brief.ownerId === user.id || brief.status !== 'draft'
-  async function getBrief(lock = false): Promise<ProductionBrief> {
-    const result = await client.query(`SELECT ${columns} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.id = $2 AND b.deleted_at IS NULL ${lock ? 'FOR UPDATE OF b' : ''}`, [organizationId, request.briefId])
-    const brief = result.rows[0] as ProductionBrief | undefined
+  async function getBrief(lock = false, includeDeleted = false): Promise<ProductionBrief & {deletedAt?:Date|null}> {
+    const result = await client.query(`SELECT ${columns}${includeDeleted?' ,b.deleted_at AS "deletedAt"':''} FROM app.production_briefs b JOIN app.users u ON u.id = b.owner_id WHERE b.organization_id = $1 AND b.id = $2 ${includeDeleted?'':'AND b.deleted_at IS NULL'} ${lock ? 'FOR UPDATE OF b' : ''}`, [organizationId, request.briefId])
+    const brief = result.rows[0] as (ProductionBrief & {deletedAt?:Date|null}) | undefined
     if (!brief || !readable(brief)) throw new ApiError(404, 'Brief not found')
     return brief
   }
@@ -136,13 +136,16 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     if (!result.rows.length) conflict('Only failed or uncertain deliveries with an eligible recipient can be retried')
     return { id: result.rows[0].id }
   }
-  const brief = await getBrief(request.method !== 'GET')
+  const brief = await getBrief(request.method !== 'GET',request.resource==='briefs'&&request.method==='DELETE')
   if (request.resource === 'briefs' && request.method === 'GET') return detail(brief)
   if (request.resource === 'briefs' && request.method === 'DELETE') {
     // The author, owners and administrators may delete; the row is hidden, not removed, so its history remains.
     if (!admin && brief.ownerId !== user.id) deny('Only the author or an administrator can delete this brief')
     if (!['draft', 'denied', 'withdrawn'].includes(brief.status)) conflict('Withdraw this brief before deleting it')
-    await client.query('UPDATE app.production_briefs SET deleted_at = now(), updated_at = now() WHERE organization_id = $1 AND id = $2', [organizationId, brief.id])
+    const expected = expectedVersion(object(request.body,['version']).version)
+    if(brief.deletedAt&&brief.version===expected+1)return {id:brief.id}
+    if(brief.deletedAt||brief.version!==expected)conflict('Brief changed. Refresh before deleting')
+    await client.query('UPDATE app.production_briefs SET deleted_at = now(), updated_at = now(), version=version+1 WHERE organization_id = $1 AND id = $2', [organizationId, brief.id])
     return { id: brief.id }
   }
   if (request.resource === 'briefs' && request.method === 'PATCH') {
