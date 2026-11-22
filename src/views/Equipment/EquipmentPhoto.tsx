@@ -31,6 +31,7 @@ export function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organiza
   const cached = useMemo(() => getCached<{ url: string; expiresAt: number }>(cacheKey, 3_600_000), [cacheKey])
   const validCachedUrl = cached && cached.expiresAt > Date.now() + 10_000 ? cached.url : null
   const [url,setUrl]=useState(validCachedUrl ?? ''),[error,setError]=useState(false)
+  const [attempt,setAttempt]=useState(0)
   useEffect(()=>{
     let active=true,timer:ReturnType<typeof setTimeout>;
     const load=async()=>{
@@ -51,6 +52,6 @@ export function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organiza
     };
     void load();
     return()=>{active=false;clearTimeout(timer)}
-  },[api,organizationId,item.id,validCachedUrl,cacheKey])
-  return error&&!url?<p>Private photo is unavailable. Refresh to try again.</p>:url?<img className="equipment-photo" src={url} alt={item.name} referrerPolicy="no-referrer" onError={()=>{invalidateCache(cacheKey);setUrl('');setError(true)}}/>:<p role="status">Loading private photo…</p>
+  },[api,organizationId,item.id,validCachedUrl,cacheKey,attempt])
+  return error&&!url?<p role="status">The private photo couldn’t load. <button type="button" className="ws-button ws-button-link" onClick={()=>{setError(false);setAttempt(n=>n+1)}}>Try again</button></p>:url?<img className="equipment-photo" src={url} alt={item.name} referrerPolicy="no-referrer" onError={()=>{invalidateCache(cacheKey);setUrl('');setError(true)}}/>:<p role="status">Loading private photo…</p>
 }
