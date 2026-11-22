@@ -5,9 +5,8 @@ import { useTour } from './tour/TourContext'
 import StudioStack from '../assets/StudioStack.png'
 import { HiOutlineUserCircle, HiOutlineChevronDown, HiOutlineCalendarDays, HiOutlineCalendar, HiOutlineCog6Tooth, HiOutlineUsers, HiOutlineHome, HiOutlineBell, HiOutlineVideoCamera, HiOutlineArchiveBox, HiOutlineClipboardDocumentList, HiOutlineWrenchScrewdriver, HiOutlineChartBar, HiOutlineBars3, HiOutlineXMark, HiOutlineArrowRightOnRectangle, HiOutlineSparkles, HiOutlineBugAnt, HiOutlineLightBulb, HiOutlineQuestionMarkCircle, HiOutlineBookOpen, HiOutlineRocketLaunch } from 'react-icons/hi2'
 import { closeWithExit } from './workspace/closeWithExit'
-import '../styles/shell.css'
 
-type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null; overdueReservations?: number }
+type Props = { isAdmin: boolean; logOut: () => void | Promise<void>; email?: string; onReportBug?: () => void; onRequestFeature?: () => void; organizationName?: string; organizationLogoUrl?: string | null; overdueReservations?: number | null }
 
 type Menu = 'help' | 'account' | null
 
@@ -58,7 +57,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
     { tour: 'equipment', name: 'Equipment', links: [
       { to: '/inventory', label: 'Inventory', Icon: HiOutlineArchiveBox },
       { to: '/calendar', label: 'Gear calendar', Icon: HiOutlineCalendarDays },
-      { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'], badge: overdueReservations > 0 ? { count: overdueReservations, label: `${overdueReservations} overdue` } : undefined },
+      { to: '/reservations', label: 'Reservations', Icon: HiOutlineClipboardDocumentList, related: ['/create-reservation', '/check-in-out'], badge: overdueReservations === null ? { count: '!', label: 'Overdue count unavailable' } : overdueReservations > 0 ? { count: overdueReservations, label: `${overdueReservations} overdue` } : undefined },
       { to: '/reports', label: 'Damage reports', Icon: HiOutlineWrenchScrewdriver, related: ['/create-report', '/report-summary'] },
     ] },
     ...(isAdmin ? [{ tour: 'administration', name: 'Admin', links: [
@@ -72,12 +71,13 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
   const isActive = (link: { to: string; section?: boolean; related?: string[] }) => currentPath === link.to || !!link.related?.includes(currentPath)
     || (!!link.section && currentPath.startsWith(link.to + '/') && !(link.to === '/organization' && (currentPath === '/organization/settings' || currentPath.startsWith('/organization/settings/'))))
   const helpActive = currentPath === '/get-started' || currentPath === '/resources'
-  const closeMenus = () => { setOpen(false); setMenu(null) }
+  // Picking a page from the mobile drawer hides the link that had focus; move focus to the page that opens instead.
+  const closeMenus = () => { const wasOpen = isOpen; setOpen(false); setMenu(null); if (wasOpen) requestAnimationFrame(() => document.getElementById('workspace-content')?.focus({ preventScroll: true })) }
 
   return <header className="site-header ws-shell">
     <a className="ws-skip-link" href="#workspace-content">Skip to workspace</a>
     <div className="site-header-inner">
-      <Link href="/" className="brand-lockup" onClick={closeMenus}>{organizationName ? <>{organizationLogoUrl && <img className="brand-org-logo" src={organizationLogoUrl} alt="" />}<span className="brand-org-name" title={organizationName}>{organizationName}</span></> : <img src={StudioStack.src ?? StudioStack} alt="StudioStack" />}</Link>
+      <Link href="/" className="brand-lockup" onClick={closeMenus}>{organizationName ? <>{organizationLogoUrl && <img className="brand-org-logo" src={organizationLogoUrl} alt="" onError={event => { event.currentTarget.hidden = true }} />}<span className="brand-org-name" title={organizationName}>{organizationName}</span></> : <img src={StudioStack.src ?? StudioStack} alt="StudioStack" />}</Link>
       <button ref={menuTrigger} className="ws-menu-toggle" data-tour="menu-toggle" aria-label="Toggle navigation" aria-expanded={isOpen} aria-controls="workspace-navigation" onClick={() => { setOpen(open => !open); setMenu(null) }}><HiOutlineBars3 aria-hidden="true" /></button>
       {isOpen && <button className="ws-drawer-backdrop" aria-label="Close navigation" tabIndex={-1} onClick={dismissDrawer} />}
       <div ref={drawerRef} id="workspace-navigation" className={`ws-sidebar-body ${isOpen ? 'is-open' : ''}`} role={isOpen ? 'dialog' : undefined} aria-modal={isOpen ? true : undefined} aria-label={isOpen ? 'Workspace navigation' : undefined} onKeyDown={event => {
@@ -94,7 +94,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
         <nav className={isOpen ? 'mobile-nav-links' : 'desktop-nav-links'} aria-label="Main navigation">
           {groups.map(group => <div className="ws-nav-group" key={group.tour} data-tour={`nav-${group.tour}`}>{group.name && <p>{group.name}</p>}{group.links.map(link => {
             const active = isActive(link)
-            return <Link key={link.to} href={link.to} onClick={closeMenus} className={`nav-link ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}><link.Icon aria-hidden="true" /><span>{link.label}</span>{'badge' in link && link.badge && <span className="nav-badge" title={link.badge.label}><span aria-hidden="true">{link.badge.count > 99 ? '99+' : link.badge.count}</span><span className="sr-only">{link.badge.label}</span></span>}</Link>
+            return <Link key={link.to} href={link.to} onClick={closeMenus} className={`nav-link ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}><link.Icon aria-hidden="true" /><span>{link.label}</span>{'badge' in link && link.badge && <span className="nav-badge" title={link.badge.label}><span aria-hidden="true">{typeof link.badge.count === 'number' && link.badge.count > 99 ? '99+' : link.badge.count}</span><span className="sr-only">{link.badge.label}</span></span>}</Link>
           })}</div>)}
         </nav>
         <div className="header-actions">
@@ -108,7 +108,7 @@ export default function Header({ isAdmin, logOut, email, onReportBug, onRequestF
             {onRequestFeature && <button className="account-request-feature" onClick={() => { closeMenus(); onRequestFeature() }}><HiOutlineLightBulb aria-hidden="true" />Request a feature</button>}
           </MenuPopover>
           <MenuPopover id="account-panel" tour="account" open={menu === 'account'} onOpen={() => setMenu('account')} onClose={() => setMenu(open => open === 'account' ? null : open)} triggerRef={accountTrigger}
-            trigger={props => <button {...props} className="account-trigger" aria-label="Account"><HiOutlineUserCircle aria-hidden="true" /><span>Account<small>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>}>
+            trigger={props => <button {...props} className="account-trigger" aria-label="Account"><HiOutlineUserCircle aria-hidden="true" /><span>Account<small title={email || undefined}>{email || 'Your workspace'}</small></span><HiOutlineChevronDown className="account-chevron" aria-hidden="true" /></button>}>
             <div className="account-identity"><strong>Your account</strong></div>
             <Link href="/account" onClick={closeMenus}><HiOutlineUserCircle aria-hidden="true" />Account &amp; workspaces</Link>
             <button className="account-signout" onClick={() => { closeMenus(); void logOut() }}><HiOutlineArrowRightOnRectangle aria-hidden="true" />Sign out</button>

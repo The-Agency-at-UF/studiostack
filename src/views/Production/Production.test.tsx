@@ -68,7 +68,7 @@ describe('production workspace',()=>{
     })
     vi.stubGlobal('fetch',fetcher)
     const view=render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'cache-org',name:'Agency',slug:'agency',role:'member'}]}}><Production /></AppSessionProvider>)
-    try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('button',{name:'Client accounts'}));expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
+    try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('tab',{name:'Client accounts'}));expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
   })
 
   it('supports a complete edit-only draft and submission with conditional fields',async()=>{
@@ -144,7 +144,7 @@ describe('production workspace',()=>{
   })
   it('asks in a themed dialog before denying a brief',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-reviewer');await screen.findByRole('button',{name:'Decisions & delivery'})
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-reviewer');await screen.findByRole('tab',{name:'Decisions & delivery'})
     await user.click(screen.getByRole('button',{name:'Campus stories'}));await screen.findByRole('button',{name:'Deny brief'})
     await user.type(screen.getByLabelText('Comment / decision reason'),'Out of scope this term')
     await user.click(screen.getByRole('button',{name:'Deny brief'}))
@@ -156,23 +156,23 @@ describe('production workspace',()=>{
   })
   it('lets configured Production leadership approve and confirms the proposed dates',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-reviewer');await screen.findByRole('button',{name:'Decisions & delivery'})
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-reviewer');await screen.findByRole('tab',{name:'Decisions & delivery'})
     await user.click(screen.getByRole('button',{name:'Campus stories'}));await screen.findByRole('button',{name:'Approve & confirm dates'})
     expect(screen.getByRole('button',{name:'Deny brief'})).toBeDisabled()
     await user.click(screen.getByRole('button',{name:'Approve & confirm dates'}));await screen.findByText(/^Confirmed shoot:/,{selector:'.production-review p'})
     expect(screen.getByText('Brief approved. Shoot dates are confirmed.',{selector:'.ws-toast p'})).toBeInTheDocument()
     expect(screen.getByText('Approved',{selector:'.production-status'})).toBeInTheDocument()
-    await user.click(screen.getByRole('button',{name:'Decisions & delivery'}));await screen.findByRole('heading',{name:'Decisions'})
+    await user.click(screen.getByRole('tab',{name:'Decisions & delivery'}));await screen.findByRole('heading',{name:'Decisions'})
     expect(await screen.findByText('Decision email: 2 sent')).toBeInTheDocument()
   })
   it('exposes access settings only to administrators and persists reviewer selection',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
-    expect(screen.queryByRole('button',{name:'Production roles'})).not.toBeInTheDocument()
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-admin');await user.click(await screen.findByRole('button',{name:'Production roles'}))
+    expect(screen.queryByRole('tab',{name:'Production roles'})).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-admin');await user.click(await screen.findByRole('tab',{name:'Production roles'}))
     const reviewer=await screen.findByRole('checkbox',{name:'Production leadership: Alex · Client Services'});await user.click(reviewer)
     await user.click(screen.getByRole('button',{name:'Save settings'}));expect(await screen.findByText('Production access and notification settings saved.')).toBeInTheDocument();expect(screen.getByText('All changes saved',{selector:'.production-settings-savebar span'})).toHaveClass('production-saved-pulse')
-    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-author');await screen.findByRole('button',{name:'Decisions & delivery'})
-    expect(screen.queryByRole('button',{name:'Production roles'})).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-author');await screen.findByRole('tab',{name:'Decisions & delivery'})
+    expect(screen.queryByRole('tab',{name:'Production roles'})).not.toBeInTheDocument()
   })
   it('never substitutes preview records when an authenticated service request fails',async()=>{
     vi.useFakeTimers()
@@ -212,7 +212,7 @@ it('lets a preview Production Lead save confirmed crew on an approved shoot',asy
 
 it('converts a selected pitch into a visible draft with its client account',async()=>{
  const lead=createPreviewProductionClient('preview-reviewer'),idea=await lead.createIdea({id:crypto.randomUUID(),title:'Example selected pitch',pitch:'An example story.',clientAccountId:'preview-client'});await lead.updateIdea(idea.id,{title:idea.title,pitch:idea.pitch,clientAccountId:idea.clientAccountId,status:'selected',version:idea.version});
- const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('button',{name:'Ideas & pitches'}));await user.click(await screen.findByRole('button',{name:'Create brief from pitch'}));
+ const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('tab',{name:'Ideas & pitches'}));await user.click(await screen.findByRole('button',{name:'Create brief from pitch'}));
  expect(await screen.findByLabelText('Project name *')).toHaveValue(idea.title);expect(screen.getByLabelText('Client *')).toHaveValue('Example client');expect(screen.getByLabelText('Client account')).toHaveValue('preview-client');
 })
 

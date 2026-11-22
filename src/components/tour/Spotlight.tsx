@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { HiOutlineXMark } from 'react-icons/hi2'
-import '../../styles/tour.css'
 
 export type TourStep = { id: string; target?: string | string[]; title: string; body: string }
 type Props = { steps: TourStep[]; onFinish: () => void; onSkip: () => void }
@@ -84,6 +83,8 @@ export default function Spotlight({ steps, onFinish, onSkip }: Props) {
       </div>
       <h2 id="tour-title">{step.title}</h2>
       <p id="tour-body">{step.body}</p>
+      {/* Focus stays on Next between steps, which announces nothing new; this live text reads each new step. */}
+      <p className="ws-sr-only" aria-live="polite">{`Step ${shown.indexOf(step) + 1} of ${shown.length}: ${step.title}. ${step.body}`}</p>
       <ol className="tour-dots" aria-hidden="true">{shown.map((s, i) => <li key={s.id} className={s === step ? 'is-current' : i < shown.indexOf(step) ? 'is-done' : undefined} />)}</ol>
       <div className="tour-actions">
         <button type="button" className="tour-skip" onClick={onSkip}>Skip tour</button>

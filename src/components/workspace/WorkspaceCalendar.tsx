@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import type { CalendarOptions, DatesSetArg, DayCellContentArg, EventContentArg, EventMountArg } from '@fullcalendar/core'
+import type { DateClickArg } from '@fullcalendar/interaction'
 import { HiOutlineChevronLeft, HiOutlineChevronRight } from 'react-icons/hi2'
 
 type CalendarView = { value: string; label: string }
@@ -16,9 +17,14 @@ function calendarEventContent(arg: EventContentArg) {
  * today, title, view switch) and a month grid that scrolls sideways on narrow screens.
  * Events style themselves with `ws-event` classes; see calendar.css.
  */
-export function WorkspaceCalendar({ label, viewChoices, datesSet, eventDidMount, ...options }: { label: string; viewChoices: CalendarView[] } & CalendarOptions) {
+const phone = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
+export function WorkspaceCalendar({ label, viewChoices, datesSet, eventDidMount, dateClick, initialView, ...options }: { label: string; viewChoices: CalendarView[]; dateClick?: (arg: DateClickArg) => void } & CalendarOptions) {
   const calendar = useRef<FullCalendar>(null)
-  const [title, setTitle] = useState(''), [view, setView] = useState(options.initialView ?? viewChoices[0]?.value)
+  // On a phone a month grid's chips can't show their names, so a phone with no saved view starts on the day view;
+  // tapping a day in the month grid opens that day.
+  const [startView] = useState(() => phone() && initialView === 'dayGridMonth' && viewChoices.some(v => v.value === 'timeGridDay') ? 'timeGridDay' : initialView)
+  const [title, setTitle] = useState(''), [view, setView] = useState(startView ?? viewChoices[0]?.value)
+  const clickDay = (arg: DateClickArg) => { dateClick?.(arg); if (phone() && arg.view.type === 'dayGridMonth' && viewChoices.some(v => v.value === 'timeGridDay')) arg.view.calendar.changeView('timeGridDay', arg.date) }
   const api = () => calendar.current?.getApi()
   const utc = options.timeZone === 'UTC'
   // A month grid labels the first day of the following month with its month name.
@@ -47,7 +53,7 @@ export function WorkspaceCalendar({ label, viewChoices, datesSet, eventDidMount,
       </div>}
     </div>
     <div className="ws-calendar-scroll"><div className="ws-calendar-grid">
-      <FullCalendar ref={calendar} headerToolbar={false} height="auto" eventDisplay="block" fixedWeekCount={false} dayCellContent={dayCell} eventContent={calendarEventContent} eventDidMount={mounted} {...options} datesSet={changed} />
+      <FullCalendar ref={calendar} headerToolbar={false} height="auto" eventDisplay="block" fixedWeekCount={false} dayCellContent={dayCell} eventContent={calendarEventContent} eventDidMount={mounted} {...options} initialView={startView} dateClick={clickDay} datesSet={changed} />
     </div></div>
   </section>
 }

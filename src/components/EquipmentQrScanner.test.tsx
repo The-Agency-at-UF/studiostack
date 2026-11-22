@@ -51,7 +51,7 @@ describe('equipment camera scanner', () => {
   it('offers manual entry when camera permission is denied', async () => {
     camera.start.mockRejectedValueOnce(new Error('Permission denied'))
     render(<EquipmentQrScanner onCode={() => true} onCancel={vi.fn()} />)
-    await screen.findByRole('button', { name: 'Enter ID manually' })
+    await screen.findByRole('button', { name: 'Type the equipment code' })
     expect(screen.getByRole('status')).toHaveTextContent('Allow camera access')
   })
 })

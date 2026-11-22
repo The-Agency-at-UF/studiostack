@@ -1,17 +1,17 @@
 .ws-confirm-dialog {
   position: fixed;
   inset: 0;
-  width: min(460px, calc(100vw - 32px));
+  width: min(460px, calc(100dvw - 32px));
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   margin: auto;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-modal);
   background: var(--surface);
   color: var(--ink);
   font-family: var(--font-ui);
-  box-shadow: var(--shadow-tray);
+  box-shadow: var(--shadow-modal);
   animation: ws-confirm-in var(--motion-enter) var(--ease-out);
 }
 .ws-confirm-dialog[data-closing] { animation: ws-confirm-out var(--motion-exit) var(--ease-out) both; }
@@ -25,14 +25,39 @@
 .ws-confirm-actions button { min-height: var(--control-height); padding: var(--space-2) var(--space-5); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; transition: background var(--motion-fast), scale var(--motion-press) var(--ease-out); }
 .ws-confirm-actions button:hover:not(:disabled) { background: var(--surface-hover); }
 .ws-confirm-actions .ws-confirm-destructive { background: var(--danger); border-color: var(--danger); color: var(--on-frame); }
-.ws-confirm-actions .ws-confirm-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, black); }
+.ws-confirm-actions .ws-confirm-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, var(--frame)); }
 .ws-confirm-actions .ws-confirm-primary { background: var(--accent); border-color: var(--accent); color: var(--on-frame); }
-.ws-confirm-actions .ws-confirm-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, black); }
+.ws-confirm-actions .ws-confirm-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, var(--frame)); }
 .ws-confirm-actions button:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: var(--focus-offset); }
 .ws-confirm-actions button:disabled { opacity: .5; cursor: not-allowed; }
 @keyframes ws-confirm-in { from { opacity: 0; scale: .96; } }
 @keyframes ws-confirm-out { to { opacity: 0; scale: .96; } }
 @keyframes ws-confirm-backdrop-in { from { opacity: 0; } }
 @keyframes ws-confirm-backdrop-out { to { opacity: 0; } }
-@media (max-width: 480px) { .ws-confirm-actions button { flex: 1; } }
+@media (max-width:639px) { .ws-confirm-actions button { flex: 1; } }
 @media (prefers-reduced-motion: reduce) { .ws-confirm-dialog, .ws-confirm-dialog::backdrop, .ws-confirm-dialog[data-closing], .ws-confirm-dialog[data-closing]::backdrop { animation: none; } .ws-confirm-actions button { transition: none; } }
+/* Feedback (bug report / feature request) dialog: the same shell as ConfirmDialog, with a form. */
+.ws-feedback { width: min(520px, calc(100dvw - 32px)); }
+.ws-feedback-close { position: absolute; top: var(--space-3); right: var(--space-3); display: grid; place-items: center; width: var(--control-height); height: var(--control-height); border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); cursor: pointer; }
+.ws-feedback-close:hover { background: var(--surface-hover); color: var(--ink); }
+.ws-feedback-close svg { width: var(--icon-md); height: var(--icon-md); }
+.ws-feedback-form, .ws-feedback-result { display: grid; gap: var(--space-4); padding: var(--space-6) var(--space-6) 0; }
+.ws-feedback-form h2, .ws-feedback-result h2 { margin: 0; padding-right: var(--space-10); font-size: var(--text-xl); line-height: var(--line-heading); font-weight: var(--weight-bold); }
+.ws-feedback .ws-field { font-weight: var(--weight-medium); }
+.ws-feedback :is(input, textarea) { width: 100%; min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: 1px solid var(--line-control); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-base); font-weight: var(--weight-regular); }
+.ws-feedback textarea { resize: vertical; }
+.ws-feedback :is(input, textarea)[aria-invalid=true] { border-color: var(--danger); }
+.ws-feedback-missing { margin: 0; color: var(--danger); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.ws-feedback-history { font-size: var(--text-sm); color: var(--muted); }
+.ws-feedback-history summary { min-height: var(--control-height); display: flex; align-items: center; cursor: pointer; color: var(--accent); }
+.ws-feedback-history ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.ws-feedback-history li p { margin: 0; overflow-wrap: anywhere; }
+.ws-feedback-actions { margin: 0 calc(var(--space-6) * -1); }
+.ws-feedback-actions .ws-feedback-discard { margin-right: auto; border-color: transparent; color: var(--danger); }
+.ws-feedback-result { text-align: center; justify-items: center; }
+.ws-feedback-result p { margin: 0; color: var(--muted); }
+.ws-feedback-icon { width: var(--space-12); height: var(--space-12); }
+.ws-feedback-icon.is-success { color: var(--success); }
+.ws-feedback-icon.is-error { color: var(--danger); }
+.ws-feedback-trigger { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-height); border: 0; background: transparent; color: inherit; font: inherit; font-weight: var(--weight-medium); cursor: pointer; }
+.ws-feedback-trigger svg { width: var(--icon-md); height: var(--icon-md); }

@@ -1,6 +1,7 @@
 'use client'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { HiOutlineCheck, HiOutlineExclamationTriangle, HiOutlineXMark } from 'react-icons/hi2'
 
 type ToastKind = 'success' | 'error'
 export type ToastOptions = {
@@ -50,8 +51,13 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
     if (!el.hasAttribute('popover')) el.setAttribute('popover', 'manual')
     try { if (el.matches(':popover-open')) el.hidePopover(); if (newest !== undefined) el.showPopover() } catch { /* Older browsers keep the fixed-position fallback. */ }
   }, [newest])
+  // Successes are added inside one polite live region that exists before any toast does: screen readers
+  // reliably announce text added to an existing region, but often miss a region that arrives with its text.
+  // Errors use role="alert", which is announced when it appears.
+  const successes = toasts.filter(t => t.kind === 'success'), errors = toasts.filter(t => t.kind === 'error')
   return <div ref={ref} className="ws-toasts" aria-label="Notifications">
-    {toasts.map(t => <ToastCard key={t.key} toast={t} dismiss={dismiss} />)}
+    {errors.map(t => <ToastCard key={t.key} toast={t} dismiss={dismiss} />)}
+    <div className="ws-toast-region" aria-live="polite">{successes.map(t => <ToastCard key={t.key} toast={t} dismiss={dismiss} />)}</div>
   </div>
 }
 
@@ -64,9 +70,9 @@ function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string)
   }, [toast.kind, toast.id, paused, dismiss])
   const pause = () => setPaused(true), resume = () => setPaused(false)
   return <div className={`ws-toast ws-toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : 'status'} onMouseEnter={pause} onMouseLeave={resume} onFocus={pause} onBlur={resume}>
-    <span className="ws-toast-icon" aria-hidden="true">{toast.kind === 'error' ? '!' : '✓'}</span>
+    <span className="ws-toast-icon" aria-hidden="true">{toast.kind === 'error' ? <HiOutlineExclamationTriangle /> : <HiOutlineCheck />}</span>
     <p>{toast.message}</p>
     {toast.action && <button type="button" className="ws-toast-action" onClick={() => { dismiss(toast.id); toast.action?.onClick() }}>{toast.action.label}</button>}
-    <button type="button" className="ws-toast-close" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>×</button>
+    <button type="button" className="ws-toast-close" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}><HiOutlineXMark aria-hidden="true" /></button>
   </div>
 }

@@ -56,7 +56,7 @@ describe('StudioStack sign-in', () => {
     expect(screen.getByRole('heading', { name: 'You’re signed in.' })).toBeInTheDocument()
     expect(screen.getByText('Onboarding steps')).toBeInTheDocument()
     expect(screen.queryByText('Your workspaces')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Open Production/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Open production/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /create organization|make admin/i })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Sign out of this account' }))
     expect(onSignOut).toHaveBeenCalledOnce()
@@ -69,7 +69,7 @@ describe('StudioStack sign-in', () => {
   })
   it('opens live Production after sign-in', () => {
     render(<LogIn onSignIn={vi.fn()} authenticated organizations={[{ id: 'org', slug: 'studio', name: 'Real studio', role: 'owner' }]} />)
-    expect(screen.getByRole('link', { name: 'Open Production' })).toHaveAttribute('href', '/production')
+    expect(screen.getByRole('link', { name: 'Open production' })).toHaveAttribute('href', '/production')
     expect(screen.queryByRole('button', { name: 'Open workspace preview' })).not.toBeInTheDocument()
   })
 
