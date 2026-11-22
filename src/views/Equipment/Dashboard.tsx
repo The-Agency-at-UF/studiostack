@@ -8,8 +8,7 @@ import type {AppAlert} from '../../types/alerts'
 import {reservationLabel} from './Reservations'
 import {sentenceCase} from '../../utils/sentenceCase'
 import {getCached,setCached} from '../../api/cache'
-import '../Accounts/Administration.css'
-import './Equipment.css'
+import { dateTimeLabel } from '../../format'
 type SectionErrors = { items?: string; bookings?: string; reports?: string; alerts?: string }
 export default function LiveDashboard({statistics=false,production}:{statistics?:boolean;production?:ReactNode}){const c=useLiveOrganization();if(c&&statistics&&!c.admin)return <main className="administration"><h1>Statistics</h1><p>Organization administrators can view organization statistics.</p></main>;return c?<DashboardWorkspace key={c.organization.id} api={c.api} org={c.organization.id} admin={c.admin} statistics={statistics} production={production}/>:<main className="administration"><h1>StudioStack</h1><p>Select an active organization in your account to open the workspace.</p></main>}
 function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseApi;org:string;admin:boolean;statistics:boolean;production?:ReactNode}){
@@ -67,7 +66,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
 
  const summary=hasAnyData&&<dl className="equipment-summary ws-stagger" aria-label={org==='preview'?'Preview workspace summary':'Live workspace summary'}>
       <div><dt>Available equipment</dt><dd>{items!==null?items.filter(i=>i.status==='available'&&!i.checkedOut).length:errors.items?'–':'…'}<small>{items!==null?`of ${items.length} items`:errors.items?'Unavailable':'Loading…'}</small></dd></div>
-      <div><dt>{admin?'Active bookings':'Your active bookings'}</dt><dd>{bookings!==null?active.length:errors.bookings?'–':'…'}</dd></div>
+      <div><dt>{admin?'Active reservations':'Your active reservations'}</dt><dd>{bookings!==null?active.length:errors.bookings?'–':'…'}</dd></div>
       <div><dt>Overdue returns</dt><dd>{bookings!==null?overdue.length:errors.bookings?'–':'…'}</dd></div>
       <div><dt>Open equipment reports</dt><dd>{reports!==null?openReports.length:errors.reports?'–':'…'}</dd></div>
     </dl>
@@ -79,7 +78,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
   <>
     {statistics?<>{summary}
       <section><h2>Bookings by month</h2><p className="administration-hint">Confirmed reservations by scheduled start, including returned equipment. Cancelled bookings are excluded.</p>
-        {errors.bookings?<div className="section-inline-error"><p role="alert">{errors.bookings}</p><button disabled={retrying==='bookings'} onClick={()=>retrySection('bookings')}>{retrying==='bookings'?'Retrying…':'Retry bookings'}</button></div>:bookings===null&&loading?<Skeleton label="Loading bookings…" variant="row" count={4}/>:<ol className="equipment-chart ws-enter" aria-label="Confirmed bookings by month">{months.map(m=><li key={m.key}><span>{m.label}</span><div><span style={{width:Math.max(m.count?1:0,m.count/max*100)+'%'}}/></div><strong>{m.count}</strong></li>)}</ol>}
+        {errors.bookings?<div className="section-inline-error"><p role="alert">{errors.bookings}</p><button disabled={retrying==='bookings'} onClick={()=>retrySection('bookings')}>{retrying==='bookings'?'Retrying…':'Retry reservations'}</button></div>:bookings===null&&loading?<Skeleton label="Loading reservations…" variant="row" count={4}/>:<ol className="equipment-chart ws-enter" aria-label="Confirmed reservations by month">{months.map(m=><li key={m.key}><span>{m.label}</span><div><span style={{width:Math.max(m.count?1:0,m.count/max*100)+'%'}}/></div><strong>{m.count}</strong></li>)}</ol>}
       </section>
       <section><h2>Equipment by category</h2>
         {errors.items?<div className="section-inline-error"><p role="alert">{errors.items}</p><button disabled={retrying==='items'} onClick={()=>retrySection('items')}>{retrying==='items'?'Retrying…':'Retry inventory'}</button></div>:items===null&&loading?<Skeleton label="Loading inventory…" variant="row" count={4}/>:<TableRegion label="Equipment by category"><table><thead><tr><th>Category</th><th>Total</th><th>Checked out</th><th>Out of service</th></tr></thead><tbody className="ws-stagger">{categories.map(category=>{const catItems=items!.filter(i=>i.category===category);return <tr key={category}><td>{category}</td><td>{catItems.length}</td><td>{catItems.filter(i=>i.checkedOut).length}</td><td>{catItems.filter(i=>i.status!=='available').length}</td></tr>})}</tbody></table></TableRegion>}
@@ -88,7 +87,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
       <div className="ws-tray" role="group" aria-labelledby="home-tray-equipment"><p className="ws-tray-label" id="home-tray-equipment">Equipment</p>
         {summary}
         <section><div className="equipment-section-heading"><h2>Pickup & return</h2><Link href="/reservations/">All reservations</Link></div>
-          {errors.bookings?<div className="section-inline-error"><p role="alert">{errors.bookings}</p><button disabled={retrying==='bookings'} onClick={()=>retrySection('bookings')}>{retrying==='bookings'?'Retrying…':'Retry reservations'}</button></div>:bookings===null&&loading?<Skeleton label="Loading reservations…" variant="row" count={4}/>:<><table><thead><tr><th>Reservation</th><th>When</th><th>Status</th><th>Action</th></tr></thead><tbody className="ws-stagger">{upcoming.slice(0,8).map(r=><tr key={r.id}><td><Link href={`/reservations/?reservation=${r.id}`}>{r.name}</Link></td><td>{new Date(r.startsAt).toLocaleString()}<small>Return {new Date(r.endsAt).toLocaleString()}</small></td><td>{reservationLabel(r)}{overdue.some(o=>o.id===r.id)&&<small className="equipment-overdue">Overdue</small>}</td><td><Link href={`/check-in-out/?reservation=${r.id}`}>{r.fulfillmentStatus==='checked_out'?'Return':'Pickup details'}</Link></td></tr>)}</tbody></table>{!upcoming.length&&<p className="equipment-empty">No upcoming pickups or returns.</p>}</>}
+          {errors.bookings?<div className="section-inline-error"><p role="alert">{errors.bookings}</p><button disabled={retrying==='bookings'} onClick={()=>retrySection('bookings')}>{retrying==='bookings'?'Retrying…':'Retry reservations'}</button></div>:bookings===null&&loading?<Skeleton label="Loading reservations…" variant="row" count={4}/>:<><TableRegion label="Pickups and returns" className="equipment-handoff-table"><table><thead><tr><th>Reservation</th><th>When</th><th>Status</th><th>Action</th></tr></thead><tbody className="ws-stagger">{upcoming.slice(0,8).map(r=><tr key={r.id}><td><Link href={`/reservations/?reservation=${r.id}`}>{r.name}</Link></td><td>{dateTimeLabel(r.startsAt)}<small>Return {dateTimeLabel(r.endsAt)}</small></td><td>{reservationLabel(r)}{overdue.some(o=>o.id===r.id)&&<small className="equipment-overdue">Overdue</small>}</td><td><Link href={`/check-in-out/?reservation=${r.id}`}>{r.fulfillmentStatus==='checked_out'?'Return':'Check out'}<span className="ws-sr-only"> for {r.name}</span></Link></td></tr>)}</tbody></table></TableRegion>{!upcoming.length&&<p className="equipment-empty">No upcoming pickups or returns.</p>}</>}
         </section>
         <section><div className="equipment-section-heading"><h2>Equipment needing attention</h2><Link href="/reports/">All reports</Link></div>
           {errors.reports?<div className="section-inline-error"><p role="alert">{errors.reports}</p><button disabled={retrying==='reports'} onClick={()=>retrySection('reports')}>{retrying==='reports'?'Retrying…':'Retry reports'}</button></div>:reports===null&&loading?<Skeleton label="Loading reports…"/>:<>
@@ -97,7 +96,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
       </div>
       <section><div className="equipment-section-heading"><h2>Your unread alerts</h2><Link href="/alerts/">All alerts / email preferences</Link></div>
         {errors.alerts?<div className="section-inline-error"><p role="alert">{errors.alerts}</p><button disabled={retrying==='alerts'} onClick={()=>retrySection('alerts')}>{retrying==='alerts'?'Retrying…':'Retry alerts'}</button></div>:alerts===null&&loading?<Skeleton label="Loading alerts…"/>:<>
-        <ul className="equipment-dashboard-alerts">{unreadAlerts.slice(0,5).map(a=><li key={a.id}><strong>{a.title}</strong><p>{a.message}</p><Link href="/alerts/">Review alert</Link></li>)}</ul>{!unreadAlerts.length&&<p className="equipment-empty">You’re caught up.</p>}</>}
+        <ul className="equipment-dashboard-alerts">{unreadAlerts.slice(0,5).map(a=><li key={a.id}><strong>{a.title}</strong><p>{a.message}</p><Link href="/alerts/">Open in Alerts<span className="ws-sr-only">: {a.title}</span></Link></li>)}</ul>{!unreadAlerts.length&&<p className="equipment-empty">You’re caught up.</p>}</>}
       </section>
     </>}
   </>

@@ -63,9 +63,35 @@ describe('Authenticated inventory',()=>{
 
    }
  })
- it('shows a real service error without sample inventory',async()=>{mocks.inventory.mockRejectedValue(new Error('private details'));render(<LiveInventory/>);expect(await screen.findByRole('alert')).toHaveTextContent('couldn’t be saved');expect(screen.queryByRole('button',{name:'Live camera'})).not.toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()})
+ it('shows a real service error without sample inventory',async()=>{mocks.inventory.mockRejectedValue(new Error('private details'));render(<LiveInventory/>);expect(await screen.findByRole('alert')).toHaveTextContent(/temporarily unavailable|couldn’t load|couldn’t be saved|didn’t respond/);expect(screen.queryByRole('button',{name:'Live camera'})).not.toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()})
  it('generates readable label codes from the category',()=>{expect(generatedEquipmentCode('Lights',()=>0)).toBe('LIG-AAAA');expect(generatedEquipmentCode('Camera & Accessories')).toMatch(/^CAM-[A-HJ-NP-Z2-9]{4}$/)})
  it('adds equipment from an unknown scanned label',async()=>{const user=userEvent.setup();render(<LiveInventory/>);await screen.findByRole('button',{name:'Live camera'});await user.click(screen.getByRole('button',{name:'Scan equipment'}));await user.click(screen.getByRole('button',{name:'Scan new label'}));await user.click(screen.getByRole('button',{name:'Add NEW-1 as new equipment'}));expect(screen.getByLabelText('Equipment code')).toHaveValue('NEW-1');await user.type(screen.getByLabelText('Item name'),'New camera');await user.click(screen.getByRole('button',{name:'Create equipment'}));await waitFor(()=>expect(mocks.createEquipment).toHaveBeenCalledWith('org',{equipmentCode:'NEW-1',name:'New camera',category:'Camera & Accessories'}))})
  it('opens the QR label of newly added equipment',async()=>{const user=userEvent.setup();render(<LiveInventory/>);await screen.findByRole('button',{name:'Live camera'});await user.click(screen.getByRole('button',{name:'Add item'}));await user.click(screen.getByRole('button',{name:'Generate new code'}));expect((screen.getByLabelText('Equipment code') as HTMLInputElement).value).toMatch(/^CAM-[A-HJ-NP-Z2-9]{4}$/);await user.clear(screen.getByLabelText('Equipment code'));await user.type(screen.getByLabelText('Equipment code'),'NEW-1');await user.type(screen.getByLabelText('Item name'),'New camera');mocks.inventory.mockResolvedValue({items:[item,{...item,id:'new',equipmentCode:'NEW-1',name:'New camera'}],nextCursor:null});await user.click(screen.getByRole('button',{name:'Create equipment'}));await waitFor(()=>expect(mocks.createEquipment).toHaveBeenCalledWith('org',{equipmentCode:'NEW-1',name:'New camera',category:'Camera & Accessories'}));expect(await screen.findByRole('status')).toHaveTextContent('New camera added. Download its QR label');expect(screen.getByText('Equipment QR label').closest('details')).toHaveAttribute('open')})
  it('shows a photo thumbnail at the start of rows that have a photo',async()=>{invalidateCache();vi.stubGlobal('IntersectionObserver',class{constructor(private cb:(entries:{isIntersecting:boolean}[])=>void){}observe(){this.cb([{isIntersecting:true}])}disconnect(){}});mocks.inventory.mockResolvedValue({items:[{...item,photoId:'private'},{...item,id:'light',equipmentCode:'LIG-1',name:'Light'}],nextCursor:null});mocks.photo.mockResolvedValue({url:'https://private.example.test/thumb.jpg',expiresIn:60});const view=render(<LiveInventory/>);try{const row=(await screen.findByRole('button',{name:'Live camera'})).closest('tr')!;await waitFor(()=>expect(row.querySelector('.inventory-thumb img')).toHaveAttribute('src','https://private.example.test/thumb.jpg'));expect(row.querySelector('td')!.firstElementChild!.firstElementChild).toHaveClass('inventory-thumb');expect(screen.getByRole('button',{name:'Light'}).closest('tr')!.querySelector('.inventory-thumb img')).toBeNull();expect(mocks.photo).toHaveBeenCalledTimes(1)}finally{view.unmount();invalidateCache();vi.unstubAllGlobals()}})
+})
+
+describe('Failed inventory reads (G01)',()=>{
+ it('never shows a failed load as an empty inventory or a zero count, and retries in place',async()=>{
+  invalidateCache()
+  const {DatabaseApiClientError}=await import('../../api/database')
+  mocks.inventory.mockReset().mockRejectedValueOnce(new DatabaseApiClientError(503)).mockResolvedValue({items:[item],nextCursor:null})
+  const user=userEvent.setup();render(<LiveInventory/>)
+  const alert=await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('Equipment couldn’t load.')
+  expect(screen.getByText(/Item count unavailable/)).toBeInTheDocument()
+  expect(screen.queryByText(/0 items/)).not.toBeInTheDocument()
+  expect(screen.queryByText('No equipment yet.')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button',{name:'Retry'}))
+  expect(await screen.findByRole('button',{name:'Live camera'})).toBeInTheDocument()
+  expect(document.querySelector('.inventory-summary')).toHaveTextContent(/^1 item/)
+ })
+ it('labels a list kept from this device as possibly out of date when a refresh fails',async()=>{
+  setCached('inventory:org',[item])
+  const {DatabaseApiClientError}=await import('../../api/database')
+  mocks.inventory.mockReset().mockRejectedValue(new DatabaseApiClientError(504))
+  render(<LiveInventory/>)
+  expect(await screen.findByText(/Showing the equipment list saved on this device/)).toBeInTheDocument()
+  expect(screen.getByRole('button',{name:'Live camera'})).toBeInTheDocument()
+  invalidateCache()
+ })
 })
