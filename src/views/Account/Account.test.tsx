@@ -173,7 +173,7 @@ describe('Account notifications',()=>{
     expect(check).toBeChecked()
     expect(check).toBeDisabled()
     reject(new Error('private'))
-    expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable')
+    expect(await screen.findByRole('alert')).toHaveTextContent('couldn’t be saved')
     expect(check).not.toBeChecked()
     expect(check).toBeEnabled()
   })

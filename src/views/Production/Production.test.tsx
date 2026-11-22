@@ -179,7 +179,7 @@ describe('production workspace',()=>{
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{}',{status:503})))
     render(<AppSessionProvider value={{email:'member@example.org',isAdmin:false,setEmail:vi.fn(),setIsAdmin:vi.fn(),mode:'authenticated',getAccessToken:async()=> 'token',organizations:[{id:'11111111-1111-4111-8111-111111111111',name:'Real org',slug:'real',role:'member'}]}}><Production /></AppSessionProvider>)
     await act(async()=>{await vi.advanceTimersByTimeAsync(7100)})
-    expect(screen.getByText(/Production services are unavailable/)).toHaveAttribute('role','alert')
+    expect(screen.getByText(/StudioStack is temporarily unavailable/)).toHaveAttribute('role','alert')
     expect(screen.queryByRole('button',{name:'Campus stories'})).not.toBeInTheDocument()
     expect(screen.queryByText(/Local preview/)).not.toBeInTheDocument()
   })
