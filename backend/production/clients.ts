@@ -32,7 +32,7 @@ export async function dispatchClients(client:DatabaseClient,r:ProductionRequest,
  if(!row)throw new ApiError(404,'Client account not found')
  const changesStatus=deleted!==Boolean(row.deletedAt)
  if(changesStatus&&!canDeleteClient(p,row.createdBy))throw new ApiError(403,'Only owners, administrators or the person who added this client account can delete or restore it')
- if(!changesStatus&&!p.canManage)throw new ApiError(403,'Production leadership or an administrator renames client accounts')
+ if(!p.canManage&&(!changesStatus||name!==row.name))throw new ApiError(403,'Production leadership or an administrator renames client accounts')
  if(row.version!==expected)throw new ApiError(409,'Client account changed. Reload before saving')
  if(row.deletedAt&&deleted&&name!==row.name)throw new ApiError(409,'Restore this client account before renaming it')
  const duplicate=await client.query('SELECT id FROM app.client_accounts WHERE organization_id=$1 AND lower(btrim(name))=lower($2) AND id<>$3',[org,name,r.clientId]);if(duplicate.rows.length)throw new ApiError(409,'A client account with this name already exists')

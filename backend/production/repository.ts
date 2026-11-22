@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import type { DatabaseClient } from '../database/client'
 import { ApiError, expectedVersion, object, uuid } from '../database/api-validation'
 import type { Page } from '../database/api-repository'
-import { briefData, briefCommand, productionSettings, version } from './validation'
+import { briefData, briefCommand, productionSettings, validateShootWindow, version } from './validation'
 import { attachmentCategories, submissionErrors, type BriefCommand, type BriefData, type ProductionBrief, type ProductionSettings } from '../../src/types/production'
 import type { PhotoStorage } from '../database/photo-storage'
 import type { BriefStorage } from './storage'
@@ -306,7 +306,8 @@ function confirmSchedule(brief: ProductionBrief, command: BriefCommand) {
   if(command.softHoldId&&!hold)throw new ApiError(400,'The selected soft hold is unavailable')
   const start = command.shootStartsAt ?? hold?.startsAt
   const end = command.shootEndsAt ?? hold?.endsAt
-  if (!start || !end || Date.parse(end) <= Date.parse(start)) throw new ApiError(400, 'Choose concrete shoot dates before approving this brief')
+  if (!start || !end) throw new ApiError(400, 'Choose concrete shoot dates before approving this brief')
+  validateShootWindow(start,end)
   if (brief.data.deliveryDate && Date.parse(end) > Date.parse(brief.data.deliveryDate) + 86400_000) throw new ApiError(400, 'Confirmed shoot must finish by delivery')
   brief.shootStartsAt = start; brief.shootEndsAt = end
 }
