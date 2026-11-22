@@ -30,7 +30,7 @@ describe('Production home queues',()=>{
  })
  it('reports failed reads without claiming an empty queue and retries in place',async()=>{
   m.list.mockRejectedValueOnce(new Error('offline'));render(<ProductionQueues/>)
-  expect(await screen.findByRole('alert')).toHaveTextContent('service is unavailable')
+  expect(await screen.findByRole('alert')).toHaveTextContent('couldn’t be saved')
   expect(screen.queryByText('No briefs need your attention.')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button',{name:'Retry production'}))
   expect(await screen.findByText('No briefs need your attention.')).toBeInTheDocument()
