@@ -1,3 +1,4 @@
+import { localToday } from '../format'
 export const productionTypes = ['Photography', 'Videography', 'Video Editing', 'Motion Graphics'] as const
 type ProductionType = typeof productionTypes[number]
 export const briefStatuses = ['draft', 'submitted', 'changes_requested', 'approved', 'denied', 'withdrawn'] as const
@@ -84,7 +85,13 @@ export function proposedWindow(data: BriefData): { start: string; end: string } 
   const start = fields.proposedStart, end = fields.proposedEnd
   return start && end && end >= start && (!data.deliveryDate || end <= data.deliveryDate) ? { start, end } : null
 }
-const today = () => new Date().toISOString().slice(0, 10)
+/** The reader's local calendar day; a UTC date would call today's date "past" every evening in the Americas. */
+const today = () => localToday()
+/** Characters the server refuses (pasted form feeds, vertical tabs and other control codes); tabs and line breaks stay. */
+export const cleanText = (value: string) => Array.from(value).filter(c => c.charCodeAt(0) >= 32 || c === '\t' || c === '\n' || c === '\r').join('')
+/** The server's limit on a saved brief's size. */
+export const briefByteLimit = 48_000
+export const briefBytes = (data: BriefData) => new TextEncoder().encode(JSON.stringify(data)).length
 /** Date mistakes in the brief, keyed by the field to fix. `saving` limits it to the checks the server applies on every save. */
 export function dateErrors(data: BriefData, saving = false): { key: string; message: string }[] {
   const f = withoutHiddenFields(data).fields, delivery = data.deliveryDate, errors: { key: string; message: string }[] = []
@@ -93,6 +100,8 @@ export function dateErrors(data: BriefData, saving = false): { key: string; mess
   else if (f.proposedStart && f.proposedEnd < f.proposedStart) errors.push({ key: 'proposedEnd', message: 'Projected shoot window ends before it starts.' })
   else if (f.proposedEnd && delivery && f.proposedEnd > delivery) errors.push({ key: 'proposedEnd', message: 'Projected shoot must finish by the target delivery date.' })
   for (const field of briefSections.find(s => s.title === 'Timeline')!.fields) if (f[field.key] && delivery && f[field.key] > delivery) errors.push({ key: field.key, message: `${field.label} is after the target delivery date.` })
+  // The server accepts only secure links, so say so before saving.
+  for (const field of briefSections.flatMap(s => s.fields).filter(field => field.type === 'url')) if (f[field.key] && !/^https:\/\/[^\s/]+/i.test(f[field.key].trim())) errors.push({ key: field.key, message: `${field.label} must start with https://.` })
   return errors
 }
 export function submissionErrors(data: BriefData): string[] {
