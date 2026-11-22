@@ -77,7 +77,7 @@ describe('production workspace',()=>{
     vi.stubGlobal('print', print)
     renderPreview()
     await user.click(await screen.findByRole('button', { name: 'New brief' }))
-    const projectName = await screen.findByLabelText('Project name *')
+    const projectName = await screen.findByLabelText('Project name (required)')
     await user.type(projectName, 'Unsaved print title')
 
     const back = screen.getByRole('button', { name: /Back to briefs/ })
