@@ -26,7 +26,7 @@ export async function dispatchInvitations(client:DatabaseClient,request:AccountR
   } else {
     const current=await get(id),v=versioned(object(request.body,['version','requestId']))
     if(current.version!==v.version||current.status!=='pending'||Date.parse(String(current.expiresAt))<=Date.now())throw new ApiError(409,'Invitation changed, expired or is no longer pending')
-    if(request.action==='revoke'){await client.query("UPDATE app.organization_invitations SET status='revoked',version=version+1 WHERE organization_id=$1 AND id=$2",[org,id]);kind='invitation_revoked'}
+    if(request.action==='revoke'){await client.query("UPDATE app.organization_invitations SET status='revoked',delivery_status=CASE WHEN delivery_status='queued' THEN 'skipped' ELSE delivery_status END,version=version+1 WHERE organization_id=$1 AND id=$2",[org,id]);kind='invitation_revoked'}
     else if(request.action==='retry') {
       if(!['failed','uncertain'].includes(current.deliveryStatus))throw new ApiError(409,'Only failed or uncertain delivery can be retried')
       await client.query("UPDATE app.organization_invitations SET delivery_status='queued',attempts=0,next_attempt_at=now(),lease_token=NULL,lease_until=NULL,version=version+1 WHERE organization_id=$1 AND id=$2",[org,id]);kind='invitation_retried'

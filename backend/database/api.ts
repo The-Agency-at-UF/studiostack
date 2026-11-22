@@ -1,3 +1,4 @@
+import {isApplicationPagePath} from '../bug-reports/page-path'
 import {alertRoutes,alertRequest} from '../alerts/routes'
 import {reportRoutes,reportRequest} from '../equipment/report-routes'
 import {equipmentRoutes,equipmentRequest} from '../equipment/routes'
@@ -92,7 +93,7 @@ function request(event: APIGatewayProxyEventV2WithJWTAuthorizer): ApiRequest {
   if (event.routeKey === 'GET /organizations/{organizationId}/reservations') return { operation: 'reservations', organizationId, page: pagination(params) }
   object(params, [])
   switch (event.routeKey) {
-    case 'POST /organizations/{organizationId}/bug-reports': { const body=object(json(event),['kind','title','description','pagePath','requestId']); if(typeof body.description!=='string'||!body.description.trim()||body.description.trim().length>4000||[...body.description].some(c=>{const n=c.charCodeAt(0);return n===127||n<32&&![9,10,13].includes(n)}))throw new ApiError(400,'Invalid report description');const pagePath=text(body.pagePath,255);if(!/^\/[A-Za-z0-9/_-]*$/.test(pagePath))throw new ApiError(400,'Invalid page path');return {operation:'bugReport',organizationId,kind:feedbackKind(body.kind),title:text(body.title,160),description:body.description.trim(),pagePath,requestId:uuid(body.requestId)} }
+    case 'POST /organizations/{organizationId}/bug-reports': { const body=object(json(event),['kind','title','description','pagePath','requestId']); if(typeof body.description!=='string'||!body.description.trim()||body.description.trim().length>4000||[...body.description].some(c=>{const n=c.charCodeAt(0);return n===127||n<32&&![9,10,13].includes(n)}))throw new ApiError(400,'Invalid report description');const pagePath=text(body.pagePath,255);if(!isApplicationPagePath(pagePath))throw new ApiError(400,'Invalid page path');return {operation:'bugReport',organizationId,kind:feedbackKind(body.kind),title:text(body.title,160),description:body.description.trim(),pagePath,requestId:uuid(body.requestId)} }
     case 'POST /organizations/{organizationId}/inventory': return { operation: 'createEquipment', organizationId, input: createEquipment(json(event)) }
     case 'PATCH /organizations/{organizationId}/inventory/{itemId}': return { operation: 'updateEquipment', organizationId, itemId: uuid(event.pathParameters?.itemId), input: updateEquipment(json(event)) }
     case 'POST /organizations/{organizationId}/reservations': return { operation: 'createReservation', organizationId, input: createReservation(json(event)) }

@@ -1,6 +1,7 @@
 import {softHoldsFor} from '../../src/production/readiness'
 import {dispatchIdeas} from './ideas'
 import {dispatchClients} from './clients'
+import {decisionRecipientEligible} from './outbox'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseClient } from '../database/client'
 import { ApiError, object, uuid } from '../database/api-validation'
@@ -64,7 +65,7 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     const result = await client.query('INSERT INTO app.production_brief_events (organization_id, brief_id, actor_id, kind, version, request_id, request_hash, comment, section, snapshot, shoot_starts_at, shoot_ends_at, attachment_snapshot) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id', [organizationId, brief.id, user.id, kind, brief.version, requestId, requestHash, comment, section, snapshot, brief.shootStartsAt, brief.shootEndsAt, JSON.stringify(files)])
     if (['approved', 'changes_requested', 'denied', 'withdrawn', 'scheduled'].includes(kind)) {
       // Committed with the decision; a failed transport cannot lose or roll back it.
-      const payload = { reviewer: user.displayName || 'Production leadership', projectName: brief.data.projectName, client: brief.data.client, decision: kind, comment, section, version: brief.version, deliveryDate: brief.data.deliveryDate, shootStartsAt: brief.shootStartsAt, shootEndsAt: brief.shootEndsAt }
+      const payload = { reviewer: user.displayName || 'Production leadership', projectName: brief.data.projectName, client: brief.data.client, decision: kind, version: brief.version, deliveryDate: brief.data.deliveryDate, shootStartsAt: brief.shootStartsAt, shootEndsAt: brief.shootEndsAt }
       const recipients = [...new Set([...settings.executiveIds, brief.ownerId])]
       const activeRecipients = await client.query('SELECT user_id FROM app.organization_memberships WHERE organization_id = $1 AND status = $2 AND user_id = ANY($3::uuid[])', [organizationId, 'active', recipients])
       for (const recipient of activeRecipients.rows) await client.query('INSERT INTO app.production_outbox (organization_id, brief_id, event_id, recipient_id, payload) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (event_id, recipient_id) DO NOTHING', [organizationId, brief.id, result.rows[0].id, recipient.user_id, payload])
@@ -131,8 +132,8 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
     }
     if (!admin) deny('Only an administrator can retry delivery')
     object(request.body, [])
-    const result = await client.query("UPDATE app.production_outbox SET status = 'pending', attempts = 0, next_attempt_at = now(), lease_token = NULL, lease_until = NULL WHERE organization_id = $1 AND id = $2 AND status IN ('failed','uncertain') RETURNING id", [organizationId, request.deliveryId])
-    if (!result.rows.length) conflict('Only failed or uncertain deliveries can be retried')
+    const result = await client.query(`UPDATE app.production_outbox o SET status = 'pending', attempts = 0, next_attempt_at = now(), lease_token = NULL, lease_until = NULL WHERE organization_id = $1 AND id = $2 AND status IN ('failed','uncertain') AND ${decisionRecipientEligible} RETURNING id`, [organizationId, request.deliveryId])
+    if (!result.rows.length) conflict('Only failed or uncertain deliveries with an eligible recipient can be retried')
     return { id: result.rows[0].id }
   }
   const brief = await getBrief(request.method !== 'GET')

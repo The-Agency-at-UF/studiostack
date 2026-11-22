@@ -64,7 +64,7 @@ export interface ProductionSettings { version: number; reviewerIds: string[]; ex
 export interface ProductionAccess { userId: string; canReview: boolean; canAdminister: boolean; isExecutive: boolean; notificationsConfigured: boolean }
 export type BriefAction = 'submit' | 'approve' | 'request_changes' | 'deny' | 'comment' | 'withdraw' | 'reopen' | 'schedule' | 'propose_dates'
 export interface BriefCommand { softHolds?:SoftHold[]; softHoldId?:string; action: BriefAction; version: number; requestId: string; comment?: string; section?: string; shootStartsAt?: string; shootEndsAt?: string }
-export interface Delivery { id: string; briefId: string; eventId: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'uncertain'; attempts: number; createdAt: string; sentAt: string | null }
+export interface Delivery { id: string; briefId: string; eventId: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'uncertain' | 'skipped'; attempts: number; createdAt: string; sentAt: string | null }
 export const emptyBrief = (): BriefData => ({ projectName: '', client: '', managers: '', supervisor: '', deliveryDate: '', productionTypes: [], fields: {} })
 export const productionIsOnSite = (data: BriefData) => data.productionTypes.some(t => t === 'Photography' || t === 'Videography')
 export function visibleSections(data: BriefData) { return briefSections.filter(s => !s.scope || (s.scope === 'onsite' ? productionIsOnSite(data) : data.productionTypes.some(t => t === 'Video Editing' || t === 'Motion Graphics'))) }
