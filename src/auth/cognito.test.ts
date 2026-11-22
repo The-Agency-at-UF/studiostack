@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { webcrypto } from 'node:crypto'
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { accessToken, acceptPasswordTokens, authConfiguration, clearJwksCache, clearSignIn, enterPreview, finishSignIn, getStoredSession, isPreview, logoutUrl, signInUrl } from './cognito'
+import { accessToken, acceptPasswordTokens, authConfiguration, clearJwksCache, clearSignIn, enterPreview, finishSignIn, forgetVerifiedSession, getStoredSession, isPreview, logoutUrl, restoreSession, signInUrl, signOutSession } from './cognito'
 import { loginProviders, providerName } from './providers'
 
 const config = authConfiguration('http://localhost:5174')
@@ -23,7 +23,7 @@ async function mockResponse(overrides: { id?: object; access?: object; tamper?: 
   let access = await jwt({ ...common, token_use: 'access', client_id: config.clientId, scope: 'openid aws.cognito.signin.user.admin studiostack-api/access', ...overrides.access })
   if (overrides.tamper) access = `${access.slice(0, -12)}AAAAAAAAAAAA`
   const id = await jwt({ ...common, token_use: 'id', aud: config.clientId, nonce: pending.nonce, email: 'member@example.test', email_verified: true, ...overrides.id })
-  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access, id_token: id, refresh_token: 'never-store-this' })))
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access, id_token: id, refresh_token: 'fixture-refresh-token' })))
     .mockResolvedValueOnce(new Response(JSON.stringify({ keys: [publicKey] })))
   vi.stubGlobal('fetch', fetcher)
   return { callback: `${config.redirectUri}?code=test-code&state=${pending.state}`, fetcher, access }
@@ -102,7 +102,9 @@ describe('Cognito browser sign-in', () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(String(fetcher.mock.calls[0][1].body)).toContain('code_verifier=')
     expect(await accessToken()).toBe(access)
-    expect(values.size).toBe(0)
+    expect([...values.keys()]).toEqual(['studiostack.oauth.session'])
+    expect(values.get('studiostack.oauth.session')).not.toContain(access)
+    expect(localValues.size).toBe(0)
     await expect(finishSignIn(config, callback)).rejects.toThrow('expired')
     await expect(accessToken()).rejects.toThrow('session expired')
   })
@@ -189,4 +191,45 @@ describe('Cognito browser sign-in', () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
+})
+
+it('LOGIC-017: a verified federated callback can renew after page memory is cleared',async()=>{
+ vi.stubGlobal('window',{location:{origin:'http://localhost:5174'}})
+ vi.stubEnv('NEXT_PUBLIC_COGNITO_ENABLED_PROVIDERS','Google')
+ await signInUrl(config,'google')
+ const exchange=await mockResponse()
+ await finishSignIn(config,exchange.callback)
+ const renewed={iss:config.issuer,sub:'test-member',exp:Math.floor(Date.now()/1000)+1200,iat:Math.floor(Date.now()/1000)}
+ const access=await jwt({...renewed,token_use:'access',client_id:config.clientId,scope:'aws.cognito.signin.user.admin'})
+ const id=await jwt({...renewed,token_use:'id',aud:config.clientId})
+ exchange.fetcher.mockResolvedValueOnce(new Response(JSON.stringify({access_token:access,id_token:id,refresh_token:'rotated-fixture'})))
+ forgetVerifiedSession()
+ await expect(accessToken()).resolves.toBe(access)
+ expect(exchange.fetcher.mock.calls.at(-1)?.[1]?.body.get('grant_type')).toBe('refresh_token')
+ expect([...localValues.values()].join(' ')).not.toContain('rotated-fixture')
+ exchange.fetcher.mockResolvedValueOnce(new Response(JSON.stringify({access_token:access,id_token:id})))
+ await expect(restoreSession(config,true)).resolves.toMatchObject({subject:'test-member'})
+ expect(exchange.fetcher.mock.calls.at(-1)?.[1]?.body.get('refresh_token')).toBe('rotated-fixture')
+ exchange.fetcher.mockResolvedValueOnce(new Response(null))
+ await signOutSession(config)
+ expect(exchange.fetcher.mock.calls.at(-1)?.[0]).toBe(config.domain+'/oauth2/revoke')
+ expect(exchange.fetcher.mock.calls.at(-1)?.[1]?.body.get('token')).toBe('rotated-fixture')
+ expect(getStoredSession()).toBeNull()
+ expect(values.has('studiostack.oauth.session')).toBe(false)
+})
+
+it('LOGIC-017: transient refresh errors preserve the tab session, but a different signed subject fails closed',async()=>{
+ await signInUrl(config)
+ const exchange=await mockResponse()
+ await finishSignIn(config,exchange.callback)
+ exchange.fetcher.mockResolvedValueOnce(new Response(null,{status:503}))
+ await expect(restoreSession(config,true)).rejects.toThrow('unavailable')
+ expect(values.has('studiostack.oauth.session')).toBe(true)
+ const other={iss:config.issuer,sub:'different-member',exp:Math.floor(Date.now()/1000)+900,iat:Math.floor(Date.now()/1000)}
+ const access=await jwt({...other,token_use:'access',client_id:config.clientId,scope:'aws.cognito.signin.user.admin'})
+ const id=await jwt({...other,token_use:'id',aud:config.clientId})
+ exchange.fetcher.mockResolvedValueOnce(new Response(JSON.stringify({access_token:access,id_token:id})))
+ await expect(restoreSession(config,true)).rejects.toThrow('verify sign-in')
+ expect(getStoredSession()).toBeNull()
+ expect(values.has('studiostack.oauth.session')).toBe(false)
 })

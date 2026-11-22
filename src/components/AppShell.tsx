@@ -14,8 +14,8 @@ import {previewFileUrl,previewPhotoKey} from '../preview/media'
 import { AppSessionProvider } from '../context/AppSessionContext'
 import { TourProvider } from './tour/TourContext'
 import { ToastProvider, useToast } from './workspace/Toast'
-import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl } from '../auth/cognito'
-import {restorePasswordSession,signOutPasswordSession} from '../auth/password'
+import { accessToken, authConfiguration, clearSignIn, forgetVerifiedSession, AuthenticationUnavailable, enterPreview, finishSignIn, hasCallback, isPreview, logoutUrl, signInUrl, restoreSession, signOutSession } from '../auth/cognito'
+import {allPages} from '../api/scoped'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../api/database'
 import { invalidateCache } from '../api/cache'
 import type { ApiOrganization, ApiUser } from '../types/database-api'
@@ -28,8 +28,8 @@ async function loadAccount(user:SignedInUser):Promise<Boot>{
   const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken})
   let profile:ApiUser
   try{profile=await api.me()}catch(error){if(!(error instanceof DatabaseApiClientError)||error.status!==404)throw error;profile=await api.register(user.label.slice(0,120))}
-  const result=await api.organizations({limit:100})
-  return {mode:'authenticated',label:user.label,admin:['owner','admin'].includes(result.items[0]?.role),organizations:result.items,expiresAt:user.expiresAt,subject:user.subject,onboarded:profile.onboardedAt!==null}
+  const organizations=await allPages(after=>api.organizations({limit:100,after}))
+  return {mode:'authenticated',label:user.label,admin:['owner','admin'].includes(organizations[0]?.role),organizations,expiresAt:user.expiresAt,subject:user.subject,onboarded:profile.onboardedAt!==null}
 }
 function takeReturnPath(){const value=sessionStorage.getItem('studiostack.return');sessionStorage.removeItem('studiostack.return');if(!value||value.length>2048)return null;try{const url=new URL(value,window.location.origin);return url.origin===window.location.origin&&!url.pathname.startsWith('//')&&url.pathname!=='/login/'&&url.pathname!=='/login'?url.pathname+url.search+url.hash:null}catch{return null}}
 const BugReportPopup = dynamic(() => import('./BugReportPopup'), { ssr: false })
@@ -73,6 +73,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [expiresAt, setExpiresAt] = useState<number>(),[refreshRetry,setRefreshRetry]=useState(0)
   const boot = useRef<Promise<Boot> | null>(null)
   const bootedByUser = useRef(false)
+  const membershipRefresh=useRef(0)
 
   useEffect(() => {
     let active = true
@@ -90,7 +91,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         if (hasCallback(url)) {
           return loadAccount(await finishSignIn(authConfiguration(),url))
         }
-        if (!isPreview()) { const user=await restorePasswordSession();if(user)return loadAccount(user) }
+        if (!isPreview()) { const user=await restoreSession();if(user)return loadAccount(user) }
         return { mode: isPreview() ? 'preview' : 'signed-out', label: isPreview() ? 'demo@studiostack.com' : '', admin: isPreview(), organizations: [] }
       })()
     }
@@ -138,8 +139,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const logOut = useCallback(async () => {
     invalidateCache()
     bootedByUser.current = false
+    membershipRefresh.current++
     const real = mode === 'authenticated'
-    if(real)try{await signOutPasswordSession()}catch{/* Clear local session even if revocation fails. */}
+    if(real)try{await signOutSession()}catch{/* Clear local session even if revocation fails. */}
     clearSignIn()
     try {
       localStorage.removeItem('email'); localStorage.removeItem('isAdmin')
@@ -153,13 +155,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (mode !== 'authenticated' || !expiresAt) return
+    let active=true
     const timer = window.setTimeout(() => {
-      void restorePasswordSession(authConfiguration(),true).then(user=>{
+      void restoreSession(authConfiguration(),true).then(user=>{
+        if(!active)return
         if(user){setRefreshRetry(0);setAuthError('');setExpiresAt(user.expiresAt)}
-        else {clearSignIn();setMode('signed-out');setOrganizations([]);router.replace('/login/')}
-      }).catch(()=>{setAuthError('Could not refresh your session. Check your connection.');setRefreshRetry(n=>n+1)})
+        else {membershipRefresh.current++;clearSignIn();setMode('signed-out');setOrganizations([]);router.replace('/login/')}
+      }).catch(()=>{if(!active)return;setAuthError('Could not refresh your session. Check your connection.');setRefreshRetry(n=>n+1)})
     }, refreshRetry?30_000:Math.max(0, expiresAt - Date.now() - 30_000))
-    return () => window.clearTimeout(timer)
+    return () => {active=false;window.clearTimeout(timer)}
   }, [mode, expiresAt, router, refreshRetry])
 
   const signIn = useCallback(async (provider?: LoginProvider) => {
@@ -170,8 +174,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const openPreview = useCallback(async () => {
     invalidateCache()
     bootedByUser.current = true
+    membershipRefresh.current++
     const real = mode === 'authenticated'
-    if(real)try{await signOutPasswordSession()}catch{/* Clear local session even if revocation fails. */}
+    if(real)try{await signOutSession()}catch{/* Clear local session even if revocation fails. */}
     const restored=availablePreviewPerson(previewPersonId);setPreviewPerson(restored);writePreview('studiostack.preview.person',restored)
     enterPreview(); setMode('preview'); setEmail('demo@studiostack.com'); setIsAdmin(true); setOrganizations([]); setExpiresAt(undefined);setSubject('');setSelectedOrganizationId(''); setAuthError(''); setReady(true)
     try {
@@ -184,6 +189,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const completeSignIn=useCallback(async(user:SignedInUser)=>{
     invalidateCache()
     bootedByUser.current = true
+    membershipRefresh.current++
     setBusy(true);setAuthError('')
     try{const result=await loadAccount(user);setSubject(user.subject);const saved=localStorage.getItem('studiostack.organization.'+user.subject);setSelectedOrganizationId(saved&&result.organizations.some(o=>o.id===saved)?saved:'');setOnboarded(result.onboarded!==false);setMode(result.mode);setEmail(result.label);setIsAdmin(result.admin);setOrganizations(result.organizations);setExpiresAt(result.expiresAt);setReady(true)
       try {
@@ -193,7 +199,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
       const destination=sessionStorage.getItem('studiostack-production-return');sessionStorage.removeItem('studiostack-production-return');const target=destination&&/^\/production\/\?organization=[a-f0-9-]{36}&brief=[a-f0-9-]{36}$/.test(destination)?destination:takeReturnPath();router.replace(result.onboarded===false||!result.organizations.length?'/welcome/':target || '/')
     }catch{bootedByUser.current=false;clearSignIn();setMode('signed-out');setAuthError('Your account could not be loaded. Try signing in again.');throw new Error('Account unavailable')}finally{setBusy(false)}
   },[router])
-  const refreshOrganizations=useCallback(async()=>{if(mode==='preview'){invalidateCache();setPreviewRevision(v=>v+1);return}const result=await createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken}).organizations({limit:100});setOrganizations(result.items)},[mode])
+  const refreshOrganizations=useCallback(async()=>{
+    if(mode==='preview'){invalidateCache();setPreviewRevision(v=>v+1);return}
+    const request=++membershipRefresh.current
+    const api=createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:accessToken})
+    const organizations=await allPages(after=>api.organizations({limit:100,after}))
+    if(request===membershipRefresh.current)setOrganizations(organizations)
+  },[mode])
   const displayedOrganizations=useMemo<ApiOrganization[]>(()=>{void previewRevision;if(mode!=='preview')return organizations;const workspace=readWorkspace(),member=previewIdentity(previewPersonId,workspace);return member.status==='active'?[{id:'preview',name:workspace.settings.name,slug:'preview',role:member.role,logoUrl:previewLogoUrl}]:[]},[mode,organizations,previewPersonId,previewRevision,previewLogoUrl])
   const selectedOrganization=displayedOrganizations.find(org=>org.id===selectedOrganizationId)??displayedOrganizations[0]
   const currentAdmin=mode==='authenticated'||mode==='preview'?['owner','admin'].includes(selectedOrganization?.role):isAdmin
