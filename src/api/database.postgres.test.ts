@@ -8,6 +8,8 @@ import type {EquipmentRequest} from '../../backend/equipment/routes'
 import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '../types/equipment'
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
+import { dispatchAccounts } from '../../backend/accounts/repository'
+import { deletionTask } from '../../backend/accounts/deletion'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
 import {joinCodeAlphabet,joinCodeHash} from '../../backend/accounts/join-codes'
 import {invitationQueueRequest,invitationQueueTask,type InvitationQueueRequest} from '../../backend/accounts/queue'
@@ -580,7 +582,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect((await operator.query('SELECT email,display_name FROM app.users WHERE id=$1',[user.id])).rows[0]).toEqual({email:null,display_name:null})
     expect((await operator.query('SELECT status FROM app.organization_memberships WHERE organization_id=$1 AND user_id=$2',[organizationId,user.id])).rows[0]).toEqual({status:'suspended'})
     expect((await operator.query("SELECT id FROM app.organization_audit_events WHERE organization_id=$1 AND actor_id=$2 AND kind='account_deleted'",[organizationId,user.id])).rows).toHaveLength(1)
-    expect(await repository.execute(identity,{operation:'organizations',page:listPage})).toMatchObject({items:[]})
+    await expect(repository.execute(identity,{operation:'organizations',page:listPage})).rejects.toMatchObject({status:403})
     expect(await directory(request)).toEqual({deleted:true})
     expect((await operator.query("SELECT id FROM app.organization_audit_events WHERE actor_id=$1 AND kind='account_deleted'",[user.id])).rows).toHaveLength(1)
     // Signing up again with the same email starts a new account instead of claiming the deleted one.
@@ -1106,16 +1108,16 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const second=await signIn('Second sign-in')
     expect(await directory({action:'list',identity:second.identity})).toMatchObject({statusCode:409,accountClaim:{previousSubject:first.identity.subject}})
     expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:randomUUID(),state:'deleted'}})).toMatchObject({statusCode:409,accountClaim:{previousSubject:first.identity.subject}})
-    expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:first.identity.subject,state:'deleted'}})).toEqual({items:[]})
-    expect(await me(second.identity)).toMatchObject({id:first.profile.id,email})
-    expect(await orgs(second.identity)).toMatchObject({items:[expect.objectContaining({id:organizationId})]})
-    expect((await operator.query('SELECT id FROM app.users WHERE id=$1',[second.profile.id])).rows).toEqual([])
-    await expect(me(first.identity)).rejects.toMatchObject({status:404})
+    expect(await directory({action:'list',identity:second.identity,previousSignIn:{subject:first.identity.subject,state:'deleted'}})).toMatchObject({statusCode:409})
+    expect(await me(second.identity)).toMatchObject({id:second.profile.id,email:null})
+    expect(await orgs(second.identity)).toMatchObject({items:[]})
+    expect(await me(first.identity)).toMatchObject({id:first.profile.id,email})
+    expect(await orgs(first.identity)).toMatchObject({items:[expect.objectContaining({id:organizationId})]})
     // That sign-in moved to another email, and a different person now verifies this one.
     const third=await signIn('Third sign-in')
-    expect(await directory({action:'list',identity:third.identity,previousSignIn:{subject:second.identity.subject,state:'active'}})).toEqual({items:[]})
+    expect(await directory({action:'list',identity:third.identity,previousSignIn:{subject:first.identity.subject,state:'active'}})).toEqual({items:[]})
     expect(await me(third.identity)).toMatchObject({id:third.profile.id,email})
-    expect(await me(second.identity)).toMatchObject({id:first.profile.id,email:null})
+    expect(await me(first.identity)).toMatchObject({id:first.profile.id,email:null})
     expect(await orgs(third.identity)).toMatchObject({items:[]})
     // A sign-in that already holds memberships is never folded into another account.
     const fourth=await signIn('Fourth sign-in')
@@ -1274,6 +1276,105 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const own=await production(member,{resource:'briefs',method:'GET',briefId:b.id}) as ProductionBrief
     expect(own.events).toEqual([expect.objectContaining({kind:'denied',comment:'Please provide location permission before resubmitting.',snapshot:null})])
     expect((await operator.query("SELECT payload FROM app.production_outbox WHERE brief_id=$1 AND recipient_id=$2",[denied.id,profiles.member.id])).rows).toEqual([expect.objectContaining({payload:expect.objectContaining({decision:'denied',comment:'Please provide location permission before resubmitting.'})})])
+  })
+
+  it('LOGIC-002: concurrent promotion and retirement preserve an active owner', async () => {
+    const org = randomUUID()
+    const outgoing = {issuer, subject:randomUUID(), email:''}
+    const incoming = {issuer, subject:randomUUID(), email:''}
+    const outgoingProfile = await repository.execute(outgoing,{operation:'register',displayName:'Outgoing owner'}) as ApiUser
+    const incomingProfile = await repository.execute(incoming,{operation:'register',displayName:'Incoming owner'}) as ApiUser
+    await operator.query('INSERT INTO app.organizations (id,slug,name) VALUES ($1,$2,$3)',[org,org,'Owner transition'])
+    await operator.query("INSERT INTO app.organization_memberships (organization_id,user_id,role,status) VALUES ($1,$2,'owner','active'),($1,$3,'member','active')",[org,outgoingProfile.id,incomingProfile.id])
+    const transition = new pg.Client({connectionString})
+    const deletion = new pg.Client({connectionString})
+    const lock = `organization-admin:${org}`
+    await Promise.all([transition.connect(),deletion.connect()])
+    let retiring: Promise<unknown> | undefined
+    try {
+      const {rows:[{pid}]} = await deletion.query('SELECT pg_backend_pid() AS pid')
+      await Promise.all([transition.query('SET ROLE "studiostack_dev_app"'),deletion.query('SET ROLE "studiostack_dev_app"')])
+      await transition.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[lock])
+      retiring = directoryTask(deletion,{action:'delete-account',identity:incoming})
+      for (let attempt = 0; ; attempt++) {
+        const {rows:[{blocked}]} = await operator.query('SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked',[pid])
+        if (blocked) break
+        if (attempt === 100) throw new Error('Account retirement did not reach the organization lock')
+        await new Promise(resolve => setTimeout(resolve,10))
+      }
+      await transition.query("UPDATE app.organization_memberships SET role='owner',version=version+1 WHERE organization_id=$1 AND user_id=$2",[org,incomingProfile.id])
+      expect(await directoryTask(transition,{action:'delete-account',identity:outgoing})).toEqual({deleted:true})
+      await transition.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[lock])
+      expect(await retiring).toMatchObject({statusCode:409})
+      const active = await operator.query("SELECT user_id FROM app.organization_memberships WHERE organization_id=$1 AND role='owner' AND status='active'",[org])
+      expect(active.rows).toEqual([{user_id:incomingProfile.id}])
+    } finally {
+      await transition.end()
+      await retiring?.catch(() => undefined)
+      await deletion.end()
+    }
+  })
+  it('LOGIC-006 and LOGIC-007: a pending provider deletion blocks profile reuse and prunes former Production roles', async () => {
+    const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
+    const user=await repository.execute(identity,{operation:'register',displayName:'Retiring reviewer'}) as ApiUser
+    const org=randomUUID()
+    await operator.query('INSERT INTO app.organizations (id,slug,name) VALUES ($1,$2,$3)',[org,org,'Retirement workspace'])
+    await operator.query("INSERT INTO app.organization_memberships (organization_id,user_id,role,status) VALUES ($1,$2,'owner','active'),($1,$3,'member','active')",[org,profiles.owner.id,user.id])
+    await operator.query("INSERT INTO app.production_settings (organization_id,reviewer_ids,executive_ids) VALUES ($1,ARRAY[$2]::uuid[],ARRAY[$2]::uuid[])",[org,user.id])
+    await directory({action:'delete-account',identity:{...identity,email:''}})
+    const result=await Promise.allSettled([
+      operator.query('SELECT reviewer_ids,executive_ids FROM app.production_settings WHERE organization_id=$1',[org]),
+      repository.execute(identity,{operation:'register',displayName:'Changed after retirement'}),
+    ])
+    expect(result).toEqual([
+      expect.objectContaining({status:'fulfilled',value:expect.objectContaining({rows:[{reviewer_ids:[],executive_ids:[]}]})}),
+      expect.objectContaining({status:'rejected',reason:expect.objectContaining({status:403})}),
+    ])
+    expect(await directory({action:'list',identity})).toMatchObject({statusCode:403})
+    const worker=new pg.Client({connectionString})
+    try {
+      await worker.connect()
+      await worker.query('SET ROLE "studiostack_dev_app"')
+      const claimed=await deletionTask(worker,{action:'claim'})
+      const job='jobs'in claimed?claimed.jobs.find(job=>job.subject===identity.subject):undefined
+      expect(job).toMatchObject({issuer,subject:identity.subject})
+      expect(await deletionTask(worker,{action:'complete',issuer,subject:identity.subject})).toEqual({completed:true})
+      expect(await deletionTask(worker,{action:'complete',issuer,subject:identity.subject})).toEqual({completed:true})
+      const receipt=(await operator.query('SELECT deletion_completed_at,deletion_username FROM app.users WHERE id=$1',[user.id])).rows[0]
+      expect(receipt).toEqual({deletion_completed_at:expect.any(Date),deletion_username:null})
+    } finally { await worker.end() }
+  })
+  it('LOGIC-005: a committed applicant withdrawal wins over a pending administrator decision', async () => {
+    const applicant={issuer,subject:randomUUID(),email:null}
+    const user=await repository.execute(applicant,{operation:'register',displayName:'Applicant'}) as ApiUser
+    const request=(await operator.query('INSERT INTO app.organization_access_requests (organization_id,user_id) VALUES ($1,$2) RETURNING id',[organizationId,user.id])).rows[0]
+    const withdrawal=new pg.Client({connectionString}),decision=new pg.Client({connectionString})
+    await Promise.all([withdrawal.connect(),decision.connect()])
+    let deciding:Promise<unknown>|undefined
+    try {
+      const {rows:[{pid}]}=await decision.query('SELECT pg_backend_pid() AS pid')
+      for(const client of [withdrawal,decision]){
+        await client.query('SET ROLE "studiostack_dev_app"')
+        await client.query('BEGIN')
+        await client.query("SELECT set_config('app.organization_id',$1,true)",[organizationId])
+      }
+      await withdrawal.query("UPDATE app.organization_access_requests SET status='withdrawn',version=version+1 WHERE id=$1",[request.id])
+      deciding=dispatchAccounts(decision,{operation:'accounts',organizationId,resource:'access-requests',method:'POST',accessRequestId:request.id,action:'approve',page:listPage,body:{version:1,requestId:randomUUID()}},{organizationId,user:{id:profiles.owner.id},membership:{role:'owner'}})
+        .then(async value=>{await decision.query('COMMIT');return value},async error=>{await decision.query('ROLLBACK');return {status:error.status}})
+      for(let attempt=0;;attempt++){
+        if((await operator.query('SELECT cardinality(pg_blocking_pids($1))>0 AS blocked',[pid])).rows[0].blocked)break
+        if(attempt===100)throw new Error('Decision did not wait for the withdrawal')
+        await new Promise(resolve=>setTimeout(resolve,10))
+      }
+      await withdrawal.query('COMMIT')
+      expect(await deciding).toEqual({status:409})
+      expect((await operator.query('SELECT status FROM app.organization_access_requests WHERE id=$1',[request.id])).rows[0].status).toBe('withdrawn')
+      expect((await operator.query('SELECT id FROM app.users WHERE id=$1 AND EXISTS (SELECT 1 FROM app.organization_memberships WHERE organization_id=$2 AND user_id=$1)',[user.id,organizationId])).rows).toEqual([])
+    } finally {
+      await withdrawal.end()
+      await deciding?.catch(()=>undefined)
+      await decision.end()
+    }
   })
 
 })

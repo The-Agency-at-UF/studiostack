@@ -11,3 +11,15 @@ describe('Production owner onboarding',()=>{
  it('cannot onboard a different address even with the maintenance flag',async()=>{vi.stubEnv('COGNITO_USER_POOL_ID','us-east-2_test');vi.stubEnv('ALLOW_PRODUCTION_OWNER_BOOTSTRAP','yes');const tx=vi.fn();await expect(bootstrapProductionAdmin(database(tx),config,{...input,email:'other@ufl.edu'})).rejects.toThrow('Approved');expect(tx).not.toHaveBeenCalled()})
  it('uses the chosen pool identity and maintenance purpose for the approved owner',async()=>{vi.stubEnv('COGNITO_USER_POOL_ID','us-east-2_test');vi.stubEnv('ALLOW_PRODUCTION_OWNER_BOOTSTRAP','yes');const query=vi.fn().mockResolvedValue({rows:[{id:'fixture-id'}]}),tx=vi.fn(operation=>operation({query}));expect(await bootstrapProductionAdmin(database(tx),config,input)).toMatchObject({ok:true});expect(tx).toHaveBeenCalledWith(expect.any(Function),'maintenance');expect(query.mock.calls[0][1]).toContain('https://cognito-idp.us-east-2.amazonaws.com/us-east-2_test')})
 })
+
+it('LOGIC-004: bootstrapping an existing workspace cannot grant a replacement subject ownership',async()=>{
+ vi.stubEnv('COGNITO_USER_POOL_ID','us-east-2_test')
+ vi.stubEnv('ALLOW_PRODUCTION_OWNER_BOOTSTRAP','yes')
+ const query=vi.fn(async(sql:string)=>{
+  if(sql.includes('INSERT INTO app.organizations'))return {rows:[]}
+  if(sql.includes('FROM app.organization_memberships WHERE'))return {rows:[]}
+  return {rows:[{id:'fixture-id'}]}
+ })
+ await expect(bootstrapProductionAdmin(database(vi.fn(operation=>operation({query}))),config,input)).rejects.toThrow('verified active owner')
+ expect(query.mock.calls.some(([sql])=>sql.includes('INSERT INTO app.organization_memberships'))).toBe(false)
+})

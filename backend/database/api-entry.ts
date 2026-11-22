@@ -13,6 +13,7 @@ import { apiConfiguration, createDatabaseApiHandler } from './api'
 import { createApiRepository } from './api-repository'
 import { createPhotoStorage } from './photo-storage'
 import { retentionTask } from './retention'
+import { deletionRequest, deletionTask } from '../accounts/deletion'
 
 let cachedRuntime: {
   config: ReturnType<typeof databaseConfig>
@@ -40,6 +41,7 @@ const tasks = new Map<string, (client: DatabaseClient, input: unknown) => Promis
   ['bug-report-outbox', (client, input) => bugReportOutboxTask(client, bugReportOutboxRequest(input))],
   ['account-invitation-queue', (client, input) => invitationQueueTask(client, invitationQueueRequest(input))],
   ['account-directory', (client, input) => directoryTask(client, directoryRequest(input, process.env.COGNITO_USER_POOL_ID ?? ''))],
+  ['account-deletion', (client, input) => deletionTask(client, deletionRequest(input, process.env.COGNITO_USER_POOL_ID ?? ''))],
   ['production-outbox', (client, input) => outboxTask(client, parseOutboxRequest(input))],
   ['database-retention', retentionTask],
 ])
