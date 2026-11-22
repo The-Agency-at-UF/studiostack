@@ -128,7 +128,6 @@
   .production-steps .production-savebar>div>button { flex: 1 1 auto; }
   /* Phones: ten 29px step buttons don't fit a thumb, so a full-width step picker and a progress line replace the strip. */
   .production-steps nav { display: none; }
-  .production-step-jump { display: grid; gap: var(--space-2); margin: 8px 0 20px; font-size: var(--text-sm); font-weight: var(--weight-medium); }
   .production-step-progress { display: flex; gap: 3px; }
   .production-step-progress span { flex: 1; height: 3px; border-radius: 2px; background: var(--line); }
   .production-step-progress span.is-current { background: var(--accent); }

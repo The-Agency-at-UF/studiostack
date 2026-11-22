@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { HiOutlineArrowRight, HiOutlineExclamationCircle as HiExclamationCircle } from 'react-icons/hi2'
-import { Select } from '../../components/workspace/WorkspaceUI'
 import { dateErrors, sectionId, visibleSections, type BriefData } from '../../types/production'
 
 import {RequestFields,type FieldHandlers,type Section} from './BriefFields'
@@ -66,8 +65,6 @@ export default function BriefSteps({ form, clients, onChange, onClientAccount, d
   const blocker = missing.length ? `Fix all ${missing.length} ${missing.length === 1 ? 'item' : 'items'} still needed before submitting.` : dirty ? 'Save the draft before submitting.' : submitBlocked ? 'Wait for attachments to finish uploading before submitting.' : ''
   const submit = () => { if (blocker) { setAttempted(true); setChecked(new Set(steps.map(s => s.id))); summary.current?.focus(); return } onSubmit() }
   return <div className="production-steps">
-    {/* Phones: a full-width step picker replaces the narrow step strip. */}
-    <label className="production-step-jump">Go to step<Select value={step.id} disabled={disabled} onChange={e => go(e.target.value)}>{steps.map((s, i) => <option key={s.id} value={s.id}>{`${i + 1}. ${s.title}${s.missing.length && shows(s.id) ? ` · ${s.missing.length} missing` : done(s, i) ? ' · done' : ''}`}</option>)}</Select></label>
     <nav aria-label="Brief steps"><ol style={{ '--brief-step-count': steps.length } as CSSProperties}>{steps.map((s, i) => <li key={s.id}><button type="button" disabled={disabled} aria-current={i === index ? 'step' : undefined} className={shows(s.id) && s.missing.length && i <= index ? 'has-error' : done(s, i) ? 'is-complete' : undefined} style={{ '--step-fill': `${fill(s, i)}%` } as CSSProperties} onClick={() => go(s.id)}><b aria-hidden="true">{shows(s.id) && s.missing.length ? '!' : done(s, i) ? '✓' : i + 1}</b><span className="production-step-name">{s.title}{s.missing.length > 0 && (shows(s.id) ? <small><span className="sr-only"> · </span>{s.missing.length} missing</small> : <span className="sr-only"> · {s.missing.length} missing</span>)}{done(s, i) && <span className="sr-only"> · complete</span>}</span></button></li>)}</ol></nav>
     <section className="production-step" aria-labelledby="brief-step-title">
       <header><p>Step {index + 1} of {steps.length}</p><h3 id="brief-step-title" ref={heading} tabIndex={-1}>{step.title === 'Basics' ? 'Start with the basics' : step.title}</h3><p>{step.intro}</p></header>
