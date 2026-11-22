@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState,type ReactNode} from 'react'
 import {PageHeader,Button,Skeleton,TableRegion} from '../../components/workspace/WorkspaceUI'
 import Link from 'next/link'
+import {HiOutlinePlus} from 'react-icons/hi2'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReport,EquipmentReservation} from '../../types/equipment'
 import type {AppAlert} from '../../types/alerts'
@@ -71,7 +72,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
       <div><dt>Open equipment reports</dt><dd>{reports!==null?openReports.length:errors.reports?'–':'…'}</dd></div>
     </dl>
  return <main className={statistics?'administration':'dashboard-page administration live-dashboard'}>
-  <PageHeader title={statistics?'Equipment statistics':'Home'} actions={<><Button disabled={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href={statistics?'/create-reservation/':'/production/'}>{statistics?'Book gear':'Open production'}</Link></>}/>
+  <PageHeader title={statistics?'Equipment statistics':'Home'} actions={<><Button disabled={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href={statistics?'/create-reservation/':'/production/'}>{statistics?<><HiOutlinePlus aria-hidden="true"/>Book gear</>:'Open production'}</Link></>}/>
   {!statistics&&production&&<div className="ws-tray" role="group" aria-labelledby="home-tray-production"><p className="ws-tray-label" id="home-tray-production">Production</p>{production}</div>}
   {globalError&&<p role="alert">{globalError}</p>}
   {loading&&!hasAnyData&&<Skeleton label="Loading workspace…" variant="tile" count={4}/>}

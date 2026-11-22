@@ -8,6 +8,7 @@ import {softHoldsFor} from '../../production/readiness'
 import type {ProductionBrief} from '../../types/production'
 import type {DatesSetArg} from '@fullcalendar/core'
 import Link from 'next/link'
+import {HiOutlinePlus} from 'react-icons/hi2'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentAvailability,EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {getCached,setCached} from '../../api/cache'
@@ -81,7 +82,7 @@ function CalendarWorkspace({api,org,admin}:{api:DatabaseApi;org:string;admin:boo
  const current=visible.find(r=>r.id===selected),owned=bookings.find(r=>r.id===selected),item=items.find(i=>i.id===equipment)
  const dates=useCallback((arg:DatesSetArg)=>{const start=arg.start.toISOString(),end=arg.end.toISOString();setCached(`calendar-view:${org}`,{date:arg.view.currentStart.toISOString(),view:arg.view.type});setWindow(current=>current?.start===start&&current.end===end?current:{start,end})},[org])
  return <main className="ws-calendar-page">
-  <PageHeader title="Equipment calendar" actions={<><Button disabled={loading} onClick={retry}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href="/create-reservation/">Book gear</Link></>}/>
+  <PageHeader title="Equipment calendar" actions={<><Button disabled={loading} onClick={retry}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href="/create-reservation/"><HiOutlinePlus aria-hidden="true"/>Book gear</Link></>}/>
   <div className="ws-calendar-filters">
    <Field label="Filter equipment"><Select value={equipment} onChange={e=>{setEquipment(e.target.value);setSelected('')}}><option value="">All equipment</option>{items.map(i=><option key={i.id} value={i.id}>{i.name} · {i.equipmentCode}</option>)}</Select></Field>
    {equipment&&<p className="inventory-result-count" aria-live="polite">{visible.length} {visible.length===1?'booking':'bookings'} in view · <button type="button" className="ws-button ws-button-link" onClick={()=>{setEquipment('');setSelected('')}}>Clear filter</button></p>}

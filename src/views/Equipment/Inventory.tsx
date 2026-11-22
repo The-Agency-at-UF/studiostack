@@ -88,7 +88,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
       <div className="administration-actions">
         <button type="button" onClick={()=>void refresh()} disabled={refreshing} aria-busy={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button>
         <button type="button" onClick={()=>setScanning(true)}>Scan equipment</button>
-        {admin&&<button type="button" className="ws-button ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}><HiOutlinePlus aria-hidden="true"/> Add item</button>}
+        {admin&&<button type="button" className="ws-button ws-button-primary" onClick={()=>{setAdding(true);setAddCode('');setAdded('');setSelected(null)}}><HiOutlinePlus aria-hidden="true"/>Add item</button>}
       </div>
     </header>
     {error&&<p role="alert" className="inventory-error">{error}</p>}
