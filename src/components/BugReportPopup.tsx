@@ -1,18 +1,20 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import Popup from './Popup';
+import { closeWithExit } from './workspace/closeWithExit';
 import {useAppSession} from '../context/AppSessionContext';
 import {createDatabaseApiClient,DatabaseApiClientError} from '../api/database';
 import {errorText} from '../api/errorText';
 import {authConfiguration} from '../auth/cognito';
 import type {ApiBugReport,FeedbackKind} from '../types/database-api';
-import { IoIosCloseCircle, IoIosBug, IoIosBulb } from "react-icons/io";
+import { HiOutlineBugAnt, HiOutlineLightBulb, HiOutlineXMark, HiOutlineCheckCircle, HiOutlineExclamationCircle } from "react-icons/hi2";
 import {createPreviewDatabaseApi} from '../preview/database';
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
+import { dateLabel } from '../format'
 
 const copy = {
-  bug: { Icon: IoIosBug, trigger: 'Report a bug', heading: 'Report a bug', history: 'Your submitted reports', empty: 'No reports yet.', titlePlaceholder: 'What happened?', submit: 'Submit report', success: 'Report submitted', previewThanks: 'This is a local preview, so the report was saved in this browser only and no one was notified.', thanks: 'Thank you for your feedback. Our team has been notified and will look into this issue.', failure: 'Failed to submit bug report. Please try again later.', collection: 'bugReports' },
-  feature: { Icon: IoIosBulb, trigger: 'Request a feature', heading: 'Request a feature', history: 'Your submitted requests', empty: 'No requests yet.', titlePlaceholder: 'What would you like?', submit: 'Submit request', success: 'Request submitted', previewThanks: 'This is a local preview, so the request was saved in this browser only and no one was notified.', thanks: 'Thank you for the idea. Our team will review it when planning what to build next.', failure: 'Failed to submit feature request. Please try again later.', collection: 'featureRequests' },
+  bug: { Icon: HiOutlineBugAnt, trigger: 'Report a bug', heading: 'Report a bug', history: 'Your submitted reports', empty: 'No reports yet.', titlePlaceholder: 'What happened?', submit: 'Submit report', success: 'Report submitted', previewThanks: 'This is a local preview, so the report was saved in this browser only and no one was notified.', thanks: 'Thank you for your feedback. Our team has been notified and will look into this issue.', failure: 'Failed to submit bug report. Please try again later.', collection: 'bugReports' },
+  feature: { Icon: HiOutlineLightBulb, trigger: 'Request a feature', heading: 'Request a feature', history: 'Your submitted requests', empty: 'No requests yet.', titlePlaceholder: 'What would you like?', submit: 'Submit request', success: 'Request submitted', previewThanks: 'This is a local preview, so the request was saved in this browser only and no one was notified.', thanks: 'Thank you for the idea. Our team will review it when planning what to build next.', failure: 'Failed to submit feature request. Please try again later.', collection: 'featureRequests' },
 } as const
 
 function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigger = true }: { userEmail: string; open?: boolean; onOpenChange?: (open: boolean) => void; kind?: FeedbackKind; showTrigger?: boolean }) {
@@ -36,6 +38,8 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
     setCurrentUrl(window.location.href);
   }, [pathname]);
 
+  const [ownOpen, setOwnOpen] = useState(false), isOpen = open ?? ownOpen
+  const setOpen = (next: boolean) => { if (open === undefined) setOwnOpen(next); onOpenChange?.(next) }
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
       setMissing(!title.trim() && !description.trim() ? 'Add a title and a description.' : !title.trim() ? 'Add a title.' : 'Add a description.');
@@ -57,7 +61,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
 
       if(session.mode==='authenticated'||session.mode==='preview'){
         const organizationId=session.selectedOrganizationId??session.organizations?.[0]?.id
-        if(!organizationId||session.mode!=='preview'&&!session.getAccessToken)throw new Error('Organization unavailable')
+        if(!organizationId||session.mode!=='preview'&&!session.getAccessToken)throw new Error('Choose an organization in your account before sending feedback.')
         const payload={kind,title:title.trim(),description:description.trim(),pagePath:pathname||'/'},key=JSON.stringify(payload)
         if(request.current?.key!==key)request.current={key,id:crypto.randomUUID()}
         await (session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken!})).submitBugReport(organizationId,{...payload,requestId:request.current.id})
@@ -71,7 +75,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
     } catch (err) {
       // Name the cause when it is the service or the connection; other details stay private.
       const known = err instanceof DatabaseApiClientError || (err instanceof TypeError && /fetch|network/i.test(err.message));
-      setError(known ? `${text.failure.replace(/ Please try again later\.$/, '')} ${errorText(err)}` : text.failure);
+      setError(known ? `${text.failure.replace(/ Please try again later\.$/, '')} ${errorText(err)}` : err instanceof Error && err.message.startsWith('Choose an organization') ? err.message : text.failure);
     } finally {
       setIsSubmitting(false);
     }
@@ -84,151 +88,74 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
     try{const api=session.mode==='preview'?createPreviewDatabaseApi(session.previewPersonId):createDatabaseApiClient({baseUrl:authConfiguration().apiUrl,getAccessToken:session.getAccessToken!}),items:ApiBugReport[]=[];let after:string|undefined;do{const result=await api.bugReports(organizationId,{limit:100,after},kind);items.push(...result.items);after=result.nextCursor??undefined}while(after);if(generation===historyGeneration.current)setHistory(items)}catch{if(generation===historyGeneration.current)setHistoryError('Could not load your reports. Try again.')}finally{if(generation===historyGeneration.current)setHistoryLoading(false)}
   }
 
+  // Closing (Escape, the backdrop, Close or the X) keeps an unsent draft for next time; only a sent report or Discard clears it.
+  const clearDraft = () => { setTitle(""); setDescription(""); setMissing(''); request.current = null };
   const reset = () => {
     historyGeneration.current++;setHistoryLoading(false);
     setSubmitted(false);
     setHistory([]);setHistoryError('');
     setError(null);
     setMissing('');
-    setTitle("");
-    setDescription("");
   };
-  // Escape, the overlay, Cancel, Close and the X all start the next report from a fresh form.
-  const handleClose = (close: () => void) => { reset(); close(); };
+  const close = () => { if (submitted) clearDraft(); reset(); setOpen(false); };
 
-  return (
-    <Popup
-      trigger={
-        showTrigger ? <button className="flex items-center space-x-2 text-white hover:text-[var(--accent-light)] transition-colors font-medium">
-          <text.Icon className="w-5 h-5" />
-          <span>{text.trigger}</span>
-        </button> : undefined
-      }
-      modal
-      nested
-      open={open}
-      onOpen={() => onOpenChange?.(true)}
-      onClose={() => { reset(); onOpenChange?.(false) }}
-      contentStyle={{
-        backgroundColor: "var(--paper-light)",
-        color: "var(--ink)",
-        borderRadius: "var(--radius-lg, 12px)",
-        border: "1px solid var(--line)",
-        boxShadow: "0 18px 48px rgba(20, 12, 36, 0.18)",
-        width: "calc(100% - 32px)",
-        maxWidth: "500px",
-      }}
-      overlayStyle={{
-        backgroundColor: "rgba(20, 12, 36, 0.42)",
-        zIndex: 2000,
-      }}
-    >
-      {(close) => (
-        <div className="modal relative">
-          <button type="button" aria-label="Close dialog" className="absolute top-3 right-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--muted)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]" onClick={() => handleClose(close)}>
-            <IoIosCloseCircle aria-hidden="true" className="w-7 h-7" />
-          </button>
-
-          <div className="content p-6">
-            {!submitted && !error ? (
-              <>
-                <h1 className="font-bold text-xl pb-4 pr-10 border-b border-[var(--line)] mb-4">
-                  {text.heading}
-                </h1>
-
-                {(session.mode==='authenticated'||session.mode==='preview')&&<details onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError}</p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{new Date(report.createdAt).toLocaleDateString()} · {report.pagePath}</small></li>)}</ul></details>}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block font-semibold mb-1" htmlFor={`${fieldId}-title`}>Title</label>
-                    <input
-                      id={`${fieldId}-title`}
-                      type="text"
-                      placeholder={text.titlePlaceholder} maxLength={160}
-                      className="border border-[var(--line-strong)] focus:border-[var(--accent)] focus:outline-2 focus:outline-[var(--accent)] p-2 rounded-md w-full bg-white"
-                      value={title}
-                      onChange={(e) => { setTitle(e.target.value); setMissing(''); }}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold mb-1" htmlFor={`${fieldId}-description`}>Description</label>
-                    <textarea
-                      id={`${fieldId}-description`}
-                      placeholder="Provide more details..." maxLength={4000}
-                      rows={4}
-                      className="border border-[var(--line-strong)] focus:border-[var(--accent)] focus:outline-2 focus:outline-[var(--accent)] p-2 rounded-md w-full bg-white resize-none"
-                      value={description}
-                      onChange={(e) => { setDescription(e.target.value); setMissing(''); }}
-                    />
-                  </div>
-                </div>
-
-                {missing && <p role="alert" className="pt-4 text-sm font-semibold text-[var(--danger)]">{missing}</p>}
-                <div className="actions flex justify-end space-x-3 pt-6 font-bold">
-                  <button
-                    className="px-6 py-2 bg-gray-300 rounded-md cursor-pointer hover:bg-gray-400"
-                    onClick={() => handleClose(close)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className={`px-6 py-2 rounded-md font-bold transition-colors ${
-                      isSubmitting
-                        ? "bg-gray-400 cursor-not-allowed text-gray-700"
-                        : "bg-[var(--accent-light)] hover:bg-[var(--accent)] hover:text-white cursor-pointer"
-                    }`}
-                    onClick={() => !isSubmitting && handleSubmit()}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "Submitting..." : text.submit}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="py-8 text-center space-y-4">
-                {submitted ? (
-                  <>
-                    <div className="flex justify-center text-green-600">
-                      <text.Icon className="w-16 h-16" />
-                    </div>
-                    <h2 className="text-2xl font-bold" role="status" tabIndex={-1} ref={resultHeading}>{text.success}</h2>
-                    <p className="text-gray-700">
-                      {session.mode === 'authenticated' ? text.thanks : text.previewThanks}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-center text-red-600">
-                      <text.Icon className="w-16 h-16" />
-                    </div>
-                    <div role="alert">
-                      <h2 className="text-2xl font-bold" tabIndex={-1} ref={resultHeading}>Submission failed</h2>
-                      <p className="text-gray-700">{error}</p>
-                    </div>
-                    <button
-                      className="px-6 py-2 bg-[var(--accent-light)] rounded-md font-bold hover:bg-[var(--accent)] hover:text-white transition-colors mt-4"
-                      onClick={() => setError(null)}
-                    >
-                      Try again
-                    </button>
-                  </>
-                )}
-
-                <div className="pt-4">
-                  <button
-                    className="px-8 py-2 bg-gray-300 rounded-md font-bold hover:bg-gray-400 transition-colors"
-                    onClick={() => handleClose(close)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+  return <>
+    {showTrigger && <button type="button" className="ws-feedback-trigger" onClick={() => setOpen(true)}><text.Icon aria-hidden="true" /><span>{text.trigger}</span></button>}
+    {isOpen && <FeedbackDialog labelledBy={`${fieldId}-heading`} onClose={close}>
+      <button type="button" aria-label="Close dialog" className="ws-feedback-close" onClick={close}><HiOutlineXMark aria-hidden="true" /></button>
+      {!submitted && !error ? <form className="ws-feedback-form" noValidate onSubmit={e => { e.preventDefault(); if (!isSubmitting) void handleSubmit() }}>
+        <h2 id={`${fieldId}-heading`}>{text.heading}</h2>
+        {(session.mode==='authenticated'||session.mode==='preview')&&<details className="ws-feedback-history" onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError} <button type="button" className="ws-button ws-button-link" onClick={()=>void loadHistory()}>Try again</button></p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{dateLabel(report.createdAt)} · {report.pagePath}</small></li>)}</ul></details>}
+        <label className="ws-field" htmlFor={`${fieldId}-title`}>Title<span className="ws-sr-only"> (required)</span>
+          <input id={`${fieldId}-title`} type="text" placeholder={text.titlePlaceholder} maxLength={160} required aria-invalid={missing.includes('title') || undefined} aria-describedby={missing.includes('title') ? `${fieldId}-missing` : undefined} value={title} onChange={(e) => { setTitle(e.target.value); setMissing(''); }} />
+        </label>
+        <label className="ws-field" htmlFor={`${fieldId}-description`}>Description<span className="ws-sr-only"> (required)</span>
+          <textarea id={`${fieldId}-description`} placeholder="Provide more details..." maxLength={4000} rows={4} required aria-invalid={missing.includes('description') || undefined} aria-describedby={missing.includes('description') ? `${fieldId}-missing` : undefined} value={description} onChange={(e) => { setDescription(e.target.value); setMissing(''); }} />
+        </label>
+        {missing && <p id={`${fieldId}-missing`} role="alert" className="ws-feedback-missing">{missing}</p>}
+        <div className="ws-confirm-actions ws-feedback-actions">
+          {(title || description) && <button type="button" className="ws-feedback-discard" onClick={clearDraft}>Discard draft</button>}
+          <button type="button" onClick={close}>Close</button>
+          <button type="submit" className="ws-confirm-primary" disabled={isSubmitting}>{isSubmitting ? "Submitting…" : text.submit}</button>
         </div>
-      )}
-    </Popup>
-  );
+      </form> : <div className="ws-feedback-result">
+        {submitted ? <>
+          <HiOutlineCheckCircle aria-hidden="true" className="ws-feedback-icon is-success" />
+          <h2 id={`${fieldId}-heading`} role="status" tabIndex={-1} ref={resultHeading}>{text.success}</h2>
+          <p>{session.mode === 'authenticated' ? text.thanks : text.previewThanks}</p>
+        </> : <>
+          <HiOutlineExclamationCircle aria-hidden="true" className="ws-feedback-icon is-error" />
+          <div role="alert"><h2 id={`${fieldId}-heading`} tabIndex={-1} ref={resultHeading}>Submission failed</h2><p>{error}</p></div>
+        </>}
+        <div className="ws-confirm-actions ws-feedback-actions">
+          {!submitted && <button type="button" className="ws-confirm-primary" onClick={() => setError(null)}>Try again</button>}
+          <button type="button" onClick={close}>Close</button>
+        </div>
+      </div>}
+    </FeedbackDialog>}
+  </>;
+}
+
+/**
+ * The shared native modal: focus moves in, Tab stays inside, Escape and the backdrop close it, and focus goes back
+ * to the control that opened it (or the account menu button, when that menu has already closed).
+ */
+function FeedbackDialog({ labelledBy, onClose, children }: { labelledBy: string; onClose: () => void; children: import('react').ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const closeRef = useRef(onClose); closeRef.current = onClose
+  useEffect(() => {
+    const element = dialog.current!
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+    if (typeof element.showModal === 'function') element.showModal()
+    element.querySelector<HTMLElement>('input,textarea,button:not(.ws-feedback-close)')?.focus()
+    return () => {
+      if (element.open) element.close()
+      const target = opener?.isConnected ? opener : document.querySelector<HTMLElement>('.account-trigger')
+      target?.focus()
+    }
+  }, [])
+  const dismiss = () => closeWithExit(dialog.current, () => closeRef.current())
+  return createPortal(<dialog ref={dialog} className="ws-confirm-dialog ws-feedback" aria-labelledby={labelledBy} onCancel={event => { event.preventDefault(); dismiss() }} onClick={event => { if (event.target === event.currentTarget) dismiss() }}>{children}</dialog>, document.body)
 }
 
 export default BugReportPopup;
