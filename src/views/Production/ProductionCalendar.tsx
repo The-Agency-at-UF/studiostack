@@ -26,15 +26,15 @@ function entries(brief: ProductionBrief, tentative: boolean, milestones: boolean
   if (['denied','withdrawn','draft'].includes(brief.status)) return []
   const name = brief.data.projectName || 'Untitled brief', items: Entry[] = []
   if (brief.shootStartsAt) items.push({ id: `${brief.id}:shoot`, brief, kind: 'shoot', title: name, badge: kindLabel.shoot, when: range(brief.shootStartsAt, Date.parse(brief.shootEndsAt!) - 1), start: brief.shootStartsAt, end: brief.shootEndsAt! })
-  else if(tentative)for(const hold of softHoldsFor(brief))items.push({id:`${brief.id}:${hold.id}`,brief,kind:'tentative',title:`${name} · unconfirmed`,badge:'Unconfirmed soft hold',when:range(hold.startsAt,Date.parse(hold.endsAt)-1),start:hold.startsAt,end:hold.endsAt})
-  if (milestones) for (const [key,label] of milestoneFields) { const date = milestoneDate(brief, key); if (date) items.push({ id: `${brief.id}:${key}`, brief, kind: 'milestone', title: `${name} · ${label}`, badge: `Milestone · ${label}`, when: day(date), start: date }) }
+  else if(tentative)for(const hold of softHoldsFor(brief))items.push({id:`${brief.id}:${hold.id}`,brief,kind:'tentative',title:`${name} (unconfirmed)`,badge:'Unconfirmed soft hold',when:range(hold.startsAt,Date.parse(hold.endsAt)-1),start:hold.startsAt,end:hold.endsAt})
+  if (milestones) for (const [key,label] of milestoneFields) { const date = milestoneDate(brief, key); if (date) items.push({ id: `${brief.id}:${key}`, brief, kind: 'milestone', title: `${name} (${label})`, badge: `${label} milestone`, when: day(date), start: date }) }
   return items
 }
 const shortRange = (start: string | number, lastDay: string | number) => short(start) === short(lastDay) ? short(start) : `${short(start)} – ${short(lastDay)}`
 function shootSummary(brief: ProductionBrief) {
-  if (brief.shootStartsAt) return `${shortRange(brief.shootStartsAt, Date.parse(brief.shootEndsAt!) - 1)} · Confirmed`
+  if (brief.shootStartsAt) return `${shortRange(brief.shootStartsAt, Date.parse(brief.shootEndsAt!) - 1)} (Confirmed)`
   const holds = softHoldsFor(brief)
-  if (holds.length === 1) return `${shortRange(holds[0].startsAt, Date.parse(holds[0].endsAt) - 1)} · Tentative`
+  if (holds.length === 1) return `${shortRange(holds[0].startsAt, Date.parse(holds[0].endsAt) - 1)} (Tentative)`
   if (holds.length > 1) return `${holds.length} unconfirmed soft holds`
   return productionIsOnSite(brief.data) && brief.data.fields.shootEstimate ? `Estimate: ${brief.data.fields.shootEstimate}` : 'Not scheduled'
 }
@@ -74,7 +74,7 @@ function SelectedEvent({ entry, onOpen }: { entry: Entry; onOpen: (id: string) =
   const { brief } = entry, crew = brief.crew?.length ?? 0
   const dated = milestoneFields.flatMap(([key,label]) => { const date = milestoneDate(brief, key); return date ? [{ key, label, date }] : [] }).sort((a,b) => a.date.localeCompare(b.date))
   return <section className="ws-calendar-card" aria-label="Selected production event">
-    <header><span className={`ws-calendar-badge ws-event--${entry.kind}`}>{entry.badge}</span><h2>{brief.data.projectName || 'Untitled brief'}</h2><p>{[brief.data.client, statusLabels[brief.status]].filter(Boolean).join(' · ')}</p></header>
+    <header><span className={`ws-calendar-badge ws-event--${entry.kind}`}>{entry.badge}</span><h2>{brief.data.projectName || 'Untitled brief'}</h2><p>{[brief.data.client, statusLabels[brief.status]].filter(Boolean).join(', ')}</p></header>
     <dl className="ws-calendar-facts"><dt>This event</dt><dd className="is-strong">{entry.when}</dd><dt>Shoot</dt><dd>{shootSummary(brief)}</dd><dt>Crew</dt><dd>{crew ? `${crew} crew assigned` : 'Awaiting crew'}</dd></dl>
     {dated.length > 0 && <div><h3>Milestones</h3><ul className="ws-calendar-list">{dated.map(m => <li key={m.key}><span className="ws-milestone-label">{m.label}</span><span>{short(m.date)}</span></li>)}</ul></div>}
     <Button variant="primary" onClick={() => onOpen(brief.id)}>Open production brief</Button>

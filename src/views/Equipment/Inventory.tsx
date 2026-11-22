@@ -119,7 +119,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
       </section>
       {(current||adding)&&<DetailPanel className="equipment-inspector" label="Equipment details">
         <div className="inventory-inspector-head">
-          <div><h2 ref={panelHeading} tabIndex={-1}>{current?.name??'Add equipment'}</h2>{current&&<p>{current.equipmentCode} · {current.category}</p>}</div>
+          <div><h2 ref={panelHeading} tabIndex={-1}>{current?.name??'Add equipment'}</h2>{current&&<p>{current.equipmentCode} ({current.category})</p>}</div>
           <button type="button" className="inventory-close ws-inspector-close" aria-label="Close details" onClick={closeDetails}><HiOutlineXMark aria-hidden="true"/></button>
         </div>
         {current&&<dl className="inventory-facts"><div><dt>Status</dt><dd><StatusLabel tone={serviceStatus(current).tone}>{serviceStatus(current).label}</StatusLabel></dd></div><div><dt>Condition</dt><dd className={`inventory-condition inventory-condition-${current.condition}`}>{capitalize(current.condition)}</dd></div></dl>}

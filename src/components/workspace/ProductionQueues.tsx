@@ -62,15 +62,15 @@ function ProductionQueueWorkspace({ client, org, identity, preview }: { client: 
     return softHoldsFor(b).some(h=>h.endsAt>=today)
   }).sort((a, b) => (a.shootStartsAt || softHoldsFor(a)[0]?.startsAt || '').localeCompare(b.shootStartsAt || softHoldsFor(b)[0]?.startsAt || '')) ?? []
   return <div className="ws-production-overview">
-    {preview && <p className="ws-preview-note">Preview workspace · Example production records</p>}
+    {preview && <p className="ws-preview-note">Example production records</p>}
     {error && <Notice kind="error"><span>Production: {error}</span><Button disabled={loading} onClick={() => void refresh()}>{loading ? 'Retrying…' : 'Retry production'}</Button></Notice>}
     {loading && !snapshot && <Skeleton label="Loading production queues…" variant="row" count={3} />}
     {snapshot && <div className="ws-queue-columns ws-stagger">
       <QueueSection title="Briefs needing attention" action={<Link href="/production/">All briefs</Link>}>
-        {attention.length ? <ul className="ws-record-list ws-stagger">{attention.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{[brief.data.client || 'Client not added', `edited ${dateLabel(brief.updatedAt)}`].join(' · ')}</p>{productionReadiness(brief).flagged&&<p className="production-error"><HiOutlineFlag aria-hidden="true"/> Readiness needs attention</p>}</div><StatusLabel tone={brief.status === 'changes_requested' ? 'warning' : brief.status === 'submitted' ? 'accent' : 'neutral'}>{statusLabels[brief.status]}</StatusLabel></li>)}</ul> : <EmptyState title="No briefs need your attention." />}
+        {attention.length ? <ul className="ws-record-list ws-stagger">{attention.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{[brief.data.client || 'Client not added', `edited ${dateLabel(brief.updatedAt)}`].join(', ')}</p>{productionReadiness(brief).flagged&&<p className="production-error"><HiOutlineFlag aria-hidden="true"/> Readiness needs attention</p>}</div><StatusLabel tone={brief.status === 'changes_requested' ? 'warning' : brief.status === 'submitted' ? 'accent' : 'neutral'}>{statusLabels[brief.status]}</StatusLabel></li>)}</ul> : <EmptyState title="No briefs need your attention." />}
       </QueueSection>
       <QueueSection title="Upcoming productions" action={<Button disabled={loading} onClick={() => void refresh()}>{loading ? 'Refreshing…' : 'Refresh'}</Button>}>
-        {shoots.length ? <ul className="ws-record-list ws-stagger">{shoots.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{brief.data.client} · {brief.shootStartsAt ? 'Confirmed shoot' : 'Tentative shoot'}</p></div><time dateTime={(brief.shootStartsAt || softHoldsFor(brief)[0]?.startsAt || '').slice(0, 10)}>{dateLabel(brief.shootStartsAt || softHoldsFor(brief)[0]?.startsAt || '')}</time></li>)}</ul> : <EmptyState title="No upcoming shoots scheduled." />}
+        {shoots.length ? <ul className="ws-record-list ws-stagger">{shoots.slice(0, 5).map(brief => <li key={brief.id}><div><Link href={href(brief)}>{brief.data.projectName || 'Untitled brief'}</Link><p>{[brief.data.client, brief.shootStartsAt ? 'Confirmed shoot' : 'Tentative shoot'].filter(Boolean).join(', ')}</p></div><time dateTime={(brief.shootStartsAt || softHoldsFor(brief)[0]?.startsAt || '').slice(0, 10)}>{dateLabel(brief.shootStartsAt || softHoldsFor(brief)[0]?.startsAt || '')}</time></li>)}</ul> : <EmptyState title="No upcoming shoots scheduled." />}
       </QueueSection>
     </div>}
   </div>

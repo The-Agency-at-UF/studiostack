@@ -49,7 +49,6 @@
 .production-type-options { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 24px; font-size:var(--text-sm); }
 .production-type-options { min-width: 0; border: 0; padding: 0; }
 .production-type-options>legend { flex-basis: 100%; width: 100%; padding: 0; margin-bottom: 4px; font-weight: 600; }
-.production-required { color: var(--danger); }
 .production-type-options label { display: flex; flex-direction: row; align-items: center; font-weight: 400; gap: 8px; }
 .production-page input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
 .production-savebar { position: sticky; bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--line); background: var(--paper); padding: 14px 18px; margin: 20px 0; z-index: 2; box-shadow: 0 3px 10px color-mix(in srgb,var(--ink) 4%,transparent); font-size:var(--text-xs); }

@@ -42,7 +42,7 @@ export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;
   return <div className="welcome-form">
     {overview&&overview.invitations.length>0&&<section aria-labelledby="welcome-invitations"><h2 id="welcome-invitations" className="welcome-legend">Your invitations</h2>
       <ul className="welcome-results">{overview.invitations.map(i=><li key={i.id} className="welcome-result"><span className="welcome-avatar" aria-hidden="true">{initials(i.organizationName)}</span>
-        <span><strong>{i.organizationName}</strong><small>Invited as {roleLabel(i.role).toLowerCase()} · expires {dateLabel(i.expiresAt)}</small></span>
+        <span><strong>{i.organizationName}</strong><small>Invited as {roleLabel(i.role).toLowerCase()}, expires {dateLabel(i.expiresAt)}</small></span>
         <button type="button" className="welcome-secondary" disabled={busy} onClick={()=>void act(async()=>{await api.acceptInvitation(i.id,i.organizationId);await enter(i.organizationId)},'The invitation could not be accepted. Refresh and try again.')}>Accept<span className="login-sr-only"> invitation to {i.organizationName}</span></button></li>)}</ul></section>}
     <form id="welcome-organization" className="login-password-form welcome-form" noValidate onSubmit={e=>{e.preventDefault();setError('')
       if(!selected){setError('Choose your organization, or enter a join code.');return}
@@ -61,7 +61,7 @@ export default function OrganizationStep({api,onJoined,onBack,onTitle}:{api:Api;
       {error&&<p className="login-error" role="alert">{error}</p>}
     </form>
     {pending.length>0&&<ul className="welcome-results" aria-label="Your access requests">{pending.map(r=><li key={r.id} className="welcome-result"><span className="welcome-avatar" aria-hidden="true">{initials(r.organizationName)}</span>
-      <span><strong>{r.organizationName}</strong><small>Requested {dateLabel(r.createdAt)} · we’ll email you when it’s decided</small></span>
+      <span><strong>{r.organizationName}</strong><small>Requested {dateLabel(r.createdAt)}. We’ll email you when it’s decided.</small></span>
       <button type="button" className="login-text-action" disabled={busy} onClick={()=>void act(async()=>{await api.withdrawAccessRequest(r.id,r.organizationId);toast.success(`Request to ${r.organizationName} withdrawn.`,{id:'welcome-request'});await load();if(query.trim().length>=2)await search(query.trim())},'The request could not be withdrawn. Refresh and try again.')}>Withdraw<span className="login-sr-only"> request to {r.organizationName}</span></button></li>)}</ul>}
     <div className="login-divider"><span>or</span></div>
     <form className="login-password-form welcome-code-join" noValidate onSubmit={e=>{e.preventDefault();if(!code.trim()){setCodeError('Enter the join code from your administrator.');return}

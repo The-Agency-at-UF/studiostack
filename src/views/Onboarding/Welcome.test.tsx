@@ -1,4 +1,4 @@
-import {cleanup,render,screen,waitFor} from '@testing-library/react'
+import {cleanup,render,screen,waitFor,within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import Welcome from './Welcome'
@@ -84,7 +84,7 @@ describe('New account onboarding',()=>{
     await user.type(screen.getByLabelText('Note for administrators (optional)'),'Thursday crew');await user.click(screen.getByRole('button',{name:'Send request'}))
     expect(m.requestAccess).toHaveBeenCalledWith('sports','Thursday crew')
     expect(await screen.findByRole('heading',{name:'Find your organization.'})).toBeInTheDocument()
-    expect(await screen.findByText(/we’ll email you when it’s decided/)).toBeInTheDocument()
+    expect(within(await screen.findByRole('list',{name:'Your access requests'})).getByText(/We’ll email you when it’s decided/)).toBeInTheDocument()
     expect(screen.getByRole('button',{name:/Agency Sports.*Pending/})).toBeInTheDocument();expect(onFinished).not.toHaveBeenCalled()
   })
   it('accepts a pending invitation',async()=>{

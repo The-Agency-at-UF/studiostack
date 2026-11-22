@@ -36,7 +36,7 @@ describe('Organization access and settings',()=>{
     m.accessRequests.mockResolvedValue({items:[{id:'request',userId:'u',email:'asker@studio.example.edu',displayName:'Asker',message:'Fall crew',status:'pending',version:1,createdAt:'2026-10-30T12:00:00Z',decidedAt:null}],nextCursor:null})
     m.createJoinCode.mockResolvedValue({id:'code',label:'Spring crew',maxUses:5,uses:0,expiresAt:null,revokedAt:null,version:1,createdAt:'2026-10-31T12:00:00Z',code:'ABCDE-FGHJK'});m.decideAccessRequest.mockResolvedValue({})
     const user=userEvent.setup();view('#joining');const invitationsLink=await screen.findByRole('link',{name:/^Invitations & requests.*1 pending$/});expect(invitationsLink).not.toHaveAccessibleName(/requests1/)
-    expect(screen.getByText('MAIN1-CODE2')).toBeInTheDocument();expect(screen.getByText(/4 used · No use limit or expiry/)).toBeInTheDocument()
+    expect(screen.getByText('MAIN1-CODE2')).toBeInTheDocument();expect(screen.getByText(/4 used\. No use limit or expiry/)).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:/Revoke/})).not.toBeInTheDocument();expect(screen.queryByText('No active join codes.')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'New join code'}));await user.type(screen.getByLabelText('Code label'),'Spring crew');await user.type(screen.getByLabelText('Maximum uses'),'5');await user.click(screen.getByRole('button',{name:'Create join code'}))
     expect(await screen.findByText('ABCDE-FGHJK')).toBeInTheDocument();expect(m.createJoinCode).toHaveBeenCalledWith(expect.objectContaining({label:'Spring crew',maxUses:5,expiresInDays:null,requestId:expect.any(String)}))

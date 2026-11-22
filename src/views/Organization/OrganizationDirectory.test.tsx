@@ -39,7 +39,7 @@ describe('Organization directory',()=>{
     expect(within(table).getByText('No display name yet')).toBeInTheDocument()
     expect(within(table).getByText('(you)')).toBeInTheDocument()
     expect(within(table).queryByText('Taylor Chen')).not.toBeInTheDocument()
-    expect(screen.queryByText(/people ·|You're an owner/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/people,|You're an owner/)).not.toBeInTheDocument()
     expect(screen.getByRole('link',{name:'1 pending invitation'})).toHaveAttribute('href','/organization/settings#invitations')
     expect(screen.getByRole('link',{name:'People'})).toHaveAttribute('aria-current','page')
     expect(screen.getByRole('link',{name:'Access & settings'})).toHaveAttribute('href','/organization/settings')

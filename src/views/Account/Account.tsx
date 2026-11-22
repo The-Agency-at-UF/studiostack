@@ -183,7 +183,7 @@ function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken
       {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
       {invitations.length>0&&<ul className="account-workspaces account-invitation-list">{invitations.map(invitation=><li key={invitation.id} className="account-workspace">
         <OrganizationLogo organization={{name:invitation.organizationName}}/>
-        <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {formatRole(invitation.role).toLowerCase()} · expires {dateLabel(invitation.expiresAt)}</span></span>
+        <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {formatRole(invitation.role).toLowerCase()}, expires {dateLabel(invitation.expiresAt)}</span></span>
         <button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={()=>void accept(invitation)}>Join {invitation.organizationName}</button>
       </li>)}</ul>}
       {loaded&&!invitations.length&&<div className="account-empty-invitations"><span>No pending invitations. Ask an organization admin to invite this account.</span>
