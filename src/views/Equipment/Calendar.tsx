@@ -120,7 +120,7 @@ function Handoffs({bookings,now,failed=false,onRetry}:{bookings:EquipmentReserva
   ...active.filter(b=>b.fulfillmentStatus==='reserved'&&Date.parse(b.startsAt)>=startOfToday&&Date.parse(b.startsAt)<endOfTomorrow).map(b=>({id:b.id+':pickup',at:Date.parse(b.startsAt),overdue:false,title:`Pickup · ${time(b.startsAt)}`,name:b.name,detail:''})),
  ].sort((a,b)=>Number(b.overdue)-Number(a.overdue)||a.at-b.at)
  return <section className="ws-calendar-card" aria-label="Pickups and returns">
-  <div><h2 className="ws-calendar-card-title">Pickups & returns</h2><p>Today, {today.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}, and tomorrow.</p></div>
+  <div><h2 className="ws-calendar-card-title">Pickups & returns</h2></div>
   {failed&&!rows.length?<div role="alert"><p>Pickups and returns couldn’t load, so today’s aren’t shown.</p>{onRetry&&<Button onClick={onRetry}>Retry</Button>}</div>:rows.length?<ul className="ws-calendar-rows">{rows.map(r=><li key={r.id} className={`ws-handoff${r.overdue?' is-overdue':''}`}><strong>{r.title}</strong><span>{r.name}</span>{r.detail&&<small>{r.detail}</small>}</li>)}</ul>:<p>No pickups or returns due today or tomorrow.</p>}
   <Link className="ws-button" href="/check-in-out/">Scan for pickup or return</Link>
  </section>

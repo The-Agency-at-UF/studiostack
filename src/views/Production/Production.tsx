@@ -426,7 +426,7 @@ function ProductionSettingsForm({ api, loadMembers, onSaved }: { api: Production
   const {pageRows,pagination} = usePagination(members)
   const roleLabel = (m: ApiMember) => m.role === 'owner' ? 'Owner' : m.role === 'admin' ? 'Admin' : null
   return <section className="production-settings production-access" aria-labelledby="production-access-title">
-    <div className="production-section-head"><div><h2 id="production-access-title">Production roles</h2><p>Organization administrators decide who leads production and who hears about decisions.</p></div></div>
+    <div className="production-section-head"><div><h2 id="production-access-title">Production roles</h2></div></div>
     {error && <p role="alert" className="production-error">{error}</p>}
     {loadError && !settings ? <LoadError what="Production roles" message={loadError} onRetry={() => setAttempt(n => n + 1)} retrying={loadingSettings} /> : !settings ? <Skeleton label="Loading settings…" variant="row" count={4} /> : <form className="ws-enter" onSubmit={e => { e.preventDefault(); setBusy(true); setError(''); api.saveSettings({ ...settings, approvalConfirmsDates: true }).then(s => { setSettings(s); setSaved(s); setSavedPulse(n => n + 1); toast.success('Production access and notification settings saved.', { id: 'production-settings' }); onSaved().catch(() => toast.error('Settings saved, but the workspace could not reload. Refresh the page to see the change.', { id: 'production-settings-reload' })) }).catch(e => setError(errorText(e))).finally(() => setBusy(false)) }}>
       <dl className="production-roles" aria-label="What each role can do">

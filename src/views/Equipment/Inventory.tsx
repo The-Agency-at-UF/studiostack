@@ -84,7 +84,7 @@ function InventoryWorkspace({api,organizationId,admin}:{api:DatabaseApi;organiza
   return <main className="administration workspace-surface inventory-workspace">
     {pendingLeave&&<ConfirmDialog title="Discard unsaved equipment changes?" description="Your edits to this equipment haven’t been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={()=>setPendingLeave(null)} onConfirm={()=>{const go=pendingLeave;setPendingLeave(null);setEditorDirty(false);go()}}/>}
     <header>
-      <div><h1>Equipment</h1><p className="inventory-summary">{unknown?'Item count unavailable':plural(items.length,'item')}{organizationId==='preview'?' · Preview-only data':''}</p></div>
+      <div><h1>Equipment</h1></div>
       <div className="administration-actions">
         <button type="button" onClick={()=>void refresh()} disabled={refreshing} aria-busy={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button>
         <button type="button" onClick={()=>setScanning(true)}>Scan equipment</button>

@@ -62,7 +62,7 @@ export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default'
       <aside className="ws-calendar-aside" aria-label="Event details">
         {current ? <SelectedEvent entry={current} onOpen={onOpen} /> : <section className="ws-calendar-card" aria-label="Selected production event"><h2 className="ws-calendar-card-title">Event details</h2><p>Select a shoot or milestone on the calendar to see its brief.</p></section>}
         {unscheduled.length > 0 && <section className="ws-calendar-card" aria-label="Awaiting shoot dates">
-          <div><h2 className="ws-calendar-card-title">Awaiting shoot dates</h2><p>Photo and video briefs without a shoot on the calendar.</p></div>
+          <div><h2 className="ws-calendar-card-title">Awaiting shoot dates</h2></div>
           <ul className="ws-calendar-rows">{unscheduled.map(b=><li key={b.id}><button type="button" onClick={()=>onOpen(b.id)}><strong>{b.data.projectName || 'Untitled brief'}</strong><span>{b.data.fields.shootEstimate ? `Est. ${b.data.fields.shootEstimate}` : 'No estimate'}</span></button></li>)}</ul>
         </section>}
       </aside>

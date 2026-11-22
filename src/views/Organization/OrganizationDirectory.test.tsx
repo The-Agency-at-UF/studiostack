@@ -24,6 +24,7 @@ beforeEach(()=>{vi.clearAllMocks();m.settings.mockResolvedValue(settings);m.join
   m.directory.mockResolvedValue({items:[{id:'o',displayName:'Morgan Lee',role:'owner'},{id:'m1',displayName:'Alex Rivera',role:'member'}],nextCursor:null})})
 afterEach(cleanup)
 function deferred(){let resolve!:(v:unknown)=>void,reject!:(e:unknown)=>void;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject}}
+const roleOf=(name:string)=>within(screen.getByRole('table')).getByText(name).closest('tr')?.cells[1]?.textContent
 const names=()=>within(screen.getByRole('table')).getAllByRole('row').slice(1).map(row=>row.querySelector('strong')?.firstChild?.textContent)
 describe('Organization directory',()=>{
   it('lists everyone in one table, owners then admins then members, with management details for admins',async()=>{
@@ -38,7 +39,7 @@ describe('Organization directory',()=>{
     expect(within(table).getByText('No display name yet')).toBeInTheDocument()
     expect(within(table).getByText('(you)')).toBeInTheDocument()
     expect(within(table).queryByText('Taylor Chen')).not.toBeInTheDocument()
-    expect(screen.getByText("5 people · 3 admins · You're an owner")).toBeInTheDocument()
+    expect(screen.queryByText(/people ·|You're an owner/)).not.toBeInTheDocument()
     expect(screen.getByRole('link',{name:'1 pending invitation'})).toHaveAttribute('href','/organization/settings#invitations')
     expect(screen.getByRole('link',{name:'People'})).toHaveAttribute('aria-current','page')
     expect(screen.getByRole('link',{name:'Access & settings'})).toHaveAttribute('href','/organization/settings')
@@ -145,8 +146,8 @@ describe('Organization directory',()=>{
   })
   it('shows members a read-only, names-only directory',async()=>{
     m.settings.mockResolvedValue({...settings,role:'member'});view()
-    expect(await screen.findByText(/You're a member/)).toBeInTheDocument()
-    expect(names()).toEqual(['Morgan Lee','Alex Rivera'])
+    await waitFor(()=>expect(names()).toEqual(['Morgan Lee','Alex Rivera']))
+    expect(screen.queryByText(/You're a member/)).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader',{name:'Status'})).not.toBeInTheDocument()
     expect(screen.queryByRole('button',{name:/manage|invite/i})).not.toBeInTheDocument()
     expect(m.joinCodes).not.toHaveBeenCalled();expect(m.members).not.toHaveBeenCalled();expect(m.invitations).not.toHaveBeenCalled()
@@ -169,7 +170,7 @@ describe('Optimistic people controls',()=>{
     await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
     await user.click(screen.getByRole('radio',{name:/^Admin/}))
     await user.click(screen.getByRole('button',{name:'Save role'}))
-    expect(screen.getByText("5 people · 4 admins · You're an owner")).toBeInTheDocument()
+    expect(roleOf('Alex Rivera')).toBe('Admin')
     expect(m.members).toHaveBeenCalledTimes(1)
     d.resolve({})
     expect(await screen.findByText('Alex Rivera is now an admin.')).toBeInTheDocument()
@@ -192,10 +193,10 @@ describe('Optimistic people controls',()=>{
     await user.click(screen.getByRole('button',{name:'Manage Alex Rivera'}))
     await user.click(screen.getByRole('radio',{name:/^Admin/}))
     await user.click(screen.getByRole('button',{name:'Save role'}))
-    expect(screen.getByText("5 people · 4 admins · You're an owner")).toBeInTheDocument()
+    expect(roleOf('Alex Rivera')).toBe('Admin')
     d.reject(new Error('private details'))
     expect(await screen.findByRole('alert')).toHaveTextContent('has not been confirmed')
-    expect(screen.getByText("5 people · 3 admins · You're an owner")).toBeInTheDocument()
+    expect(roleOf('Alex Rivera')).toBe('Member')
   })
 })
 
