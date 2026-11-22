@@ -11,16 +11,14 @@ import {getCached,setCached} from '../../api/cache'
 import '../Accounts/Administration.css'
 import './Equipment.css'
 type SectionErrors = { items?: string; bookings?: string; reports?: string; alerts?: string }
-type CachedDashboard = { items: EquipmentRecord[]; bookings: EquipmentReservation[]; reports: EquipmentReport[]; alerts: AppAlert[] }
 export default function LiveDashboard({statistics=false,production}:{statistics?:boolean;production?:ReactNode}){const c=useLiveOrganization();if(c&&statistics&&!c.admin)return <main className="administration"><h1>Statistics</h1><p>Organization administrators can view organization statistics.</p></main>;return c?<DashboardWorkspace key={c.organization.id} api={c.api} org={c.organization.id} admin={c.admin} statistics={statistics} production={production}/>:<main className="administration"><h1>StudioStack</h1><p>Select an active organization in your account to open the workspace.</p></main>}
 function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseApi;org:string;admin:boolean;statistics:boolean;production?:ReactNode}){
  const cacheKey = `dashboard:${org}`
- const cached = getCached<CachedDashboard>(cacheKey)
- const [items,setItems]=useState<EquipmentRecord[]|null>(cached?.items ?? null)
- const [bookings,setBookings]=useState<EquipmentReservation[]|null>(cached?.bookings ?? null)
- const [reports,setReports]=useState<EquipmentReport[]|null>(cached?.reports ?? null)
- const [alerts,setAlerts]=useState<AppAlert[]|null>(cached?.alerts ?? null)
- const [loading,setLoading]=useState(!cached),[globalError,setGlobalError]=useState(''),[errors,setErrors]=useState<SectionErrors>({})
+ const [items,setItems]=useState(()=>getCached<EquipmentRecord[]>(cacheKey+':items'))
+ const [bookings,setBookings]=useState(()=>getCached<EquipmentReservation[]>(cacheKey+':bookings'))
+ const [reports,setReports]=useState(()=>getCached<EquipmentReport[]>(cacheKey+':reports'))
+ const [alerts,setAlerts]=useState(()=>getCached<AppAlert[]>(cacheKey+':alerts'))
+ const [loading,setLoading]=useState(true),[globalError,setGlobalError]=useState(''),[errors,setErrors]=useState<SectionErrors>({})
  const [retrying,setRetrying]=useState<string|null>(null)
 
  const load=useCallback(async()=>{
@@ -34,19 +32,11 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
   ])
   const errs:SectionErrors={}
 
-  if(itemsRes.status==='fulfilled'){setItems(itemsRes.value)}else{errs.items=equipmentError(itemsRes.reason)}
-  if(bookingsRes.status==='fulfilled'){setBookings(bookingsRes.value)}else{errs.bookings=equipmentError(bookingsRes.reason)}
-  if(reportsRes.status==='fulfilled'){setReports(reportsRes.value)}else{errs.reports=equipmentError(reportsRes.reason)}
-  if(alertsRes.status==='fulfilled'){setAlerts(alertsRes.value)}else{errs.alerts=equipmentError(alertsRes.reason)}
+  if(itemsRes.status==='fulfilled'){setItems(itemsRes.value);setCached(cacheKey+':items',itemsRes.value)}else{errs.items=equipmentError(itemsRes.reason)}
+  if(bookingsRes.status==='fulfilled'){setBookings(bookingsRes.value);setCached(cacheKey+':bookings',bookingsRes.value)}else{errs.bookings=equipmentError(bookingsRes.reason)}
+  if(reportsRes.status==='fulfilled'){setReports(reportsRes.value);setCached(cacheKey+':reports',reportsRes.value)}else{errs.reports=equipmentError(reportsRes.reason)}
+  if(alertsRes.status==='fulfilled'){setAlerts(alertsRes.value);setCached(cacheKey+':alerts',alertsRes.value)}else{errs.alerts=equipmentError(alertsRes.reason)}
   setErrors(errs)
-  if(itemsRes.status==='fulfilled'&&bookingsRes.status==='fulfilled'){
-    setCached(cacheKey,{
-      items:itemsRes.value,
-      bookings:bookingsRes.value,
-      reports:reportsRes.status==='fulfilled'?reportsRes.value:[],
-      alerts:alertsRes.status==='fulfilled'?alertsRes.value:[]
-    })
-  }
   if(itemsRes.status==='rejected'||bookingsRes.status==='rejected'){setGlobalError(errs.items||errs.bookings||'The service is unavailable. Refresh to check whether your changes were saved.')}
   setLoading(false)
  },[api,org,admin,statistics,cacheKey])
@@ -57,10 +47,10 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
  async function retrySection(section:'items'|'bookings'|'reports'|'alerts'){
   setRetrying(section)
   try{
-    if(section==='items'){const res=await allPages(after=>api.inventory(org,{limit:100,after}));setItems(res);setErrors(p=>({...p,items:undefined}))}
-    else if(section==='bookings'){const res=await allPages(after=>api.reservations(org,{limit:100,after}));setBookings(res);setErrors(p=>({...p,bookings:undefined}))}
-    else if(section==='reports'){const res=await allPages(after=>api.reports(org).list(after));setReports(res);setErrors(p=>({...p,reports:undefined}))}
-    else if(section==='alerts'){const res=await allPages(after=>api.alerts(org).list(after));setAlerts(res);setErrors(p=>({...p,alerts:undefined}))}
+    if(section==='items'){const res=await allPages(after=>api.inventory(org,{limit:100,after}));setItems(res);setCached(cacheKey+':items',res);setErrors(p=>({...p,items:undefined}))}
+    else if(section==='bookings'){const res=await allPages(after=>api.reservations(org,{limit:100,after}));setBookings(res);setCached(cacheKey+':bookings',res);setErrors(p=>({...p,bookings:undefined}))}
+    else if(section==='reports'){const res=await allPages(after=>api.reports(org).list(after));setReports(res);setCached(cacheKey+':reports',res);setErrors(p=>({...p,reports:undefined}))}
+    else if(section==='alerts'){const res=await allPages(after=>api.alerts(org).list(after));setAlerts(res);setCached(cacheKey+':alerts',res);setErrors(p=>({...p,alerts:undefined}))}
   }catch(e){setErrors(p=>({...p,[section]:equipmentError(e)}))}
   finally{setRetrying(null)}
  }
