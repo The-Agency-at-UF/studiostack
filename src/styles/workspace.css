@@ -467,7 +467,9 @@ input[type=checkbox][aria-invalid=true] { border-color:var(--danger); }
 @media (max-width:767px) { :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),textarea,select) { font-size:max(var(--text-base),16px) !important; } }
 
 /* Row delete stays quiet in the list (red only on hover or focus), so a column of red buttons never outweighs the page's primary action. */
-.app-content#workspace-content .production-page .production-row-delete { min-height:var(--control-height); border-color:transparent; background:transparent; color:var(--muted); }
+.app-content#workspace-content .production-page .production-row-delete { min-height:var(--control-height); border-color:transparent; background:transparent; color:var(--danger); }
+.app-content#workspace-content .production-page .production-row { cursor:pointer; }
+.app-content#workspace-content .production-page .production-row:hover > td { background:var(--surface-muted); }
 .app-content#workspace-content .production-page .production-row-delete:is(:hover,:focus-visible):not(:disabled) { color:var(--danger); border-color:var(--danger); background:var(--danger-soft); }
 /* One page-title size per breakpoint on every route. */
 .app-content#workspace-content :is(.administration,.production-page,.organization-page,.ws-calendar-page,.rsv,.account-page) h1 { font-size:var(--text-title); }
