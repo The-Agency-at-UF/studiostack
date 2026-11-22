@@ -4,10 +4,11 @@ import {guardProductionApply,productionMetadata,saveProductionMetadata,prodDirec
 import {productionVariables,withProductionMaintenance,invokeProductionMaintenance} from './production-database'
 import {databaseApiInfrastructure} from '../infra/database/api-resources'
 import {roleArn} from '../infra/database/resources'
-import {configureProductionCapacity} from './configure-production-capacity'
+import {assertProductionWritesOpen,configureProductionCapacity} from './configure-production-capacity'
 import {selectedBuild} from './database-build'
 async function main(){
  await guardProductionApply();await selectedBuild('prod');const metadata=await productionMetadata(),name='studiostack-prod-database'
+ await assertProductionWritesOpen()
  const existing=await aws<{Configuration:{Role:string;Architectures:string[];MemorySize:number;Timeout:number;Environment?:{Variables?:Record<string,string>}};Code:{Location:string}}>('lambda','get-function',['--function-name',name])
  if(existing.Configuration.Role!==roleArn(name+'-role')||existing.Configuration.Architectures[0]!=='arm64')throw new Error('Unexpected production function identity')
  const previous=await fetch(existing.Code.Location);if(!previous.ok)throw new Error('Unable to preserve current production runtime');await writeFile(prodDirectory+'/previous-runtime.zip',Buffer.from(await previous.arrayBuffer()),{flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error});await writeFile(prodDirectory+'/previous-runtime-configuration.json',JSON.stringify(existing.Configuration,null,2),{flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error})
@@ -15,9 +16,15 @@ async function main(){
  const owner=matching.Users[0]??(await aws<{User:{Username:string;Attributes:{Name:string;Value:string}[]}}>('cognito-idp','admin-create-user',['--user-pool-id',metadata.auth.UserPoolId,'--username',approvedProductionEmail,'--message-action','SUPPRESS','--user-attributes',`Name=email,Value=${approvedProductionEmail}`,'Name=name,Value=Roger McKenzie'])).User
  const attributes=Object.fromEntries(owner.Attributes.map(a=>[a.Name,a.Value]));if(attributes.email!==approvedProductionEmail||!attributes.sub)throw new Error('Owner identity mismatch')
  await withProductionMaintenance(async()=>{const schema=await invokeProductionMaintenance<{ok:boolean;environment:string;applied:string[]}>({});if(!schema.ok||schema.environment!=='prod')throw new Error('Production schema did not verify');console.log('Production migrations applied: '+schema.applied.join(', '));const onboard=await invokeProductionMaintenance<{ok:boolean;organizationId:string;userId:string}>({action:'bootstrap-production-admin',subject:attributes.sub,email:approvedProductionEmail});if(!onboard.ok)throw new Error('Owner setup did not verify');const previousOwner=await readFile(prodDirectory+'/owner.json','utf8').then(v=>JSON.parse(v) as {username:string;invitationSent:boolean}).catch(error=>{if(error.code!=='ENOENT')throw error;return undefined});await writeFile(prodDirectory+'/owner.json',JSON.stringify({...onboard,username:owner.Username,invitationSent:previousOwner?.username===owner.Username&&previousOwner.invitationSent===true},null,2))})
- const vars=await productionVariables(metadata)
+ await assertProductionWritesOpen()
  await aws('lambda','update-function-code',['--function-name',name,'--zip-file',`fileb://${(await selectedBuild('prod')).runtime}`]);await waitFunction(name)
- await aws('lambda','update-function-configuration',['--function-name',name,'--memory-size','1024','--timeout','28','--environment',JSON.stringify({Variables:{...existing.Configuration.Environment?.Variables,...vars}})]);await waitFunction(name)
+ const current=await aws<{RevisionId:string;Environment:{Variables:Record<string,string>}}>('lambda','get-function-configuration',['--function-name',name])
+ const vars=await productionVariables(metadata)
+ const environment={...current.Environment.Variables,...vars} as Record<string,string>
+ if(environment.RDS_AUTH==='iam')delete environment.RDS_SECRET_ARN
+ else {delete environment.RDS_IAM_USER;delete environment.RDS_AUTH}
+ await assertProductionWritesOpen()
+ await aws('lambda','update-function-configuration',['--function-name',name,'--revision-id',current.RevisionId,'--memory-size','1024','--timeout','28','--environment',JSON.stringify({Variables:environment})]);await waitFunction(name)
  if(!(await invoke<{ok:boolean}>(name,{})).ok)throw new Error('Restricted production connection failed')
  await deployProductionRoutes(metadata)
 }
