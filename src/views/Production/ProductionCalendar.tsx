@@ -8,6 +8,7 @@ import { productionIsOnSite, statusLabels, type ProductionBrief } from '../../ty
 import { usePickedDay } from '../../components/workspace/usePickedDay'
 import { WorkspaceCalendar } from '../../components/workspace/WorkspaceCalendar'
 import { Button } from '../../components/workspace/WorkspaceUI'
+import { revealPanel } from '../../components/workspace/revealPanel'
 
 type Kind = 'shoot' | 'tentative' | 'milestone'
 type Entry = { id: string; brief: ProductionBrief; kind: Kind; title: string; badge: string; when: string; start: string; end?: string }
@@ -57,7 +58,7 @@ export default function ProductionCalendar({ briefs, onOpen, viewKey = 'default'
       <ul className="ws-calendar-legend" aria-label="Legend">{(['shoot','tentative','milestone'] as Kind[]).map(k => <li key={k}><span className={`ws-swatch ws-swatch--${k}`} aria-hidden="true" />{kindLabel[k]}</li>)}</ul>
     </div>
     <div className="ws-calendar-layout">
-      <WorkspaceCalendar label="Production schedule" viewChoices={views} dateClick={pickedDay.dateClick} dayCellClassNames={pickedDay.dayCellClassNames} plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialView={initial?.view??'dayGridMonth'} initialDate={initial?.date} datesSet={arg=>setCached(`production-calendar-view:${viewKey}`,{date:arg.view.currentStart.toISOString(),view:arg.view.type})} timeZone="UTC" events={events} eventClick={e=>setSelected(e.event.id)} dayMaxEvents={3} />
+      <WorkspaceCalendar label="Production schedule" viewChoices={views} dateClick={pickedDay.dateClick} dayCellClassNames={pickedDay.dayCellClassNames} plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialView={initial?.view??'dayGridMonth'} initialDate={initial?.date} datesSet={arg=>setCached(`production-calendar-view:${viewKey}`,{date:arg.view.currentStart.toISOString(),view:arg.view.type})} timeZone="UTC" events={events} eventClick={e=>{setSelected(e.event.id);revealPanel('.ws-calendar-aside [aria-label="Selected production event"] h2')}} dayMaxEvents={3} />
       <aside className="ws-calendar-aside" aria-label="Event details">
         {current ? <SelectedEvent entry={current} onOpen={onOpen} /> : <section className="ws-calendar-card" aria-label="Selected production event"><h2 className="ws-calendar-card-title">Event details</h2><p>Select a shoot or milestone on the calendar to see its brief.</p></section>}
         {unscheduled.length > 0 && <section className="ws-calendar-card" aria-label="Awaiting shoot dates">

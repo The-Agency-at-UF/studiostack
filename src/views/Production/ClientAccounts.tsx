@@ -45,7 +45,7 @@ export default function ClientAccounts({clients,api,canManage,canDelete,onRefres
  const {pageRows,pagination}=usePagination(listed)
  return <section className="production-settings production-clients" aria-labelledby="client-accounts-title">
   <div className="production-section-head">
-   <div><h2 id="client-accounts-title">Client accounts</h2><p>Group briefs and shoots under a shared client. Deleted accounts can be restored with their bookings and briefs.</p></div>
+   <div><h2 id="client-accounts-title" tabIndex={-1}>Client accounts</h2><p>Group briefs and shoots under a shared client. Deleted accounts can be restored with their bookings and briefs.</p></div>
    {canManage&&<button className="production-primary" onClick={()=>setAdding(v=>!v)}>+ Add client account</button>}
    {listed.length>0&&<p className="production-count">{listed.length} active</p>}
   </div>
@@ -62,7 +62,7 @@ export function DeletedClientAccounts({clients,api,canRestore,onRefresh}:{client
  const deleted=shown.filter(c=>c.deletedAt&&canRestore(c)).sort((a,b)=>a.name.localeCompare(b.name))
  const {pageRows,pagination}=usePagination(deleted)
  return <section className="production-settings production-clients" aria-labelledby="deleted-client-accounts-title">
-  <div className="production-section-head"><div><h2 id="deleted-client-accounts-title">Deleted client accounts</h2><p>Restoring an account offers it again for new briefs and bookings. Its existing briefs and bookings never lost it.</p></div></div>
+  <div className="production-section-head"><div><h2 id="deleted-client-accounts-title">Deleted client accounts</h2><p>Restoring an account offers it again for new briefs and reservations. Its existing briefs and reservations never lost it.</p></div></div>
   {error&&<p role="alert" className="production-error">{error}</p>}
   {deleted.length>0?<ul className="production-client-list">{pageRows.map(c=><li key={c.id} className="is-archived"><span className="production-client-name">{c.name}</span><StatusLabel>Deleted</StatusLabel><button type="button" disabled={busy} aria-label={`Restore ${c.name}`} onClick={()=>void run(()=>api.updateClient(c.id,{name:c.name,deleted:false,version:c.version}),list=>list.map(v=>v.id===c.id?{...v,deletedAt:null}:v),`${c.name} restored.`)}>Restore</button></li>)}</ul>
   :<p className="production-empty">No deleted client accounts you can restore.</p>}

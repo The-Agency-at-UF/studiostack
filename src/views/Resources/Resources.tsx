@@ -3,7 +3,6 @@ import Link from 'next/link'
 import PreviewOnboarding from '../../preview/PreviewOnboarding'
 import {PageHeader} from '../../components/workspace/WorkspaceUI'
 import {ResourceLinks} from '../../resources/links'
-import '../Production/Production.css'
 export default function Resources({gettingStarted=false}:{gettingStarted?:boolean}) {
  return <main className="production-page"><PageHeader title={gettingStarted?'Get Started':'Resources'}/>
  {gettingStarted&&<PreviewOnboarding/>}
