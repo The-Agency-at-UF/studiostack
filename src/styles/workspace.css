@@ -444,7 +444,7 @@ input[type=checkbox][aria-invalid=true] { border-color:var(--danger); }
 .ws-truncate { display:inline-block; max-width:24ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
 /* Touch targets: every control is at least 44px tall on touch screens; compact sizes are for fine pointers only. */
 @media (pointer:coarse) {
-  :is(.tour-close,.org-person-close,.rsv-back,.equipment-scan-close,.org-dialog-heading button,.ws-calendar-views button,.ws-calendar-nav button,.rsv-filter .rsv-button,.rsv-chips button,.welcome-secondary,.administration-index a,.equipment-section-heading > a,.production-row-title,.tour-card button) { min-height:var(--control-height); }
+  :is(.tour-close,.org-person-close,.rsv-back,.equipment-scan-close,.org-dialog-heading button,.ws-calendar-views button,.ws-calendar-nav button,.rsv-chips button,.welcome-secondary,.administration-index a,.equipment-section-heading > a,.production-row-title,.tour-card button) { min-height:var(--control-height); }
   :is(.tour-close,.org-person-close,.org-dialog-heading button) { min-width:var(--control-height); }
 }
 /* Inspectors on narrow screens: details open below the list, so their heading clears the sticky header when scrolled to. */

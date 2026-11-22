@@ -25,7 +25,32 @@ describe('Reservation list and booking page',()=>{
   expect(screen.queryByRole('link',{name:'Check out'})).not.toBeInTheDocument()
  })
  it('calls out an overdue checkout above the list',async()=>{m.reservations.mockResolvedValue({items:[{...reservation,fulfillmentStatus:'checked_out',startsAt:new Date(Date.now()-7200000).toISOString(),endsAt:new Date(Date.now()-3600000).toISOString()}],nextCursor:null});const user=userEvent.setup();render(<LiveReservations/>);expect(await screen.findByText(/is overdue/)).toBeInTheDocument();await user.click(screen.getByRole('button',{name:'Review'}));expect(screen.getByRole('link',{name:'Return equipment'})).toBeInTheDocument();expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0)})
- it('keeps search and client filters behind the filter button',async()=>{const user=userEvent.setup();render(<LiveReservations/>);await screen.findByRole('button',{name:/Booked shoot/});expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();await user.click(screen.getByRole('button',{name:'Filter'}));await user.type(screen.getByLabelText('Search'),'nothing like it');expect(screen.queryByRole('button',{name:/Booked shoot/})).not.toBeInTheDocument();expect(screen.getByText('No matching reservations')).toBeInTheDocument()})
+ it('combines the visible equipment and client filters with search and clears all three',async()=>{
+  m.clients.mockResolvedValue({items:[{id:'studio',name:'Bloom Studio'}],nextCursor:null})
+  m.inventory.mockResolvedValue({items:[item,{...item,id:'tripod',name:'Tripod',equipmentCode:'CAM-2'}],nextCursor:null})
+  m.reservations.mockResolvedValue({items:[
+   {...reservation,clientAccountId:'studio'},
+   {...reservation,id:'tripod-booking',name:'Tripod shoot',clientAccountId:'studio',equipmentIds:['tripod']},
+   {...reservation,id:'internal-booking',name:'Internal shoot'}
+  ],nextCursor:null})
+  const user=userEvent.setup();render(<LiveReservations/>);await screen.findByRole('button',{name:/Tripod shoot/})
+  const equipment=screen.getByRole('combobox',{name:'Equipment'})
+  const client=screen.getByRole('combobox',{name:'Client account'})
+  const search=screen.getByRole('searchbox',{name:'Search'})
+  await user.selectOptions(equipment,'camera')
+  expect(screen.queryByRole('button',{name:/Tripod shoot/})).not.toBeInTheDocument()
+  await user.selectOptions(client,'studio')
+  expect(screen.queryByRole('button',{name:/Internal shoot/})).not.toBeInTheDocument()
+  expect(screen.getByRole('button',{name:/Booked shoot/})).toBeInTheDocument()
+  await user.type(search,'no match')
+  expect(screen.getByRole('heading',{name:'No matching reservations'})).toBeInTheDocument()
+  await user.click(screen.getByRole('button',{name:'Clear filters'}))
+  expect(equipment).toHaveValue('')
+  expect(client).toHaveValue('')
+  expect(search).toHaveValue('')
+  expect(screen.getByRole('button',{name:/Tripod shoot/})).toBeInTheDocument()
+  expect(screen.getByRole('button',{name:/Internal shoot/})).toBeInTheDocument()
+ })
  it('shows an empty state for a new organization',async()=>{m.reservations.mockResolvedValue({items:[],nextCursor:null});render(<LiveReservations/>);expect(await screen.findByRole('heading',{name:'No reservations yet'})).toBeInTheDocument()})
  it('does not substitute preview bookings after a service failure',async()=>{m.reservations.mockRejectedValue(new Error('private detail'));render(<LiveReservations/>);expect(await screen.findByRole('alert')).toHaveTextContent(/temporarily unavailable|couldn’t load|couldn’t be saved|didn’t respond/);expect(screen.queryByRole('button',{name:/Booked shoot/})).not.toBeInTheDocument()})
 })

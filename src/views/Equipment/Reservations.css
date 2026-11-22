@@ -23,7 +23,7 @@
 .rsv .rsv-input,.rsv-field-group input { height:48px; width:100%; border:1px solid var(--line-control); border-radius:var(--radius-pill); background:var(--surface); padding:0 var(--space-3); color:var(--ink); font:var(--weight-regular) var(--text-base)/1.4 var(--font-ui); caret-color:var(--accent); font-variant-numeric:tabular-nums; }
 .rsv .rsv-input::placeholder,.rsv-field-group input::placeholder { color:var(--muted); }
 .rsv .rsv-input:disabled { color:var(--muted); background:var(--surface-subtle); border-color:var(--line); }
-.rsv .ws-select { width:100%; min-height:48px; font-size:var(--text-base); }
+.rsv-flow .ws-select { width:100%; min-height:48px; font-size:var(--text-base); }
 .rsv .rsv-hint { color:var(--muted); font-size:var(--text-sm); }
 .rsv .rsv-inline-error { color:var(--danger); font-size:var(--text-sm); font-weight:var(--weight-medium); margin-top:var(--space-3); }
 .rsv-message { max-width:var(--rsv-column); margin:0 auto var(--space-5); padding:var(--space-3) var(--space-4); border-radius:var(--radius-panel); background:var(--success-soft); color:var(--success); font-weight:var(--weight-medium); }
@@ -47,13 +47,14 @@
 .rsv-overdue { display:flex; align-items:center; gap:var(--space-3); padding:14px 18px; margin-bottom:var(--space-6); background:var(--surface); border-radius:var(--radius-panel); box-shadow:0 1px 2px color-mix(in srgb,var(--ink) 8%,transparent); }
 .rsv-overdue > span { width:10px; height:10px; border-radius:0; clip-path:polygon(50% 0,100% 100%,0 100%); background:var(--warning-strong); flex:none; }
 .rsv-overdue p { flex:1; }
-.rsv-bar { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-6); }
+.rsv-tabs.ws-pill-tabs { margin:0 0 var(--space-4); }
 .rsv-tabs span { font-weight:var(--weight-regular); font-variant-numeric:tabular-nums; color:var(--muted); }
-.rsv-filter { position:relative; }
-.rsv-filter .rsv-button { min-height:36px; padding:0 var(--space-3); }
-.rsv-filter-dot { background:var(--accent); color:var(--on-frame); border-radius:999px; font-size:var(--text-xs); padding:2px 7px; }
-.rsv-filter-pop { position:absolute; right:0; top:44px; z-index:5; width:min(300px,calc(100vw - 32px)); display:flex; flex-direction:column; gap:var(--space-4); align-items:stretch; padding:18px; background:var(--surface); border-radius:var(--radius-card); box-shadow:var(--shadow-menu),0 1px 2px color-mix(in srgb,var(--ink) 8%,transparent); animation:rsv-rise var(--motion-enter) var(--ease-out); }
-.rsv-filter-pop .rsv-link { align-self:flex-start; }
+.rsv-filters { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-3); margin-bottom:var(--space-6); }
+.rsv-filters .ws-field { flex:1 1 20ch; min-width:0; }
+.rsv-filters .rsv-filter-search { flex:2 1 32ch; }
+.rsv .rsv-filters .rsv-input { height:var(--control-height); font-size:var(--text-sm); }
+.rsv-filters .ws-select { appearance:none; width:100%; padding-inline:var(--space-3) var(--space-8); background-image:var(--ws-chevron); text-overflow:ellipsis; }
+.rsv-filters .rsv-link { min-height:var(--control-height); }
 .rsv-day { margin-bottom:var(--space-6); }
 .rsv-day h2 { font-size:var(--text-sm); font-weight:var(--weight-bold); color:var(--muted); margin:0 0 var(--space-2) var(--space-1); letter-spacing:0; }
 .rsv-rows { background:var(--surface); border-radius:var(--radius-card); box-shadow:var(--shadow-card); overflow:hidden; }
@@ -146,6 +147,7 @@
 @media (max-width:767px) {
   .rsv { padding:var(--space-6) var(--space-4); }
   .rsv-top { margin-bottom:var(--space-6); }
+  .rsv .rsv-filters .rsv-input { font-size:var(--text-base); }
   .rsv .rsv-row { grid-template-columns:76px minmax(0,1fr) 18px; gap:var(--space-3) var(--space-4); padding:var(--space-4); }
   .rsv .rsv-row .rsv-status { grid-column:2; grid-row:2; }
   .rsv .rsv-row > .rsv-icon { grid-column:3; grid-row:1; }
@@ -161,8 +163,7 @@
   .rsv-review > div { grid-template-columns:1fr auto; }
   .rsv-review dt { grid-column:1/-1; }
 }
-@media (prefers-reduced-motion:reduce) { .rsv-question,.rsv-filter-pop { animation:none; } .rsv-progress i { transition:none; } }
-.rsv-bar .ws-pill-tabs { margin:0; }
+@media (prefers-reduced-motion:reduce) { .rsv-question { animation:none; } .rsv-progress i { transition:none; } }
 
 @media (max-width:767px),(pointer:coarse) {
   .rsv .rsv-chips button { min-height:40px; }
