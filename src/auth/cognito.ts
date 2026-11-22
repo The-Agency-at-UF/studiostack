@@ -8,11 +8,19 @@ export interface SignedInUser { subject: string; label: string; expiresAt: numbe
 type Claims = Record<string, unknown>
 type SigningKey = { kid?: string; kty?: string; use?: string; alg?: string; n?: string; e?: string }
 type Pending = { state: string; nonce: string; verifier: string; createdAt: number; redirectUri: string }
+type VerifiedSession = { token:string; user:SignedInUser }
+type OAuthSession = { binding:string; subject:string; nonce:string; refreshToken:string }
+type OAuthTokens = { access_token?: unknown; id_token?: unknown; refresh_token?: unknown }
+const oauthKey = 'studiostack.oauth.session'
 const pendingKey = 'studiostack.oauth.pending'
 const previewKey = 'studiostack.preview'
 const sessionTokenKey = 'studiostack.session.token'
 const sessionUserKey = 'studiostack.session.user'
-let memory: { token: string; user: SignedInUser } | null = null
+let memory:VerifiedSession|null=null
+let oauthMemory:OAuthSession|null=null
+let refreshing:{key:string;request:Promise<SignedInUser|null>}|undefined
+let signingOut=false
+let generation=0
 let finishing: Promise<SignedInUser> | undefined
 
 function readStorage(storage?: Storage, key = ''): string | null {
@@ -26,7 +34,7 @@ function removeStorage(storage: Storage | undefined, key: string) {
 }
 
 export function getStoredSession(): { token: string; user: SignedInUser } | null {
-  return memory && memory.user.expiresAt > Date.now() + 10_000 ? memory : null
+  return !signingOut && memory && memory.user.expiresAt > Date.now() + 10_000 ? memory : null
 }
 
 export function authConfiguration(origin = window.location.origin): AuthConfig {
@@ -65,7 +73,7 @@ export async function signInUrl(config = authConfiguration(), provider?: LoginPr
   sessionStorage.setItem(pendingKey, JSON.stringify({ state, nonce, verifier, createdAt: Date.now(), redirectUri: config.redirectUri } satisfies Pending))
   return `${config.domain}/oauth2/authorize?${query}`
 }
-async function verify(token: string, config: AuthConfig, keys: SigningKey[], type: 'id' | 'access', nonce?: string): Promise<Claims> {
+async function verify(token: string, config: AuthConfig, keys: SigningKey[], type: 'id' | 'access', nonce?: string, refreshing = false): Promise<Claims> {
   const segments = token.split('.')
   if (segments.length !== 3 || token.length > 16_000) throw new Error('Invalid sign-in response.')
   const header = JSON.parse(new TextDecoder().decode(bytes(segments[0]))) as { alg: string; kid: string }
@@ -77,7 +85,7 @@ async function verify(token: string, config: AuthConfig, keys: SigningKey[], typ
   const claims = JSON.parse(new TextDecoder().decode(bytes(segments[1]))) as Claims
   if (!valid || claims.iss !== config.issuer || claims.token_use !== type || typeof claims.sub !== 'string' || !claims.sub ||
       typeof claims.exp !== 'number' || claims.exp <= Date.now() / 1000 || typeof claims.iat !== 'number' || claims.iat > Date.now() / 1000 + 60 ||
-      (type === 'id' ? claims.aud !== config.clientId || claims.nonce !== nonce : claims.client_id !== config.clientId || typeof claims.scope !== 'string' || !claims.scope.split(' ').includes('aws.cognito.signin.user.admin'))) throw new Error('Could not verify sign-in. Please try again.')
+      (type === 'id' ? claims.aud !== config.clientId || (!refreshing || claims.nonce !== undefined) && claims.nonce !== nonce : claims.client_id !== config.clientId || typeof claims.scope !== 'string' || !claims.scope.split(' ').includes('aws.cognito.signin.user.admin'))) throw new Error('Could not verify sign-in. Please try again.')
   return claims
 }
 export function hasCallback(url = window.location.href) { const params = new URL(url).searchParams; return params.has('code') || params.has('error') }
@@ -88,6 +96,7 @@ export function finishSignIn(config = authConfiguration(), url = window.location
   return finishing
 }
 async function complete(config: AuthConfig, url: string): Promise<SignedInUser> {
+  const current=++generation
   try {
     const callback = new URL(url), stored = sessionStorage.getItem(pendingKey)
     if (callback.origin !== new URL(config.redirectUri).origin || callback.pathname !== '/login/' || !stored) throw new Error('This sign-in link has expired. Start sign-in again.')
@@ -98,14 +107,19 @@ async function complete(config: AuthConfig, url: string): Promise<SignedInUser> 
     if (callback.searchParams.has('error')) throw new Error('Sign-in was cancelled or could not be completed. Please try again.')
     const code = callback.searchParams.get('code')
     if (!code || code.length > 2048) throw new Error('Invalid sign-in response.')
-    const response = await fetch(`${config.domain}/oauth2/token`, { method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15_000),
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', client_id: config.clientId, redirect_uri: config.redirectUri, code, code_verifier: pending.verifier }) })
+    const response = await postOAuth(config,'token',{grant_type:'authorization_code',redirect_uri:config.redirectUri,code,code_verifier:pending.verifier})
     if (!response.ok) throw new Error('Sign-in could not be completed. Please try again.')
-    const result = await response.json() as { access_token?: unknown; id_token?: unknown }
-    if (typeof result.access_token !== 'string' || typeof result.id_token !== 'string') throw new Error('Invalid sign-in response.')
-    return await acceptPasswordTokens(result.access_token,result.id_token,config,pending.nonce)
+    const result = await response.json() as OAuthTokens
+    const session=await verifiedTokens(result,config,pending.nonce)
+    if(generation!==current||signingOut)throw new Error('Sign-in was cancelled. Please try again.')
+    clearVolatileAuthState()
+    clearOAuthSession()
+    if(validRefreshToken(result.refresh_token))saveOAuthSession({
+      binding:oauthBinding(config),subject:session.user.subject,nonce:pending.nonce,refreshToken:result.refresh_token
+    })
+    return installSession(session)
   } catch (error) {
-    memory = null
+    if(generation===current)clearSignIn()
     throw error instanceof Error && /^(This sign-in|Invalid sign-in|Sign-in |Could not verify)/.test(error.message) ? error : new Error('Sign-in is temporarily unavailable. Please try again.')
   } finally { sessionStorage.removeItem(pendingKey) }
 }
@@ -164,33 +178,141 @@ async function getSigningKeys(config: AuthConfig, requiredKids: (string | undefi
   return fetchSigningKeys(config)
 }
 
-/** Validates both SDK and OAuth tokens against the pool signing keys before use. */
-export async function acceptPasswordTokens(accessTokenValue:string,idTokenValue:string,config:AuthConfig,nonce?:string):Promise<SignedInUser>{
-  const accessKid = extractKid(accessTokenValue)
-  const idKid = extractKid(idTokenValue)
-  const keys = await getSigningKeys(config, [accessKid, idKid])
-  try{
-    const [access,id]=await Promise.all([verify(accessTokenValue,config,keys,'access'),verify(idTokenValue,config,keys,'id',nonce)])
-    if(access.sub!==id.sub)throw new Error('Invalid sign-in response.')
-    const label=id.email_verified===true&&typeof id.email==='string'?id.email:typeof id.name==='string'?id.name:typeof id['cognito:username']==='string'?id['cognito:username']:'StudioStack member'
-    const user={subject:access.sub as string,label:label.slice(0,254),expiresAt:Number(access.exp)*1000}
-    memory={token:accessTokenValue,user}
-    removeStorage(globalThis.localStorage,sessionTokenKey);removeStorage(globalThis.localStorage,sessionUserKey)
-    removeStorage(globalThis.sessionStorage, previewKey)
-    return user
-  }catch{clearSignIn();throw new Error('Could not verify sign-in. Please try again.')}
+function oauthBinding(config:AuthConfig){
+  return JSON.stringify([config.domain,config.issuer,config.clientId,config.redirectUri])
 }
-export async function accessToken(): Promise<string> {
-  const session = getStoredSession()
-  if (session) return session.token
+function validRefreshToken(value:unknown):value is string{
+  return typeof value==='string'&&value.length>0&&value.length<=16_000&&!/\s/.test(value)
+}
+function readOAuthSession(config:AuthConfig):OAuthSession|null{
+  const raw=readStorage(globalThis.sessionStorage,oauthKey)
+  try {
+    const session=raw?JSON.parse(raw) as OAuthSession:oauthMemory
+    if(session?.binding===oauthBinding(config)&&typeof session.subject==='string'&&session.subject&&
+      typeof session.nonce==='string'&&session.nonce&&validRefreshToken(session.refreshToken))return session
+  } catch { /* Invalid tab state must not establish a session. */ }
+  return null
+}
+function saveOAuthSession(session:OAuthSession){
+  oauthMemory=session
+  writeStorage(globalThis.sessionStorage,oauthKey,JSON.stringify(session))
+}
+function clearOAuthSession(){
+  oauthMemory=null
+  removeStorage(globalThis.sessionStorage,oauthKey)
+}
+function postOAuth(config:AuthConfig,endpoint:'token'|'revoke',fields:Record<string,string>){
+  return fetch(`${config.domain}/oauth2/${endpoint}`,{method:'POST',credentials:'omit',redirect:'error',cache:'no-store',
+    signal:AbortSignal.timeout(15_000),headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:config.clientId,...fields})})
+}
+async function verifiedTokens(tokens:OAuthTokens,config:AuthConfig,nonce?:string,expectedSubject?:string):Promise<VerifiedSession>{
+  const {access_token:accessToken,id_token:idToken}=tokens
+  if(typeof accessToken!=='string'||typeof idToken!=='string')throw new Error('Invalid sign-in response.')
+  const keys=await getSigningKeys(config,[extractKid(accessToken),extractKid(idToken)])
+  const [access,id]=await Promise.all([
+    verify(accessToken,config,keys,'access'),
+    verify(idToken,config,keys,'id',nonce,expectedSubject!==undefined)
+  ])
+  if(access.sub!==id.sub||expectedSubject!==undefined&&access.sub!==expectedSubject)throw new Error('Could not verify sign-in. Please try again.')
+  const label=id.email_verified===true&&typeof id.email==='string'?id.email:typeof id.name==='string'?id.name:typeof id['cognito:username']==='string'?id['cognito:username']:'StudioStack member'
+  return {token:accessToken,user:{subject:access.sub as string,label:label.slice(0,254),expiresAt:Number(access.exp)*1000}}
+}
+function installSession(session:VerifiedSession){
+  memory=session
+  removeStorage(globalThis.localStorage,sessionTokenKey)
+  removeStorage(globalThis.localStorage,sessionUserKey)
+  removeStorage(globalThis.sessionStorage,previewKey)
+  return session.user
+}
+
+/** Validates both SDK tokens against the pool signing keys before use. */
+export async function acceptPasswordTokens(accessTokenValue:string,idTokenValue:string,config:AuthConfig):Promise<SignedInUser>{
+  const current=generation
+  try {
+    const session=await verifiedTokens({access_token:accessTokenValue,id_token:idTokenValue},config)
+    if(generation!==current||signingOut)throw new Error('Sign-in was cancelled. Please try again.')
+    clearOAuthSession()
+    return installSession(session)
+  } catch(error) {
+    if(error instanceof AuthenticationUnavailable)throw error
+    if(generation===current&&!signingOut)clearSignIn()
+    throw new Error('Could not verify sign-in. Please try again.')
+  }
+}
+async function refreshOAuthSession(config:AuthConfig,session:OAuthSession){
+  const current=generation
+  const response=await postOAuth(config,'token',{grant_type:'refresh_token',refresh_token:session.refreshToken})
+    .catch(()=>{throw new AuthenticationUnavailable()})
+  if(generation!==current)return null
+  if(response.status===429||response.status>=500)throw new AuthenticationUnavailable()
+  if(!response.ok){
+    clearSignIn()
+    return null
+  }
+  try{
+    const tokens=await response.json() as OAuthTokens
+    const verified=await verifiedTokens(tokens,config,session.nonce,session.subject)
+    if(generation!==current)return null
+    if(tokens.refresh_token!==undefined){
+      if(!validRefreshToken(tokens.refresh_token))throw new Error('Invalid sign-in response.')
+      saveOAuthSession({...session,refreshToken:tokens.refresh_token})
+    }
+    return signingOut?null:installSession(verified)
+  }catch(error){
+    if(error instanceof AuthenticationUnavailable)throw error
+    if(generation===current)clearSignIn()
+    throw new Error('Could not verify sign-in. Please try again.')
+  }
+}
+
+/** One restore path for initial load, renewal timers and on-demand access. */
+export async function restoreSession(config=authConfiguration(),forceRefresh=false):Promise<SignedInUser|null>{
+  if(signingOut)return null
+  const oauth=readOAuthSession(config)
+  if(oauth){
+    const stored=getStoredSession()
+    if(!forceRefresh&&stored?.user.subject===oauth.subject)return stored.user
+    const key=JSON.stringify([oauth.binding,oauth.subject,oauth.refreshToken])
+    if(refreshing?.key===key)return refreshing.request
+    const request=refreshOAuthSession(config,oauth).finally(()=>{if(refreshing?.request===request)refreshing=undefined})
+    refreshing={key,request}
+    return request
+  }
   const {restorePasswordSession}=await import('./password')
+  return restorePasswordSession(config,forceRefresh)
+}
+export async function accessToken():Promise<string>{
+  const session=getStoredSession()
+  if(session)return session.token
   let restored:SignedInUser|null=null
-  try{restored=await restorePasswordSession()}catch{/* A failed refresh cannot establish a session. */}
-  if(!restored||!memory)throw new Error('Your session expired. Sign in again.')
-  return memory.token
+  try{restored=await restoreSession()}catch{/* A failed refresh cannot establish a session. */}
+  const current=getStoredSession()
+  if(!restored||!current||restored.subject!==current.user.subject)throw new Error('Your session expired. Sign in again.')
+  return current.token
+}
+export async function signOutSession(config=authConfiguration()){
+  signingOut=true
+  memory=null
+  try {
+    await refreshing?.request.catch(()=>null)
+    const oauth=readOAuthSession(config)
+    if(oauth){
+      clearSignIn()
+      await postOAuth(config,'revoke',{token:oauth.refreshToken})
+    }else{
+      const {signOutPasswordSession}=await import('./password')
+      await signOutPasswordSession(config)
+    }
+  } finally {
+    clearSignIn()
+    signingOut=false
+  }
 }
 export function clearSignIn() {
+  generation++
   memory = null
+  clearOAuthSession()
   clearVolatileAuthState()
   clearJwksCache()
   removeStorage(globalThis.localStorage, sessionTokenKey)

@@ -18,11 +18,11 @@ vi.mock('./Header', () => ({ default: () => <nav>Workspace navigation</nav> }))
 vi.mock('../auth/cognito', () => ({
   authConfiguration: () => ({ apiUrl: 'https://api.example.test' }),
   hasCallback: (url: string) => new URL(url).searchParams.has('code'), finishSignIn: mocks.finish, accessToken: mocks.token,
-  getStoredSession: () => mocks.storedSession,
+  getStoredSession: () => mocks.storedSession, restoreSession:(...args:unknown[])=>mocks.restore(...args), signOutSession:vi.fn(),
   isPreview: () => mocks.preview, clearSignIn: mocks.clear, forgetVerifiedSession: mocks.forget,AuthenticationUnavailable: class extends Error {},
   enterPreview: () => { mocks.preview = true }, signInUrl: vi.fn(), logoutUrl: () => 'https://provider.example.test/logout',
 }))
-vi.mock('../auth/password', () => ({passwordSignIn:mocks.passwordSignIn,passwordError:()=> 'Email or password is incorrect.',passwordRules:()=>true,restorePasswordSession: (...args:unknown[]) => mocks.restore(...args), signOutPasswordSession: vi.fn()}))
+vi.mock('../auth/password', () => ({passwordSignIn:mocks.passwordSignIn,passwordError:()=> 'Email or password is incorrect.',passwordRules:()=>true}))
 vi.mock('../api/database', () => ({ DatabaseApiClientError: class extends Error {constructor(public status:number){super('API error')}}, createDatabaseApiClient: () => ({me:mocks.me, register: mocks.register, organizations: mocks.organizations }) }))
 function Controls() {
   const session = useAppSession()
@@ -289,4 +289,25 @@ describe('Password form inside the session shell',()=>{
 it('recovers a removed saved preview identity before rendering the preview shell',async()=>{
  const api=createPreviewDatabaseApi('preview-author');writePreview('studiostack.preview.person','preview-author');await api.deleteAccount();mocks.preview=true;mocks.pathname='/';
  render(<AppShell><Controls/></AppShell>);expect(await screen.findByText('preview/admin@preview.example/true/no-token')).toBeInTheDocument();
+})
+
+it('LOGIC-032: restores a saved workspace beyond the first page and refreshes all pages',async()=>{
+ const user={label:'saved@example.test',subject:'many-orgs',expiresAt:Date.now()+900000}
+ mocks.storedSession={token:'saved',user}
+ const first=Array.from({length:100},(_,i)=>({id:`organization-${i}`,role:'member',name:`Workspace ${i}`}))
+ mocks.organizations.mockImplementation(async ({after}:{after?:string})=>after
+  ?{items:[{id:'last',role:'admin',name:'Last workspace'}],nextCursor:null}
+  :{items:first,nextCursor:'organization-99'})
+ localStorage.setItem('studiostack.organization.'+user.subject,'last')
+ function Refresh(){
+  const session=useAppSession()
+  return <button onClick={()=>void session.refreshOrganizations?.()}>Refresh memberships</button>
+ }
+ render(<AppShell><Controls/><Refresh/></AppShell>)
+ await screen.findByText('authenticated/saved@example.test/true/token')
+ expect(screen.getByTestId('current-organization')).toHaveTextContent('last')
+ fireEvent.click(screen.getByRole('button',{name:'Refresh memberships'}))
+ await vi.waitFor(()=>expect(mocks.organizations).toHaveBeenCalledTimes(4))
+ expect(mocks.organizations.mock.calls[3][0]).toEqual({limit:100,after:'organization-99'})
+ expect(screen.getByTestId('current-organization')).toHaveTextContent('last')
 })
