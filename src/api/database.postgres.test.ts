@@ -1,5 +1,6 @@
 import {feedbackTask,emailHash,type FeedbackRequest} from '../../backend/email/feedback'
 import {alertOutboxTask,type AlertOutboxRequest} from '../../backend/alerts/outbox'
+import {reconcileAlertsTask} from '../../backend/alerts/reconciliation'
 import {bugReportOutboxTask,type BugReportOutboxRequest} from '../../backend/bug-reports/outbox'
 import type {AlertRequest} from '../../backend/alerts/routes'
 import type {AppAlert,AlertPreferences} from '../types/alerts'
@@ -790,6 +791,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const older=await equipment(),old=await repository.execute(member,{operation:'createReservation',organizationId,input:booking(older)}) as EquipmentReservation
     await operator.query("UPDATE app.reservations SET starts_at=now()-interval '3 hours',ends_at=now()-interval '1 hour',fulfillment_status='checked_out',checked_out_at=now()-interval '2 hours' WHERE id=$1",[old.id])
     await issue(item,'high')
+    await sweepAlerts()
     const first=await alerts<ApiPage<AppAlert>>(member),second=await alerts<ApiPage<AppAlert>>(member)
     for(const id of [r.id,old.id])expect(first.items.filter(a=>a.targetPath.endsWith(id))).toHaveLength(1)
     expect(second.items.filter(a=>a.targetPath.endsWith(old.id))).toHaveLength(1)
@@ -799,6 +801,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     expect((await alerts<ApiPage<AppAlert>>(secondMember)).items.some(a=>a.targetPath.endsWith(old.id))).toBe(false)
   })
 
+  async function sweepAlerts(){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await reconcileAlertsTask(c,{})}finally{await c.end()}}
   async function alertQueue(r:AlertOutboxRequest){const c=new pg.Client({connectionString});try{await c.connect();await c.query('SET ROLE "studiostack_dev_app"');return await alertOutboxTask(c,r)}finally{await c.end()}}
   it('alerts: delivery claims once, validates current preferences and acknowledges only its lease',async()=>{
     await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:0}})
@@ -1283,6 +1286,7 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('planning: readiness flags reach submitters and admins, retain denial reasons and hide member activity',async()=>{
     let b=await command(member,await draft(),'submit');const hold={id:randomUUID(),startsAt:new Date(Date.now()+86400000).toISOString(),endsAt:new Date(Date.now()+90000000).toISOString()}
     b=await production(member,{resource:'actions',method:'POST',briefId:b.id,body:{action:'propose_dates',version:b.version,requestId:randomUUID(),softHolds:[hold]}}) as ProductionBrief
+    await sweepAlerts()
     for(const identity of [member,owner])expect((await alerts<ApiPage<AppAlert>>(identity)).items.some(a=>a.kind==='production_readiness'&&a.targetPath.endsWith(b.id))).toBe(true)
     const denied=await command(owner,b,'deny','Please provide location permission before resubmitting.')
     const own=await production(member,{resource:'briefs',method:'GET',briefId:b.id}) as ProductionBrief
@@ -1449,6 +1453,26 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await worker.connect();await worker.query('SET ROLE "studiostack_dev_app"')
       expect(await invitationQueueTask(worker,{action:'begin',organizationId,id:i.id,leaseToken})).toEqual({updated:false})
     } finally { await worker.end() }
+  })
+  it('LOGIC-027: retention clears expired workspace-search attempts only',async()=>{
+    const id=profiles.outsider.id
+    const {rows:[expired,recent]}=await operator.query("INSERT INTO app.organization_search_attempts(user_id,attempted_at) VALUES($1,now()-interval '8 days'),($1,now()) RETURNING id",[id])
+    const worker=new pg.Client({connectionString})
+    try {
+      await worker.connect();await worker.query('SET ROLE "studiostack_dev_app"')
+      await retentionTask(worker,{})
+      expect((await operator.query('SELECT id FROM app.organization_search_attempts WHERE id=ANY($1::uuid[])',[[expired.id,recent.id]])).rows).toEqual([recent])
+    } finally { await worker.end() }
+  })
+  it('LOGIC-028: reading an alert page never creates overdue alerts',async()=>{
+    const item=await equipment(),r=await nearBooking(item,owner)
+    await workflow(owner,r.id,'checkout',{version:r.version,requestId:randomUUID(),location:onCampus,conditions:[{equipmentId:item.id,condition:'good'}]})
+    await operator.query("UPDATE app.reservations SET starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' WHERE id=$1",[r.id])
+    await alerts(owner)
+    expect((await operator.query('SELECT id FROM app.user_alerts WHERE target_path=$1',['/check-in-out/?reservation='+r.id])).rows).toEqual([])
+    expect((await sweepAlerts()).created).toBeGreaterThan(0)
+    expect((await alerts<ApiPage<AppAlert>>(owner)).items.some(a=>a.targetPath.endsWith(r.id))).toBe(true)
+    expect(await sweepAlerts()).toEqual({created:0})
   })
 
 })

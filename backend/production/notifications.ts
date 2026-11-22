@@ -60,7 +60,7 @@ export async function deliverNotifications(deps: NotificationDependencies) {
   return {...result,skipped:result.skipped+skippedBeforeClaim}
 }
 /** Outside-VPC sender invokes a private IAM-only outbox store, then SES. */
-export async function handler() {
+export async function handler(event:{source?:string;[key:string]:unknown}={}) {
   const env = process.env.STUDIOSTACK_ENV, storeName = process.env.PRODUCTION_OUTBOX_FUNCTION, sender = process.env.PRODUCTION_EMAIL_FROM, webUrl = process.env.PRODUCTION_WEB_URL
   if (!['dev','prod'].includes(env ?? '') || storeName !== `studiostack-${env}-database` || !sender || !emailPattern.test(sender) || !webUrl || new URL(webUrl).protocol !== 'https:') throw new Error('Notification configuration is incomplete')
   const feedbackRecipient = process.env.FEEDBACK_EMAIL_TO
@@ -81,6 +81,15 @@ export async function handler() {
       if (attempt===0) await new Promise(resolve=>setTimeout(resolve,15000))
     }
     if (!ready) throw new Error('Development database did not become ready for notification processing')
+    if(event.source==='aws.events'){
+      try {
+        const sweep=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'app-alert-reconciliation'}))}))
+        const value=sweep.Payload?JSON.parse(Buffer.from(sweep.Payload).toString()):null
+        if(sweep.FunctionError||typeof value?.created!=='number')console.error('App alert reconciliation unavailable')
+      } catch (error) {
+        console.error('App alert reconciliation unavailable',error instanceof Error?error.name:'UnknownError')
+      }
+    }
     const result = await deliverNotifications({
     async store(request) { const response = await lambda.send(new InvokeCommand({ FunctionName: storeName, InvocationType: 'RequestResponse', Payload: Buffer.from(JSON.stringify({ task: 'production-outbox', ...request })) })); if (response.FunctionError || !response.Payload) throw new Error('Outbox operation failed'); const value = JSON.parse(Buffer.from(response.Payload).toString('utf8')); if (request.action === 'claim' ? !Array.isArray(value.jobs) : request.action === 'authorize' ? typeof value.allowed !== 'boolean' : typeof value.updated !== 'boolean') throw new Error('Invalid outbox response'); return value },
     async resolveRecipient(job) {

@@ -22,6 +22,8 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE(email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at,send_started_at,send_attempt_id) ON app.bug_reports TO ${role};
     GRANT USAGE ON SCHEMA app TO ${role};
     GRANT SELECT,INSERT ON app.email_feedback_events,app.email_suppressions TO ${role};
+    GRANT SELECT, INSERT(singleton) ON app.alert_reconciliation_cursor TO ${role};
+    GRANT UPDATE(organization_id,reservation_after,brief_after) ON app.alert_reconciliation_cursor TO ${role};
     GRANT SELECT,INSERT ON app.alert_preferences,app.user_alerts TO ${role};
     GRANT UPDATE(equipment_email,version) ON app.alert_preferences TO ${role};
     GRANT UPDATE(read_at,email_status,attempts,next_attempt_at,lease_token,lease_until,sent_at,send_started_at,send_attempt_id) ON app.user_alerts TO ${role};
@@ -58,7 +60,7 @@ export function databaseApiGrants(environment: DatabaseEnvironment) {
     GRANT UPDATE (status, attempts, next_attempt_at, lease_token, lease_until, sent_at, send_started_at,send_attempt_id) ON app.production_outbox TO ${role};
     GRANT SELECT, INSERT ON app.photo_uploads TO ${role};
     GRANT UPDATE (status, object_key, width, height, stored_size, sha256) ON app.photo_uploads TO ${role};
-    GRANT EXECUTE ON FUNCTION app.purge_expired_rows() TO ${role};
+    GRANT EXECUTE ON FUNCTION app.purge_expired_rows(), app.purge_expired_search_attempts() TO ${role};
     GRANT EXECUTE ON FUNCTION app.claim_account_email(text, text, text, text, text) TO ${role};
   `
 }
