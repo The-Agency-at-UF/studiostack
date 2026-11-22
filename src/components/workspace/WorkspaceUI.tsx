@@ -1,14 +1,20 @@
 import { TabPill } from './TabPill'
 import { tabId, tabKeys, tabsPanelId } from './tabs'
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
+import Link from 'next/link'
+import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 
 export function PageHeader({ title, actions }: { title: string; actions?: ReactNode }) {
   return <header className="ws-page-header"><div><h1>{title}</h1></div>{actions && <div className="ws-actions">{actions}</div>}</header>
 }
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'danger-solid' | 'quiet' | 'link'
+const buttonClass = (variant: ButtonVariant, className: string) => `ws-button ws-button-${variant} ${className}`.trim()
 /** The one button primitive. Use variant="primary" for the single main action of a view. */
 export function Button({ variant = 'secondary', className = '', type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return <button type={type} className={`ws-button ws-button-${variant} ${className}`.trim()} {...props} />
+  return <button type={type} className={buttonClass(variant, className)} {...props} />
+}
+/** A link that navigates but looks like a Button, e.g. "New reservation" in a page header. */
+export function ButtonLink({ variant = 'secondary', className = '', ...props }: ComponentProps<typeof Link> & { variant?: ButtonVariant }) {
+  return <Link className={buttonClass(variant, className)} {...props} />
 }
 /** Inline feedback. `action` sits at the end of the notice, e.g. a Retry button. */
 export function Notice({ children, kind = 'info', action, className = '', ...props }: HTMLAttributes<HTMLDivElement> & { kind?: 'info' | 'error' | 'success' | 'warning'; action?: ReactNode }) {
@@ -35,6 +41,10 @@ export function QueueSection({ title, action, children }: { title: string; actio
 
 export function Field({ label, className = '', children }: { label: string; className?: string; children: ReactNode }) {
   return <label className={`ws-field ${className}`}>{label}{children}</label>
+}
+/** The message under a field that failed validation. Point the input's aria-describedby at the same `id`. */
+export function FieldError({ id, children }: { id: string; children: ReactNode }) {
+  return <span className="ws-field-error" id={id}>{children}</span>
 }
 export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={`ws-select ${className}`} {...props} />

@@ -4,6 +4,7 @@ import {useEffect,useMemo,useRef,useState} from 'react'
 import type {EquipmentRecord} from '../../types/equipment'
 import type {DatabaseApi} from './live'
 import {getCached,setCached,invalidateCache} from '../../api/cache'
+import { Button } from '../../components/workspace/WorkspaceUI'
 /** Small list photo, fetched only once its row scrolls into view and shared with the inspector's photo cache. */
 export function PhotoThumbnail({api,organizationId,item}:{api:DatabaseApi;organizationId:string;item:EquipmentRecord}) {
   const cacheKey=`photo:${organizationId}:${item.id}`
@@ -53,5 +54,5 @@ export function PrivatePhoto({api,organizationId,item}:{api:DatabaseApi;organiza
     void load();
     return()=>{active=false;clearTimeout(timer)}
   },[api,organizationId,item.id,validCachedUrl,cacheKey,attempt])
-  return error&&!url?<p role="status">The private photo couldn’t load. <button type="button" className="ws-button ws-button-link" onClick={()=>{setError(false);setAttempt(n=>n+1)}}>Try again</button></p>:url?<img className="equipment-photo" src={url} alt={item.name} referrerPolicy="no-referrer" onError={()=>{invalidateCache(cacheKey);setUrl('');setError(true)}}/>:<p role="status">Loading private photo…</p>
+  return error&&!url?<p role="status">The private photo couldn’t load. <Button variant="link" onClick={()=>{setError(false);setAttempt(n=>n+1)}}>Try again</Button></p>:url?<img className="equipment-photo" src={url} alt={item.name} referrerPolicy="no-referrer" onError={()=>{invalidateCache(cacheKey);setUrl('');setError(true)}}/>:<p role="status">Loading private photo…</p>
 }

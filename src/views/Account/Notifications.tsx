@@ -4,7 +4,7 @@ import {equipmentError,useLiveOrganization,type DatabaseApi} from '../Equipment/
 import {getCached,invalidateCache} from '../../api/cache'
 import type {AlertPreferences} from '../../types/alerts'
 import {useToast} from '../../components/workspace/Toast'
-import {Button} from '../../components/workspace/WorkspaceUI'
+import { Button, Notice } from '../../components/workspace/WorkspaceUI'
 
 /** Email preferences for the current workspace. Alerts always appear in the app; email is opt-in. */
 export default function NotificationsTab() {
@@ -37,7 +37,7 @@ function EmailPreferences({api,org,orgName}:{api:DatabaseApi;org:string;orgName:
   }
   return <>
     {error&&<div className="account-card-body">
-      {error&&<div className="ws-notice ws-notice-error" role="alert"><div className="ws-notice-body">{loaded?error:<><strong>Your email preference couldn’t load.</strong> {error}</>}</div>{!loaded&&<div className="ws-notice-action"><Button disabled={loading} onClick={()=>setAttempt(n=>n+1)}>{loading?'Retrying…':'Retry'}</Button></div>}</div>}
+      {error&&<Notice kind="error" action={!loaded&&<Button disabled={loading} onClick={()=>setAttempt(n=>n+1)}>{loading?'Retrying…':'Retry'}</Button>}>{loaded?error:<><strong>Your email preference couldn’t load.</strong> {error}</>}</Notice>}
     </div>}
     <label className="account-row account-toggle">
       <div><strong id="account-equipment-email">Email me about equipment alerts</strong><span id="account-equipment-email-hint">Overdue returns, report activity and reservation conflicts in {orgName}.</span></div>

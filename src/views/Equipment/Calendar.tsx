@@ -7,12 +7,11 @@ import interactionPlugin from '@fullcalendar/interaction'
 import {softHoldsFor} from '../../production/readiness'
 import type {ProductionBrief} from '../../types/production'
 import type {DatesSetArg} from '@fullcalendar/core'
-import Link from 'next/link'
 import {HiOutlinePlus} from 'react-icons/hi2'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
 import type {EquipmentAvailability,EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {getCached,setCached} from '../../api/cache'
-import {Button,Field,PageHeader,Select,Notice,Skeleton} from '../../components/workspace/WorkspaceUI'
+import { Button, Field, PageHeader, Select, Notice, Skeleton, ButtonLink } from '../../components/workspace/WorkspaceUI'
 import {WorkspaceCalendar} from '../../components/workspace/WorkspaceCalendar'
 import {usePickedDay} from '../../components/workspace/usePickedDay'
 import {revealPanel} from '../../components/workspace/revealPanel'
@@ -82,10 +81,10 @@ function CalendarWorkspace({api,org,admin}:{api:DatabaseApi;org:string;admin:boo
  const current=visible.find(r=>r.id===selected),owned=bookings.find(r=>r.id===selected),item=items.find(i=>i.id===equipment)
  const dates=useCallback((arg:DatesSetArg)=>{const start=arg.start.toISOString(),end=arg.end.toISOString();setCached(`calendar-view:${org}`,{date:arg.view.currentStart.toISOString(),view:arg.view.type});setWindow(current=>current?.start===start&&current.end===end?current:{start,end})},[org])
  return <main className="ws-calendar-page">
-  <PageHeader title="Equipment calendar" actions={<><Button disabled={loading} onClick={retry}>{loading?'Refreshing…':'Refresh'}</Button><Link className="ws-button ws-button-primary" href="/create-reservation/"><HiOutlinePlus aria-hidden="true"/>Book gear</Link></>}/>
+  <PageHeader title="Equipment calendar" actions={<><Button disabled={loading} onClick={retry}>{loading?'Refreshing…':'Refresh'}</Button><ButtonLink variant="primary" href="/create-reservation/"><HiOutlinePlus aria-hidden="true"/>Book gear</ButtonLink></>}/>
   <div className="ws-calendar-filters">
    <Field label="Filter equipment"><Select value={equipment} onChange={e=>{setEquipment(e.target.value);setSelected('')}}><option value="">All equipment</option>{items.map(i=><option key={i.id} value={i.id}>{i.name} ({i.equipmentCode})</option>)}</Select></Field>
-   {equipment&&<p className="inventory-result-count" aria-live="polite">{visible.length} {visible.length===1?'booking':'bookings'} in view. <button type="button" className="ws-button ws-button-link" onClick={()=>{setEquipment('');setSelected('')}}>Clear filter</button></p>}
+   {equipment&&<p className="inventory-result-count" aria-live="polite">{visible.length} {visible.length===1?'booking':'bookings'} in view. <Button variant="link" onClick={()=>{setEquipment('');setSelected('')}}>Clear filter</Button></p>}
    <div className="ws-calendar-toggles"><label className="ws-check-chip"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Equipment bookings</label><label className="ws-check-chip"><input type="checkbox" checked={holds} onChange={e=>setHolds(e.target.checked)}/>Production soft holds</label></div>
    <ul className="ws-calendar-legend" aria-label="Legend">{(['reserved','checked-out','overdue'] as Status[]).map(s=><li key={s}><span className={`ws-swatch ws-swatch--${s}`} aria-hidden="true"/>{statusLabel[s]}</li>)}{holds&&<li><span className="ws-swatch ws-swatch--tentative" aria-hidden="true"/>Production soft hold</li>}</ul>
   </div>
@@ -96,11 +95,11 @@ function CalendarWorkspace({api,org,admin}:{api:DatabaseApi;org:string;admin:boo
   <div className="ws-calendar-layout">
    <WorkspaceCalendar label="Equipment bookings" viewChoices={views} dateClick={day.dateClick} dayCellClassNames={day.dayCellClassNames} plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]} initialDate={initialView?.date} initialView={initialView?.view ?? 'dayGridMonth'} datesSet={dates} events={[...events,...softEvents]} dayMaxEvents eventClick={arg=>{setSelected(arg.event.id);revealPanel('.ws-calendar-aside .ws-calendar-card h2')}} editable={false}/>
    <aside className="ws-calendar-aside" aria-label="Booking details">
-    {selected.startsWith('soft:')?<section className="ws-calendar-card"><h2>Unconfirmed soft hold</h2><p>Soft holds do not reserve equipment or crew.</p><Link className="ws-button" href={`/production/?brief=${selected.split(':')[1]}`}>Open production brief</Link></section>:current?<section className="ws-calendar-card" aria-label="Selected equipment booking">
+    {selected.startsWith('soft:')?<section className="ws-calendar-card"><h2>Unconfirmed soft hold</h2><p>Soft holds do not reserve equipment or crew.</p><ButtonLink href={`/production/?brief=${selected.split(':')[1]}`}>Open production brief</ButtonLink></section>:current?<section className="ws-calendar-card" aria-label="Selected equipment booking">
      <header><span className={`ws-calendar-badge ws-event--${statusOf(current,now)}`}>{statusLabel[statusOf(current,now)]}</span><h2>{owned?.name??'Reserved equipment'}</h2></header>
      <dl className="ws-calendar-facts"><dt>Pickup</dt><dd className="is-strong">{when(current.startsAt)}</dd><dt>Return</dt><dd className="is-strong">{when(current.endsAt)}</dd></dl>
      <div><h3>Equipment</h3><ul className="ws-calendar-list is-items">{current.equipmentIds.map(id=>{const record=items.find(i=>i.id===id);return <li key={id}><span>{record?.name??'Equipment item'}</span><span>{record?.equipmentCode}</span></li>})}</ul></div>
-     {owned&&<Link className="ws-button ws-button-primary" href={`/reservations/?reservation=${owned.id}`}>{owned.readOnly?'View reservation':'View reservation / change dates'}</Link>}
+     {owned&&<ButtonLink variant="primary" href={`/reservations/?reservation=${owned.id}`}>{owned.readOnly?'View reservation':'View reservation / change dates'}</ButtonLink>}
     </section>:<section className="ws-calendar-card" aria-label="Selected equipment reservation"><h2 className="ws-calendar-card-title">Reservation details</h2><p>Select a reservation on the calendar to see its pickup, return and equipment.</p></section>}
     <Handoffs bookings={bookings} now={now} failed={reservationsFailed} onRetry={retry}/>
    </aside>
@@ -121,6 +120,6 @@ function Handoffs({bookings,now,failed=false,onRetry}:{bookings:EquipmentReserva
  return <section className="ws-calendar-card" aria-label="Pickups and returns">
   <div><h2 className="ws-calendar-card-title">Pickups & returns</h2></div>
   {failed&&!rows.length?<div role="alert"><p>Pickups and returns couldn’t load, so today’s aren’t shown.</p>{onRetry&&<Button onClick={onRetry}>Retry</Button>}</div>:rows.length?<ul className="ws-calendar-rows">{rows.map(r=><li key={r.id} className={`ws-handoff${r.overdue?' is-overdue':''}`}><strong>{r.title}</strong><span>{r.name}</span>{r.detail&&<small>{r.detail}</small>}</li>)}</ul>:<p>No pickups or returns due today or tomorrow.</p>}
-  <Link className="ws-button" href="/check-in-out/">Scan for pickup or return</Link>
+  <ButtonLink href="/check-in-out/">Scan for pickup or return</ButtonLink>
  </section>
 }
