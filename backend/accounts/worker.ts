@@ -1,6 +1,6 @@
 import {reconcileDeletion,deletionTask,type DeletionRequest} from './deletion'
 import {assertRecipientAllowed} from '../email/feedback'
-import {deliverLeased} from '../email/delivery'
+import {deliverLeased,prepareDelivery} from '../email/delivery'
 import {AdminCreateUserCommand,AdminDeleteUserCommand,AdminGetUserCommand,CognitoIdentityProviderClient,DeleteUserCommand,GetUserCommand,ListUsersCommand} from '@aws-sdk/client-cognito-identity-provider'
 import {InvokeCommand,LambdaClient} from '@aws-sdk/client-lambda'
 import {SendEmailCommand,SESv2Client} from '@aws-sdk/client-sesv2'
@@ -60,10 +60,16 @@ export async function handleDirectory(event:APIGatewayProxyEventV2WithJWTAuthori
     return result.statusCode?response(result.statusCode,{error:result.error}):response(200,result)
   } catch(error){return error instanceof ApiError?response(error.status,{error:error.message}):response(503,{error:'Account services are temporarily unavailable'})}
 }
-export async function deliverInvitations(deps:{store(request:InvitationQueueRequest):Promise<{jobs?:InvitationJob[];updated?:boolean}>;send(job:InvitationJob):Promise<void>}) {
+export async function deliverInvitations(deps:{store(request:InvitationQueueRequest):Promise<{jobs?:InvitationJob[];updated?:boolean}>;prepare(job:InvitationJob):Promise<()=>Promise<void>>}) {
   const {jobs=[]}=await deps.store({action:'claim'})
   const {claimed,sent,failed}=await deliverLeased({jobs,rejected:['MessageRejected','InvalidParameterException','CodeDeliveryFailureException','UnverifiedRecipient'],ackError:'Invitation acknowledgement failed',
-    deliver:async job=>{await deps.send(job);return 'sent' as const},
+    deliver:async job=>{
+      const send=await prepareDelivery(()=>deps.prepare(job))
+      const lease={organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken}
+      if(!(await prepareDelivery(()=>deps.store({action:'begin',...lease}))).updated)return 'skipped' as const
+      await send()
+      return 'sent' as const
+    },
     ack:(job,outcome)=>deps.store({action:'ack',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken,outcome})})
   return {claimed,sent,failed}
 }
@@ -101,15 +107,19 @@ export async function handler(event:Record<string,unknown>={}) {
       }
     }
     console.log(JSON.stringify({service:'account-deletion',completed,pending:deletions.jobs.length-completed}))
-    const result=await deliverInvitations({store:input=>invoke('account-invitation-queue',input),send:async job=>{
-      await assertRecipientAllowed(job.email,request=>invoke('email-feedback',request))
+    const result=await deliverInvitations({store:input=>invoke('account-invitation-queue',input),prepare:async job=>{
+      await assertRecipientAllowed(job.email,async request=>{
+        const value=await invoke<{allowed?:boolean}>('email-feedback',request)
+        if(typeof value.allowed!=='boolean')throw new Error('Invitation suppression lookup unavailable')
+        return value
+      })
       const users=(await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`email = ${JSON.stringify(job.email)}`,Limit:2}))).Users??[]
       if(users.length>1)throw Object.assign(new Error('Ambiguous recipient'),{name:'UnverifiedRecipient'})
-      if(!users.length){await cognito.send(new AdminCreateUserCommand({UserPoolId:pool,Username:job.email,DesiredDeliveryMediums:['EMAIL'],UserAttributes:[{Name:'email',Value:job.email},{Name:'name',Value:job.displayName}]}));return}
+      if(!users.length)return async()=>{await cognito.send(new AdminCreateUserCommand({UserPoolId:pool,Username:job.email,DesiredDeliveryMediums:['EMAIL'],UserAttributes:[{Name:'email',Value:job.email},{Name:'name',Value:job.displayName}]}))}
       const user=await cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:users[0].Username!})),attrs=Object.fromEntries((user.UserAttributes??[]).map(a=>[a.Name,a.Value]))
       if(!user.Enabled||attrs.email?.toLowerCase()!==job.email)throw Object.assign(new Error('Recipient unavailable'),{name:'UnverifiedRecipient'})
-      if(user.UserStatus==='FORCE_CHANGE_PASSWORD'){await cognito.send(new AdminCreateUserCommand({UserPoolId:pool,Username:user.Username!,MessageAction:'RESEND',DesiredDeliveryMediums:['EMAIL']}));return}
-      await ses.send(new SendEmailCommand({FromEmailAddress:from,Destination:{ToAddresses:[job.email]},...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),Content:{Simple:{Subject:{Data:`StudioStack invitation: ${job.organizationName}`.replace(/[\r\n]/g,' ').slice(0,200)},Body:{Text:{Data:`You were invited to ${job.organizationName} as ${job.role}.\n\nSign in at ${new URL('/login/',web).href}, verify your sign-in email and accept the invitation in your account. The invitation expires after seven days. If you did not expect it, you can ignore it.`}}}},EmailTags:[{Name:'StudioStackInvitation',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))
+      if(user.UserStatus==='FORCE_CHANGE_PASSWORD')return async()=>{await cognito.send(new AdminCreateUserCommand({UserPoolId:pool,Username:user.Username!,MessageAction:'RESEND',DesiredDeliveryMediums:['EMAIL']}))}
+      return async()=>{await ses.send(new SendEmailCommand({FromEmailAddress:from,Destination:{ToAddresses:[job.email]},...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),Content:{Simple:{Subject:{Data:`StudioStack invitation: ${job.organizationName}`.replace(/[\r\n]/g,' ').slice(0,200)},Body:{Text:{Data:`You were invited to ${job.organizationName} as ${job.role}.\n\nSign in at ${new URL('/login/',web).href}, verify your sign-in email and accept the invitation in your account. The invitation expires after seven days. If you did not expect it, you can ignore it.`}}}},EmailTags:[{Name:'StudioStackInvitation',Value:job.id},{Name:'StudioStackAttempt',Value:job.leaseToken}]}));await new Promise(resolve=>setTimeout(resolve,1100))}
     }})
     console.log(JSON.stringify({service:'account-invitations',...result}));return result
   } finally {lambda.destroy();cognito.destroy();ses.destroy()}

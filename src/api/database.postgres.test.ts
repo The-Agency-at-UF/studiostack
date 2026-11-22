@@ -8,6 +8,7 @@ import type {EquipmentRequest} from '../../backend/equipment/routes'
 import type {EquipmentReservation,EquipmentReport,EquipmentAvailability} from '../types/equipment'
 // @vitest-environment node
 import { outboxTask } from '../../backend/production/outbox'
+import { deliverNotifications } from '../../backend/production/notifications'
 import { dispatchAccounts } from '../../backend/accounts/repository'
 import { deletionTask } from '../../backend/accounts/deletion'
 import {directoryTask,type DirectoryRequest} from '../../backend/accounts/directory'
@@ -823,9 +824,20 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
   it('alerts: expired leases become uncertain instead of sending duplicate messages',async()=>{
     await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:true,version:2}})
     const item=await equipment(),r=await issue(item,'low');await report(secondMember,{method:'POST',reportId:r.id,activity:true,body:{message:'Tracking.',requestId:randomUUID()}});await report(owner,{method:'POST',reportId:r.id,activity:true,body:{message:'Repair booked.',requestId:randomUUID()}})
-    const claimed=await alertQueue({action:'claim'}),job=claimed.jobs![0];expect(job).toBeDefined();await operator.query("UPDATE app.user_alerts SET lease_until=now()-interval '1 minute' WHERE id=$1",[job.id])
+    const claimed=await alertQueue({action:'claim'}),job=claimed.jobs![0];expect(job).toBeDefined()
+    await alertQueue({action:'authorize',organizationId:job.organizationId,id:job.id,leaseToken:job.leaseToken})
+    await operator.query("UPDATE app.user_alerts SET lease_until=now()-interval '1 minute' WHERE id=$1",[job.id])
     expect((await alertQueue({action:'claim'})).jobs).toHaveLength(0);expect((await operator.query('SELECT email_status FROM app.user_alerts WHERE id=$1',[job.id])).rows[0].email_status).toBe('uncertain')
     await alerts(secondMember,{resource:'preferences',method:'PATCH',body:{equipmentEmail:false,version:3}})
+  })
+  it('LOGIC-015: an expired lease with no provider attempt is reclaimed',async()=>{
+    const report=await repository.execute(member,{operation:'bugReport',organizationId,kind:'bug',title:'Unstarted message',description:'Safe to retry.',pagePath:'/reports/',requestId:randomUUID()}) as {id:string}
+    const first=(await bugReportQueue({action:'claim'})).jobs!.find(job=>job.id===report.id)!
+    await operator.query("UPDATE app.bug_reports SET lease_until=now()-interval '1 minute' WHERE id=$1",[report.id])
+    const next=(await bugReportQueue({action:'claim'})).jobs!.find(job=>job.id===report.id)
+    expect(next?.leaseToken).toBeDefined()
+    expect(next?.leaseToken).not.toBe(first.leaseToken)
+    expect((await operator.query('SELECT attempts FROM app.bug_reports WHERE id=$1',[report.id])).rows[0].attempts).toBe(1)
   })
 
   it('email feedback schema: recipient hashes are constrained and events deduplicated',async()=>{
@@ -1275,7 +1287,10 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     const denied=await command(owner,b,'deny','Please provide location permission before resubmitting.')
     const own=await production(member,{resource:'briefs',method:'GET',briefId:b.id}) as ProductionBrief
     expect(own.events).toEqual([expect.objectContaining({kind:'denied',comment:'Please provide location permission before resubmitting.',snapshot:null})])
-    expect((await operator.query("SELECT payload FROM app.production_outbox WHERE brief_id=$1 AND recipient_id=$2",[denied.id,profiles.member.id])).rows).toEqual([expect.objectContaining({payload:expect.objectContaining({decision:'denied',comment:'Please provide location permission before resubmitting.'})})])
+    const queued = await operator.query(`SELECT o.payload,e.comment FROM app.production_outbox o
+      JOIN app.production_brief_events e ON e.id=o.event_id WHERE o.brief_id=$1 AND o.recipient_id=$2`,[denied.id,profiles.member.id])
+    expect(queued.rows).toEqual([{payload:expect.objectContaining({decision:'denied'}),comment:'Please provide location permission before resubmitting.'}])
+    expect(queued.rows[0].payload).not.toHaveProperty('comment')
   })
 
   it('LOGIC-002: concurrent promotion and retirement preserve an active owner', async () => {
@@ -1314,6 +1329,43 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await deletion.end()
     }
   })
+  it('LOGIC-003: revoked recipients are skipped before claim and after leasing', async () => {
+    const org = '00000000-0000-4000-8000-000000000061'
+    const first = {issuer,subject:randomUUID(),email:null}
+    const second = {issuer,subject:randomUUID(),email:null}
+    const one = await repository.execute(first,{operation:'register',displayName:'Executive one'}) as ApiUser
+    const two = await repository.execute(second,{operation:'register',displayName:'Executive two'}) as ApiUser
+    const ownerId = profiles.owner.id
+    await operator.query("INSERT INTO app.organizations (id,slug,name) VALUES ($1,'decision-authorization','Decision authorization')",[org])
+    await operator.query("INSERT INTO app.organization_memberships (organization_id,user_id,role,status) VALUES ($1,$2,'owner','active'),($1,$3,'member','active'),($1,$4,'member','active')",[org,ownerId,one.id,two.id])
+    await operator.query('INSERT INTO app.production_settings (organization_id,executive_ids) VALUES ($1,$2)',[org,[one.id,two.id]])
+    const draftData = (await draft()).data
+    const brief = await production(owner,{organizationId:org,resource:'briefs',method:'POST',body:{data:draftData,requestId:randomUUID()}}) as ProductionBrief
+    const submitted = await production(owner,{organizationId:org,resource:'actions',method:'POST',briefId:brief.id,body:{action:'submit',version:brief.version,requestId:randomUUID()}}) as ProductionBrief
+    await production(owner,{organizationId:org,resource:'actions',method:'POST',briefId:brief.id,body:{action:'approve',version:submitted.version,requestId:randomUUID()}})
+    await operator.query('UPDATE app.production_settings SET executive_ids=ARRAY[$2]::uuid[] WHERE organization_id=$1',[org,two.id])
+    const worker = new pg.Client({connectionString})
+    await worker.connect()
+    try {
+      await worker.query('SET ROLE "studiostack_dev_app"')
+      const claim = await outboxTask(worker,{action:'claim'})
+      const testJobs = claim.jobs!.filter(job => job.organizationId===org)
+      expect(testJobs.map(job=>job.recipientSubject)).toEqual(expect.arrayContaining([owner.subject,second.subject]))
+      expect(testJobs).toHaveLength(2)
+      expect(testJobs[0]).not.toHaveProperty('payload')
+      await operator.query("UPDATE app.organization_memberships SET status='suspended' WHERE organization_id=$1 AND user_id=$2",[org,two.id])
+      const recipients: string[] = []
+      await deliverNotifications({
+        store: input => input.action==='claim' ? Promise.resolve({jobs:testJobs}) : outboxTask(worker,input),
+        resolveRecipient: async job => job.recipientSubject,
+        send: async (_, recipient) => { recipients.push(recipient) },
+      })
+      expect(recipients).toEqual([owner.subject])
+      const rows = (await operator.query('SELECT recipient_id,status FROM app.production_outbox WHERE brief_id=$1',[brief.id])).rows
+      expect(rows).toEqual(expect.arrayContaining([{recipient_id:one.id,status:'skipped'},{recipient_id:two.id,status:'skipped'},{recipient_id:ownerId,status:'sent'}]))
+    } finally { await worker.end() }
+  })
+
   it('LOGIC-006 and LOGIC-007: a pending provider deletion blocks profile reuse and prunes former Production roles', async () => {
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
     const user=await repository.execute(identity,{operation:'register',displayName:'Retiring reviewer'}) as ApiUser
@@ -1375,6 +1427,28 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await deciding?.catch(()=>undefined)
       await decision.end()
     }
+  })
+  it('LOGIC-023: feedback only updates the corresponding delivery attempt',async()=>{
+    const row=await repository.execute(member,{operation:'bugReport',organizationId,kind:'bug',title:'Attempt fixture',description:'Delivery test.',pagePath:'/reports/',requestId:randomUUID()}) as {id:string}
+    const job=(await bugReportQueue({action:'claim'})).jobs!.find(candidate=>candidate.id===row.id)!
+    await bugReportQueue({action:'begin',organizationId,id:row.id,leaseToken:job.leaseToken})
+    const evidence={action:'record' as const,kind:'bounce' as const,deliveryId:row.id,hashes:[emailHash('old-attempt@example.org')],attemptId:randomUUID()}
+    await feedback({...evidence,id:randomUUID()})
+    await bugReportQueue({action:'ack',organizationId,id:row.id,leaseToken:job.leaseToken,outcome:'sent'})
+    await feedback({...evidence,id:randomUUID()})
+    expect((await operator.query('SELECT email_status FROM app.bug_reports WHERE id=$1',[row.id])).rows[0].email_status).toBe('sent')
+    await feedback({...evidence,id:randomUUID(),attemptId:job.leaseToken})
+    expect((await operator.query('SELECT email_status FROM app.bug_reports WHERE id=$1',[row.id])).rows[0].email_status).toBe('suppressed')
+  })
+  it('LOGIC-024: a revoked invitation cannot begin a provider send',async()=>{
+    const i=await invitation(),leaseToken=randomUUID()
+    await operator.query("UPDATE app.organization_invitations SET delivery_status='sending',lease_token=$2,lease_until=now()+interval '5 minutes' WHERE id=$1",[i.id,leaseToken])
+    await account(owner,{resource:'invitations',method:'POST',invitationId:i.id,action:'revoke',body:{version:i.version,requestId:randomUUID()}})
+    const worker=new pg.Client({connectionString})
+    try {
+      await worker.connect();await worker.query('SET ROLE "studiostack_dev_app"')
+      expect(await invitationQueueTask(worker,{action:'begin',organizationId,id:i.id,leaseToken})).toEqual({updated:false})
+    } finally { await worker.end() }
   })
 
 })

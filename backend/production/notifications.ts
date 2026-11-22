@@ -1,11 +1,11 @@
 import {assertRecipientAllowed} from '../email/feedback'
 import {alertEmail,deliverAppAlerts} from '../alerts/delivery'
 import {bugReportEmail,deliverBugReports} from '../bug-reports/delivery'
-import { deliverLeased, rejectedSesErrors } from '../email/delivery'
+import { deliverLeased, prepareDelivery, rejectedSesErrors } from '../email/delivery'
 import { AdminGetUserCommand, CognitoIdentityProviderClient, ListUsersCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
-import type { NotificationJob, OutboxRequest } from './outbox'
+import type { NotificationJob, NotificationLease, OutboxRequest, OutboxResult } from './outbox'
 import { emailPattern, userPoolPattern } from '../../src/types/patterns'
 export function decisionEmail(job: NotificationJob, webUrl: string) {
   const url = new URL('/production/',webUrl)
@@ -16,7 +16,11 @@ export function decisionEmail(job: NotificationJob, webUrl: string) {
     p.section ? `Section: ${p.section}` : '', p.comment ? `Comments: ${p.comment}` : '', `Target delivery: ${p.deliveryDate || 'Not set'}`, p.shootStartsAt ? `Confirmed shoot: ${p.shootStartsAt} to ${p.shootEndsAt} (end exclusive)` : '', '', `Open brief: ${url.href}`,
   ].filter(Boolean).join('\n') }
 }
-interface NotificationDependencies { store(request: OutboxRequest): Promise<{ jobs?: NotificationJob[]; updated?: boolean }>; send(job: NotificationJob): Promise<void> }
+interface NotificationDependencies {
+  store(request: OutboxRequest): Promise<OutboxResult>
+  resolveRecipient(job: NotificationLease): Promise<string>
+  send(job: NotificationJob, recipient: string): Promise<void>
+}
 type Attributes = { Name?: string; Value?: string }[]
 interface RecipientDirectory {
   find(subject: string): Promise<{ Username?: string; Attributes?: Attributes }[]>
@@ -35,11 +39,25 @@ export async function verifiedRecipient(job: Pick<NotificationJob,'recipientSubj
   return email
 }
 export async function deliverNotifications(deps: NotificationDependencies) {
-  const { jobs = [] } = await deps.store({ action: 'claim' })
-  const { claimed, sent, failed } = await deliverLeased({ jobs, rejected: rejectedSesErrors, ackError: 'Delivery acknowledgement failed; inspect the lease before retrying',
-    deliver: async job => { await deps.send(job); return 'sent' as const },
+  const { jobs = [], skippedBeforeClaim = 0 } = await deps.store({ action: 'claim' })
+  const result = await deliverLeased({ jobs, rejected: rejectedSesErrors, ackError: 'Delivery acknowledgement failed; inspect the lease before retrying',
+    async deliver(job) {
+      let recipient: string
+      try {
+        recipient = await deps.resolveRecipient(job)
+      } catch (error) {
+        if (error instanceof Error && ['UnverifiedRecipient','UserNotFoundException'].includes(error.name)) return 'skipped'
+        throw Object.assign(new Error('Decision email recipient lookup failed',{cause:error}),{name:'DeliveryPreparationError'})
+      }
+
+      const authorization = await prepareDelivery(()=>deps.store({ action: 'authorize', organizationId: job.organizationId, id: job.id, leaseToken: job.leaseToken }))
+      if (authorization.allowed === false) return 'skipped'
+      if (authorization.allowed !== true || !authorization.payload) throw Object.assign(new Error('Decision delivery authorization unavailable'),{name:'DeliveryPreparationError'})
+      await deps.send({...job,payload:authorization.payload},recipient)
+      return 'sent'
+    },
     ack: (job, outcome) => deps.store({ action: 'ack', organizationId: job.organizationId, id: job.id, leaseToken: job.leaseToken, outcome }) })
-  return { claimed, sent, failed }
+  return {...result,skipped:result.skipped+skippedBeforeClaim}
 }
 /** Outside-VPC sender invokes a private IAM-only outbox store, then SES. */
 export async function handler() {
@@ -64,22 +82,27 @@ export async function handler() {
     }
     if (!ready) throw new Error('Development database did not become ready for notification processing')
     const result = await deliverNotifications({
-    async store(request) { const response = await lambda.send(new InvokeCommand({ FunctionName: storeName, InvocationType: 'RequestResponse', Payload: Buffer.from(JSON.stringify({ task: 'production-outbox', ...request })) })); if (response.FunctionError || !response.Payload) throw new Error('Outbox operation failed'); const value = JSON.parse(Buffer.from(response.Payload).toString('utf8')); if (request.action === 'claim' ? !Array.isArray(value.jobs) : typeof value.updated !== 'boolean') throw new Error('Invalid outbox response'); return value },
-    async send(job) {
+    async store(request) { const response = await lambda.send(new InvokeCommand({ FunctionName: storeName, InvocationType: 'RequestResponse', Payload: Buffer.from(JSON.stringify({ task: 'production-outbox', ...request })) })); if (response.FunctionError || !response.Payload) throw new Error('Outbox operation failed'); const value = JSON.parse(Buffer.from(response.Payload).toString('utf8')); if (request.action === 'claim' ? !Array.isArray(value.jobs) : request.action === 'authorize' ? typeof value.allowed !== 'boolean' : typeof value.updated !== 'boolean') throw new Error('Invalid outbox response'); return value },
+    async resolveRecipient(job) {
       const recipient = await verifiedRecipient(job,pool,{
         async find(subject) { return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users ?? [] },
         get(username) { return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username})) },
       })
-      const email = decisionEmail(job,webUrl);await recipientAllowed(recipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}), FromEmailAddress: sender, Destination: { ToAddresses: [recipient] }, Content: { Simple: { Subject: { Data: email.subject, Charset: 'UTF-8' }, Body: { Text: { Data: email.text, Charset: 'UTF-8' } } } }, EmailTags: [{ Name: 'StudioStackDelivery', Value: job.id }] })); await new Promise(resolve=>setTimeout(resolve,1100)) },
+      await recipientAllowed(recipient)
+      return recipient
+    },
+    async send(job,recipient) {
+      const email = decisionEmail(job,webUrl);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}), FromEmailAddress: sender, Destination: { ToAddresses: [recipient] }, Content: { Simple: { Subject: { Data: email.subject, Charset: 'UTF-8' }, Body: { Text: { Data: email.text, Charset: 'UTF-8' } } } }, EmailTags: [{ Name: 'StudioStackDelivery', Value: job.id }, { Name: 'StudioStackAttempt', Value: job.leaseToken }] })); await new Promise(resolve=>setTimeout(resolve,1100)) },
   })
     const alerts=await deliverAppAlerts({
       async store(request){const response=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'app-alert-outbox',...request}))}));if(response.FunctionError||!response.Payload)throw new Error('Alert outbox unavailable');const value=JSON.parse(Buffer.from(response.Payload).toString('utf8'));if(request.action==='claim'?!Array.isArray(value.jobs):request.action==='authorize'?typeof value.allowed!=='boolean':typeof value.updated!=='boolean')throw new Error('Invalid alert outbox response');return value},
-      async send(job){const recipient=await verifiedRecipient(job,pool,{async find(subject){return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users??[]},get(username){return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))}}),email=alertEmail(job,webUrl);await recipientAllowed(recipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[recipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
+      async prepare(job){const recipient=await verifiedRecipient(job,pool,{async find(subject){return (await cognito.send(new ListUsersCommand({UserPoolId:pool,Filter:`sub = "${subject}"`,Limit:2}))).Users??[]},get(username){return cognito.send(new AdminGetUserCommand({UserPoolId:pool,Username:username}))}});await recipientAllowed(recipient);return async()=>{const email=alertEmail(job,webUrl);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[recipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id},{Name:'StudioStackAttempt',Value:job.leaseToken}]}));await new Promise(resolve=>setTimeout(resolve,1100))}},
     })
     // Without a configured support address, reports stay pending until one is set.
     const bugReports=feedbackRecipient?await deliverBugReports({
       async store(request){const response=await lambda.send(new InvokeCommand({FunctionName:storeName,InvocationType:'RequestResponse',Payload:Buffer.from(JSON.stringify({task:'bug-report-outbox',...request}))}));if(response.FunctionError||!response.Payload)throw new Error('Bug report outbox unavailable');const value=JSON.parse(Buffer.from(response.Payload).toString('utf8'));if(request.action==='claim'?!Array.isArray(value.jobs):typeof value.updated!=='boolean')throw new Error('Invalid bug report outbox response');return value},
-      async send(job){const email=bugReportEmail(job,webUrl);await recipientAllowed(feedbackRecipient);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[feedbackRecipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
+      async prepare(){await recipientAllowed(feedbackRecipient)},
+      async send(job){const email=bugReportEmail(job,webUrl);await ses.send(new SendEmailCommand({...(process.env.SES_CONFIGURATION_SET?{ConfigurationSetName:process.env.SES_CONFIGURATION_SET}:{}),FromEmailAddress:sender,Destination:{ToAddresses:[feedbackRecipient]},Content:{Simple:{Subject:{Data:email.subject,Charset:'UTF-8'},Body:{Text:{Data:email.text,Charset:'UTF-8'}}}},EmailTags:[{Name:'StudioStackDelivery',Value:job.id},{Name:'StudioStackAttempt',Value:job.leaseToken}]}));await new Promise(resolve=>setTimeout(resolve,1100))},
     }):undefined
     console.log(JSON.stringify({service:'app-alerts',...alerts}));if(bugReports)console.log(JSON.stringify({service:'bug-reports',...bugReports}));console.log(JSON.stringify({service:'production-notifications',...result}));return {...result,alerts,...(bugReports?{bugReports}:{})} } finally { lambda.destroy(); ses.destroy(); cognito.destroy() }
 }

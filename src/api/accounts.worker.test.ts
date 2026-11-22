@@ -79,7 +79,7 @@ describe('verified invitation bridge and delivery',()=>{
   })
   it.each([['TooManyRequestsException','retry'],['MessageRejected','failed'],['TimeoutError','uncertain']])('handles %s without blindly resending',async(name,outcome)=>{
     const job={id,organizationId:org,organizationName:'Studio',email:'a@example.org',displayName:'A',role:'member',attempts:1,leaseToken:id},store=vi.fn().mockResolvedValueOnce({jobs:[job]}).mockResolvedValue({updated:true}),send=vi.fn().mockRejectedValue(Object.assign(new Error('Synthetic'),{name}))
-    await deliverInvitations({store,send});expect(send).toHaveBeenCalledTimes(1);expect(store).toHaveBeenLastCalledWith(expect.objectContaining({outcome,leaseToken:id}))
+    await deliverInvitations({store,prepare:async job=>()=>send(job)});expect(send).toHaveBeenCalledTimes(1);expect(store).toHaveBeenLastCalledWith(expect.objectContaining({outcome,leaseToken:id}))
   })
   it('creates only JWT account routes and scoped directory/delivery permissions',()=>{
     const template=accountInfrastructure({environment:'dev',artifactBucket:'studio-stack-photos-dev',artifactKey:'deployments/accounts/test.zip',pool:'us-east-2_test',client:'client',apiId:config.apiId,authorizerId:'auth',sender:'owner@example.org',webUrl:'https://studio.example.org'})
