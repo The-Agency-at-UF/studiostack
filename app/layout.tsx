@@ -1,13 +1,27 @@
-import 'reactjs-popup/dist/index.css'
+// Every stylesheet loads here, once, in a fixed order. Route-level imports let the cascade change with the
+// order routes were visited; importing them all in the root layout keeps it the same on every page.
 import '../src/index.css'
-import '../src/App.css'
 import '../src/styles/tokens.css'
+import '../src/App.css'
 import '../src/styles/workspace.css'
 import '../src/styles/calendar.css'
 import '../src/views/Organization/Organization.css'
+import '../src/styles/shell.css'
+import '../src/styles/tour.css'
+import '../src/components/workspace/ConfirmDialog.css'
+import '../src/views/Accounts/Administration.css'
+import '../src/views/Equipment/Equipment.css'
+import '../src/views/Equipment/Reservations.css'
+import '../src/views/Production/Production.css'
+import '../src/views/Account/Account.css'
+import '../src/views/Organization/OrganizationDirectory.css'
+import '../src/views/Organization/OrganizationHeader.css'
 import AppShell from '../src/components/AppShell'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
+
+// The page draws under iOS notches and the home indicator; sticky bars pad themselves with env(safe-area-inset-*).
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' }
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://main.dxs0q7vrz4oko.amplifyapp.com'),
