@@ -2,8 +2,8 @@ import {PreviewError} from './errors'
 import type {AccountClient} from '../api/accounts'
 import {canChangeMemberAccess} from '../accounts/member-permissions'
 import type {JoinCode,OrganizationInvitation} from '../types/accounts'
-import type {ProductionSettings} from '../types/production'
-import {readPreview,writePreview} from './storage'
+import {readPreviewProductionState} from '../production/preview'
+import {readPreview} from './storage'
 import {readWorkspace,mutateWorkspace,memberFor,requirePreviewAdmin,previewActivity,previewReceipt,previewVersion} from './workspace'
 const page=<T>(items:T[])=>({items:structuredClone(items),nextCursor:null})
 const label=(text:string,max:number)=>{if(!text.trim()||text.trim().length>max)throw new PreviewError('Check the required fields and text length.');return text.trim()}
@@ -24,8 +24,9 @@ export function createPreviewAccounts(person:string):AccountClient {
   if(row.role==='owner'&&input.role!=='owner'&&!s.members.some(m=>m.id!==id&&m.role==='owner'&&m.status==='active'))throw new PreviewError('Keep at least one active organization owner.')
   Object.assign(row,{role:input.role,status:input.status,version:row.version+1})
   if(input.status==='suspended'){
-   const production=readPreview<{settings:ProductionSettings;[key:string]:unknown}|null>('studiostack-production-preview-v1',()=>null)
-   if(production){production.settings={...production.settings,reviewerIds:production.settings.reviewerIds.filter(p=>p!==id),executiveIds:production.settings.executiveIds.filter(p=>p!==id),version:production.settings.version+1};writePreview('studiostack-production-preview-v1',production)}
+   const production=readPreviewProductionState(s)
+   production.settings={...production.settings,reviewerIds:production.settings.reviewerIds.filter(p=>p!==id),executiveIds:production.settings.executiveIds.filter(p=>p!==id),version:production.settings.version+1}
+   s.production=production
   }
   previewActivity(s,person,'member_updated',id,{role:row.role,status:row.status});return row
  }),

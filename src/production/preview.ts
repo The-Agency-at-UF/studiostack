@@ -1,12 +1,13 @@
-import {readPreview,writePreview} from '../preview/storage'
-import {memberFor,previewAdmin,readWorkspace,saveWorkspace,addPreviewAlert} from '../preview/workspace'
+import {readPreview} from '../preview/storage'
+import {memberFor,previewAdmin,readWorkspace,saveWorkspace,addPreviewAlert,previewReceipt} from '../preview/workspace'
 import {previewFileUrl,previewPhotoKey,previewAttachmentKey,readPreviewFile} from '../preview/media'
 import {attachmentCategories,type Delivery} from '../types/production'
 import {softHoldsFor} from './readiness'
 import { briefSections, dateErrors, emptyBrief, normalizedBrief, submissionErrors, type ClientAccount, type ProductionIdea, type BriefCommand, type BriefData, type ProductionAccess, type ProductionBrief, type ProductionSettings } from '../types/production'
 import type { ProductionClient } from '../api/production'
 export {previewPeople} from '../preview/people'
-type State = { demoVersion?:number; briefs: ProductionBrief[]; settings: ProductionSettings; clients?:ClientAccount[]; ideas?:ProductionIdea[]; deliveries?:(Delivery&{recipientId:string})[] }
+export type PreviewProductionState = { demoVersion?:number; briefs: ProductionBrief[]; settings: ProductionSettings; clients?:ClientAccount[]; ideas?:ProductionIdea[]; deliveries?:(Delivery&{recipientId:string})[] }
+type State = PreviewProductionState
 const key = 'studiostack-production-preview-v1'
 function initial(): State {
   const data = emptyBrief(), start = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10), delivery = new Date(Date.now() + 21 * 86400_000).toISOString().slice(0, 10)
@@ -14,12 +15,13 @@ function initial(): State {
   const now = new Date().toISOString()
   return { clients:[{id:'preview-client',name:'Example client',version:1,createdBy:'preview-admin',deletedAt:null}],settings: { version: 1, reviewerIds: ['preview-reviewer'], executiveIds: ['preview-executive'], approvalConfirmsDates: true }, briefs: [{ id: 'preview-brief', organizationId: 'preview', ownerId: 'preview-author', ownerName: 'Alex · Client Services', data, status: 'submitted', version: 1, submission: 1, shootStartsAt: null, shootEndsAt: null, createdAt: now, updatedAt: now, attachments: [], events: [{ id: 'preview-event', actorId: 'preview-author', actorName: 'Alex · Client Services', kind: 'submitted', comment: '', section: '', version: 1, createdAt: now, snapshot: structuredClone(data) }] }] }
 }
-function load(): State {const state=readPreview(key,initial);for(const c of state.clients??[]){c.createdBy??='preview-admin';c.deletedAt??=c.archivedAt??null}if(state.demoVersion!==2){const sample=structuredClone(initial().briefs[0]),date=new Date(Date.now()+86400000).toISOString().slice(0,10);sample.id='preview-readiness-example';sample.data.projectName='Example: shoot readiness check';sample.data.fields.proposedStart=date;sample.data.fields.proposedEnd=date;sample.events=[];if(!state.briefs.some(b=>b.id===sample.id))state.briefs.push(sample);state.demoVersion=2;writePreview(key,state)}return state}
+export function readPreviewProductionState(workspace=readWorkspace()): State {const state=workspace.production??readPreview(key,initial);for(const c of state.clients??[]){c.createdBy??='preview-admin';c.deletedAt??=c.archivedAt??null}if(state.demoVersion!==2){const sample=structuredClone(initial().briefs[0]),date=new Date(Date.now()+86400000).toISOString().slice(0,10);sample.id='preview-readiness-example';sample.data.projectName='Example: shoot readiness check';sample.data.fields.proposedStart=date;sample.data.fields.proposedEnd=date;sample.events=[];if(!state.briefs.some(b=>b.id===sample.id))state.briefs.push(sample);state.demoVersion=2}return state}
 export function createPreviewProductionClient(person: string): ProductionClient {
+  const load=readPreviewProductionState
   const access = (state: State): ProductionAccess => ({ userId: person, canReview: previewAdmin(person)||state.settings.reviewerIds.includes(person), canAdminister: previewAdmin(person), isExecutive: state.settings.executiveIds.includes(person), notificationsConfigured: true })
   const readable = (b: ProductionBrief, state: State) => person === b.ownerId || access(state).canAdminister || b.status !== 'draft'
   function find(state: State, id: string) { memberFor(person);const brief = state.briefs.find(b => b.id === id); if (!brief || !readable(brief, state)) throw new Error('Brief not found'); return brief }
-  const persist = (state: State) => { writePreview(key,state) }
+  const persist = (state: State, workspace=readWorkspace()) => { workspace.production=state;saveWorkspace(workspace) }
   const append = (brief:ProductionBrief,kind:string,comment='',section='',snapshot:BriefData|null=null,state?:State) => {
     brief.updatedAt=new Date().toISOString();const actor=memberFor(person),event={id:crypto.randomUUID(),actorId:person,actorName:actor.displayName??'Preview teammate',kind,comment,section,snapshot,attachments:snapshot?structuredClone(brief.attachments.filter(a=>a.status==='ready')):[],shootStartsAt:brief.shootStartsAt,shootEndsAt:brief.shootEndsAt,version:brief.version,createdAt:brief.updatedAt};brief.events.push(event)
     if(state&&['approved','denied','changes_requested','scheduled','withdrawn'].includes(kind)){
@@ -42,12 +44,19 @@ export function createPreviewProductionClient(person: string): ProductionClient 
     updateClient:async(id,input)=>{const s=load(),c=s.clients?.find(c=>c.id===id);if(!c)throw new Error('Client unavailable');const changesStatus=input.deleted!==Boolean(c.deletedAt);if(changesStatus&&!(access(s).canAdminister||c.createdBy===person)||!access(s).canReview&&(!changesStatus||input.name!==c.name))throw new Error('Client unavailable');if(input.version!==c.version)throw new Error('Client changed');Object.assign(c,{name:input.name,deletedAt:input.deleted?new Date().toISOString():null,version:c.version+1,...(input.logoPhotoId!==undefined?{logoPhotoId:input.logoPhotoId}:{})});if(c.logoPhotoId&&!readWorkspace().photos[c.logoPhotoId]?.ready)throw new Error('Upload a ready logo in this preview first.');persist(s);return structuredClone(c)},
     clientLogo:async id=>{memberFor(person);const c=load().clients?.find(c=>c.id===id);if(!c?.logoPhotoId)throw new Error('Client logo not found');return previewFileUrl(previewPhotoKey(c.logoPhotoId))},
     assign:async(id,input)=>{
-      const s=load(),b=find(s,id);if(!access(s).canReview||b.status!=='approved'||!b.shootStartsAt&&(b.data.productionTypes.some(t=>['Photography','Videography'].includes(t))||!b.data.crewRequests?.length))throw new Error('Approve and schedule the shoot first.');if(input.version!==b.version)throw new Error('Brief changed. Refresh before saving.')
+      const workspace=readWorkspace(),s=load(workspace),b=find(s,id)
+      const replay=Boolean(workspace.receipts[`${person}:${input.requestId}`])
+      const result=previewReceipt(workspace,person,input.requestId,{operation:'productionAssignment',id,input},()=>{
+      if(!access(s).canReview||b.status!=='approved'||!b.shootStartsAt&&(b.data.productionTypes.some(t=>['Photography','Videography'].includes(t))||!b.data.crewRequests?.length))throw new Error('Approve and schedule the shoot first.');if(input.version!==b.version)throw new Error('Brief changed. Refresh before saving.')
       const requests=b.data.crewRequests??[],crew=input.assignments
       if(new Set(crew.map(a=>a.userId)).size!==crew.length||new Set(crew.filter(a=>a.crewRequestId).map(a=>a.crewRequestId)).size!==crew.filter(a=>a.crewRequestId).length)throw new Error('Choose each crew member and position once.')
       for(const a of crew){memberFor(a.userId);const r=requests.find(r=>r.id===a.crewRequestId);if(requests.length&&(!r||r.role!==a.role))throw new Error('Fill a current requested position.');const start=r?.startsAt??b.shootStartsAt!,end=r?.endsAt??b.shootEndsAt!;for(const other of s.briefs.filter(other=>other.id!==b.id&&other.status==='approved'))for(const assigned of other.crew??[]){const shift=other.data.crewRequests?.find(r=>r.id===assigned.crewRequestId);if(assigned.userId===a.userId&&Date.parse(shift?.startsAt??other.shootStartsAt!)<Date.parse(end)&&Date.parse(shift?.endsAt??other.shootEndsAt!)>Date.parse(start))throw new Error('A crew member is assigned to an overlapping shift.')}}
-      const previous=b.crew??[];b.crew=crew.map(a=>({...a,name:memberFor(a.userId).displayName??'Preview teammate'}));b.version++;append(b,'crew_assigned');persist(s)
-      const workspace=readWorkspace();for(const id of new Set([...previous,...b.crew].map(a=>a.userId)))addPreviewAlert(workspace,id,'production_assignment','Production crew updated',`Review your assignment for ${b.data.projectName}.`,`/production/?brief=${b.id}`,`crew:${b.id}:${b.version}`);saveWorkspace(workspace);return detail(b,s)
+      const previous=b.crew??[];b.crew=crew.map(a=>({...a,name:memberFor(a.userId).displayName??'Preview teammate'}));b.version++;append(b,'crew_assigned')
+      for(const recipient of new Set([...previous,...b.crew].map(a=>a.userId)))if(workspace.members.some(m=>m.id===recipient&&m.status==='active'))addPreviewAlert(workspace,recipient,'production_assignment','Production crew updated',`Review your assignment for ${b.data.projectName}.`,`/production/?brief=${b.id}`,`crew:${b.id}:${b.version}`)
+      return detail(b,s)
+      })
+      if(!replay)persist(s,workspace)
+      return result
     },
 
     access: async () => {memberFor(person);return access(load())}, settings: async () => { const s = load(); if (!access(s).canAdminister) throw new Error('Administrator required'); return structuredClone(s.settings) },
@@ -58,7 +67,9 @@ export function createPreviewProductionClient(person: string): ProductionClient 
     save: async (id, data, expected) => { const state = load(), b = find(state,id); if (!canEdit(b)) throw new Error('This brief cannot be edited'); if (b.version !== expected) throw new Error('This brief changed. Reload first.'); const clean = normalizedBrief(data), invalid = dateErrors(clean, true)[0]; if (invalid) throw new Error(invalid.message); b.data = clean; b.version++; append(b,'saved'); persist(state); return detail(b,state) },
     remove: async (id,version) => { const state = load(), b = find(state,id); if (!(b.ownerId===person||access(state).canAdminister)||!['draft','denied','withdrawn'].includes(b.status)) throw new Error('Only the author or an administrator can delete a draft, denied or withdrawn brief'); if(b.version!==version)throw new Error('Brief changed. Refresh before deleting'); state.briefs = state.briefs.filter(x => x.id !== id); persist(state); return { id } },
     action: async (id, c: BriefCommand) => {
-      const state = load(), b = find(state,id), a = access(state), own = b.ownerId === person
+      const workspace=readWorkspace(),state = load(workspace), b = find(state,id), a = access(state), own = b.ownerId === person
+      const replay=Boolean(workspace.receipts[`${person}:${c.requestId}`])
+      const result=previewReceipt(workspace,person,c.requestId,{operation:'productionAction',id,command:c},()=>{
       if (b.version !== c.version) throw new Error('This brief changed. Reload first.')
       const oldStart=b.shootStartsAt,oldEnd=b.shootEndsAt,previousCrewIds=(b.crew??[]).map(a=>a.userId)
       let kind: string = c.action
@@ -85,7 +96,11 @@ export function createPreviewProductionClient(person: string): ProductionClient 
       else if (c.action === 'comment') { if ((!own && !a.canReview) || !c.comment?.trim() || ['denied','withdrawn'].includes(b.status)) throw new Error('Cannot add this comment'); if (c.section && !briefSections.some(s=>s.title === c.section)) throw new Error('Unknown section'); kind = 'commented' }
       if(oldStart&&b.shootStartsAt&&(new Date(oldStart).getTime()!==new Date(b.shootStartsAt).getTime()||new Date(oldEnd!).getTime()!==new Date(b.shootEndsAt!).getTime())){const delta=new Date(b.shootStartsAt).getTime()-new Date(oldStart).getTime();b.crew=[];if(b.data.crewRequests)b.data.crewRequests=b.data.crewRequests.map(r=>r.role==='Video Editor'?r:{...r,startsAt:new Date(Date.parse(r.startsAt)+delta).toISOString(),endsAt:new Date(Date.parse(r.endsAt)+delta).toISOString()})}
       if(['request_changes','withdraw','deny'].includes(c.action))b.crew=[]
-      b.version++; append(b,kind,c.comment,c.section,['submit','approve','request_changes','deny','schedule'].includes(c.action) ? structuredClone(b.data) : null,state); persist(state);if(['approved','scheduled','changes_requested','withdrawn','denied'].includes(kind)){const workspace=readWorkspace();for(const recipientId of new Set([...previousCrewIds,...(b.crew??[]).map(a=>a.userId)]))if(workspace.members.some(m=>m.id===recipientId&&m.status==='active'))addPreviewAlert(workspace,recipientId,'production_assignment','Production schedule updated',`Review the latest schedule and crew confirmation for ${b.data.projectName}.`,`/production/?brief=${b.id}`,`schedule:${b.id}:${b.version}`);saveWorkspace(workspace)}return detail(b,state)
+      b.version++; append(b,kind,c.comment,c.section,['submit','approve','request_changes','deny','schedule'].includes(c.action) ? structuredClone(b.data) : null,state); if(['approved','scheduled','changes_requested','withdrawn','denied'].includes(kind)){for(const recipientId of new Set([...previousCrewIds,...(b.crew??[]).map(a=>a.userId)]))if(workspace.members.some(m=>m.id===recipientId&&m.status==='active'))addPreviewAlert(workspace,recipientId,'production_assignment','Production schedule updated',`Review the latest schedule and crew confirmation for ${b.data.projectName}.`,`/production/?brief=${b.id}`,`schedule:${b.id}:${b.version}`)}
+      return detail(b,state)
+      })
+      if(!replay)persist(state,workspace)
+      return result
     },
     deliveries:async()=>{const s=load(),a=access(s);if(!a.canReview&&!a.canAdminister&&!a.isExecutive)throw new Error('Leadership required');return {items:structuredClone(s.deliveries??[]),nextCursor:null}},
     retry:async id=>{const s=load();if(!access(s).canAdminister)throw new Error('Administrator required');const row=s.deliveries?.find(d=>d.id===id);if(!row||!['failed','uncertain'].includes(row.status))throw new Error('Only failed or uncertain deliveries can be retried.');row.status=readPreview<'sent'|'failed'|'uncertain'>('studiostack.preview.delivery',()=> 'sent');row.attempts++;row.sentAt=row.status==='sent'?new Date().toISOString():null;persist(s);return {id}},

@@ -5,9 +5,10 @@ import type {EquipmentRecord,EquipmentReservation,EquipmentReport,EquipmentEvent
 import type {AppAlert,AlertPreferences} from '../types/alerts'
 import {readPreview,writePreview} from './storage'
 import {previewPeople} from './people'
+import type {PreviewProductionState} from '../production/preview'
 export const workspaceKey='studiostack-workspace-preview-v2'
 export interface PreviewWorkspace {
- onboarded?:Record<string,string>; settings:Omit<OrganizationSettings,'role'>; members:ManagedMember[]; invitations:OrganizationInvitation[]; activity:OrganizationActivity[];codes:JoinCode[];domains:WorkspaceDomain[];requests:PendingAccessRequest[];
+ production?:PreviewProductionState; onboarded?:Record<string,string>; settings:Omit<OrganizationSettings,'role'>; members:ManagedMember[]; invitations:OrganizationInvitation[]; activity:OrganizationActivity[];codes:JoinCode[];domains:WorkspaceDomain[];requests:PendingAccessRequest[];
  inventory:EquipmentRecord[];reservations:EquipmentReservation[];reports:EquipmentReport[];events:EquipmentEvent[];alerts:(AppAlert&{recipientId:string;dedupeKey:string})[];preferences:Record<string,AlertPreferences>;
  photos:Record<string,{contentType:string;size:number;ready:boolean}>;feedback:(ApiBugReport&{kind:FeedbackKind;userId:string})[];receipts:Record<string,{fingerprint:string;result:unknown}>
 }

@@ -122,3 +122,25 @@ it('restores removed people only by invitation and recovers after deleting a pre
  await author().acceptInvitation(invite.id,org);expect((await author().organizations()).items).toHaveLength(1);
  await author().deleteAccount();expect(availablePreviewPerson(alex.id)).toBe('preview-admin');expect((await createPreviewDatabaseApi(availablePreviewPerson(alex.id)).organizations()).items).toHaveLength(1);
 })
+
+it('LOGIC-031: a failed preview write leaves both the decision and crew alerts unchanged',async()=>{
+ let b=await action(owner(),await action(author(),await brief(),'submit'),'approve')
+ const production=owner().production(org)
+ b=await production.assign(b.id,{version:b.version,requestId:id(),assignments:[{userId:'preview-reviewer',role:'Videographer'}]})
+ const command={action:'request_changes' as const,comment:'Review crew plan',version:b.version,requestId:id()}
+ const storage=globalThis.localStorage
+ vi.stubGlobal('localStorage',{
+  getItem:storage.getItem.bind(storage),
+  setItem(key:string,value:string){
+   if(key===workspaceKey)throw new DOMException('Fixture storage full','QuotaExceededError')
+   storage.setItem(key,value)
+  },
+ })
+ await expect(production.action(b.id,command)).rejects.toThrow()
+ vi.unstubAllGlobals()
+ expect(await production.get(b.id)).toMatchObject({status:'approved',version:b.version})
+ const changed=await production.action(b.id,command)
+ expect(changed).toMatchObject({status:'changes_requested',version:b.version+1})
+ await expect(production.action(b.id,command)).resolves.toMatchObject({version:changed.version})
+ expect(readWorkspace().alerts.filter(a=>a.dedupeKey===`schedule:${b.id}:${changed.version}`)).toHaveLength(1)
+})
