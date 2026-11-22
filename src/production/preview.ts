@@ -2,6 +2,7 @@ import {readPreview} from '../preview/storage'
 import {memberFor,previewAdmin,readWorkspace,saveWorkspace,addPreviewAlert,previewReceipt} from '../preview/workspace'
 import {previewFileUrl,previewPhotoKey,previewAttachmentKey,readPreviewFile} from '../preview/media'
 import {attachmentCategories,type Delivery} from '../types/production'
+import {normalizePreviewName} from '../preview/people'
 import {softHoldsFor} from './readiness'
 import { briefSections, dateErrors, emptyBrief, normalizedBrief, submissionErrors, type ClientAccount, type ProductionIdea, type BriefCommand, type BriefData, type ProductionAccess, type ProductionBrief, type ProductionSettings } from '../types/production'
 import type { ProductionClient } from '../api/production'
@@ -13,9 +14,20 @@ function initial(): State {
   const data = emptyBrief(), start = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10), delivery = new Date(Date.now() + 21 * 86400_000).toISOString().slice(0, 10)
   Object.assign(data, { projectName: 'Campus stories', client: 'Example client', managers: 'Alex', supervisor: 'Jordan', deliveryDate: delivery, productionTypes: ['Videography', 'Video Editing'], fields: { summary: 'A short interview film introducing the people behind the project.', objective: 'Help students discover the program.', audience: 'University students', platform: 'Instagram and YouTube', deliverables: 'One 60-second film and two vertical cutdowns.', concept: 'Natural interviews with observational B-roll.', shootEstimate: 'Next week', proposedStart: start, proposedEnd: start, location: 'Campus studio', editingDirection: 'Conversational pacing with captions.', formats: 'Horizontal and vertical' } })
   const now = new Date().toISOString()
-  return { clients:[{id:'preview-client',name:'Example client',version:1,createdBy:'preview-admin',deletedAt:null}],settings: { version: 1, reviewerIds: ['preview-reviewer'], executiveIds: ['preview-executive'], approvalConfirmsDates: true }, briefs: [{ id: 'preview-brief', organizationId: 'preview', ownerId: 'preview-author', ownerName: 'Alex · Client Services', data, status: 'submitted', version: 1, submission: 1, shootStartsAt: null, shootEndsAt: null, createdAt: now, updatedAt: now, attachments: [], events: [{ id: 'preview-event', actorId: 'preview-author', actorName: 'Alex · Client Services', kind: 'submitted', comment: '', section: '', version: 1, createdAt: now, snapshot: structuredClone(data) }] }] }
+  return { clients:[{id:'preview-client',name:'Example client',version:1,createdBy:'preview-admin',deletedAt:null}],settings: { version: 1, reviewerIds: ['preview-reviewer'], executiveIds: ['preview-executive'], approvalConfirmsDates: true }, briefs: [{ id: 'preview-brief', organizationId: 'preview', ownerId: 'preview-author', ownerName: 'Alex (Client Services)', data, status: 'submitted', version: 1, submission: 1, shootStartsAt: null, shootEndsAt: null, createdAt: now, updatedAt: now, attachments: [], events: [{ id: 'preview-event', actorId: 'preview-author', actorName: 'Alex (Client Services)', kind: 'submitted', comment: '', section: '', version: 1, createdAt: now, snapshot: structuredClone(data) }] }] }
 }
-export function readPreviewProductionState(workspace=readWorkspace()): State {const state=workspace.production??readPreview(key,initial);for(const c of state.clients??[]){c.createdBy??='preview-admin';c.deletedAt??=c.archivedAt??null}if(state.demoVersion!==2){const sample=structuredClone(initial().briefs[0]),date=new Date(Date.now()+86400000).toISOString().slice(0,10);sample.id='preview-readiness-example';sample.data.projectName='Example: shoot readiness check';sample.data.fields.proposedStart=date;sample.data.fields.proposedEnd=date;sample.events=[];if(!state.briefs.some(b=>b.id===sample.id))state.briefs.push(sample);state.demoVersion=2}return state}
+export function readPreviewProductionState(workspace=readWorkspace()): State {
+  const state=workspace.production??readPreview(key,initial)
+  for(const c of state.clients??[]){c.createdBy??='preview-admin';c.deletedAt??=c.archivedAt??null}
+  for(const brief of state.briefs){
+    brief.ownerName=normalizePreviewName(brief.ownerName)
+    for(const event of brief.events)event.actorName=normalizePreviewName(event.actorName)
+    for(const member of brief.crew??[])member.name=normalizePreviewName(member.name)
+  }
+  for(const idea of state.ideas??[])idea.authorName=normalizePreviewName(idea.authorName)
+  if(state.demoVersion!==2){const sample=structuredClone(initial().briefs[0]),date=new Date(Date.now()+86400000).toISOString().slice(0,10);sample.id='preview-readiness-example';sample.data.projectName='Example: shoot readiness check';sample.data.fields.proposedStart=date;sample.data.fields.proposedEnd=date;sample.events=[];if(!state.briefs.some(b=>b.id===sample.id))state.briefs.push(sample);state.demoVersion=2}
+  return state
+}
 export function createPreviewProductionClient(person: string): ProductionClient {
   const load=readPreviewProductionState
   const access = (state: State): ProductionAccess => ({ userId: person, canReview: previewAdmin(person)||state.settings.reviewerIds.includes(person), canAdminister: previewAdmin(person), isExecutive: state.settings.executiveIds.includes(person), notificationsConfigured: true })

@@ -4,7 +4,7 @@ import type {ManagedMember,OrganizationSettings,OrganizationInvitation,Organizat
 import type {EquipmentRecord,EquipmentReservation,EquipmentReport,EquipmentEvent} from '../types/equipment'
 import type {AppAlert,AlertPreferences} from '../types/alerts'
 import {readPreview,writePreview} from './storage'
-import {previewPeople} from './people'
+import {normalizePreviewName,previewPeople} from './people'
 import type {PreviewProductionState} from '../production/preview'
 export const workspaceKey='studiostack-workspace-preview-v2'
 export interface PreviewWorkspace {
@@ -16,12 +16,22 @@ function initial():PreviewWorkspace {
  const now=new Date().toISOString(),at=(hours:number)=>new Date(Date.now()+hours*3600000).toISOString()
  const item=(id:string,name:string,category:EquipmentRecord['category'],colorTag:EquipmentRecord['colorTag']=null):EquipmentRecord=>({id,equipmentCode:id,name,category,colorTag,status:'available',condition:'good',version:1,checkedOut:false,photoId:null,createdAt:now})
  const reservation=(id:string,name:string,userId:string,equipmentIds:string[],startsAt:string,endsAt:string,fulfillmentStatus:EquipmentReservation['fulfillmentStatus']='reserved'):EquipmentReservation=>({id,name,userId,equipmentIds,startsAt,endsAt,fulfillmentStatus,status:'confirmed',version:1,createdAt:now,checkedOutAt:fulfillmentStatus==='reserved'?null:startsAt,returnedAt:fulfillmentStatus==='returned'?endsAt:null})
- return {settings:{id:'preview',name:'StudioStack · Local preview',slug:'preview',reservationDays:7,location:'Gainesville, FL',logoPhotoId:null,version:1},members:[...previewPeople.map(p=>({...p,email:p.id.replace('preview-','')+'@preview.example',role:p.id==='preview-admin'?'owner' as const:'member' as const,status:'active' as const,version:1})),{id:'preview-new-member',email:'new.teammate@preview.example',displayName:'Example new teammate',role:'member',status:'invited',version:1}],invitations:[],activity:[],codes:[],domains:[],requests:[{id:'preview-access-request',userId:'preview-new-member',email:'new.teammate@preview.example',displayName:'Example teammate',message:'I would like to help with the next studio shoot.',status:'pending',version:1,createdAt:now,decidedAt:null}],
+ return {settings:{id:'preview',name:'StudioStack (Local preview)',slug:'preview',reservationDays:7,location:'Gainesville, FL',logoPhotoId:null,version:1},members:[...previewPeople.map(p=>({...p,email:p.id.replace('preview-','')+'@preview.example',role:p.id==='preview-admin'?'owner' as const:'member' as const,status:'active' as const,version:1})),{id:'preview-new-member',email:'new.teammate@preview.example',displayName:'Example new teammate',role:'member',status:'invited',version:1}],invitations:[],activity:[],codes:[],domains:[],requests:[{id:'preview-access-request',userId:'preview-new-member',email:'new.teammate@preview.example',displayName:'Example teammate',message:'I would like to help with the next studio shoot.',status:'pending',version:1,createdAt:now,decidedAt:null}],
  inventory:typeof window==='undefined'?[]:[item('CAM-DEMO','Example interview camera','Camera & Accessories'),item('LGT-DEMO','Example key light','Lights'),item('TRI-DEMO','Example tripod','Tripods / Stands'),item('SD-RED','Example red SD card','SD Cards','red'),item('SD-BLUE','Example blue SD card','SD Cards','blue'),item('PROP-DEMO','Example studio backdrop','Props'),{...item('MIC-DEMO','Example damaged microphone','Audio'),condition:'damaged',status:'maintenance'}],
  reservations:typeof window==='undefined'?[]:[reservation('preview-pickup','Example: studio equipment pickup','preview-admin',['CAM-DEMO','LGT-DEMO'],at(0.08),at(3)),reservation('preview-overdue','Example: overdue SD card','preview-author',['SD-RED'],at(-4),at(-1),'checked_out'),reservation('preview-returned','Example: completed equipment return','preview-admin',['TRI-DEMO'],at(-48),at(-46),'returned')],
  reports:typeof window==='undefined'?[]:[{id:'preview-report',equipmentId:'MIC-DEMO',reservationId:null,reportedBy:'preview-author',title:'Example: microphone cable damage',description:'Example report: inspect the damaged connector before returning the microphone to service.',severity:'high',status:'open',resolution:'',resolvedBy:null,resolvedAt:null,version:1,createdAt:now,updatedAt:now}],events:[],alerts:[],preferences:{},photos:{},feedback:[],receipts:{}}
 }
-export function readWorkspace(){const state=readPreview(workspaceKey,()=>{const state=initial();saveWorkspace(state);return state});if(!state.members.some(m=>m.id==='preview-new-member')){state.members.push({id:'preview-new-member',email:'new.teammate@preview.example',displayName:'Example new teammate',role:'member',status:'invited',version:1});saveWorkspace(state)}return state}
+export function readWorkspace(){
+ const state=readPreview(workspaceKey,()=>{const state=initial();saveWorkspace(state);return state})
+ if(state.settings.name==='StudioStack \u00b7 Local preview')state.settings.name='StudioStack (Local preview)'
+ for(const member of state.members)if(member.displayName)member.displayName=normalizePreviewName(member.displayName)
+ for(const event of [...state.activity,...state.events])event.actorName=normalizePreviewName(event.actorName)
+ if(!state.members.some(m=>m.id==='preview-new-member')){
+  state.members.push({id:'preview-new-member',email:'new.teammate@preview.example',displayName:'Example new teammate',role:'member',status:'invited',version:1})
+  saveWorkspace(state)
+ }
+ return state
+}
 export function previewIdentity(person:string,state=readWorkspace()){const row=state.members.find(m=>m.id===person&&(m.status!=='suspended'||state.invitations.some(i=>i.email===m.email&&i.status==='pending'&&Date.parse(i.expiresAt)>Date.now())));if(!row)throw new PreviewError('Preview account unavailable. Switch to an active account.');return row}
 export function saveWorkspace(state:PreviewWorkspace){writePreview(workspaceKey,state)}
 export function memberFor(person:string,state=readWorkspace()){

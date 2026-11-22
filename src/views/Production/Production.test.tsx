@@ -35,10 +35,10 @@ describe('production workspace',()=>{
     await waitFor(()=>expect(fetcher.mock.calls.some(([url])=>url.endsWith('/briefs/first'))).toBe(true))
     const user=userEvent.setup()
     await user.click(screen.getByRole('button',{name:'Chosen draft'}))
-    const input=await screen.findByLabelText('Project name *')
+    const input=await screen.findByLabelText('Project name (required)')
     await user.type(input,' with edits')
     await act(async()=>{resolveFirst(Response.json(first))})
-    expect(screen.getByLabelText('Project name *')).toHaveValue('Chosen draft with edits')
+    expect(screen.getByLabelText('Project name (required)')).toHaveValue('Chosen draft with edits')
     invalidateCache()
   })
   it('keeps cached production usable while a return visit refresh is pending',async()=>{
@@ -77,7 +77,7 @@ describe('production workspace',()=>{
     vi.stubGlobal('print', print)
     renderPreview()
     await user.click(await screen.findByRole('button', { name: 'New brief' }))
-    const projectName = await screen.findByLabelText('Project name *')
+    const projectName = await screen.findByLabelText('Project name (required)')
     await user.type(projectName, 'Unsaved print title')
 
     const back = screen.getByRole('button', { name: /Back to briefs/ })
@@ -100,18 +100,18 @@ describe('production workspace',()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     await user.click(screen.getByRole('button',{name:/New brief/}));await screen.findByRole('heading',{name:'New production brief'})
     const step=(name:string)=>user.click(within(screen.getByRole('navigation',{name:'Brief steps'})).getByRole('button',{name:new RegExp(name)}))
-    expect(screen.getByLabelText('Project name *')).not.toHaveAttribute('aria-invalid')
-    await user.click(screen.getByRole('button',{name:'Next: Project overview'}));expect(screen.getByLabelText('Project summary *')).not.toHaveAttribute('aria-invalid')
-    await step('Review & submit');expect(screen.getByText('Still needed · 10')).toBeInTheDocument()
+    expect(screen.getByLabelText('Project name (required)')).not.toHaveAttribute('aria-invalid')
+    await user.click(screen.getByRole('button',{name:'Next: Project overview'}));expect(screen.getByLabelText('Project summary (required)')).not.toHaveAttribute('aria-invalid')
+    await step('Review & submit');expect(screen.getByText('Still needed (10)')).toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Submit for review'}));expect(screen.getByRole('alert')).toHaveTextContent('Fix all 10 items still needed before submitting.');expect(screen.queryByText('In review',{selector:'.production-status'})).not.toBeInTheDocument()
-    await step('Basics');expect(screen.getByLabelText('Project name *')).toHaveAttribute('aria-invalid','true');expect(screen.getByText('Add a project name.')).toBeInTheDocument()
-    await user.type(screen.getByLabelText('Project name *'),'Editing request');expect(screen.getByLabelText('Project name *')).not.toHaveAttribute('aria-invalid');await user.type(screen.getByLabelText('Client *'),'Example client');await user.type(screen.getByLabelText('Account / project managers *'),'Alex')
-    await user.type(screen.getByLabelText('Target delivery date *'),'2026-12-20');await user.click(screen.getByLabelText(/Video Editing/))
+    await step('Basics');expect(screen.getByLabelText('Project name (required)')).toHaveAttribute('aria-invalid','true');expect(screen.getByText('Add a project name.')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Project name (required)'),'Editing request');expect(screen.getByLabelText('Project name (required)')).not.toHaveAttribute('aria-invalid');await user.type(screen.getByLabelText('Client (required)'),'Example client');await user.type(screen.getByLabelText('Account / project managers (required)'),'Alex')
+    await user.type(screen.getByLabelText('Target delivery date (required)'),'2026-12-20');await user.click(screen.getByLabelText(/Video Editing/))
     expect(within(screen.getByRole('navigation',{name:'Brief steps'})).queryByRole('button',{name:/On-site production/})).not.toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Next: Project overview'}));expect(document.activeElement).toHaveAttribute('id','brief-step-title');expect(document.activeElement).toHaveTextContent('Project overview')
-    for(const [label,value] of [['Project summary *','Edit an existing interview.'],['Primary objective *','Introduce the client.'],['Target audience *','Students'],['Where will the content appear? *','YouTube']]) await user.type(screen.getByLabelText(label),value)
-    await step('Deliverables');await user.type(screen.getByLabelText('Deliverables and quantity *'),'One video.')
-    await step('Post-production');await user.type(screen.getByLabelText('Editing style / direction *'),'Conversational pacing.')
+    for(const [label,value] of [['Project summary (required)','Edit an existing interview.'],['Primary objective (required)','Introduce the client.'],['Target audience (required)','Students'],['Where will the content appear? (required)','YouTube']]) await user.type(screen.getByLabelText(label),value)
+    await step('Deliverables');await user.type(screen.getByLabelText('Deliverables and quantity (required)'),'One video.')
+    await step('Post-production');await user.type(screen.getByLabelText('Editing style / direction (required)'),'Conversational pacing.')
     await user.click(screen.getByRole('button',{name:'Save draft'}));expect(await screen.findByText('All changes saved')).toHaveClass('production-saved-pulse')
     await step('Review & submit');expect(screen.getByText('Required details are complete.')).toBeInTheDocument()
     await user.click(screen.getByRole('button',{name:'Submit for review'}));await waitFor(()=>expect(screen.queryByRole('button',{name:'Submit for review'})).not.toBeInTheDocument())
@@ -134,12 +134,12 @@ describe('production workspace',()=>{
     expect(screen.getByRole('button',{name:/Requested by/})).toHaveTextContent('Andrew Chung')
     expect(screen.getByRole('button',{name:'Spring launch'})).toBeInTheDocument()
     expect(screen.queryByRole('button',{name:'Fall recap'})).not.toBeInTheDocument()
-    expect(screen.getByText(/1 brief · Filters applied/)).toBeInTheDocument()
+    expect(screen.getByText(/1 brief \(Filters applied\)/)).toBeInTheDocument()
   })
   it('shows a past target date inline and reopens an untouched draft',async()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     await user.click(screen.getByRole('button',{name:'New brief'}))
-    const input=await screen.findByLabelText('Target delivery date *')
+    const input=await screen.findByLabelText('Target delivery date (required)')
     const draftUrl=window.location.search
     fireEvent.change(input,{target:{value:'2020-01-01'}})
     expect(input).toHaveAttribute('aria-invalid','true')
@@ -148,7 +148,7 @@ describe('production workspace',()=>{
     await user.click(screen.getByRole('button',{name:/Back to briefs/}))
     await user.click(within(await screen.findByRole('dialog',{name:'Discard unsaved changes?'})).getByRole('button',{name:'Discard changes'}))
     await user.click(screen.getByRole('button',{name:'New brief'}))
-    await screen.findByLabelText('Target delivery date *')
+    await screen.findByLabelText('Target delivery date (required)')
     expect(window.location.search).toBe(draftUrl)
   })
   it('lets the author delete a never-submitted draft from the brief list',async()=>{
@@ -195,7 +195,7 @@ describe('production workspace',()=>{
     const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'})
     expect(screen.queryByRole('tab',{name:'Production roles'})).not.toBeInTheDocument()
     await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-admin');await user.click(await screen.findByRole('tab',{name:'Production roles'}))
-    const reviewer=await screen.findByRole('checkbox',{name:'Production leadership: Alex · Client Services'});await user.click(reviewer)
+    const reviewer=await screen.findByRole('checkbox',{name:'Production leadership: Alex (Client Services)'});await user.click(reviewer)
     await user.click(screen.getByRole('button',{name:'Save settings'}));expect(await screen.findByText('Production access and notification settings saved.')).toBeInTheDocument();expect(screen.getByText('All changes saved',{selector:'.production-settings-savebar span'})).toHaveClass('production-saved-pulse')
     await user.selectOptions(screen.getByRole('combobox',{name:/Preview account/}),'preview-author');await screen.findByRole('tab',{name:'Decisions & delivery'})
     expect(screen.queryByRole('tab',{name:'Production roles'})).not.toBeInTheDocument()
@@ -214,7 +214,7 @@ describe('production workspace',()=>{
 it('protects unsaved brief edits during app navigation while permitting step changes',async()=>{
   const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'});
   await user.click(screen.getByRole('button',{name:'New brief'}));await screen.findByRole('heading',{name:'New production brief'});
-  await user.type(screen.getByLabelText('Project name *'),'Unfinished production');
+  await user.type(screen.getByLabelText('Project name (required)'),'Unfinished production');
   const confirm=vi.fn(()=>false);vi.stubGlobal('confirm',confirm);
   const steps=within(screen.getByRole('navigation',{name:'Brief steps'}));await user.click(steps.getByRole('button',{name:/Project overview/}));await user.click(steps.getByRole('button',{name:/Basics/}));expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   const destination=document.createElement('a');destination.href='/inventory/';document.body.append(destination);
@@ -222,7 +222,7 @@ it('protects unsaved brief edits during app navigation while permitting step cha
     const event=new MouseEvent('click',{bubbles:true,cancelable:true,button:0});expect(destination.dispatchEvent(event)).toBe(false)
     const dialog=await screen.findByRole('dialog',{name:'Discard unsaved changes?'});expect(confirm).not.toHaveBeenCalled()
     await user.click(within(dialog).getByRole('button',{name:'Keep editing'}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(screen.getByLabelText('Project name *')).toHaveValue('Unfinished production')
+    expect(screen.getByLabelText('Project name (required)')).toHaveValue('Unfinished production')
     await user.click(screen.getByRole('button',{name:/Back to briefs/}));await user.click(within(await screen.findByRole('dialog',{name:'Discard unsaved changes?'})).getByRole('button',{name:'Discard changes'}))
     await waitFor(()=>expect(screen.queryByRole('heading',{name:'New production brief'})).not.toBeInTheDocument())
   }finally{destination.remove()}
@@ -232,14 +232,14 @@ it('lets a preview Production Lead save confirmed crew on an approved shoot',asy
  const api=createPreviewProductionClient('preview-reviewer'),brief=await api.get('preview-brief');await api.action(brief.id,{action:'approve',version:brief.version,requestId:crypto.randomUUID()});
  const user=userEvent.setup();renderPreview();await screen.findByRole('button',{name:'Campus stories'});
  await user.selectOptions(screen.getByRole('combobox',{name:'Preview account'}),'preview-reviewer');await user.click(await screen.findByRole('button',{name:'Campus stories'}));
- const save=await screen.findByRole('button',{name:'Save crew assignments'});await waitFor(()=>expect(save).toBeEnabled());await user.click(screen.getByRole('checkbox',{name:'Alex · Client Services'}));await user.click(save);
+ const save=await screen.findByRole('button',{name:'Save crew assignments'});await waitFor(()=>expect(save).toBeEnabled());await user.click(screen.getByRole('checkbox',{name:'Alex (Client Services)'}));await user.click(save);
  await waitFor(async()=>expect((await api.get(brief.id)).crew).toContainEqual(expect.objectContaining({userId:'preview-author'})));
 })
 
 it('converts a selected pitch into a visible draft with its client account',async()=>{
  const lead=createPreviewProductionClient('preview-reviewer'),idea=await lead.createIdea({id:crypto.randomUUID(),title:'Example selected pitch',pitch:'An example story.',clientAccountId:'preview-client'});await lead.updateIdea(idea.id,{title:idea.title,pitch:idea.pitch,clientAccountId:idea.clientAccountId,status:'selected',version:idea.version});
  const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('tab',{name:'Ideas & pitches'}));await user.click(await screen.findByRole('button',{name:'Create brief from pitch'}));
- expect(await screen.findByLabelText('Project name *')).toHaveValue(idea.title);expect(screen.getByLabelText('Client *')).toHaveValue('Example client');expect(screen.getByLabelText('Client account')).toHaveValue('preview-client');
+ expect(await screen.findByLabelText('Project name (required)')).toHaveValue(idea.title);expect(screen.getByLabelText('Client (required)')).toHaveValue('Example client');expect(screen.getByLabelText('Client account')).toHaveValue('preview-client');
 })
 
 it('creates and selects a client inside a brief without saving or discarding other draft edits',async()=>{
@@ -247,12 +247,12 @@ it('creates and selects a client inside a brief without saving or discarding oth
  expect(screen.queryByRole('button',{name:'Add client'})).not.toBeInTheDocument();
  await user.selectOptions(screen.getByRole('combobox',{name:'Preview account'}),'preview-reviewer');
  await user.click(await screen.findByRole('button',{name:'New brief'}));
- await user.type(await screen.findByLabelText('Project name *'),'Example unsaved client brief');
+ await user.type(await screen.findByLabelText('Project name (required)'),'Example unsaved client brief');
  await user.click(screen.getByRole('button',{name:'Add client'}));
  await user.type(screen.getByLabelText('New client account name'),'Example inline client{Enter}');
  await waitFor(()=>expect(screen.getByLabelText('Client account')).toHaveDisplayValue('Example inline client'));
- expect(screen.getByLabelText('Client *')).toHaveValue('Example inline client');
- expect(screen.getByLabelText('Project name *')).toHaveValue('Example unsaved client brief');
+ expect(screen.getByLabelText('Client (required)')).toHaveValue('Example inline client');
+ expect(screen.getByLabelText('Project name (required)')).toHaveValue('Example unsaved client brief');
  expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
  const api=createPreviewProductionClient('preview-reviewer'),unsaved=(await api.list()).items.find(b=>b.status==='draft'&&b.ownerId==='preview-reviewer')!;
  expect(unsaved.data.projectName).toBe('');expect(unsaved.data.clientAccountId).toBeFalsy();
@@ -264,11 +264,11 @@ it('puts file controls in their matching guided steps and keeps draft text acros
  const user=userEvent.setup();renderPreview();await user.click(await screen.findByRole('button',{name:'New brief'}));
  const step=(name:string)=>user.click(within(screen.getByRole('navigation',{name:'Brief steps'})).getByRole('button',{name:new RegExp(name)}));
  expect(screen.getByRole('link',{name:'Official production template 1'})).toBeVisible();
- await step('Project overview');expect(screen.getByRole('button',{name:'Upload Creative brief (PDF)'})).toBeVisible();await user.type(screen.getByLabelText('Project summary *'),'An example brief summary.');
+ await step('Project overview');expect(screen.getByRole('button',{name:'Upload Creative brief (PDF)'})).toBeVisible();await user.type(screen.getByLabelText('Project summary (required)'),'An example brief summary.');
  await step('Creative direction');for(const name of ['Storyboard (optional)','Other references','Brand guidelines','Logos, graphics & lower thirds'])expect(screen.getByRole('button',{name:`Upload ${name}`})).toBeVisible();
  expect(screen.queryByRole('button',{name:'Upload Creative brief (PDF)'})).not.toBeInTheDocument();
  await step('Paperwork');for(const name of ['Location permission / shoot agreement','Signed release forms','Shot list','Signed consent forms'])expect(screen.getByRole('button',{name:`Upload ${name}`})).toBeVisible();
  expect(screen.getByLabelText('Permits required?')).toBeVisible();expect(screen.getByLabelText('Who provides releases?')).toBeVisible();
- await step('Project overview');expect(screen.getByLabelText('Project summary *')).toHaveValue('An example brief summary.');
+ await step('Project overview');expect(screen.getByLabelText('Project summary (required)')).toHaveValue('An example brief summary.');
  expect(within(screen.getByRole('navigation',{name:'Brief steps'})).queryByRole('button',{name:/Attachments/})).not.toBeInTheDocument();
 })

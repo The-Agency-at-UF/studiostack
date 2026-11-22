@@ -19,7 +19,7 @@ export default function InvitationInbox({getAccessToken,onAccepted}:{getAccessTo
     <label className="login-workspace-picker">Organization to join
       <Select value={items.some(item=>item.id===selectedId)?selectedId:''} disabled={busy||!items.length} onChange={event=>setSelectedId(event.target.value)}>
         <option value="">{items.length?'Choose an organization you’re invited to':'No organization invitations yet'}</option>
-        {items.map(item=><option key={item.id} value={item.id}>{item.organizationName} · {item.role}</option>)}
+        {items.map(item=><option key={item.id} value={item.id}>{item.organizationName} ({item.role})</option>)}
       </Select>
     </label>
     {items.some(item=>item.id===selectedId)&&<p>Invitation expires {dateLabel(items.find(item=>item.id===selectedId)!.expiresAt)}.</p>}

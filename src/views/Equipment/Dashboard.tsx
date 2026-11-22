@@ -92,7 +92,7 @@ function DashboardWorkspace({api,org,admin,statistics,production}:{api:DatabaseA
         </section>
         <section><div className="equipment-section-heading"><h2>Equipment needing attention</h2><Link href="/reports/">All reports</Link></div>
           {errors.reports?<div className="section-inline-error"><p role="alert">{errors.reports}</p><button disabled={retrying==='reports'} onClick={()=>retrySection('reports')}>{retrying==='reports'?'Retrying…':'Retry reports'}</button></div>:reports===null&&loading?<Skeleton label="Loading reports…"/>:<>
-          <ul className="administration-list">{openReports.slice(0,5).map(r=><li key={r.id}><Link href={`/report-summary/?report=${r.id}`}>{r.title}</Link><span>{sentenceCase(r.severity)} severity · {sentenceCase(r.status.replaceAll('_',' '))}</span></li>)}</ul>{!openReports.length&&<p className="equipment-empty">No open equipment reports.</p>}</>}
+          <ul className="administration-list">{openReports.slice(0,5).map(r=><li key={r.id}><Link href={`/report-summary/?report=${r.id}`}>{r.title}</Link><span>{sentenceCase(r.severity)} severity, {sentenceCase(r.status.replaceAll('_',' '))}</span></li>)}</ul>{!openReports.length&&<p className="equipment-empty">No open equipment reports.</p>}</>}
         </section>
       </div>
       <section><div className="equipment-section-heading"><h2>Your unread alerts</h2><Link href="/alerts/">All alerts / email preferences</Link></div>

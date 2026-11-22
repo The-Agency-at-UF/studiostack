@@ -44,7 +44,7 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
           <div className="login-connected"><HiOutlineCheckCircle aria-hidden="true" /><span>Account connected securely</span></div>
           {organizations.length>0&&<div className="login-memberships">
             <h2>Your organizations</h2>
-            {(()=>{const current=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0];return <p className="login-workspace-current">{current.name} · {current.role}</p>})()}
+            {(()=>{const current=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0];return <p className="login-workspace-current">{current.name} ({current.role})</p>})()}
             {organizations.length>1&&<Link className="login-text-action" href="/account/">Switch workspace</Link>}
           </div>}
           {accountActions}
@@ -59,7 +59,7 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
               return <button key={id} type="button" className="login-provider" aria-label={buttonLabel}
                 aria-describedby={!connected ? 'login-provider-status' : id === 'saml' ? 'login-saml-note' : undefined}
                 disabled={busy || !configured || !connected} onClick={() => void onSignIn(id)}>
-                <Icon className="login-provider-icon" aria-hidden="true" /><span>{buttonLabel}{id === 'saml' && <small>SAML · University or company</small>}</span>
+                <Icon className="login-provider-icon" aria-hidden="true" /><span>{buttonLabel}{id === 'saml' && <small>SAML (University or company)</small>}</span>
                 {connected ? <HiOutlineArrowRight className="login-provider-arrow" aria-hidden="true" /> : <small className="login-provider-pending">Coming soon</small>}
               </button>
             })}
@@ -76,7 +76,7 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
           {error && <p className="login-error" role="alert">{error}</p>}
           {busy && <p className="login-security-note" role="status">Connecting to secure sign-in. Please wait.</p>}
           <p className="login-password-note"><HiOutlineLockClosed aria-hidden="true" />Your password stays with the sign-in provider.</p></>}
-          {onPreview&&<button type="button" className="login-text-action" onClick={onPreview}>Skip sign-in · open local preview (development only)</button>}
+          {onPreview&&<button type="button" className="login-text-action" onClick={onPreview}>Open local preview (development only)</button>}
         </>}
   </AuthLayout>
 }

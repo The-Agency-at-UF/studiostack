@@ -164,7 +164,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     <button type="button" className="rsv-back" onClick={()=>open({name:'list'})}><Chevron dir="left"/>Reservations</button>
     {messages}
     <ReservationDetail api={api} organizationId={organizationId} reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',reservation:current})} onCancel={()=>setConfirmingCancel(true)}/>
-    {confirmingCancel&&<ConfirmDialog title="Cancel this reservation?" subject={current.name} description={`${rangeLabel(current.startsAt,current.endsAt)} · ${plural(current.equipmentIds.length,'item')}. The equipment is released for others to book. This can’t be undone.`} confirmLabel="Cancel reservation" cancelLabel="Keep reservation" busy={busy} returnFocus={()=>document.querySelector<HTMLElement>('.rsv-detail-head h1')} onCancel={()=>setConfirmingCancel(false)} onConfirm={()=>{setConfirmingCancel(false);void cancel()}}/>}
+    {confirmingCancel&&<ConfirmDialog title="Cancel this reservation?" subject={current.name} description={`${rangeLabel(current.startsAt,current.endsAt)}, ${plural(current.equipmentIds.length,'item')}. The equipment is released for others to book. This can’t be undone.`} confirmLabel="Cancel reservation" cancelLabel="Keep reservation" busy={busy} returnFocus={()=>document.querySelector<HTMLElement>('.rsv-detail-head h1')} onCancel={()=>setConfirmingCancel(false)} onConfirm={()=>{setConfirmingCancel(false);void cancel()}}/>}
   </div></main>
 
   return <main className="rsv"><div className="rsv-column">
@@ -180,13 +180,13 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
         <Field label="Equipment">
           <Select value={equipmentFilter} onChange={e=>setEquipmentFilter(e.target.value)}>
             <option value="">All equipment</option>
-            {inventory.map(i=><option key={i.id} value={i.id}>{i.name} · {i.equipmentCode}</option>)}
+            {inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.equipmentCode})</option>)}
           </Select>
         </Field>
         <Field label="Client account">
           <Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}>
             <option value="">All client accounts</option>
-            {clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.deletedAt?' · Deleted':''}</option>)}
+            {clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.deletedAt?' (Deleted)':''}</option>)}
           </Select>
         </Field>
         {filtered&&<button type="button" className="rsv-link" onClick={()=>{setSearch('');setEquipmentFilter('');setClientFilter('')}}>Clear filters</button>}
@@ -195,7 +195,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
       {!shown.length?<div className="rsv-empty rsv-empty-small"><h2>{filtered?'No matching reservations':tab==='upcoming'?'Nothing coming up':tab==='out'?'Nothing is out right now':'No past reservations yet'}</h2><p>{filtered?'Change or clear your filters to see more reservations.':tab==='history'?'Returned, cancelled and missed reservations move here.':'Reservations show up here as soon as they’re made.'}</p></div>
       :days.map(day=><section className="rsv-day" key={day}><h2>{dayHeading(day)}</h2><div className="rsv-rows">{pageRows.filter(r=>new Date(anchor(r)).toDateString()===day).map(r=><button type="button" className="rsv-row" key={r.id} onClick={()=>open({name:'detail',id:r.id})}>
         <span className="rsv-row-time">{tab==='out'?`Due ${timeLabel(r.endsAt)}`:timeLabel(r.startsAt)}</span>
-        <span className="rsv-row-main"><b>{r.name}</b><small>{clientName(r.clientAccountId)} · {plural(r.equipmentIds.length,'item')}</small></span>
+        <span className="rsv-row-main"><b>{r.name}</b><small>{clientName(r.clientAccountId)} ({plural(r.equipmentIds.length,'item')})</small></span>
         <StatusDot reservation={r}/><Chevron dir="right"/></button>)}</div></section>)}
       <Pagination label="Reservations" pagination={pagination}/>
       </div>
@@ -276,7 +276,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
   useEffect(()=>()=>onDirtyChange?.(false),[onDirtyChange])
   useEffect(()=>{let active=true;setChecking(true);setAvailabilityError('');if(!valid){setChecking(false);return}const timer=setTimeout(()=>{allPages(after=>lifecycle.availability(pickup,dropoff,after)).then(rows=>{if(active)setAvailability(rows)}).catch(e=>{if(active)setAvailabilityError(equipmentError(e))}).finally(()=>{if(active)setChecking(false)})},300);return()=>{active=false;clearTimeout(timer)}},[lifecycle,pickup,dropoff,valid,recheck])
   const blocked=new Set(availability.filter(r=>r.id!==reservation?.id).flatMap(r=>r.equipmentIds))
-  const why=(i:EquipmentRecord)=>blocked.has(i.id)?'Reserved during these dates':i.status!=='available'?`Not available · ${i.status==='retired'?'archived':i.status.replace(/_/g,' ')}`:''
+  const why=(i:EquipmentRecord)=>blocked.has(i.id)?'Reserved during these dates':i.status!=='available'?`Not available (${i.status==='retired'?'archived':i.status.replace(/_/g,' ')})`:''
   const unavailable=ids.some(id=>{const i=inventory.find(x=>x.id===id);return !i||Boolean(why(i))}),out=reservation?.fulfillmentStatus==='checked_out'
   function setReturnFromInstant(instant:string){setEndsAt(localTime(instant));setEndChoice(instant)}
   function moveReturn(instant:string){
@@ -304,8 +304,8 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
   const listed=inventory.filter(i=>!needle||i.name.toLowerCase().includes(needle)||i.equipmentCode.toLowerCase().includes(needle))
   const free=listed.filter(i=>!why(i)||ids.includes(i.id)),taken=listed.filter(i=>why(i)&&!ids.includes(i.id))
   const full=ids.length>=MAX_ITEMS
-  const item=(i:EquipmentRecord)=>{const reason=why(i);return <label className={`rsv-item${reason&&!ids.includes(i.id)?' is-off':''}`} key={i.id}><input type="checkbox" className="rsv-check" checked={ids.includes(i.id)} disabled={(Boolean(reason)||full)&&!ids.includes(i.id)} onChange={e=>{setConflict('');setIds(current=>e.target.checked?[...current,i.id]:current.filter(id=>id!==i.id))}}/><span className="rsv-item-main"><b>{i.name}</b><small>{i.equipmentCode} · {i.category}{i.checkedOut?' · Currently checked out':''}{reported.includes(i.id)?' · Has an open damage report':''}</small></span>{reason&&<span className="rsv-item-why">{reason}</span>}</label>}
-  const summary=step===0?(valid?`${dateLabel(pickup)} · ${lengthLabel(length)}`:''):step===1?(ids.length?`${ids.length} of ${MAX_ITEMS} items selected`:'Pick at least one item'):''
+  const item=(i:EquipmentRecord)=>{const reason=why(i);return <label className={`rsv-item${reason&&!ids.includes(i.id)?' is-off':''}`} key={i.id}><input type="checkbox" className="rsv-check" checked={ids.includes(i.id)} disabled={(Boolean(reason)||full)&&!ids.includes(i.id)} onChange={e=>{setConflict('');setIds(current=>e.target.checked?[...current,i.id]:current.filter(id=>id!==i.id))}}/><span className="rsv-item-main"><b>{i.name}</b><small>{i.equipmentCode}, {i.category}{i.checkedOut?', currently checked out':''}{reported.includes(i.id)?', has an open damage report':''}</small></span>{reason&&<span className="rsv-item-why">{reason}</span>}</label>}
+  const summary=step===0?(valid?`${dateLabel(pickup)} for ${lengthLabel(length)}`:''):step===1?(ids.length?`${ids.length} of ${MAX_ITEMS} items selected`:'Pick at least one item'):''
   return <form className="rsv-flow" onSubmit={submit} aria-label={reservation?'Edit reservation':'New reservation'}>
     <div className="rsv-flow-bar"><button type="button" className="rsv-button rsv-quiet" onClick={onClose}><CloseIcon/><span className="rsv-flow-exit-label">{reservation?'Discard changes':'Discard reservation'}</span></button><h1>{reservation?'Edit reservation':'New reservation'}</h1><span className="rsv-flow-step" id="rsv-flow-step">Step {step+1} of {STEPS.length}</span></div>
     <div className="rsv-progress" aria-hidden="true"><i style={{width:`${(step+1)/STEPS.length*100}%`}}/></div>
@@ -329,7 +329,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
       </div>}
       {step===2&&<div className="rsv-question"><h2 ref={question} tabIndex={-1} aria-describedby="rsv-flow-step">Name this reservation</h2><p>Something your team will recognize on the list.</p>
         <div className="rsv-stack"><label className="rsv-field">Reservation name<input className="rsv-input" value={name} maxLength={120} placeholder="e.g. Spring reel b-roll" onChange={e=>setName(e.target.value)} required/></label>
-        <div className="rsv-client"><label className="rsv-field">Client account<Select value={addingClient?NEW_CLIENT:clientId} onChange={e=>{if(e.target.value===NEW_CLIENT)setAddingClient(true);else{setAddingClient(false);setClientId(e.target.value)}}}><option value="">No client · internal use</option>{clients.filter(c=>!c.deletedAt||c.id===clientId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}{canAddClients&&<option value={NEW_CLIENT}>+ Add a new client account…</option>}</Select></label>
+        <div className="rsv-client"><label className="rsv-field">Client account<Select value={addingClient?NEW_CLIENT:clientId} onChange={e=>{if(e.target.value===NEW_CLIENT)setAddingClient(true);else{setAddingClient(false);setClientId(e.target.value)}}}><option value="">No client (internal use)</option>{clients.filter(c=>!c.deletedAt||c.id===clientId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}{canAddClients&&<option value={NEW_CLIENT}>+ Add a new client account…</option>}</Select></label>
         {addingClient&&<NewClientAccount api={api} organizationId={organizationId} onCancel={()=>setAddingClient(false)} onAdded={client=>{onClientAdded(client);setClientId(client.id);setAddingClient(false)}}/>}</div></div>
         <dl className="rsv-review"><div><dt>When</dt><dd>{valid?rangeLabel(pickup,dropoff):'—'}</dd><button type="button" className="rsv-link" onClick={()=>setStep(0)}>Change<span className="ws-sr-only"> dates</span></button></div>
           <div><dt>Equipment</dt><dd>{ids.map(id=><span key={id}>{inventory.find(i=>i.id===id)?.name??'Equipment item'}</span>)}</dd><button type="button" className="rsv-link" onClick={()=>setStep(1)}>Change<span className="ws-sr-only"> equipment</span></button></div></dl>
