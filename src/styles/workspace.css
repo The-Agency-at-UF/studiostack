@@ -440,7 +440,7 @@ input[type=checkbox][aria-invalid=true] { border-color:var(--danger); }
 }
 
 /* Long, unbroken values (names, emails, codes, pasted links) wrap instead of pushing layouts wider than the screen. */
-:is(.rsv-row-main,.rsv-detail-head > div,.org-header-title,.ws-calendar-list li > span,.ws-calendar-rows button > *,.account-row > div,.equipment-history p,.equipment-history p span,.administration-list li > div,.inventory-item > div,.ws-detail-panel h2,.production-detail-header) { min-width:0; overflow-wrap:anywhere; }
+:is(.rsv-row-main,.org-header-title,.ws-calendar-list li > span,.ws-calendar-rows button > *,.account-row > div,.equipment-history p,.equipment-history p span,.administration-list li > div,.inventory-item > div,.ws-detail-panel h2,.production-detail-header) { min-width:0; overflow-wrap:anywhere; }
 .ws-truncate { display:inline-block; max-width:24ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
 /* Touch targets: every control is at least 44px tall on touch screens; compact sizes are for fine pointers only. */
 @media (pointer:coarse) {

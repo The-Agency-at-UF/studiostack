@@ -12,7 +12,7 @@ import {useToast} from '../../components/workspace/Toast'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import type {ClientAccount} from '../../types/production'
 import type {FormEvent,KeyboardEvent} from 'react'
-import {HiOutlineChevronDown,HiOutlineChevronLeft,HiOutlineChevronRight,HiOutlinePlus,HiOutlineXMark} from 'react-icons/hi2'
+import {HiOutlineCalendar,HiOutlineCheck,HiOutlineChevronDown,HiOutlineChevronLeft,HiOutlineChevronRight,HiOutlineClock,HiOutlineExclamationTriangle,HiOutlinePlus,HiOutlineXMark} from 'react-icons/hi2'
 import Link from 'next/link'
 import {useRouter} from 'next/navigation'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
@@ -20,6 +20,7 @@ import type {EquipmentRecord,EquipmentReservation,EquipmentAvailability} from '.
 import {getCached,setCached,invalidateCache} from '../../api/cache'
 import {equipmentCategories,type EquipmentCategory} from '../../types/database-api'
 import {generatedEquipmentCode} from './equipmentCode'
+import {PhotoThumbnail} from './EquipmentPhoto'
 import {defaultPickup,isMissed} from '../../equipment/reservationTiming'
 
 const HOUR=3600000,DAY=86400000
@@ -162,7 +163,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   if(view.name==='detail'&&current) return <main className="rsv"><div className="rsv-column">
     <button type="button" className="rsv-back" onClick={()=>open({name:'list'})}><Chevron dir="left"/>Reservations</button>
     {messages}
-    <ReservationDetail reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',reservation:current})} onCancel={()=>setConfirmingCancel(true)}/>
+    <ReservationDetail api={api} organizationId={organizationId} reservation={current} inventory={inventory} client={clientName(current.clientAccountId)} busy={busy} onEdit={()=>open({name:'edit',reservation:current})} onCancel={()=>setConfirmingCancel(true)}/>
     {confirmingCancel&&<ConfirmDialog title="Cancel this reservation?" subject={current.name} description={`${rangeLabel(current.startsAt,current.endsAt)} · ${plural(current.equipmentIds.length,'item')}. The equipment is released for others to book. This can’t be undone.`} confirmLabel="Cancel reservation" cancelLabel="Keep reservation" busy={busy} returnFocus={()=>document.querySelector<HTMLElement>('.rsv-detail-head h1')} onCancel={()=>setConfirmingCancel(false)} onConfirm={()=>{setConfirmingCancel(false);void cancel()}}/>}
   </div></main>
 
@@ -202,19 +203,47 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   </div></main>
 }
 
-function ReservationDetail({reservation:r,inventory,client,busy,onEdit,onCancel}:{reservation:EquipmentReservation;inventory:EquipmentRecord[];client:string;busy:boolean;onEdit:()=>void;onCancel:()=>void}){
+type DetailTone='reserved'|'missed'|'out'|'overdue'|'returned'|'cancelled'
+const atLabel=(iso:string)=>`${dateLabel(iso)} at ${timeLabel(iso)}`
+/** What happened to a reservation, in words, and what the desk can do next. */
+function detailState(r:EquipmentReservation,active:boolean):{tone:DetailTone;title:string;body:string}{
+  if(r.status==='cancelled')return {tone:'cancelled',title:'Cancelled',body:'This reservation was cancelled. Its equipment is free for others to book.'}
+  if(r.fulfillmentStatus==='returned')return {tone:'returned',title:'Returned',body:r.returnedAt?`The equipment came back ${atLabel(r.returnedAt)}.`:'The equipment came back.'}
+  if(isOverdue(r))return {tone:'overdue',title:'Overdue',body:`Due back ${atLabel(r.endsAt)}.${active?' Return the equipment, or edit the reservation to extend it.':''}`}
+  if(r.fulfillmentStatus==='checked_out')return {tone:'out',title:'Checked out',body:`Due back ${atLabel(r.endsAt)}.`}
+  if(isMissed(r))return {tone:'missed',title:'Pickup missed',body:`Nothing was checked out before the window closed ${atLabel(r.endsAt)}.${active?' Reschedule to hold the equipment again, or check it out now if the borrower is at the desk.':''}`}
+  return {tone:'reserved',title:'Reserved',body:`Ready for pickup ${atLabel(r.startsAt)}.`}
+}
+const STATE_ICON:Record<DetailTone,typeof HiOutlineClock>={reserved:HiOutlineCalendar,missed:HiOutlineClock,out:HiOutlineClock,overdue:HiOutlineExclamationTriangle,returned:HiOutlineCheck,cancelled:HiOutlineXMark}
+
+function ReservationDetail({api,organizationId,reservation:r,inventory,client,busy,onEdit,onCancel}:{api:DatabaseApi;organizationId:string;reservation:EquipmentReservation;inventory:EquipmentRecord[];client:string;busy:boolean;onEdit:()=>void;onCancel:()=>void}){
   const active=!r.readOnly&&r.status==='confirmed'&&r.fulfillmentStatus!=='returned'
-  return <>
-    <header className="rsv-detail-head"><div><StatusDot reservation={r}/><h1>{r.name}</h1><p>{client}</p></div>
-      {active&&<div className="rsv-top-actions"><button type="button" className="rsv-button" onClick={onEdit}>Edit reservation</button><Link className="rsv-button rsv-primary" href={`/check-in-out/?reservation=${r.id}`}>{r.fulfillmentStatus==='checked_out'?'Return equipment':'Check out'}</Link></div>}</header>
-    {isOverdue(r)&&<p className="rsv-alert">Due back {dateLabel(r.endsAt)} at {timeLabel(r.endsAt)}. Return the equipment, or edit the reservation to extend it.</p>}
-    <dl className="rsv-sheet">
-      <div><dt>When</dt><dd>{rangeLabel(r.startsAt,r.endsAt)}</dd></div>
-      <div><dt>Equipment</dt><dd><ul>{r.equipmentIds.map(id=>{const item=inventory.find(i=>i.id===id);return <li key={id}>{item?.name??'Equipment item'}{item&&<span>{item.equipmentCode}</span>}</li>})}</ul></dd></div>
-      <div><dt>Client account</dt><dd>{client}</dd></div>
-    </dl>
-    {active&&r.fulfillmentStatus==='reserved'&&<p className="rsv-detail-foot"><button type="button" className="rsv-link rsv-danger" disabled={busy} onClick={onCancel}>Cancel reservation</button></p>}
-  </>
+  const state=detailState(r,active),Icon=STATE_ICON[state.tone],missed=state.tone==='missed'
+  const fulfil=`/check-in-out/?reservation=${r.id}`
+  const actions=!active?null:missed
+    ?<><button type="button" className="rsv-button rsv-primary" onClick={onEdit}>Reschedule</button><Link className="rsv-button" href={fulfil}>Check out now</Link></>
+    :<><Link className="rsv-button rsv-primary" href={fulfil}>{r.fulfillmentStatus==='checked_out'?'Return equipment':'Check out'}</Link><button type="button" className="rsv-button" onClick={onEdit}>Edit reservation</button></>
+  return <div className="rsv-detail">
+    <header className="rsv-detail-head"><h1>{r.name}</h1></header>
+    <section className={`rsv-state rsv-state-${state.tone}`} aria-labelledby="rsv-state-title">
+      <span className="rsv-state-icon"><Icon aria-hidden="true"/></span>
+      <div className="rsv-state-main">
+        <div><h2 id="rsv-state-title">{state.title}</h2><p>{state.body}</p></div>
+        {actions&&<div className="rsv-actions">{actions}</div>}
+      </div>
+    </section>
+    <section className="rsv-sheet" aria-label="Reservation details">
+      <dl className="rsv-when">
+        <div><dt>Pickup</dt><dd><span className="rsv-when-time">{timeLabel(r.startsAt)}</span><span>{dateLabel(r.startsAt)}</span>{missed&&<span className="rsv-tag">Missed</span>}{r.checkedOutAt&&<span className="rsv-when-note">Checked out {atLabel(r.checkedOutAt)}</span>}</dd></div>
+        <div><dt>Return</dt><dd><span className="rsv-when-time">{timeLabel(r.endsAt)}</span><span>{dateLabel(r.endsAt)}</span>{r.returnedAt&&<span className="rsv-when-note">Returned {atLabel(r.returnedAt)}</span>}</dd></div>
+        <div><dt>Length</dt><dd><span className="rsv-when-time">{lengthLabel(Date.parse(r.endsAt)-Date.parse(r.startsAt))}</span></dd></div>
+      </dl>
+      <div className="rsv-gear-head"><h2>Equipment</h2><span>{plural(r.equipmentIds.length,'item')}</span></div>
+      <ul className="rsv-gear">{r.equipmentIds.map(id=>{const item=inventory.find(i=>i.id===id);return <li key={id}>{item?<PhotoThumbnail api={api} organizationId={organizationId} item={item}/>:<span className="inventory-thumb" aria-hidden="true"/>}<span><b>{item?.name??'Equipment item'}</b>{item&&<small>Code {item.equipmentCode}</small>}</span></li>})}</ul>
+      <dl className="rsv-client-row"><dt>Client account</dt><dd>{client}</dd></dl>
+    </section>
+    {active&&r.fulfillmentStatus==='reserved'&&<p className="rsv-detail-foot"><button type="button" className="rsv-button rsv-danger-button" disabled={busy} onClick={onCancel}>Cancel reservation</button></p>}
+  </div>
 }
 
 const STEPS=['When','Equipment','Details'] as const
