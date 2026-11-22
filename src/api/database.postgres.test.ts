@@ -1370,6 +1370,15 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
     } finally { await worker.end() }
   })
 
+  it('LOGIC-013: an author can discard an administrator’s abandoned pending upload', async () => {
+    const brief = await draft()
+    const id = randomUUID()
+    await production(owner,{resource:'attachments',method:'POST',briefId:brief.id,body:{id,name:'Reference.pdf',contentType:'application/pdf',size:120}})
+    await expect(production(member,{resource:'attachments',method:'POST',briefId:brief.id,attachmentId:id,body:{}})).rejects.toMatchObject({status:403})
+    await expect(production(member,{resource:'attachments',method:'DELETE',briefId:brief.id,attachmentId:id})).resolves.toEqual({id})
+    const updated = await production(member,{resource:'briefs',method:'GET',briefId:brief.id}) as ProductionBrief
+    await expect(command(member,updated,'submit')).resolves.toMatchObject({status:'submitted'})
+  })
   it('LOGIC-006 and LOGIC-007: a pending provider deletion blocks profile reuse and prunes former Production roles', async () => {
     const identity={issuer,subject:randomUUID(),email:`${randomUUID()}@example.org`}
     const user=await repository.execute(identity,{operation:'register',displayName:'Retiring reviewer'}) as ApiUser
@@ -1431,6 +1440,35 @@ integration('real PostgreSQL: restricted role, tenant isolation and concurrent r
       await deciding?.catch(()=>undefined)
       await decision.end()
     }
+  })
+  it('LOGIC-018: finalization intent survives a failed commit and retains an expired upload for recovery',async()=>{
+    const input={organizationId,contentType:'image/jpeg' as const,size:500,requestId:randomUUID()}
+    const upload=await repository.execute(owner,{operation:'photoUpload',organizationId,input}) as {photoId:string}
+    await operator.query(`CREATE FUNCTION app.fixture_fail_photo_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Fixture simulates a commit failure after the private object write'; END $$;
+      CREATE CONSTRAINT TRIGGER fixture_fail_photo_commit AFTER UPDATE ON app.photo_uploads
+      DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.status='ready') EXECUTE FUNCTION app.fixture_fail_photo_commit()`)
+    const request={operation:'completePhoto' as const,organizationId,photoId:upload.photoId}
+    try {
+      await expect(repository.execute(owner,request)).rejects.toThrow('Fixture simulates a commit failure')
+    } finally {
+      await operator.query('DROP TRIGGER fixture_fail_photo_commit ON app.photo_uploads; DROP FUNCTION app.fixture_fail_photo_commit()')
+    }
+    await operator.query("UPDATE app.photo_uploads SET expires_at=now()-interval '8 days' WHERE id=$1",[upload.photoId])
+    await retentionTask(operator,{})
+    expect((await operator.query('SELECT status,finalization_started_at FROM app.photo_uploads WHERE id=$1',[upload.photoId])).rows).toEqual([
+      {status:'pending',finalization_started_at:expect.any(Date)}
+    ])
+    await expect(repository.execute(owner,request)).resolves.toMatchObject({photoId:upload.photoId,width:80})
+  })
+  it('LOGIC-019: replayed attachment discard keeps the original revision and event',async()=>{
+    const b=await draft(),id=randomUUID()
+    await production(member,{resource:'attachments',method:'POST',briefId:b.id,body:{id,name:'Reference.pdf',contentType:'application/pdf',size:120}})
+    const discard=()=>production(member,{resource:'attachments',method:'DELETE',briefId:b.id,attachmentId:id})
+    await discard();await discard()
+    const stored=(await operator.query('SELECT version FROM app.production_briefs WHERE id=$1',[b.id])).rows[0]
+    expect(stored.version).toBe(b.version+1)
+    expect((await operator.query("SELECT id FROM app.production_brief_events WHERE brief_id=$1 AND kind='attachment_removed'",[b.id])).rows).toHaveLength(1)
   })
   it('LOGIC-023: feedback only updates the corresponding delivery attempt',async()=>{
     const row=await repository.execute(member,{operation:'bugReport',organizationId,kind:'bug',title:'Attempt fixture',description:'Delivery test.',pagePath:'/reports/',requestId:randomUUID()}) as {id:string}

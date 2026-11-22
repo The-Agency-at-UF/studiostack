@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto'
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { ApiError } from './api-validation'
+import {objectAlreadyWritten,objectUnavailable} from './private-object'
 
 export interface PendingPhoto { id: string; organizationId: string; stagingKey: string; contentType: 'image/jpeg' | 'image/webp'; inputSize: number }
 interface StoredPhoto { key: string; width: number; height: number; size: number; sha256: string }
 export interface PhotoStorage {
   signUpload(photo: PendingPhoto): Promise<{ url: string; fields: Record<string, string> }>
-  finalize(photo: PendingPhoto): Promise<StoredPhoto>
+  finalize(photo: PendingPhoto, options?: {recoverOnly?:boolean}): Promise<StoredPhoto>
   /** Defaults to a 60-second, uncached link; logos ask for a longer, browser-cacheable one. */
   signDownload(key: string, options?: { expiresIn?: number; cacheable?: boolean }): Promise<{ url: string; expiresIn: number }>
 }
@@ -36,6 +37,27 @@ export async function sanitizePhoto(bytes: Uint8Array, contentType: PendingPhoto
 }
 export function createPhotoStorage(config = photoStorageConfig()): PhotoStorage {
   const service = new S3Client({ region: config.region, maxAttempts: 1 })
+  async function finalized(key:string):Promise<StoredPhoto|null> {
+    const head=await service.send(new HeadObjectCommand({Bucket:config.bucket,Key:key}),{abortSignal:AbortSignal.timeout(8_000)}).catch(error=>{
+      if(objectUnavailable(error))return null
+      throw error
+    })
+    if(!head)return null
+    const size=head.ContentLength??0
+    if(head.ContentType!=='image/jpeg'||size<1||size>maxBytes||!head.ETag)throw new ApiError(409,'Saved private photo metadata is invalid')
+    const metadata=head.Metadata
+    if(metadata?.sha256){
+      const width=Number(metadata.width),height=Number(metadata.height)
+      if(![width,height].every(n=>Number.isInteger(n)&&n>0&&n<=2560)||!/^[a-f0-9]{64}$/.test(metadata.sha256))throw new ApiError(409,'Saved private photo metadata is invalid')
+      return {key,size,width,height,sha256:metadata.sha256}
+    }
+    // Previously finalized photos have no persisted dimensions or digest on S3.
+    const existing=await service.send(new GetObjectCommand({Bucket:config.bucket,Key:key,IfMatch:head.ETag}),{abortSignal:AbortSignal.timeout(12_000)})
+    const bytes=Buffer.from(await existing.Body!.transformToByteArray())
+    const {format,width,height}=await sharp(bytes,{limitInputPixels:2560*2560,failOn:'warning'}).metadata()
+    if(format!=='jpeg'||!width||!height||width>2560||height>2560||bytes.length!==size)throw new ApiError(409,'Saved private photo contents are invalid')
+    return {key,size,width,height,sha256:createHash('sha256').update(bytes).digest('hex')}
+  }
   return {
     async signUpload(photo) {
       return createPresignedPost(service, {
@@ -44,7 +66,11 @@ export function createPhotoStorage(config = photoStorageConfig()): PhotoStorage 
         Conditions: [['eq', '$Content-Type', photo.contentType], ['content-length-range', photo.inputSize, photo.inputSize]],
       })
     },
-    async finalize(photo) {
+    async finalize(photo,{recoverOnly=false}={}) {
+      const key = `photos/${photo.organizationId}/${photo.id}.jpg`
+      const existing=await finalized(key)
+      if(existing)return existing
+      if(recoverOnly)throw new ApiError(409,'Photo upload expired; start a new upload')
       let input: Uint8Array
       try {
         const source = await service.send(new GetObjectCommand({ Bucket: config.bucket, Key: photo.stagingKey }), { abortSignal: AbortSignal.timeout(12_000) })
@@ -59,8 +85,15 @@ export function createPhotoStorage(config = photoStorageConfig()): PhotoStorage 
       }
       if (input.length !== photo.inputSize) throw new ApiError(400, 'Uploaded size does not match authorization')
       const sanitized = await sanitizePhoto(input, photo.contentType)
-      const key = `photos/${photo.organizationId}/${photo.id}.jpg`
-      await service.send(new PutObjectCommand({ Bucket: config.bucket, Key: key, Body: sanitized.bytes, ContentType: 'image/jpeg', CacheControl: 'private, no-store', ServerSideEncryption: 'AES256' }), { abortSignal: AbortSignal.timeout(8_000) })
+      try {
+        await service.send(new PutObjectCommand({ Bucket: config.bucket, Key: key, IfNoneMatch:'*', Body: sanitized.bytes, ContentType: 'image/jpeg', CacheControl: 'private, no-store', ServerSideEncryption: 'AES256',
+          Metadata:{width:String(sanitized.width),height:String(sanitized.height),sha256:sanitized.sha256} }), { abortSignal: AbortSignal.timeout(8_000) })
+      } catch(error) {
+        if(!objectAlreadyWritten(error))throw error
+        const recovered=await finalized(key)
+        if(!recovered)throw error
+        return recovered
+      }
       return { key, width: sanitized.width, height: sanitized.height, size: sanitized.size, sha256: sanitized.sha256 }
     },
     async signDownload(key, { expiresIn = 60, cacheable = false } = {}) {
