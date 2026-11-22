@@ -1,7 +1,7 @@
 'use client'
 import {reservationInstants,reservationLocalTime as localTime} from '../../equipment/wallTime'
 import { TabPill } from '../../components/workspace/TabPill'
-import {Select,Skeleton,Notice,Button} from '../../components/workspace/WorkspaceUI'
+import {Select,Skeleton,Notice,Button,Field} from '../../components/workspace/WorkspaceUI'
 import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import {useUnsavedGuard} from '../../components/workspace/useUnsavedGuard'
 import {tabKeys} from '../../components/workspace/tabs'
@@ -12,7 +12,7 @@ import {useToast} from '../../components/workspace/Toast'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import type {ClientAccount} from '../../types/production'
 import type {FormEvent,KeyboardEvent} from 'react'
-import {HiOutlineChevronDown,HiOutlineChevronLeft,HiOutlineChevronRight,HiOutlineFunnel,HiOutlinePlus,HiOutlineXMark} from 'react-icons/hi2'
+import {HiOutlineChevronDown,HiOutlineChevronLeft,HiOutlineChevronRight,HiOutlinePlus,HiOutlineXMark} from 'react-icons/hi2'
 import Link from 'next/link'
 import {useRouter} from 'next/navigation'
 import {allPages,equipmentError,useLiveOrganization,type DatabaseApi} from './live'
@@ -60,16 +60,8 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   const [view,setView]=useState<View>(create?{name:'new'}:{name:'list'})
   const [tab,setTab]=useState<Tab>('upcoming')
   const [clientFilter,setClientFilter]=useState('')
+  const [equipmentFilter,setEquipmentFilter]=useState('')
   const [search,setSearch]=useState('')
-  const [filtersOpen,setFiltersOpen]=useState(false)
-  const filterButton=useRef<HTMLButtonElement>(null),filterPop=useRef<HTMLDivElement>(null)
-  // The filter popover closes with Escape or a click outside, and returns focus to its button.
-  useEffect(()=>{if(!filtersOpen)return
-    filterPop.current?.querySelector<HTMLElement>('input,select')?.focus()
-    const outside=(e:PointerEvent)=>{if(!filterPop.current?.contains(e.target as Node)&&!filterButton.current?.contains(e.target as Node))setFiltersOpen(false)}
-    const escape=(e:globalThis.KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();setFiltersOpen(false);filterButton.current?.focus()}}
-    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape)
-    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape)}},[filtersOpen])
   const [loading,setLoading]=useState(!cached)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
@@ -123,7 +115,7 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   },[load,accept])
   const router=useRouter()
   // The open booking lives in the address (?reservation= or ?new=1), so Back, Forward and refresh return to it.
-  const open=(next:View,push=true)=>{navigation.current++;setView(next);setFiltersOpen(false);if(typeof window==='undefined')return;window.scrollTo?.(0,0);if(!push)return;const url=new URL(window.location.href);url.searchParams.delete('reservation');url.searchParams.delete('new');if(next.name==='detail'||next.name==='edit')url.searchParams.set('reservation',next.name==='edit'?next.reservation.id:next.id);else if(next.name==='new'&&!create)url.searchParams.set('new','1');if(url.href!==window.location.href)window.history.pushState(window.history.state,'',url)}
+  const open=(next:View,push=true)=>{navigation.current++;setView(next);if(typeof window==='undefined')return;window.scrollTo?.(0,0);if(!push)return;const url=new URL(window.location.href);url.searchParams.delete('reservation');url.searchParams.delete('new');if(next.name==='detail'||next.name==='edit')url.searchParams.set('reservation',next.name==='edit'?next.reservation.id:next.id);else if(next.name==='new'&&!create)url.searchParams.set('new','1');if(url.href!==window.location.href)window.history.pushState(window.history.state,'',url)}
   const viewFromUrl=useRef<()=>void>(()=>{});viewFromUrl.current=()=>{const params=new URLSearchParams(window.location.search),id=params.get('reservation'),next:View=id&&rows.some(r=>r.id===id)?{name:'detail',id}:params.get('new')||create?{name:'new'}:{name:'list'}
     // Back from a booking in progress asks first, and keeps the flow's address until the person agrees.
     if(flowDirty.current&&(view.name==='new'||view.name==='edit')&&next.name!==view.name){window.history.pushState(window.history.state,'',flowUrl.current);setPendingLeave(()=>()=>{flowDirty.current=false;open(next)});return}
@@ -150,13 +142,16 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
     try{await saved(row,'Reservation cancelled.')}finally{setBusy(false)}}
 
   const needle=search.trim().toLowerCase()
-  const matches=rows.filter(r=>(!clientFilter||r.clientAccountId===clientFilter)&&(!needle||r.name.toLowerCase().includes(needle)||r.equipmentIds.some(id=>inventory.find(i=>i.id===id)?.name.toLowerCase().includes(needle))))
+  const matches=rows.filter(r=>
+    (!clientFilter||r.clientAccountId===clientFilter)&&
+    (!equipmentFilter||r.equipmentIds.includes(equipmentFilter))&&
+    (!needle||r.name.toLowerCase().includes(needle)||r.equipmentIds.some(id=>inventory.find(i=>i.id===id)?.name.toLowerCase().includes(needle))))
   const count=(t:Tab)=>matches.filter(r=>tabOf(r)===t).length
   const anchor=(r:EquipmentReservation)=>tab==='out'?r.endsAt:r.startsAt
   const shown=matches.filter(r=>tabOf(r)===tab).sort((a,b)=>tab==='history'?Date.parse(b.startsAt)-Date.parse(a.startsAt):Date.parse(anchor(a))-Date.parse(anchor(b)))
-  const {pageRows,pagination}=usePagination(shown,[organizationId,tab,clientFilter,needle])
+  const {pageRows,pagination}=usePagination(shown,[organizationId,tab,clientFilter,equipmentFilter,needle])
   const days=[...new Set(pageRows.map(r=>new Date(anchor(r)).toDateString()))]
-  const filtered=Boolean(clientFilter||needle)
+  const filtered=Boolean(clientFilter||equipmentFilter||needle)
 
   const leaveDialog=pendingLeave&&<ConfirmDialog title="Discard this reservation?" description="The dates, equipment and name you chose haven’t been saved." confirmLabel="Discard reservation" cancelLabel="Keep reservation" onCancel={()=>setPendingLeave(null)} onConfirm={()=>{const go=pendingLeave;setPendingLeave(null);go()}}/>
   const messages=<>{leaveDialog}{locked&&<p className="rsv-message rsv-message-error" role="alert">Return your overdue equipment before making a new reservation.</p>}{error&&<Notice kind="error" className="rsv-message" action={<Button disabled={loading} onClick={()=>void refresh()}>{loading?'Retrying…':'Retry'}</Button>}>{error}</Notice>}{degraded.length>0&&!error&&<Notice kind="warning" className="rsv-message" action={<Button disabled={loading} onClick={()=>void refresh()}>{loading?'Retrying…':'Retry'}</Button>}>Some details couldn’t load ({degraded.join(', ')}). {degraded.includes('reservation limits')?'The reservation length limit is checked when you save. ':''}Client names and options may be incomplete.</Notice>}</>
@@ -172,18 +167,31 @@ function ReservationWorkspace({api,organizationId,admin,create}:{api:DatabaseApi
   </div></main>
 
   return <main className="rsv"><div className="rsv-column">
-    <header className="rsv-top"><div><h1>Reservations</h1></div><div className="rsv-top-actions"><button type="button" className="rsv-button rsv-quiet" disabled={loading||busy} onClick={()=>void refresh()}>Refresh</button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div></header>
+    <header className="rsv-top"><div><h1>Reservations</h1></div><div className="rsv-top-actions"><Button disabled={loading||busy} aria-busy={loading} onClick={()=>void refresh()}>{loading?'Refreshing…':'Refresh'}</Button><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div></header>
     {messages}
     {overdue.length>0&&<div className="rsv-overdue" role="status"><span aria-hidden="true"/><p>{overdue.length===1?<><b>{overdue[0].name}</b> is overdue. It was due back {dateLabel(overdue[0].endsAt)} at {timeLabel(overdue[0].endsAt)}.</>:<><b>{overdue.length} bookings</b> are overdue.</>}</p><button type="button" className="rsv-link" onClick={()=>overdue.length===1?open({name:'detail',id:overdue[0].id}):setTab('out')}>Review</button></div>}
     {loading&&!rows.length?<Skeleton label="Loading reservations…" variant="row" count={4}/>:!rows.length&&!error?<div className="rsv-empty"><h2>No reservations yet</h2><p>When someone books equipment it shows up here by pickup day, so you always know what goes out and what comes back.</p><button type="button" className="rsv-button rsv-primary" disabled={locked} onClick={()=>open({name:'new'})}><Plus/>Book gear</button></div>:rows.length>0&&<>
-      <div className="rsv-bar">
-        <div className="rsv-tabs ws-pill-tabs" role="tablist" aria-label="Reservations" onKeyDown={tabKeys}><TabPill id="reservations"/>{([['upcoming','Upcoming'],['out','Out now'],['history','History']] as const).filter(([value])=>admin||value!=='history').map(([value,label])=><button type="button" role="tab" key={value} id={`rsv-tab-${value}`} aria-controls="rsv-panel" aria-selected={tab===value} tabIndex={tab===value?0:-1} onClick={()=>setTab(value)}>{label}<span><span className="ws-sr-only">, </span>{count(value)}</span></button>)}</div>
-        <div className="rsv-filter"><button ref={filterButton} type="button" className="rsv-button rsv-quiet" aria-expanded={filtersOpen} aria-controls="rsv-filters" onClick={()=>setFiltersOpen(o=>!o)}><FilterIcon/>Filter{filtered&&<span className="rsv-filter-dot">On</span>}</button>
-          {filtersOpen&&<div ref={filterPop} id="rsv-filters" className="rsv-filter-pop" role="group" aria-label="Filter reservations"><label className="rsv-field">Search<input className="rsv-input" value={search} placeholder="Booking or equipment name" onChange={e=>setSearch(e.target.value)}/></label><label className="rsv-field">Client account<Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}><option value="">All client accounts</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.deletedAt?' · Deleted':''}</option>)}</Select></label>{filtered&&<button type="button" className="rsv-link" onClick={()=>{setSearch('');setClientFilter('')}}>Clear filters</button>}</div>}
-        </div>
+      <div className="rsv-tabs ws-pill-tabs" role="tablist" aria-label="Reservations" onKeyDown={tabKeys}><TabPill id="reservations"/>{([['upcoming','Upcoming'],['out','Out now'],['history','History']] as const).filter(([value])=>admin||value!=='history').map(([value,label])=><button type="button" role="tab" key={value} id={`rsv-tab-${value}`} aria-controls="rsv-panel" aria-selected={tab===value} tabIndex={tab===value?0:-1} onClick={()=>setTab(value)}>{label}<span><span className="ws-sr-only">, </span>{count(value)}</span></button>)}</div>
+      <div className="rsv-filters" role="group" aria-label="Reservation filters">
+        <Field label="Search" className="rsv-filter-search">
+          <input type="search" className="rsv-input" value={search} placeholder="Booking or equipment name" onChange={e=>setSearch(e.target.value)}/>
+        </Field>
+        <Field label="Equipment">
+          <Select value={equipmentFilter} onChange={e=>setEquipmentFilter(e.target.value)}>
+            <option value="">All equipment</option>
+            {inventory.map(i=><option key={i.id} value={i.id}>{i.name} · {i.equipmentCode}</option>)}
+          </Select>
+        </Field>
+        <Field label="Client account">
+          <Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}>
+            <option value="">All client accounts</option>
+            {clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.deletedAt?' · Deleted':''}</option>)}
+          </Select>
+        </Field>
+        {filtered&&<button type="button" className="rsv-link" onClick={()=>{setSearch('');setEquipmentFilter('');setClientFilter('')}}>Clear filters</button>}
       </div>
       <div id="rsv-panel" role="tabpanel" aria-labelledby={`rsv-tab-${tab}`}>
-      {!shown.length?<div className="rsv-empty rsv-empty-small"><h2>{filtered?'No matching reservations':tab==='upcoming'?'Nothing coming up':tab==='out'?'Nothing is out right now':'No past reservations yet'}</h2><p>{filtered?'No reservation in this view matches the search or client account.':tab==='history'?'Returned, cancelled and missed reservations move here.':'Reservations show up here as soon as they’re made.'}</p>{filtered&&<button type="button" className="rsv-button" onClick={()=>{setSearch('');setClientFilter('')}}>Clear filters</button>}</div>
+      {!shown.length?<div className="rsv-empty rsv-empty-small"><h2>{filtered?'No matching reservations':tab==='upcoming'?'Nothing coming up':tab==='out'?'Nothing is out right now':'No past reservations yet'}</h2><p>{filtered?'Change or clear your filters to see more reservations.':tab==='history'?'Returned, cancelled and missed reservations move here.':'Reservations show up here as soon as they’re made.'}</p></div>
       :days.map(day=><section className="rsv-day" key={day}><h2>{dayHeading(day)}</h2><div className="rsv-rows">{pageRows.filter(r=>new Date(anchor(r)).toDateString()===day).map(r=><button type="button" className="rsv-row" key={r.id} onClick={()=>open({name:'detail',id:r.id})}>
         <span className="rsv-row-time">{tab==='out'?`Due ${timeLabel(r.endsAt)}`:timeLabel(r.startsAt)}</span>
         <span className="rsv-row-main"><b>{r.name}</b><small>{clientName(r.clientAccountId)} · {plural(r.equipmentIds.length,'item')}</small></span>
@@ -335,5 +343,4 @@ function StatusDot({reservation}:{reservation:EquipmentReservation}){return <spa
 // One icon family across the app: Heroicons outline (react-icons/hi2).
 const Plus=()=><HiOutlinePlus className="rsv-icon" aria-hidden="true"/>
 const CloseIcon=()=><HiOutlineXMark className="rsv-icon" aria-hidden="true"/>
-const FilterIcon=()=><HiOutlineFunnel className="rsv-icon" aria-hidden="true"/>
 const Chevron=({dir}:{dir:'left'|'right'|'down'})=>dir==='left'?<HiOutlineChevronLeft className="rsv-icon" aria-hidden="true"/>:dir==='down'?<HiOutlineChevronDown className="rsv-icon" aria-hidden="true"/>:<HiOutlineChevronRight className="rsv-icon" aria-hidden="true"/>
