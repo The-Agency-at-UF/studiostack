@@ -272,7 +272,9 @@ export async function dispatchProduction(client: DatabaseClient, request: Produc
       }
       return storage.signDownload(attachment.object_key, attachment.name)
     }
-    if (!manageable(brief) || (!admin && attachment.uploaded_by !== user.id)) deny()
+    if (request.method==='DELETE' && attachment.status==='discarded' && manageable(brief)) return {id:attachment.id}
+    const abandonedUpload = request.method==='DELETE' && attachment.status==='pending' && brief.ownerId===user.id
+    if (!manageable(brief) || (!admin && attachment.uploaded_by !== user.id && !abandonedUpload)) deny()
     if (request.method === 'DELETE') {
       await client.query("UPDATE app.production_attachments SET status = 'discarded' WHERE organization_id = $1 AND id = $2", [organizationId, attachment.id])
       brief.version++

@@ -56,7 +56,7 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
     const ready = await client.query('SELECT id FROM app.photo_uploads WHERE organization_id = $1 AND id = $2 AND status = $3', [organizationId, photoId, 'ready'])
     if (!ready.rows.length) throw new ApiError(409, 'Complete a photo in this organization before attaching it')
   }
-  async function dispatch(client: DatabaseClient, identity: Identity, request: ApiRequest): Promise<unknown> {
+  async function dispatch(client: DatabaseClient, identity: Identity, request: ApiRequest, intentOnly=false): Promise<unknown> {
     if (request.operation === 'register') {
       // Email is attached only by the verified directory claim, which keeps it unique per account.
       const result = await client.query<User>(`INSERT INTO app.users (cognito_issuer, cognito_subject, display_name) VALUES ($1, $2, $3)
@@ -221,12 +221,17 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       case 'completePhoto': {
         admin(membership)
         if (!storage) throw new Error('Private photo storage is not configured')
-        const result = await client.query('SELECT id, uploaded_by AS "uploadedBy", staging_key AS "stagingKey", content_type AS "contentType", input_size AS "inputSize", status, width, height, stored_size AS size, expires_at AS "expiresAt" FROM app.photo_uploads WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, request.photoId])
+        const result = await client.query('SELECT id, uploaded_by AS "uploadedBy", staging_key AS "stagingKey", content_type AS "contentType", input_size AS "inputSize", status, width, height, stored_size AS size, expires_at AS "expiresAt", finalization_started_at AS "finalizationStartedAt" FROM app.photo_uploads WHERE organization_id = $1 AND id = $2 FOR UPDATE', [organizationId, request.photoId])
         const photo = result.rows[0]
         if (!photo || photo.uploadedBy !== user.id) throw new ApiError(404, 'Photo upload not found')
         if (photo.status === 'ready') return { photoId: photo.id, width: photo.width, height: photo.height, size: photo.size }
-        if (Date.parse(String(photo.expiresAt)) <= now()) throw new ApiError(409, 'Photo upload expired; start a new upload')
-        const stored = await storage.finalize({ id: photo.id, organizationId, stagingKey: photo.stagingKey, contentType: photo.contentType, inputSize: photo.inputSize })
+        const expired=Date.parse(String(photo.expiresAt))<=now()
+        if(expired&&!photo.finalizationStartedAt)throw new ApiError(409,'Photo upload expired; start a new upload')
+        if(intentOnly){
+          if(!photo.finalizationStartedAt)await client.query('UPDATE app.photo_uploads SET finalization_started_at=now() WHERE organization_id=$1 AND id=$2',[organizationId,photo.id])
+          return null
+        }
+        const stored = await storage.finalize({ id: photo.id, organizationId, stagingKey: photo.stagingKey, contentType: photo.contentType, inputSize: photo.inputSize },{recoverOnly:expired})
         await client.query('UPDATE app.photo_uploads SET status = $3, object_key = $4, width = $5, height = $6, stored_size = $7, sha256 = $8 WHERE organization_id = $1 AND id = $2', [organizationId, photo.id, 'ready', stored.key, stored.width, stored.height, stored.size, stored.sha256])
         return { photoId: photo.id, width: stored.width, height: stored.height, size: stored.size }
       }
@@ -238,14 +243,13 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       }
     }
   }
-  return {
-    async execute(identity: Identity, request: ApiRequest): Promise<unknown> {
+  async function execute(identity: Identity, request: ApiRequest, intentOnly=false): Promise<unknown> {
       // Return deliberate HTTP failures outside withClient's driver-error redaction.
       // Roll back *before* returning an expected failure, including SQL conflicts.
       const outcome = await database.withClient(async client => {
         await client.query('BEGIN ISOLATION LEVEL READ COMMITTED')
         try {
-          const value = await dispatch(client, identity, request)
+          const value = await dispatch(client, identity, request, intentOnly)
           await client.query('COMMIT')
           return { value, error: null }
         } catch (error) {
@@ -258,6 +262,14 @@ export function createApiRepository(database: Pick<ReturnType<typeof createDatab
       })
       if (outcome.error) throw outcome.error
       return outcome.value
+  }
+  return {
+    async execute(identity:Identity,request:ApiRequest){
+      if(request.operation==='completePhoto'){
+        const ready=await execute(identity,request,true)
+        if(ready)return ready
+      }
+      return execute(identity,request)
     },
   }
 }
