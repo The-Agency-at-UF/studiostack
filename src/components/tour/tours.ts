@@ -8,7 +8,7 @@ type TourContextValues = { isAdmin: boolean }
 /** Steps whose anchors are hidden (the sidebar on mobile, the menu button on desktop) are skipped by the spotlight. */
 export const tours: Record<TourId, (context: TourContextValues) => TourStep[]> = {
   workspace: ({ isAdmin }) => [
-    { id: 'welcome', title: 'Welcome to StudioStack', body: 'StudioStack keeps your studio’s gear, bookings and productions in one place. This quick tour shows you around.' },
+    { id: 'welcome', title: 'Welcome to StudioStack', body: 'StudioStack keeps your studio’s gear, reservations and productions in one place. This quick tour shows you around.' },
     { id: 'menu', target: 'menu-toggle', title: 'Open the menu', body: 'Tap here for every page and your account.' },
     { id: 'overview', target: 'nav-overview', title: 'Start at Home', body: 'Home shows what needs attention today: pickups, returns and production requests. Alerts collects overdue gear and other warnings.' },
     { id: 'production', target: 'nav-production', title: 'Plan productions', body: 'Production is where shoots are briefed, staffed and approved. Requests move through queues until they’re ready to shoot. The Shoot calendar shows confirmed shoots, tentative dates and milestones.' },

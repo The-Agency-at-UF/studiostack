@@ -43,12 +43,12 @@ export default function LogIn({ onSignIn, onSignOut, providers = [], busy = fals
         {authenticated ? <>
           <div className="login-connected"><HiOutlineCheckCircle aria-hidden="true" /><span>Account connected securely</span></div>
           {organizations.length>0&&<div className="login-memberships">
-            <h2>Your workspaces</h2>
+            <h2>Your organizations</h2>
             {(()=>{const current=organizations.find(org=>org.id===selectedOrganizationId)??organizations[0];return <p className="login-workspace-current">{current.name} · {current.role}</p>})()}
             {organizations.length>1&&<Link className="login-text-action" href="/account/">Switch workspace</Link>}
           </div>}
           {accountActions}
-          {organizations.length > 0 && <Link className="login-primary" href="/production/">Open Production <HiOutlineArrowRight aria-hidden="true" /></Link>}
+          {organizations.length > 0 && <Link className="login-primary" href="/production/">Open production <HiOutlineArrowRight aria-hidden="true" /></Link>}
           <p className="login-security-note">Your organization’s account, production and inventory records are live.</p>
           <button className="login-text-action" onClick={() => void onSignOut?.()}>Sign out of this account</button>
         </> : <>

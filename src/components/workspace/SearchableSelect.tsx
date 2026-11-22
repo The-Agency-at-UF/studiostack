@@ -8,7 +8,11 @@ export function SearchableSelect({ label, value, onChange, options, allLabel, pl
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null), search = useRef<HTMLInputElement>(null)
   const q = query.trim().toLowerCase()
   const shown: [string, string][] = [['', allLabel], ...options.filter(([, name]) => !q || name.toLowerCase().includes(q))]
-  const current = options.find(([v]) => v === value)?.[1] ?? allLabel
+  // A chosen value that is no longer offered (its last brief was deleted, the list reloaded) must not read as "All"
+  // while it still filters everything out: reset the filter instead.
+  const known = !value || options.some(([v]) => v === value)
+  useEffect(() => { if (!known && options.length) onChange('') }, [known, options.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  const current = options.find(([v]) => v === value)?.[1] ?? (value ? 'Unavailable filter' : allLabel)
   const close = (refocus = true) => { setOpen(false); setQuery(''); if (refocus) trigger.current?.focus() }
   const choose = (next: string) => { onChange(next); close() }
   useEffect(() => {
@@ -23,9 +27,12 @@ export function SearchableSelect({ label, value, onChange, options, allLabel, pl
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, shown.length - 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)) }
+    else if (e.key === 'Home') { e.preventDefault(); setActive(0) }
+    else if (e.key === 'End') { e.preventDefault(); setActive(shown.length - 1) }
     else if (e.key === 'Enter') { e.preventDefault(); const pick = shown[active]; if (pick) choose(pick[0]) }
     else if (e.key === 'Escape') { e.preventDefault(); close() }
-    else if (e.key === 'Tab') close(false)
+    // Tab leaves the menu and moves on to the next control, as a native select would.
+    else if (e.key === 'Tab') { e.preventDefault(); close(); requestAnimationFrame(() => { const all = Array.from(document.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')); const at = all.indexOf(trigger.current!); all[e.shiftKey ? at - 1 : at + 1]?.focus() }) }
   }
   return <div ref={root} className={`ws-field ws-combo ${className}`}>
     <span id={`${id}-label`}>{label}</span>
@@ -33,11 +40,12 @@ export function SearchableSelect({ label, value, onChange, options, allLabel, pl
       <span id={`${id}-value`} className="ws-combo-value">{current}</span>
     </button>
     {open && <div className="ws-combo-menu">
-      <input ref={search} type="search" className="ws-combo-search" role="combobox" aria-label={`Search ${label.toLowerCase()}`} aria-expanded="true" aria-controls={`${id}-list`} aria-activedescendant={`${id}-opt-${active}`} aria-autocomplete="list" placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
+      <input ref={search} type="search" className="ws-combo-search" role="combobox" aria-label={`Search ${label.toLowerCase()}`} aria-expanded={open} aria-controls={`${id}-list`} aria-activedescendant={`${id}-opt-${active}`} aria-autocomplete="list" placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey} />
       <ul id={`${id}-list`} role="listbox" aria-label={label}>
         {shown.map(([v, name], i) => <li key={v || '__all'} id={`${id}-opt-${i}`} role="option" aria-selected={v === value} className={i === active ? 'is-active' : undefined} onPointerEnter={() => setActive(i)} onMouseDown={e => e.preventDefault()} onClick={() => choose(v)}>{name}</li>)}
-        {shown.length === 1 && q && <li className="ws-combo-empty" role="presentation">No matches</li>}
       </ul>
+      {shown.length === 1 && q && <p className="ws-combo-empty">No matches</p>}
+      <p className="ws-sr-only" aria-live="polite">{q ? `${shown.length - 1} ${shown.length === 2 ? 'match' : 'matches'}` : ''}</p>
     </div>}
   </div>
 }

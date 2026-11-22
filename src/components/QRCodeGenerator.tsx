@@ -57,11 +57,9 @@ const QRCodeGenerator = ({ equipmentID }: { equipmentID: string }) => {
       <div id={`qr-container-${equipmentID}`} style={{ display: "none" }}>
         <QRCode value={equipmentID} size={256} />
       </div>
-      <button
-        className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-xs lg:text-sm cursor-pointer rounded-full text-white w-full"
-        onClick={downloadAction}
-      >
-        {equipmentID}
+      {/* System button classes, not Tailwind utilities: unlayered workspace CSS outranks @layer utilities. */}
+      <button type="button" className="ws-button ws-qr-download" onClick={downloadAction}>
+        Download QR label<span className="ws-sr-only"> for {equipmentID}</span>
       </button>
     </>
   );
