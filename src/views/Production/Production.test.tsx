@@ -71,6 +71,14 @@ describe('production workspace',()=>{
     try{await waitFor(()=>expect(screen.queryByText('Loading production workspace…')).not.toBeInTheDocument());await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))});expect(accessCalls).toBe(1);await userEvent.setup().click(screen.getByRole('tab',{name:'Client accounts'}));expect(accessCalls).toBe(1)}finally{view.unmount();invalidateCache()}
   })
 
+  // The brief shows its own field errors; a half-typed date must not raise the browser's bubble instead.
+  it('checks the brief itself instead of with browser validation bubbles',async()=>{
+    const user = userEvent.setup()
+    renderPreview()
+    await user.click(await screen.findByRole('button', { name: 'New brief' }))
+    expect((await screen.findByLabelText('Project name (required)')).closest('form')).toHaveAttribute('novalidate')
+  })
+
   it('opens a print preview from the brief toolbar and preserves unsaved edits',async()=>{
     const user = userEvent.setup()
     const print = vi.fn()
