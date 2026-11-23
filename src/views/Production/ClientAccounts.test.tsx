@@ -54,6 +54,14 @@ describe('DeletedClientAccounts',()=>{
   })
 })
 describe('Optimistic client accounts',()=>{
+  it('explains an empty client name under the field instead of a browser bubble',async()=>{
+    const createClient=vi.fn()
+    render(<ClientAccounts clients={clients} api={{createClient} as unknown as ProductionClient} canManage canDelete={()=>false} onRefresh={vi.fn()}/>)
+    await userEvent.click(screen.getByRole('button',{name:'+ Add client account'}));await userEvent.type(screen.getByLabelText('Client account name'),'   ');await userEvent.click(screen.getByRole('button',{name:'Add client account'}))
+    const field=screen.getByLabelText('Client account name')
+    expect(field).toHaveAttribute('aria-invalid','true');expect(field).toHaveAccessibleDescription('Enter a client account name.');expect(field).toHaveFocus();expect(createClient).not.toHaveBeenCalled()
+    await userEvent.type(field,'A');expect(field).not.toHaveAttribute('aria-invalid')
+  })
   it('lists a new client while it saves and takes it back out if saving fails',async()=>{
     let fail!:(error:unknown)=>void;const createClient=vi.fn().mockReturnValue(new Promise((_,reject)=>{fail=reject}))
     render(<ClientAccounts clients={clients} api={{createClient} as unknown as ProductionClient} canManage canDelete={()=>true} onRefresh={vi.fn().mockResolvedValue(undefined)}/>)

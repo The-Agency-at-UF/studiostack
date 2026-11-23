@@ -59,4 +59,13 @@ describe('planning surfaces',()=>{
   await user.click(screen.getByRole('button',{name:'+ New idea'}));await user.type(screen.getByLabelText('Idea title'),'Campus interviews');await user.type(screen.getByLabelText('Creative pitch'),'Short stories from students at work.');await user.click(screen.getByRole('button',{name:'Save idea'}))
   await waitFor(()=>expect(api.createIdea).toHaveBeenCalledWith(expect.objectContaining({title:'Campus interviews',pitch:'Short stories from students at work.',id:expect.any(String)})))
  })
+ it('explains a missing idea title or pitch under its field instead of a browser bubble',async()=>{
+  const user=userEvent.setup(),api={ideas:vi.fn().mockResolvedValue({items:[],nextCursor:null}),createIdea:vi.fn()}
+  render(<IdeaBoard api={api as never} access={{userId:'author',canReview:false,canAdminister:false,isExecutive:false,notificationsConfigured:false}} clients={[]} onBrief={vi.fn()}/>)
+  await user.click(screen.getByRole('button',{name:'+ New idea'}));await user.click(screen.getByRole('button',{name:'Save idea'}))
+  expect(screen.getByLabelText('Idea title')).toHaveAttribute('aria-invalid','true');expect(screen.getByLabelText('Idea title')).toHaveAccessibleDescription('Enter a title for the idea.');expect(screen.getByLabelText('Idea title')).toHaveFocus()
+  await user.type(screen.getByLabelText('Idea title'),'Campus interviews');await user.click(screen.getByRole('button',{name:'Save idea'}))
+  expect(screen.getByLabelText('Creative pitch')).toHaveAccessibleDescription('Describe the pitch.');expect(screen.getByLabelText('Creative pitch')).toHaveFocus()
+  expect(api.createIdea).not.toHaveBeenCalled()
+ })
 })

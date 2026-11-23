@@ -134,6 +134,13 @@ describe('Organization directory',()=>{
     expect(await screen.findByRole('alert')).toHaveTextContent('has not been confirmed')
     expect(screen.getByRole('table')).toBeInTheDocument();expect(screen.queryByText('private details')).not.toBeInTheDocument()
   })
+  it('explains a malformed invitation email under the form',async()=>{
+    const user=userEvent.setup();view();await screen.findByRole('table')
+    await user.click(screen.getByRole('button',{name:'Invite people'}));await user.type(screen.getByLabelText('Email'),'new@example')
+    await user.click(screen.getByRole('button',{name:'Send invitation'}))
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid','true');expect(screen.getByLabelText('Email')).toHaveAccessibleDescription('Enter a full email address, like name@school.edu.');expect(screen.getByLabelText('Email')).toHaveFocus()
+    expect(m.invite).not.toHaveBeenCalled()
+  })
   it('invites people from the People page',async()=>{
     const user=userEvent.setup();view();await screen.findByRole('table')
     await user.click(screen.getByRole('button',{name:'Invite people'}))
