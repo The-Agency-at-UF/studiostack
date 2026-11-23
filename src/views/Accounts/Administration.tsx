@@ -8,7 +8,8 @@ import {authConfiguration} from '../../auth/cognito'
 import {useAppSession} from '../../context/AppSessionContext'
 import type {ApiPage} from '../../types/database-api'
 import type {JoinCode,OrganizationInvitation,OrganizationSettings,OrganizationActivity,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
-import {Skeleton,LoadError} from '../../components/workspace/WorkspaceUI'
+import {FieldError,Skeleton,LoadError} from '../../components/workspace/WorkspaceUI'
+import {firstProblem,invalidProps,isBlank,notWholeNumber,type FieldProblem} from '../../components/workspace/fieldCheck'
 import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import {useUnsavedGuard} from '../../components/workspace/useUnsavedGuard'
 import { Pagination } from '../../components/workspace/Pagination'
@@ -134,7 +135,15 @@ function SettingsForm({settings,busy,run,logoUrl,uploadLogo}:{settings:Organizat
   // Leaving with unsaved settings asks first; Discard is the only quiet way out.
   const [leave,setLeave]=useState<(()=>void)|null>(null)
   useUnsavedGuard(dirty,proceed=>setLeave(()=>proceed))
-  return <>{leave&&<ConfirmDialog title="Discard unsaved settings?" description="Your changes to the organization’s name, location, reservation limit or logo haven’t been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={()=>setLeave(null)} onConfirm={()=>{const go=leave;setLeave(null);form.current?.reset();go()}}/>}<form ref={form} className="administration-settings" onInput={()=>setEdited(true)} onReset={()=>{setEdited(false);setLogo(undefined)}} onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),value={name:String(f.get('name')),reservationDays:Number(f.get('days')),location:String(f.get('location')).trim()||null,version:settings.version},file=logo
+  // Mistakes show under their field, not in a browser bubble.
+  const [problem,setProblem]=useState<FieldProblem<'name'|'days'>|null>(null)
+  const error=(field:'name'|'days')=>problem?.field===field&&<FieldError id={`settings-${field}-error`}>{problem.message}</FieldError>
+  return <>{leave&&<ConfirmDialog title="Discard unsaved settings?" description="Your changes to the organization’s name, location, reservation limit or logo haven’t been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={()=>setLeave(null)} onConfirm={()=>{const go=leave;setLeave(null);form.current?.reset();go()}}/>}<form ref={form} className="administration-settings" noValidate onInput={()=>{setEdited(true);setProblem(null)}} onReset={()=>{setEdited(false);setLogo(undefined);setProblem(null)}} onSubmit={e=>{e.preventDefault()
+    const found=firstProblem(e.currentTarget,[
+      {field:'name',fails:isBlank,message:'Enter an organization name.'},
+      {field:'days',fails:notWholeNumber(1,90),message:'Maximum reservation days must be a whole number from 1 to 90.'},
+    ]);setProblem(found);if(found)return
+    const f=new FormData(e.currentTarget),value={name:String(f.get('name')),reservationDays:Number(f.get('days')),location:String(f.get('location')).trim()||null,version:settings.version},file=logo
     void run(JSON.stringify({...value,logo:file===undefined?'keep':file&&[file.name,file.size,file.lastModified]}),async(c,requestId)=>c.saveSettings({...value,...(file===undefined?{}:{logoPhotoId:file?await uploadLogo(file):null}),requestId}))}}>
     <fieldset className="administration-logo"><legend>Organization logo</legend>
       <OrganizationLogo organization={{name:settings.name,logoUrl:shownLogo}}/>
@@ -146,9 +155,9 @@ function SettingsForm({settings,busy,run,logoUrl,uploadLogo}:{settings:Organizat
         <small>{logo===undefined?'A square image works best. Members see it next to the organization name.':logo?'New logo selected. Save settings to apply it.':'The logo will be removed when you save settings.'}</small>
       </div>
     </fieldset>
-    <label>Organization name<input name="name" maxLength={120} defaultValue={settings.name} required/></label>
+    <div className="administration-field"><label>Organization name<input name="name" maxLength={120} defaultValue={settings.name} required {...invalidProps(problem,'name','settings')}/></label>{error('name')}</div>
     <label>Location<input name="location" maxLength={80} defaultValue={settings.location??''} placeholder="Gainesville"/><small className="administration-field-hint">Shown under your name when people search for organizations.</small></label>
-    <label>Maximum reservation days<span className="administration-days"><input name="days" type="number" min={1} max={90} defaultValue={settings.reservationDays} required/><span aria-hidden="true">days</span></span></label>
+    <div className="administration-field"><label>Maximum reservation days<span className="administration-days"><input name="days" type="number" inputMode="numeric" min={1} max={90} step={1} defaultValue={settings.reservationDays} required {...invalidProps(problem,'days','settings')}/><span aria-hidden="true">days</span></span></label>{error('days')}</div>
     <div className="administration-form-footer">
       {dirty&&<span className="administration-dirty">Unsaved changes</span>}
       <button type="reset" className="administration-secondary" disabled={busy||!dirty}>Discard</button>
