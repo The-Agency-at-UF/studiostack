@@ -8,7 +8,8 @@ import {createPreviewDatabaseApi} from '../../preview/database'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
-import { DetailPanel, EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion, Button, Field } from '../../components/workspace/WorkspaceUI'
+import { DetailPanel, EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion, Button, Field, FieldError } from '../../components/workspace/WorkspaceUI'
+import { isBlank, notEmail } from '../../components/workspace/fieldCheck'
 import { Pagination } from '../../components/workspace/Pagination'
 import { usePagination } from '../../components/workspace/usePagination'
 import { useToast } from '../../components/workspace/Toast'
@@ -196,21 +197,27 @@ export default function OrganizationDirectory() {
 function InviteForm({ busy, onCancel, onInvite }: { busy: boolean; onCancel: () => void; onInvite: (input: { email: string; role: 'member' | 'admin' }) => Promise<boolean> }) {
   const [email, setEmail] = useState(''), [role, setRole] = useState<'member' | 'admin'>('member')
   const field = useRef<HTMLInputElement>(null)
+  const [emailError, setEmailError] = useState('')
   useEffect(() => { field.current?.focus() }, [])
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (busy || !email.trim()) return
+    if (busy) return
+    // A missing or malformed address is explained under the form, not in a browser bubble.
+    const problem = isBlank({ value: email }) ? 'Enter an email address.' : notEmail({ value: email }) ? 'Enter a full email address, like name@school.edu.' : ''
+    setEmailError(problem)
+    if (problem) { field.current?.focus(); return }
     void onInvite({ email: email.trim(), role })
   }
   return <section id="org-invite" className="org-directory-card org-directory-invite-card" aria-labelledby="org-invite-title">
     <h2 id="org-invite-title">Invite people</h2>
-    <form className="org-directory-invite-form" onSubmit={submit}>
-      <Field label="Email"><input ref={field} type="email" maxLength={254} required placeholder="name@school.edu" value={email} onChange={event => setEmail(event.target.value)} /></Field>
+    <form className="org-directory-invite-form" noValidate onSubmit={submit}>
+      <Field label="Email"><input ref={field} type="email" maxLength={254} required placeholder="name@school.edu" value={email} aria-invalid={emailError ? true : undefined} aria-describedby={emailError ? 'org-invite-email-error' : undefined} onChange={event => { setEmail(event.target.value); setEmailError('') }} /></Field>
       <Field label="Role"><Select value={role} onChange={event => setRole(event.target.value as typeof role)}><option value="member">Member</option><option value="admin">Admin</option></Select></Field>
       <div className="org-directory-invite-actions">
         <Button type="submit" variant="primary" disabled={busy}>{busy ? 'Sending…' : 'Send invitation'}</Button>
         <Button disabled={busy} onClick={onCancel}>Cancel</Button>
       </div>
+      {emailError && <FieldError id="org-invite-email-error">{emailError}</FieldError>}
     </form>
     <p className="org-directory-hint">Invitations expire after seven days. Track or revoke them under Access &amp; settings.</p>
   </section>
