@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineXMark } from 'react-icons/hi2'
-import { Select, TabPanel, WorkspaceTabs } from '../../components/workspace/WorkspaceUI'
+import { FieldError, Select, TabPanel, WorkspaceTabs } from '../../components/workspace/WorkspaceUI'
+import { firstProblem, invalidProps, isBlank, notEmail, notWholeNumber, type FieldProblem } from '../../components/workspace/fieldCheck'
 import { closeWithExit } from '../../components/workspace/closeWithExit'
-import { emailPattern } from '../../types/patterns'
 
 type Role = 'Administrator' | 'Member'
 type Status = 'Active' | 'Invited' | 'Suspended'
@@ -60,8 +60,10 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
   const [org, setOrgState] = useState(() => previewState ?? initialOrganization())
   const setOrg = (next: OrganizationData) => { previewState = next; setOrgState(next) }
   const [tab, setTabState] = useState<'members' | 'activity' | 'settings'>(initialTab)
-  const setTab = (next: typeof tab) => { setTabState(next); setNotice(''); setSettingsError('') }
-  const [settingsError, setSettingsError] = useState('')
+  const setTab = (next: typeof tab) => { setTabState(next); setNotice(''); setSettingsError(null) }
+  // Mistakes show under their field, not in a browser bubble.
+  const [settingsError, setSettingsError] = useState<FieldProblem<'organizationName' | 'days'> | null>(null)
+  const [inviteProblem, setInviteProblem] = useState<FieldProblem<'name' | 'email'> | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All statuses')
   const [dialog, setDialog] = useState<DialogState>(null)
@@ -81,7 +83,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
     setOrg({ ...next, activity: [activity, ...org.activity] })
     setNotice(activity)
   }
-  function openDialog(next: DialogState) { setError(''); setDialog(next) }
+  function openDialog(next: DialogState) { setError(''); setInviteProblem(null); setDialog(next) }
   const avatar = (member: Member) => <span className="org-avatar" aria-hidden="true">{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span>
   const actions = (member: Member) => <div className="org-row-actions"><button aria-label={`Change role for ${member.name}`} onClick={() => openDialog({ type: 'role', member })}>Change role</button>
     <button aria-label={`${member.status === 'Invited' ? 'Revoke invitation for' : member.status === 'Suspended' ? 'Restore' : 'Suspend'} ${member.name}`} disabled={soleAdmin(member)} title={soleAdmin(member) ? 'Make someone else an administrator first.' : undefined} onClick={() => openDialog({ type: 'status', member })}>{member.status === 'Invited' ? 'Revoke' : member.status === 'Suspended' ? 'Restore' : 'Suspend'}</button></div>
@@ -92,7 +94,12 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
     const email = String(form.get('email') ?? '').trim().toLowerCase()
     const name = String(form.get('name') ?? '').trim()
     const role = form.get('role') === 'Administrator' ? 'Administrator' : 'Member'
-    if (!name || !emailPattern.test(email)) { setError('Enter a name and valid email address.'); return }
+    const problem = firstProblem(event.currentTarget, [
+      { field: 'name', fails: isBlank, message: 'Enter their full name.' },
+      { field: 'email', fails: notEmail, message: 'Enter a full email address, like name@school.edu.' },
+    ])
+    setInviteProblem(problem)
+    if (problem) return
     if (org.members.some(member => member.email.toLowerCase() === email)) { setError('This email is already in this organization.'); return }
     update({ ...org, members: [...org.members, { id: crypto.randomUUID(), name, email, role, status: 'Invited' }] }, `Preview invitation created for ${name}. No email was sent.`)
     setDialog(null)
@@ -148,14 +155,17 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         {org.activity.length ? <ol className="org-activity">{org.activity.map((item, index) => <li key={`${index}-${item}`}><span>{String(org.activity.length - index).padStart(2, '0')}</span>{item}</li>)}</ol> : <div className="org-empty">No preview changes yet. Invite a member or update a role to see activity here.</div>}
       </div>}
       {tab === 'settings' && <div className="org-section"><h3>Organization settings</h3><p>Preview preferences only. Backend enforcement and institutional SSO are not connected.</p>
-        <form className="org-settings" onSubmit={event => {
+        <form className="org-settings" noValidate onInput={() => setSettingsError(null)} onSubmit={event => {
           event.preventDefault(); const data = new FormData(event.currentTarget); const name = String(data.get('organizationName') ?? '').trim(); const days = Number(data.get('days'))
-          if (!name) { setNotice(''); setSettingsError('Enter an organization name.'); return }
-          if (!Number.isInteger(days) || days < 1 || days > 30) { setNotice(''); setSettingsError('Choose a reservation length from 1 to 30 days.'); return }
-          setSettingsError('')
+          const problem = firstProblem(event.currentTarget, [
+            { field: 'organizationName', fails: isBlank, message: 'Enter an organization name.' },
+            { field: 'days', fails: notWholeNumber(1, 30), message: 'Choose a reservation length from 1 to 30 days.' },
+          ])
+          setSettingsError(problem)
+          if (problem) { setNotice(''); return }
           update({ ...org, name, initials: name === org.name ? org.initials : initialsOf(name), reservationDays: days }, 'Organization settings saved for this preview only.')
-        }}>{settingsError && <p className="org-error" role="alert">{settingsError}</p>}<label>Organization name<input name="organizationName" defaultValue={org.name} maxLength={80} required /></label>
-          <label>Default reservation length (days)<input name="days" type="number" defaultValue={org.reservationDays} min={1} max={30} required /></label>
+        }}><div className="org-field"><label>Organization name<input name="organizationName" defaultValue={org.name} maxLength={80} required {...invalidProps(settingsError, 'organizationName', 'org-settings')} /></label>{settingsError?.field === 'organizationName' && <FieldError id="org-settings-organizationName-error">{settingsError.message}</FieldError>}</div>
+          <div className="org-field"><label>Default reservation length (days)<input name="days" type="number" inputMode="numeric" defaultValue={org.reservationDays} min={1} max={30} step={1} required {...invalidProps(settingsError, 'days', 'org-settings')} /></label>{settingsError?.field === 'days' && <FieldError id="org-settings-days-error">{settingsError.message}</FieldError>}</div>
           <div className="org-sso"><span>Institutional sign-in</span><strong>Not connected</strong><p>Cognito and institution approval are required before enabling SSO.</p></div>
           <button className="org-primary" type="submit">Save preview settings <HiOutlineArrowUpRight /></button>
         </form>
@@ -165,10 +175,10 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
     <p className="org-page-note">StudioStack / Organization</p>
     {dialog && <PreviewDialog title={dialog.type === 'invite' ? 'Invite a member' : dialog.type === 'role' ? 'Change organization role' : dialog.member.status === 'Invited' ? 'Revoke invitation' : dialog.member.status === 'Suspended' ? 'Restore membership' : 'Suspend membership'} close={() => setDialog(null)}>
       {error && <p className="org-error" role="alert">{error}</p>}
-      {dialog.type === 'invite' ? <form className="org-dialog-form" onSubmit={submitInvite}>
+      {dialog.type === 'invite' ? <form className="org-dialog-form" noValidate onInput={() => setInviteProblem(null)} onSubmit={submitInvite}>
         <p>Add someone to {org.name}. This preview will not send an email.</p>
-        <label>Full name<input name="name" data-autofocus maxLength={80} required /></label>
-        <label>Email address<input name="email" type="email" maxLength={254} required /></label>
+        <div className="org-field"><label>Full name<input name="name" data-autofocus maxLength={80} required {...invalidProps(inviteProblem, 'name', 'org-invite')} /></label>{inviteProblem?.field === 'name' && <FieldError id="org-invite-name-error">{inviteProblem.message}</FieldError>}</div>
+        <div className="org-field"><label>Email address<input name="email" type="email" maxLength={254} required {...invalidProps(inviteProblem, 'email', 'org-invite')} /></label>{inviteProblem?.field === 'email' && <FieldError id="org-invite-email-error">{inviteProblem.message}</FieldError>}</div>
         <label>Organization role<Select name="role"><option>Member</option><option>Administrator</option></Select></label>
         <div className="org-dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="org-primary" type="submit">Create preview invitation</button></div>
       </form> : dialog.type === 'role' ? <form className="org-dialog-form" onSubmit={event => {

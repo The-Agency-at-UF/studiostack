@@ -3,6 +3,8 @@
 .org-directory-invite-card h2 { margin:0 0 var(--space-4); font-size:var(--text-lg); font-weight:var(--weight-bold); }
 .org-directory-invite-form { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-3); }
 .org-directory-invite-form .ws-field:first-child { flex:1 1 280px; }
+/* The email's error gets its own row under the fields, so inputs and buttons stay lined up. */
+.org-directory-invite-form .ws-field-error { flex-basis:100%; margin:calc(var(--space-1) * -1) 0 0; }
 .org-directory-invite-form input { min-height:var(--control-height); padding:0 var(--space-4); border:1px solid var(--line-control); border-radius:var(--radius-pill); background:var(--surface); color:var(--ink); font-size:var(--text-sm); }
 .org-directory-invite-actions { display:flex; gap:var(--space-2); }
 .org-directory-hint { margin:var(--space-3) 0 0; color:var(--muted); font-size:var(--text-xs); }
