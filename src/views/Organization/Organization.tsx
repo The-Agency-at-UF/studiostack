@@ -1,13 +1,11 @@
 'use client'
 
-import { TabPill } from '../../components/workspace/TabPill'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { HiOutlineArrowUpRight, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineXMark } from 'react-icons/hi2'
-import { Select } from '../../components/workspace/WorkspaceUI'
+import { Select, TabPanel, WorkspaceTabs } from '../../components/workspace/WorkspaceUI'
 import { closeWithExit } from '../../components/workspace/closeWithExit'
 import { emailPattern } from '../../types/patterns'
-import { tabKeys } from '../../components/workspace/tabs'
 
 type Role = 'Administrator' | 'Member'
 type Status = 'Active' | 'Invited' | 'Suspended'
@@ -55,6 +53,8 @@ function PreviewDialog({ title, children, close }: { title: string; children: Re
     {children}
   </dialog>
 }
+
+const sections = [{ value: 'members', label: 'Members & access' }, { value: 'activity', label: 'Activity' }, { value: 'settings', label: 'Settings' }]
 
 export default function Organization({ isAdmin, initialTab = 'members' }: { isAdmin: boolean; initialTab?: 'members' | 'activity' | 'settings' }) {
   const [org, setOrgState] = useState(() => previewState ?? initialOrganization())
@@ -119,10 +119,8 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
         <div><h2>{org.name}</h2><p>Previewing organization administrator access</p></div>
         <div className="org-counts"><span><strong>{active.length}</strong> active {active.length === 1 ? 'member' : 'members'}</span><span><strong>{invited.length}</strong> pending {invited.length === 1 ? 'invitation' : 'invitations'}</span></div>
       </div>
-      <div className="org-tabs ws-pill-tabs" role="tablist" aria-label="Organization sections" onKeyDown={tabKeys}>
-        <TabPill id="organization-preview-sections" />
-        {(['members', 'activity', 'settings'] as const).map(item => <button key={item} type="button" role="tab" aria-selected={tab === item} tabIndex={tab === item ? 0 : -1} className={tab === item ? 'selected' : ''} onClick={() => setTab(item)}>{item === 'members' ? 'Members & access' : item === 'activity' ? 'Activity' : 'Settings'}</button>)}
-      </div>
+      <WorkspaceTabs className="org-tabs" label="Organization sections" items={sections} active={tab} onChange={value => setTab(value as typeof tab)} />
+      <TabPanel label="Organization sections" active={tab}>
       {notice && <p className="org-notice" role="status">{notice}</p>}
       {tab === 'members' && <>
         <div className="org-section-heading"><div><h3>Members & access</h3><p>Manage membership for {org.name} only.</p></div><button className="org-primary" onClick={() => openDialog({ type: 'invite' })}><HiOutlinePlus /> Invite member</button></div>
@@ -162,6 +160,7 @@ export default function Organization({ isAdmin, initialTab = 'members' }: { isAd
           <button className="org-primary" type="submit">Save preview settings <HiOutlineArrowUpRight /></button>
         </form>
       </div>}
+      </TabPanel>
     </section>
     <p className="org-page-note">StudioStack / Organization</p>
     {dialog && <PreviewDialog title={dialog.type === 'invite' ? 'Invite a member' : dialog.type === 'role' ? 'Change organization role' : dialog.member.status === 'Invited' ? 'Revoke invitation' : dialog.member.status === 'Suspended' ? 'Restore membership' : 'Suspend membership'} close={() => setDialog(null)}>

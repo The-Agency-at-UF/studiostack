@@ -8,7 +8,7 @@ import {createPreviewDatabaseApi} from '../../preview/database'
 import { createDatabaseApiClient, DatabaseApiClientError } from '../../api/database'
 import { authConfiguration } from '../../auth/cognito'
 import { useAppSession } from '../../context/AppSessionContext'
-import { DetailPanel, EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion } from '../../components/workspace/WorkspaceUI'
+import { DetailPanel, EmptyState, Notice, Select, Skeleton, StatusLabel, TableRegion, Button, Field } from '../../components/workspace/WorkspaceUI'
 import { Pagination } from '../../components/workspace/Pagination'
 import { usePagination } from '../../components/workspace/usePagination'
 import { useToast } from '../../components/workspace/Toast'
@@ -138,8 +138,8 @@ export default function OrganizationDirectory() {
 
   return <main className="org-directory workspace-surface">
     <OrganizationHeader settings={settings} active="people"
-      action={manager && <button type="button" className="ws-button ws-button-primary org-directory-invite" aria-expanded={inviting} aria-controls="org-invite" onClick={() => setInviting(open => !open)}><HiOutlinePlus aria-hidden="true" />Invite people</button>} />
-    {error && <Notice kind="error" action={!settings && !loading && <button type="button" className="ws-button" onClick={() => setAttempt(n => n + 1)}>Retry</button>}>{error}</Notice>}
+      action={manager && <Button variant="primary" className="org-directory-invite" aria-expanded={inviting} aria-controls="org-invite" onClick={() => setInviting(open => !open)}><HiOutlinePlus aria-hidden="true" />Invite people</Button>} />
+    {error && <Notice kind="error" action={!settings && !loading && <Button onClick={() => setAttempt(n => n + 1)}>Retry</Button>}>{error}</Notice>}
     {loading && <Skeleton label="Loading organization…" variant="row" count={4} />}
     {!org && !loading && <EmptyState title="Select an organization to continue." />}
     {settings && <>
@@ -174,7 +174,7 @@ export default function OrganizationDirectory() {
                   </div>
                 </div></td>
                 <td><StatusLabel tone={person.role === 'owner' ? 'accent' : 'neutral'}>{roleLabel[person.role]}</StatusLabel></td>
-                {manager && <td className="org-directory-manage-cell">{manageable(person) && <button type="button" className="ws-button org-directory-manage" data-manage={person.id} aria-label={`Manage ${person.name}`} aria-expanded={open} aria-controls={open ? 'org-person-panel' : undefined} onClick={() => open ? closePanel() : setSelectedId(person.id)}>Manage</button>}</td>}
+                {manager && <td className="org-directory-manage-cell">{manageable(person) && <Button className="org-directory-manage" data-manage={person.id} aria-label={`Manage ${person.name}`} aria-expanded={open} aria-controls={open ? 'org-person-panel' : undefined} onClick={() => open ? closePanel() : setSelectedId(person.id)}>Manage</Button>}</td>}
               </tr>
             })}</tbody>
           </table>
@@ -205,11 +205,11 @@ function InviteForm({ busy, onCancel, onInvite }: { busy: boolean; onCancel: () 
   return <section id="org-invite" className="org-directory-card org-directory-invite-card" aria-labelledby="org-invite-title">
     <h2 id="org-invite-title">Invite people</h2>
     <form className="org-directory-invite-form" onSubmit={submit}>
-      <label className="ws-field">Email<input ref={field} type="email" maxLength={254} required placeholder="name@school.edu" value={email} onChange={event => setEmail(event.target.value)} /></label>
-      <label className="ws-field">Role<Select value={role} onChange={event => setRole(event.target.value as typeof role)}><option value="member">Member</option><option value="admin">Admin</option></Select></label>
+      <Field label="Email"><input ref={field} type="email" maxLength={254} required placeholder="name@school.edu" value={email} onChange={event => setEmail(event.target.value)} /></Field>
+      <Field label="Role"><Select value={role} onChange={event => setRole(event.target.value as typeof role)}><option value="member">Member</option><option value="admin">Admin</option></Select></Field>
       <div className="org-directory-invite-actions">
-        <button type="submit" className="ws-button ws-button-primary" disabled={busy}>{busy ? 'Sending…' : 'Send invitation'}</button>
-        <button type="button" className="ws-button" disabled={busy} onClick={onCancel}>Cancel</button>
+        <Button type="submit" variant="primary" disabled={busy}>{busy ? 'Sending…' : 'Send invitation'}</Button>
+        <Button disabled={busy} onClick={onCancel}>Cancel</Button>
       </div>
     </form>
     <p className="org-directory-hint">Invitations expire after seven days. Track or revoke them under Access &amp; settings.</p>
@@ -255,12 +255,12 @@ function PersonPanel({ person, owner, canRemove, busy, organization, change, onC
             {option === person.role && <span className="org-person-current">Current</span>}
           </label>)}
         </fieldset>
-        <button type="submit" className="ws-button ws-button-primary" disabled={busy || role === person.role}>Save role</button>
+        <Button type="submit" variant="primary" disabled={busy || role === person.role}>Save role</Button>
       </form>
       {canRemove&&<section className="org-person-section" aria-labelledby="org-person-remove">
         <h3 id="org-person-remove">Remove from {organization}</h3>
         <p className="org-person-note">They lose access to this organization. Their reservations and history are kept, and you can invite them back.</p>
-        <button type="button" className="ws-button ws-button-danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove from organization</button>
+        <Button variant="danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove from organization</Button>
       </section>}
     </div>
     {confirm === 'remove' && <ConfirmDialog title={`Remove from ${organization}?`} subject={person.name} confirmLabel={`Remove ${person.name}`} cancelLabel="Keep member" returnFocus={() => document.getElementById('org-people')}

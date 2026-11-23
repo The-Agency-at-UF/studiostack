@@ -6,7 +6,7 @@ import {allPages,equipmentError,type DatabaseApi} from './live'
 import type {EquipmentRecord,EquipmentReservation} from '../../types/equipment'
 import {ConditionForm} from './Fulfillment'
 import {reservationLabel} from './Reservations'
-import {dateTimeLabel} from './format'
+import {dateTimeLabel} from '../../format'
 import EquipmentQrScanner from '../../components/EquipmentQrScanner'
 type ScannedHandoff={kind:'checkout'|'return';reservation:EquipmentReservation}|{kind:'none';reason:string}
 /** Picks the reservation a scanned item belongs to: its open checkout when it is out, otherwise the earliest pickup that is open now. */

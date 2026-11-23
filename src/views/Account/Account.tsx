@@ -9,12 +9,12 @@ import type {ApiOrganization} from '../../types/database-api'
 import EmailVerification from '../Production/EmailVerification'
 import NotificationsTab from './Notifications'
 import {useToast} from '../../components/workspace/Toast'
-import { dateLabel, roleLabel as formatRole } from '../../format'
+import { dateLabel, roleLabel } from '../../format'
 import { tabKeys } from '../../components/workspace/tabs'
+import { Button, Field, Notice, StatusLabel } from '../../components/workspace/WorkspaceUI'
 
 type AccountTab='profile'|'workspaces'|'notifications'|'security'
 const tabs:{value:AccountTab;label:string}[]=[{value:'profile',label:'Profile'},{value:'workspaces',label:'Organizations'},{value:'notifications',label:'Notifications'},{value:'security',label:'Sign-in and security'}]
-const roleLabel=(role:ApiOrganization['role'])=>role[0].toUpperCase()+role.slice(1)
 const initials=(email:string)=>(email.split('@')[0].match(/[a-z]+/gi)??['?']).slice(0,2).map(part=>part[0].toUpperCase()).join('')
 const minorWords=new Set(['the','a','an','of','at','and','for'])
 
@@ -80,7 +80,7 @@ function ProfileTab({name,onSave}:{name:string|null;onSave?:(name:string)=>Promi
     <div className="account-card-heading"><h2 id="account-profile-title">Profile</h2></div>
     <div className="account-card-body">
       {onSave&&name!==null&&<NameField initialName={name} onSave={onSave}/>}
-      <label className="ws-field">Email<input type="email" value={session.email} readOnly/></label>
+      <Field label="Email"><input type="email" value={session.email} readOnly/></Field>
       {session.getAccessToken&&<EmailVerification getAccessToken={session.getAccessToken}/>}
     </div>
   </section>
@@ -97,8 +97,8 @@ function NameField({initialName,onSave}:{initialName:string;onSave:(name:string)
     try{await onSave(trimmed);toast.success('Name saved.',{id:'account-name'})}catch{setError('Your name could not be saved. Try again.')}finally{setBusy(false)}
   }
   return <form className="account-code" noValidate onSubmit={e=>{e.preventDefault();void save()}}>
-    <label className="ws-field">Name<input value={value} onChange={e=>{setValue(e.target.value);setError('')}} maxLength={120} autoComplete="name" disabled={busy} aria-invalid={error?true:undefined} aria-describedby={error?'account-name-error':undefined}/></label>
-    <button type="submit" className="ws-button ws-button-primary" disabled={busy||!changed}>{busy?'Saving…':'Save name'}</button>
+    <Field label="Name"><input value={value} onChange={e=>{setValue(e.target.value);setError('')}} maxLength={120} autoComplete="name" disabled={busy} aria-invalid={error?true:undefined} aria-describedby={error?'account-name-error':undefined}/></Field>
+    <Button type="submit" variant="primary" disabled={busy||!changed}>{busy?'Saving…':'Save name'}</Button>
     {error&&<p id="account-name-error" className="account-field-error" role="alert">{error}</p>}
   </form>
 }
@@ -107,8 +107,8 @@ function SecurityTab() {
   const session=useAppSession()
   return <section className="account-card" aria-labelledby="account-security-title">
     <div className="account-card-heading"><h2 id="account-security-title">Sign-in and security</h2></div>
-    <div className="account-row"><div><strong>Signed in as</strong><span>{session.email}</span></div>{session.mode==='authenticated'&&<span className="ws-status ws-status-success">Connected securely</span>}</div>
-    <div className="account-row"><div><strong>This browser</strong><span>Sign out when you finish on a shared computer.</span></div><button type="button" className="ws-button ws-button-secondary" onClick={()=>void session.signOut?.()}>Sign out</button></div>
+    <div className="account-row"><div><strong>Signed in as</strong><span>{session.email}</span></div>{session.mode==='authenticated'&&<StatusLabel tone="success">Connected securely</StatusLabel>}</div>
+    <div className="account-row"><div><strong>This browser</strong><span>Sign out when you finish on a shared computer.</span></div><Button onClick={()=>void session.signOut?.()}>Sign out</Button></div>
     {(session.mode==='preview'||session.mode==='authenticated'&&session.getAccessToken)&&<DeleteAccount previewPersonId={session.mode==='preview'?(session.previewPersonId??'preview-admin'):undefined} email={session.email} getAccessToken={session.getAccessToken} onDeleted={()=>void session.signOut?.()}/>}
   </section>
 }
@@ -126,15 +126,15 @@ function DeleteAccount({email,getAccessToken,previewPersonId,onDeleted}:{email:s
     catch(e){const sent=e instanceof DatabaseApiClientError&&e.status===409?(e.payload as {error?:unknown}|undefined)?.error:undefined;setError(typeof sent==='string'?sent:'Your account could not be deleted right now. Try again.');setBusy(false)}
   }
   if(!open)return <div className="account-row"><div><strong>Delete account</strong><span>Remove your sign-in and leave every organization. This can’t be undone.</span></div>
-    <button type="button" className="ws-button ws-button-secondary ws-button-danger" onClick={()=>setOpen(true)}>Delete account</button></div>
+    <Button variant="danger" onClick={()=>setOpen(true)}>Delete account</Button></div>
   return <form className="account-row account-delete" noValidate aria-labelledby="account-delete-title" onSubmit={e=>{e.preventDefault();void remove()}}>
     <div><strong id="account-delete-title">Delete your account?</strong>
       <span>You will be signed out and removed from every organization. Reservations and history you created stay with each organization without your name or email. If you are the only owner of an organization, make someone else an owner first.</span></div>
-    {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
-    <label className="ws-field">Type {email} to confirm<input type="email" value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy}/></label>
+    {error&&<Notice kind="error">{error}</Notice>}
+    <Field label={`Type ${email} to confirm`}><input type="email" value={typed} onChange={e=>setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy}/></Field>
     <div className="account-delete-actions">
-      <button type="button" className="ws-button ws-button-secondary" onClick={close} disabled={busy}>Cancel</button>
-      <button type="submit" className="ws-button ws-button-danger-solid" disabled={!matches||busy}>{busy?'Deleting…':'Delete account permanently'}</button>
+      <Button onClick={close} disabled={busy}>Cancel</Button>
+      <Button type="submit" variant="danger-solid" disabled={!matches||busy}>{busy?'Deleting…':'Delete account permanently'}</Button>
     </div>
   </form>
 }
@@ -150,7 +150,7 @@ function WorkspacesTab() {
           <input type="radio" name="account-workspace" value={org.id} checked={selected===org.id} onChange={()=>{session.setSelectedOrganizationId?.(org.id);toast.success(`Switched to ${org.name}.`,{id:'account-workspace'})}}/>
           <OrganizationLogo organization={org}/>
           <span className="account-workspace-name"><strong>{org.name}</strong><span>{roleLabel(org.role)}</span></span>
-          {selected===org.id&&<span className="ws-status ws-status-accent">Current</span>}
+          {selected===org.id&&<StatusLabel tone="accent">Current</StatusLabel>}
         </label>)}
       </fieldset>:<p className="account-empty">{session.mode==='preview'?'This local preview uses a sample organization. Sign in to see and switch between your own organizations.':'You aren’t in an organization yet. Join one below.'}</p>}
     </section>
@@ -180,17 +180,17 @@ function JoinWorkspace({getAccessToken,previewPersonId,onJoined}:{getAccessToken
   return <section className="account-card" aria-labelledby="account-join-title">
     <div className="account-card-heading"><h2 id="account-join-title">Join another organization</h2></div>
     <div className="account-card-body">
-      {error&&<p className="ws-notice ws-notice-error" role="alert">{error}</p>}
+      {error&&<Notice kind="error">{error}</Notice>}
       {invitations.length>0&&<ul className="account-workspaces account-invitation-list">{invitations.map(invitation=><li key={invitation.id} className="account-workspace">
         <OrganizationLogo organization={{name:invitation.organizationName}}/>
-        <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {formatRole(invitation.role).toLowerCase()}, expires {dateLabel(invitation.expiresAt)}</span></span>
-        <button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={()=>void accept(invitation)}>Join {invitation.organizationName}</button>
+        <span className="account-workspace-name"><strong>{invitation.organizationName}</strong><span>Invited as {roleLabel(invitation.role).toLowerCase()}, expires {dateLabel(invitation.expiresAt)}</span></span>
+        <Button variant="primary" disabled={busy} onClick={()=>void accept(invitation)}>Join {invitation.organizationName}</Button>
       </li>)}</ul>}
       {loaded&&!invitations.length&&<div className="account-empty-invitations"><span>No pending invitations. Ask an organization admin to invite this account.</span>
-        <button type="button" className="ws-button ws-button-secondary" disabled={busy} onClick={()=>void load()}>{busy?'Checking…':'Check again'}</button></div>}
+        <Button disabled={busy} onClick={()=>void load()}>{busy?'Checking…':'Check again'}</Button></div>}
       <form className="account-code" noValidate onSubmit={e=>{e.preventDefault();void joinWithCode()}}>
-        <label className="ws-field">Have a join code?<input value={code} onChange={e=>{setCode(e.target.value);setCodeError('')}} placeholder="ABCDE-FGHJK" maxLength={32} autoComplete="off" spellCheck={false} aria-invalid={codeError?true:undefined} aria-describedby={codeError?'account-code-error':undefined}/></label>
-        <button type="submit" className="ws-button ws-button-primary" disabled={busy}>Join organization</button>
+        <Field label="Have a join code?"><input value={code} onChange={e=>{setCode(e.target.value);setCodeError('')}} placeholder="ABCDE-FGHJK" maxLength={32} autoComplete="off" spellCheck={false} aria-invalid={codeError?true:undefined} aria-describedby={codeError?'account-code-error':undefined}/></Field>
+        <Button type="submit" variant="primary" disabled={busy}>Join organization</Button>
         {codeError&&<p id="account-code-error" className="account-field-error" role="alert">{codeError}</p>}
       </form>
     </div>

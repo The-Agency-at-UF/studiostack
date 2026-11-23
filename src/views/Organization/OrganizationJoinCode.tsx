@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AccountClient } from '../../api/accounts'
 import type { JoinCode } from '../../types/accounts'
-import { Notice } from '../../components/workspace/WorkspaceUI'
+import { Notice, Button } from '../../components/workspace/WorkspaceUI'
 import { useToast } from '../../components/workspace/Toast'
 
 export default function OrganizationJoinCode({ api, name }: { api: AccountClient; name: string }) {
@@ -48,15 +48,15 @@ export default function OrganizationJoinCode({ api, name }: { api: AccountClient
         {loading ? <p role="status">Loading join code…</p> : code?.code && <code aria-label="Organization join code">{code.code}</code>}
       </div>
       {!loading && (code?.code ? <div className="org-directory-code-actions">
-        <button className="ws-button" type="button" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy code'}</button>
-        <button className="ws-button" type="button" disabled={busy} onClick={() => setConfirm(true)}>Replace code</button>
-      </div> : <button className="ws-button ws-button-primary" type="button" disabled={busy || loadFailed} onClick={() => void create()}>{busy ? 'Creating…' : 'Create reusable code'}</button>)}
+        <Button onClick={() => void copy()}>{copied ? 'Copied' : 'Copy code'}</Button>
+        <Button disabled={busy} onClick={() => setConfirm(true)}>Replace code</Button>
+      </div> : <Button variant="primary" disabled={busy || loadFailed} onClick={() => void create()}>{busy ? 'Creating…' : 'Create reusable code'}</Button>)}
       <p className="org-directory-join-help">Anyone with this code and a verified email joins {name} as a member. It stays valid until replaced. Codes with a use limit or expiry are in Access & settings.</p>
     </div>
     {error && <Notice kind="error">{error}</Notice>}
     {confirm && <div className="org-directory-code-confirm"><p>Replacing this code stops the old code from working. Existing members keep their access.</p>
-      <div className="org-directory-code-actions"><button type="button" className="ws-button ws-button-primary" disabled={busy} onClick={() => void create()}>{busy ? 'Replacing…' : 'Replace join code'}</button>
-        <button type="button" className="ws-button" disabled={busy} onClick={() => setConfirm(false)}>Cancel</button></div>
+      <div className="org-directory-code-actions"><Button variant="primary" disabled={busy} onClick={() => void create()}>{busy ? 'Replacing…' : 'Replace join code'}</Button>
+        <Button disabled={busy} onClick={() => setConfirm(false)}>Cancel</Button></div>
     </div>}
   </section>
 }

@@ -1,5 +1,6 @@
 import QRCode from "react-qr-code";
 import { useToast } from "./workspace/Toast";
+import { Button } from "./workspace/WorkspaceUI";
 
 const QRCodeGenerator = ({ equipmentID }: { equipmentID: string }) => {
   const toast = useToast();
@@ -58,9 +59,9 @@ const QRCodeGenerator = ({ equipmentID }: { equipmentID: string }) => {
         <QRCode value={equipmentID} size={256} />
       </div>
       {/* System button classes, not Tailwind utilities: unlayered workspace CSS outranks @layer utilities. */}
-      <button type="button" className="ws-button ws-qr-download" onClick={downloadAction}>
+      <Button className="ws-qr-download" onClick={downloadAction}>
         Download QR label<span className="ws-sr-only"> for {equipmentID}</span>
-      </button>
+      </Button>
     </>
   );
 };

@@ -11,6 +11,7 @@ import { HiOutlineBugAnt, HiOutlineLightBulb, HiOutlineXMark, HiOutlineCheckCirc
 import {createPreviewDatabaseApi} from '../preview/database';
 import { db, collection, addDoc, serverTimestamp } from '../data/localStore';
 import { dateLabel } from '../format'
+import { Button } from './workspace/WorkspaceUI'
 
 const copy = {
   bug: { Icon: HiOutlineBugAnt, trigger: 'Report a bug', heading: 'Report a bug', history: 'Your submitted reports', empty: 'No reports yet.', titlePlaceholder: 'What happened?', submit: 'Submit report', success: 'Report submitted', previewThanks: 'This is a local preview, so the report was saved in this browser only and no one was notified.', thanks: 'Thank you for your feedback. Our team has been notified and will look into this issue.', failure: 'Failed to submit bug report. Please try again later.', collection: 'bugReports' },
@@ -105,7 +106,7 @@ function BugReportPopup({ userEmail, open, onOpenChange, kind = 'bug', showTrigg
       <button type="button" aria-label="Close dialog" className="ws-feedback-close" onClick={close}><HiOutlineXMark aria-hidden="true" /></button>
       {!submitted && !error ? <form className="ws-feedback-form" noValidate onSubmit={e => { e.preventDefault(); if (!isSubmitting) void handleSubmit() }}>
         <h2 id={`${fieldId}-heading`}>{text.heading}</h2>
-        {(session.mode==='authenticated'||session.mode==='preview')&&<details className="ws-feedback-history" onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError} <button type="button" className="ws-button ws-button-link" onClick={()=>void loadHistory()}>Try again</button></p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{dateLabel(report.createdAt)} on {report.pagePath}</small></li>)}</ul></details>}
+        {(session.mode==='authenticated'||session.mode==='preview')&&<details className="ws-feedback-history" onToggle={e=>{if(e.currentTarget.open)void loadHistory()}}><summary>{text.history}</summary>{historyLoading&&<p role="status">Loading reports…</p>}{historyError&&<p role="alert">{historyError} <Button variant="link" onClick={()=>void loadHistory()}>Try again</Button></p>}{!historyLoading&&!historyError&&!history.length&&<p>{text.empty}</p>}<ul>{history.map(report=><li key={report.id}><strong>{report.title}</strong><p>{report.description}</p><small>{dateLabel(report.createdAt)} on {report.pagePath}</small></li>)}</ul></details>}
         <label className="ws-field" htmlFor={`${fieldId}-title`}>Title<span className="ws-sr-only"> (required)</span>
           <input id={`${fieldId}-title`} type="text" placeholder={text.titlePlaceholder} maxLength={160} required aria-invalid={missing.includes('title') || undefined} aria-describedby={missing.includes('title') ? `${fieldId}-missing` : undefined} value={title} onChange={(e) => { setTitle(e.target.value); setMissing(''); }} />
         </label>
