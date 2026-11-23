@@ -3,7 +3,8 @@ import {useState} from 'react'
 import ConfirmDialog from '../../components/workspace/ConfirmDialog'
 import type {AccountClient} from '../../api/accounts'
 import type {JoinCode,PendingAccessRequest,WorkspaceDomain} from '../../types/accounts'
-import {Select} from '../../components/workspace/WorkspaceUI'
+import {FieldError,Select} from '../../components/workspace/WorkspaceUI'
+import {firstProblem,invalidProps,isBlank,notWholeNumber,type FieldProblem,type FieldRule} from '../../components/workspace/fieldCheck'
 import { Pagination } from '../../components/workspace/Pagination'
 import { usePagination } from '../../components/workspace/usePagination'
 import {useToast} from '../../components/workspace/Toast'
@@ -42,6 +43,12 @@ export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolea
   const [adding,setAdding]=useState<'code'|'domain'|null>(null)
   const [copied,setCopied]=useState('')
   const [pending,setPending]=useState<PendingConfirm|null>(null)
+  // Mistakes show under the form and are named on their field (aria-invalid / aria-describedby), not in a browser bubble.
+  type Field='label'|'uses'|'days'|'domain'
+  const [fieldError,setFieldError]=useState<FieldProblem<Field>|null>(null)
+  const invalid=(field:Field)=>invalidProps(fieldError,field,'join')
+  const open=(form:'code'|'domain'|null)=>{setFieldError(null);setAdding(form)}
+  const check=(form:HTMLFormElement,rules:FieldRule<Field>[])=>{const problem=firstProblem(form,rules);setFieldError(problem);return !problem}
   // The main code is the one reusable code whose value the server keeps; it is replaced from People, never revoked here.
   const main=codes.find(c=>c.code&&!c.revokedAt)
   const active=codes.filter(c=>!c.code&&!c.revokedAt&&(!c.expiresAt||Date.parse(c.expiresAt)>Date.now()))
@@ -54,9 +61,14 @@ export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolea
   async function replaceCode(c:JoinCode){
     if(!c.revokedAt&&(!c.expiresAt||Date.parse(c.expiresAt)>Date.now())&&await revokeCode(c)===undefined)return
     setReplayed(null)
-    setAdding('code')
+    open('code')
   }
   async function createCode(form:HTMLFormElement){
+    if(!check(form,[
+      {field:'label',fails:isBlank,message:'Enter a label so you can tell this code apart.'},
+      {field:'uses',fails:notWholeNumber(1,10000,{optional:true}),message:'Maximum uses must be a whole number from 1 to 10,000. Leave it blank for unlimited uses.'},
+      {field:'days',fails:notWholeNumber(1,365,{optional:true}),message:'Expiry must be a whole number of days from 1 to 365. Leave it blank so the code never expires.'},
+    ]))return
     const f=new FormData(form),uses=String(f.get('uses')),days=String(f.get('days')),input={label:String(f.get('label')),maxUses:uses?Number(uses):null,expiresInDays:days?Number(days):null}
     const created=await run(JSON.stringify({code:input}),(c,requestId)=>c.createJoinCode({...input,requestId})) as JoinCode|undefined
     if(!created)return
@@ -65,6 +77,7 @@ export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolea
     setAdding(null)
   }
   async function addDomain(form:HTMLFormElement){
+    if(!check(form,[{field:'domain',fails:isBlank,message:'Enter an email domain, like studio.example.edu.'}]))return
     const f=new FormData(form),input={domain:String(f.get('domain')),autoJoin:f.get('mode')==='auto'}
     if(await run(JSON.stringify({domain:input}),(c,requestId)=>c.addDomain({...input,requestId}))!==undefined)setAdding(null)
   }
@@ -74,8 +87,8 @@ export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolea
       <p className="administration-lede">People with a verified address on these domains can find and join you. Add a domain your own verified email uses; public email providers can’t be added.</p>
       {domains.length>0&&<ul className="administration-list">{domains.map(d=><li key={d.domain}><div><strong>{d.domain}</strong><span>{d.autoJoin?'Verified accounts join directly as members':'Verified accounts request access'}</span></div><div className="administration-actions"><button className="administration-secondary" disabled={busy} onClick={()=>void run(`domain:${d.domain}:${d.version}`,(c,requestId)=>c.updateDomain(d.domain,{autoJoin:!d.autoJoin,version:d.version,requestId}),{apply:l=>({...l,domains:l.domains.map(v=>v.domain===d.domain?{...v,autoJoin:!d.autoJoin}:v)}),settle:(l,saved)=>({...l,domains:settled(l.domains,'domain',saved)})})}>{d.autoJoin?'Require requests':'Allow direct join'}</button><button className="administration-quiet administration-danger" disabled={busy} onClick={()=>setPending({title:'Remove this email domain?',subject:d.domain,description:`People with @${d.domain} addresses can no longer find or join this organization on their own. Members who already joined keep access.`,confirmLabel:'Remove domain',returnFocus:()=>document.getElementById('joining-title'),go:()=>void run(`remove-domain:${d.domain}:${d.version}`,(c,requestId)=>c.removeDomain(d.domain,{version:d.version,requestId}),{apply:l=>({...l,domains:l.domains.filter(v=>v.domain!==d.domain)})})})}>Remove {d.domain}</button></div></li>)}</ul>}
       {adding==='domain'
-        ?<form className="administration-form administration-inline-form" onSubmit={e=>{e.preventDefault();void addDomain(e.currentTarget)}}><label>Email domain<input name="domain" maxLength={253} placeholder="studio.example.edu" required autoFocus/></label><label>People with this email<Select name="mode"><option value="auto">Join directly</option><option value="request">Request access</option></Select></label><div className="administration-actions"><button disabled={busy}>Add domain</button><button type="button" className="administration-quiet" onClick={()=>setAdding(null)}>Cancel</button></div></form>
-        :<div className={domains.length?'administration-add':'administration-empty'}>{!domains.length&&<span>No domains yet.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>setAdding('domain')}>Add a domain</button></div>}
+        ?<form className="administration-form administration-inline-form" noValidate onInput={()=>setFieldError(null)} onSubmit={e=>{e.preventDefault();void addDomain(e.currentTarget)}}><label>Email domain<input name="domain" maxLength={253} placeholder="studio.example.edu" required autoFocus {...invalid('domain')}/></label><label>People with this email<Select name="mode"><option value="auto">Join directly</option><option value="request">Request access</option></Select></label><div className="administration-actions"><button disabled={busy}>Add domain</button><button type="button" className="administration-quiet" onClick={()=>open(null)}>Cancel</button></div>{fieldError&&<FieldError id={`join-${fieldError.field}-error`}>{fieldError.message}</FieldError>}</form>
+        :<div className={domains.length?'administration-add':'administration-empty'}>{!domains.length&&<span>No domains yet.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>open('domain')}>Add a domain</button></div>}
     </div>}
     <div className="administration-group"><h3>Join codes</h3>
       <p className="administration-lede">Anyone with a code and a verified email joins as a member. The main code never expires and is always shown here and on People. Extra codes can have a use limit or an expiry date, and are shown once when you create them.</p>
@@ -86,8 +99,8 @@ export default function JoinMethods({owner,busy,run,codes,domains}:{owner:boolea
         {active.map(c=><li key={c.id}><div><strong>{c.label}</strong><span>{c.uses}{c.maxUses?` of ${c.maxUses}`:''} used{c.expiresAt?`, expires ${dateLabel(c.expiresAt)}`:''}</span></div><button className="administration-quiet administration-danger" disabled={busy} onClick={()=>setPending({title:'Revoke this join code?',subject:c.label,description:`${c.uses} ${c.uses===1?'person has':'people have'} used it. It stops working now; anyone who already joined keeps access.`,confirmLabel:'Revoke join code',returnFocus:()=>document.getElementById('joining-title'),go:()=>void revokeCode(c)})}>Revoke {c.label}</button></li>)}
       </ul>}
       {adding==='code'
-        ?<form className="administration-form administration-inline-form" onSubmit={e=>{e.preventDefault();void createCode(e.currentTarget)}}><label>Code label<input name="label" maxLength={80} placeholder="Spring crew" required autoFocus/></label><label>Maximum uses<input name="uses" type="number" min={1} max={10000} placeholder="Unlimited"/></label><label>Expires after (days)<input name="days" type="number" min={1} max={365} placeholder="Never"/></label><div className="administration-actions"><button disabled={busy}>Create join code</button><button type="button" className="administration-quiet" onClick={()=>setAdding(null)}>Cancel</button></div></form>
-        :<div className={main||active.length?'administration-add':'administration-empty'}>{!main&&!active.length&&<span>No active join codes.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>{setShown(null);setReplayed(null);setAdding('code')}}>New join code</button></div>}
+        ?<form className="administration-form administration-inline-form" noValidate onInput={()=>setFieldError(null)} onSubmit={e=>{e.preventDefault();void createCode(e.currentTarget)}}><label>Code label<input name="label" maxLength={80} placeholder="Spring crew" required autoFocus {...invalid('label')}/></label><label>Maximum uses<input name="uses" type="number" inputMode="numeric" min={1} max={10000} step={1} placeholder="Unlimited" {...invalid('uses')}/></label><label>Expires after (days)<input name="days" type="number" inputMode="numeric" min={1} max={365} step={1} placeholder="Never" {...invalid('days')}/></label><div className="administration-actions"><button disabled={busy}>Create join code</button><button type="button" className="administration-quiet" onClick={()=>open(null)}>Cancel</button></div>{fieldError&&<FieldError id={`join-${fieldError.field}-error`}>{fieldError.message}</FieldError>}</form>
+        :<div className={main||active.length?'administration-add':'administration-empty'}>{!main&&!active.length&&<span>No active join codes.</span>}<button type="button" className="administration-secondary" disabled={busy} onClick={()=>{setShown(null);setReplayed(null);open('code')}}>New join code</button></div>}
     </div>
   </>
 }
