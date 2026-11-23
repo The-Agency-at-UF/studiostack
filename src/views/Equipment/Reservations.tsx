@@ -306,7 +306,7 @@ function BookingFlow({api,organizationId,inventory,clients,canAddClients,canAddE
   const full=ids.length>=MAX_ITEMS
   const item=(i:EquipmentRecord)=>{const reason=why(i);return <label className={`rsv-item${reason&&!ids.includes(i.id)?' is-off':''}`} key={i.id}><input type="checkbox" className="rsv-check" checked={ids.includes(i.id)} disabled={(Boolean(reason)||full)&&!ids.includes(i.id)} onChange={e=>{setConflict('');setIds(current=>e.target.checked?[...current,i.id]:current.filter(id=>id!==i.id))}}/><span className="rsv-item-main"><b>{i.name}</b><small>{i.equipmentCode}, {i.category}{i.checkedOut?', currently checked out':''}{reported.includes(i.id)?', has an open damage report':''}</small></span>{reason&&<span className="rsv-item-why">{reason}</span>}</label>}
   const summary=step===0?(valid?`${dateLabel(pickup)} for ${lengthLabel(length)}`:''):step===1?(ids.length?`${ids.length} of ${MAX_ITEMS} items selected`:'Pick at least one item'):''
-  return <form className="rsv-flow" onSubmit={submit} aria-label={reservation?'Edit reservation':'New reservation'}>
+  return <form className="rsv-flow" noValidate onSubmit={submit} aria-label={reservation?'Edit reservation':'New reservation'}>
     <div className="rsv-flow-bar"><button type="button" className="rsv-button rsv-quiet" onClick={onClose}><CloseIcon/><span className="rsv-flow-exit-label">{reservation?'Discard changes':'Discard reservation'}</span></button><h1>{reservation?'Edit reservation':'New reservation'}</h1><span className="rsv-flow-step" id="rsv-flow-step">Step {step+1} of {STEPS.length}</span></div>
     <div className="rsv-progress" aria-hidden="true"><i style={{width:`${(step+1)/STEPS.length*100}%`}}/></div>
     <fieldset className="rsv-flow-body" disabled={busy}>
